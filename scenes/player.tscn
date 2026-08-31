@@ -1,0 +1,173 @@
+[gd_scene load_steps=21 format=3]
+
+[ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://scripts/camera_feel.gd" id="2_cam"]
+[ext_resource type="Script" path="res://scripts/weapon.gd" id="3_weapon"]
+[ext_resource type="Resource" path="res://data/weapons/rifle.tres" id="4_rifle"]
+[ext_resource type="AudioStream" path="res://assets/sounds/rifle_fire.wav" id="5_fire"]
+[ext_resource type="AudioStream" path="res://assets/sounds/hit.wav" id="6_hit"]
+[ext_resource type="AudioStream" path="res://assets/sounds/headshot.wav" id="7_head"]
+[ext_resource type="AudioStream" path="res://assets/sounds/kill.wav" id="8_kill"]
+[ext_resource type="AudioStream" path="res://assets/sounds/empty.wav" id="9_empty"]
+[ext_resource type="AudioStream" path="res://assets/sounds/hurt.wav" id="10_hurt"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_body"]
+albedo_color = Color(0.25, 0.55, 0.95, 1)
+emission_enabled = true
+emission = Color(0.15, 0.4, 0.9, 1)
+emission_energy_multiplier = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_gun"]
+albedo_color = Color(0.14, 0.15, 0.16, 1)
+metallic = 0.35
+roughness = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Mat_accent"]
+albedo_color = Color(0.82, 0.42, 0.16, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_flash"]
+shading_mode = 0
+albedo_color = Color(1, 0.78, 0.28, 1)
+emission_enabled = true
+emission = Color(1, 0.7, 0.2, 1)
+emission_energy_multiplier = 4.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.08, 0.14, 0.24)
+
+[sub_resource type="BoxMesh" id="BoxMesh_barrel"]
+size = Vector3(0.035, 0.035, 0.4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_mag"]
+size = Vector3(0.04, 0.11, 0.07)
+
+[sub_resource type="SphereMesh" id="SphereMesh_flash"]
+radius = 0.05
+height = 0.1
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_sync"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath("Head:rotation")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+properties/3/path = NodePath(".:crouch")
+properties/3/spawn = true
+properties/3/replication_mode = 1
+properties/4/path = NodePath(".:display_name")
+properties/4/spawn = true
+properties/4/replication_mode = 1
+properties/5/path = NodePath(".:peer_id")
+properties/5/spawn = true
+properties/5/replication_mode = 1
+
+[node name="Player" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 5
+floor_snap_length = 0.2
+groups = ["player"]
+script = ExtResource("1_player")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("CapsuleMesh_body")
+surface_material_override/0 = SubResource("Mat_body")
+cast_shadow = 0
+
+[node name="Head" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Head"]
+fov = 90.0
+current = false
+script = ExtResource("2_cam")
+
+[node name="WeaponRoot" type="Node3D" parent="Head/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, -0.18, -0.42)
+script = ExtResource("3_weapon")
+def = ExtResource("4_rifle")
+
+[node name="GunBody" type="MeshInstance3D" parent="Head/Camera3D/WeaponRoot"]
+mesh = SubResource("BoxMesh_body")
+surface_material_override/0 = SubResource("Mat_gun")
+cast_shadow = 0
+
+[node name="Barrel" type="MeshInstance3D" parent="Head/Camera3D/WeaponRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.28)
+mesh = SubResource("BoxMesh_barrel")
+surface_material_override/0 = SubResource("Mat_gun")
+cast_shadow = 0
+
+[node name="Mag" type="MeshInstance3D" parent="Head/Camera3D/WeaponRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0.02)
+mesh = SubResource("BoxMesh_mag")
+surface_material_override/0 = SubResource("Mat_accent")
+cast_shadow = 0
+
+[node name="Muzzle" type="Marker3D" parent="Head/Camera3D/WeaponRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.49)
+
+[node name="Flash" type="MeshInstance3D" parent="Head/Camera3D/WeaponRoot/Muzzle"]
+visible = false
+mesh = SubResource("SphereMesh_flash")
+surface_material_override/0 = SubResource("Mat_flash")
+cast_shadow = 0
+
+[node name="FlashLight" type="OmniLight3D" parent="Head/Camera3D/WeaponRoot/Muzzle"]
+visible = false
+light_color = Color(1, 0.72, 0.35, 1)
+light_energy = 4.0
+omni_range = 4.0
+shadow_enabled = false
+
+[node name="FireSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
+stream = ExtResource("5_fire")
+volume_db = -4.0
+
+[node name="HitSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
+stream = ExtResource("6_hit")
+volume_db = -6.0
+
+[node name="HeadSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
+stream = ExtResource("7_head")
+volume_db = -5.0
+
+[node name="KillSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
+stream = ExtResource("8_kill")
+volume_db = -3.0
+
+[node name="EmptySfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
+stream = ExtResource("9_empty")
+volume_db = -8.0
+
+[node name="HurtSfx" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("10_hurt")
+volume_db = -1.0
+
+[node name="Nametag" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.05, 0)
+visible = false
+billboard = 1
+font_size = 48
+outline_size = 8
+text = "Player"
+no_depth_test = true
+
+[node name="Sync" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_sync")

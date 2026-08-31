@@ -1,0 +1,139 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/dummy_target.tscn" id="3_dummy"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="4_hud"]
+
+[sub_resource type="Environment" id="Environment_arena"]
+background_mode = 1
+background_color = Color(0.13, 0.15, 0.18, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.52, 0.56, 0.62, 1)
+ambient_light_energy = 0.58
+tonemap_mode = 2
+ssao_enabled = false
+glow_enabled = false
+
+[sub_resource type="StandardMaterial3D" id="Mat_floor"]
+albedo_color = Color(0.22, 0.24, 0.27, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_wall"]
+albedo_color = Color(0.34, 0.37, 0.42, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_wall_warm"]
+albedo_color = Color(0.55, 0.36, 0.22, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_wall_cool"]
+albedo_color = Color(0.22, 0.42, 0.48, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_cover"]
+albedo_color = Color(0.48, 0.4, 0.32, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_ramp"]
+albedo_color = Color(0.4, 0.42, 0.38, 1)
+roughness = 0.85
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="MenuCamera" type="Camera3D" parent="."]
+transform = Transform3D(0.707107, -0.353553, 0.612372, 0, 0.866025, 0.5, -0.707107, -0.353553, 0.612372, 16, 11, 16)
+current = true
+fov = 70.0
+groups = ["menu_camera"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_arena")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.793353, -0.474428, 0.381166, 0, 0.626207, 0.779655, -0.608761, -0.618547, 0.496803, 8, 14, 6)
+light_energy = 1.15
+light_color = Color(1, 0.96, 0.9, 1)
+shadow_enabled = true
+
+[node name="Arena" type="CSGCombiner3D" parent="."]
+use_collision = true
+collision_layer = 1
+collision_mask = 0
+
+[node name="Floor" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+size = Vector3(32, 1, 32)
+material = SubResource("Mat_floor")
+
+[node name="WallNorth" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -16)
+size = Vector3(32, 5, 0.5)
+material = SubResource("Mat_wall_warm")
+
+[node name="WallSouth" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 16)
+size = Vector3(32, 5, 0.5)
+material = SubResource("Mat_wall_cool")
+
+[node name="WallWest" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 2, 0)
+size = Vector3(0.5, 5, 32)
+material = SubResource("Mat_wall")
+
+[node name="WallEast" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 2, 0)
+size = Vector3(0.5, 5, 32)
+material = SubResource("Mat_wall")
+
+[node name="CoverA" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 0.6, -2)
+size = Vector3(2.4, 1.2, 1.1)
+material = SubResource("Mat_cover")
+
+[node name="CoverB" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 0.7, -5)
+size = Vector3(1.6, 1.4, 2.2)
+material = SubResource("Mat_cover")
+
+[node name="CoverC" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 3.5)
+size = Vector3(3.2, 1.1, 0.9)
+material = SubResource("Mat_cover")
+
+[node name="Platform" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 1.2, -8)
+size = Vector3(6, 0.4, 6)
+material = SubResource("Mat_ramp")
+
+[node name="Ramp" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.939693, -0.34202, 0, 0.34202, 0.939693, -8, 0.55, -4.2)
+size = Vector3(2.4, 0.3, 4.2)
+material = SubResource("Mat_ramp")
+
+[node name="Players" type="Node3D" parent="."]
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
+spawn_path = NodePath("../Players")
+
+[node name="Dummy1" parent="." instance=ExtResource("3_dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+
+[node name="Dummy2" parent="." instance=ExtResource("3_dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -9)
+
+[node name="Dummy3" parent="." instance=ExtResource("3_dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -4)
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Hud" parent="CanvasLayer" instance=ExtResource("4_hud")]
+
+[node name="Menu" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2

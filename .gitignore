@@ -1,0 +1,16 @@
+.godot/
+*.translation
+*.tmp
+*~
+export.cfg
+.import/
+*.apk
+*.aab
+*.ipa
+*.pck
+*.zip
+*.exe
+*.x86_64
+!tools/**
+.DS_Store
+Thumbs.db

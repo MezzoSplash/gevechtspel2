@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/weapon_def.gd" id="1_weapon"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"rifle"
+display_name = "Rifle"
+fire_rate = 10.0
+damage = 24.0
+headshot_multiplier = 1.6
+spread_deg = 0.35
+kick_pitch_deg = 0.62
+kick_yaw_deg = 0.22
+kick_fov = 1.35
+range_m = 180.0
+mag_size = 30
+reload_time = 1.55
+tracer_width = 0.022
