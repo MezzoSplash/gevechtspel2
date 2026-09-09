@@ -1,6 +1,7 @@
 extends Node3D
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const DUMMY_SCENE := preload("res://scenes/dummy_target.tscn")
 const SPAWNS := [
 	Vector3(0.0, 0.0, 11.0),
 	Vector3(7.0, 0.0, 11.0),
@@ -8,9 +9,16 @@ const SPAWNS := [
 	Vector3(11.0, 0.0, 6.0),
 	Vector3(-11.0, 0.0, 6.0),
 ]
+const DUMMY_SPAWNS := [
+	Vector3(0.0, 0.0, -6.0),
+	Vector3(5.0, 0.0, -9.0),
+	Vector3(-6.0, 0.0, -4.0),
+]
 
 @onready var players_root: Node3D = $Players
 @onready var spawner: MultiplayerSpawner = $MultiplayerSpawner
+@onready var dummies_root: Node3D = $Dummies
+@onready var dummy_spawner: MultiplayerSpawner = $DummySpawner
 @onready var hud: Hud = $CanvasLayer/Hud
 @onready var menu: Control = $CanvasLayer/Menu
 
@@ -30,12 +38,15 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	spawner.spawn_path = NodePath("../Players")
 	spawner.spawn_function = _spawn_player_node
+	dummy_spawner.spawn_path = NodePath("../Dummies")
+	dummy_spawner.add_spawnable_scene("res://scenes/dummy_target.tscn")
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	Game.local_player_ready.connect(_on_local_player_ready)
+	call_deferred("_bake_nav")
 	_build_menu()
 	var args := _parse_args()
 	if args.get("name", "") != "":
@@ -50,6 +61,25 @@ func _ready() -> void:
 		_connect_to_server()
 		return
 	menu.visible = true
+
+
+func _bake_nav() -> void:
+	var region := get_node_or_null("NavigationRegion3D") as NavigationRegion3D
+	var arena := get_node_or_null("Arena") as Node3D
+	if region == null or arena == null:
+		return
+	var nav_mesh := NavigationMesh.new()
+	nav_mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	nav_mesh.agent_radius = 0.5
+	nav_mesh.agent_height = 1.75
+	nav_mesh.agent_max_climb = 0.5
+	nav_mesh.agent_max_slope = 46.0
+	nav_mesh.cell_size = 0.25
+	nav_mesh.cell_height = 0.25
+	var source := NavigationMeshSourceGeometryData3D.new()
+	NavigationServer3D.parse_source_geometry_data(nav_mesh, source, arena)
+	NavigationServer3D.bake_from_source_geometry_data(nav_mesh, source)
+	region.navigation_mesh = nav_mesh
 
 
 func _parse_args() -> Dictionary:
@@ -171,6 +201,7 @@ func _play_locally() -> void:
 		Game.player_name = "Player"
 	_enter_play()
 	_spawn_player(multiplayer.get_unique_id())
+	_spawn_dummies()
 
 
 func _host_game() -> void:
@@ -194,10 +225,12 @@ func _start_server(port: int, dedicated: bool) -> void:
 		hud.visible = false
 		DisplayServer.window_set_title("Gevechtspel server :%d" % port)
 		print("Dedicated server on port ", port)
+		_spawn_dummies()
 		return
 	_enter_play()
 	_set_status("Hosting on port %d" % port)
 	_spawn_player(1)
+	_spawn_dummies()
 
 
 func _connect_to_server() -> void:
@@ -225,7 +258,7 @@ func _on_connected_to_server() -> void:
 
 
 func _on_connection_failed() -> void:
-	_set_status("Connection failed.")
+	_set_status("Connection failed. Is the host running, and is the port free?")
 	menu.visible = true
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	hud.visible = false
@@ -279,6 +312,9 @@ func _spawn_player(peer_id: int) -> void:
 
 func _spawn_player_node(data: Variant) -> Node:
 	var d: Dictionary = data
+	if typeof(d) != TYPE_DICTIONARY or not d.has("id"):
+		push_error("Bad player spawn payload: %s" % str(data))
+		return Node.new()
 	var p: Player = PLAYER_SCENE.instantiate()
 	var id := int(d["id"])
 	p.peer_id = id
@@ -288,6 +324,20 @@ func _spawn_player_node(data: Variant) -> Node:
 	p.set_multiplayer_authority(id, true)
 	Game.set_hp(p, Player.MAX_HP)
 	return p
+
+
+func _spawn_dummies() -> void:
+	if dummies_root.get_child_count() > 0:
+		return
+	if Game.is_networked() and not multiplayer.is_server():
+		return
+	for i in DUMMY_SPAWNS.size():
+		var dummy: DummyTarget = DUMMY_SCENE.instantiate()
+		dummy.name = "Dummy%d" % (i + 1)
+		dummy.position = DUMMY_SPAWNS[i]
+		if Game.is_networked():
+			dummy.set_multiplayer_authority(1, true)
+		dummies_root.add_child(dummy, true)
 
 
 func _on_local_player_ready(player: Player) -> void:

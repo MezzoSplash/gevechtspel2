@@ -73,6 +73,12 @@ func _process(delta: float) -> void:
 	elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive():
 		if Input.is_action_just_pressed("switch_weapon"):
 			_cycle_weapon()
+		elif Input.is_action_just_pressed("weapon_1"):
+			_equip(0)
+		elif Input.is_action_just_pressed("weapon_2"):
+			_equip(1)
+		elif Input.is_action_just_pressed("weapon_3"):
+			_equip(2)
 		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size:
 			_start_reload()
 		elif _wants_fire():

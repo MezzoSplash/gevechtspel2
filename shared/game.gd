@@ -161,6 +161,9 @@ func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, hs_mult: f
 		if victim == shooter or victim.is_dead:
 			return {}
 		return victim.apply_hit(hit.position, hit.normal, damage)
+	if collider is DummyTarget:
+		var dummy_body := collider as DummyTarget
+		return dummy_body.apply_hit(collider, hit.position, hit.normal, damage, hs_mult)
 	if collider.is_in_group("hurtbox"):
 		var dummy := collider.get_parent() as DummyTarget
 		if dummy == null:
@@ -229,6 +232,9 @@ func _bind_inputs() -> void:
 	_key("jump", KEY_SPACE)
 	_key("reload", KEY_R)
 	_key("switch_weapon", KEY_Q)
+	_key("weapon_1", KEY_1)
+	_key("weapon_2", KEY_2)
+	_key("weapon_3", KEY_3)
 	_mouse("fire", MOUSE_BUTTON_LEFT)
 	_key("toggle_mouse", KEY_ESCAPE)
 	_key("sprint", KEY_SHIFT)

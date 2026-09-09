@@ -26,7 +26,7 @@ Feel-first 5v5 arena FPS. Art is later. If a change does not make shooting or mo
 
 Do not add game modes, shops, extra maps, cosmetics, Steam, or matchmaking until 5v5 TDM with bot-fill is fun.
 
-Current slice: **two humans**. Offline Play locally still works. Host / Connect uses ENet. Hits and dummy AI are server-side. Client predicts its own movement (authority on owner). Dummies stay stationary until a later slice.
+Current slice: **moving dummies**. Loadout is rifle / pistol / shotgun (Q or 1/2/3). Dummies hunt and strafe on a navmesh, server-side, with transform sync to clients.
 
 ## Commands
 

@@ -1,8 +1,7 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
-[ext_resource type="PackedScene" path="res://scenes/dummy_target.tscn" id="3_dummy"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="4_hud"]
 
 [sub_resource type="Environment" id="Environment_arena"]
@@ -56,6 +55,8 @@ transform = Transform3D(0.793353, -0.474428, 0.381166, 0, 0.626207, 0.779655, -0
 light_energy = 1.15
 light_color = Color(1, 0.96, 0.9, 1)
 shadow_enabled = true
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
 
 [node name="Arena" type="CSGCombiner3D" parent="."]
 use_collision = true
@@ -117,14 +118,10 @@ material = SubResource("Mat_ramp")
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
 spawn_path = NodePath("../Players")
 
-[node name="Dummy1" parent="." instance=ExtResource("3_dummy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+[node name="Dummies" type="Node3D" parent="."]
 
-[node name="Dummy2" parent="." instance=ExtResource("3_dummy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -9)
-
-[node name="Dummy3" parent="." instance=ExtResource("3_dummy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6, 0, -4)
+[node name="DummySpawner" type="MultiplayerSpawner" parent="."]
+spawn_path = NodePath("../Dummies")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
