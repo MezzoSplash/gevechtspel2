@@ -7,6 +7,11 @@ signal local_player_ready(player: Player)
 
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4
+const WEAPON_DEFS := {
+	&"rifle": preload("res://data/weapons/rifle.tres"),
+	&"pistol": preload("res://data/weapons/pistol.tres"),
+	&"shotgun": preload("res://data/weapons/shotgun.tres"),
+}
 
 var is_offline := true
 var is_dedicated := false
@@ -59,8 +64,12 @@ func clear_peer_hp(peer_id: int) -> void:
 	pending_names.erase(peer_id)
 
 
+func weapon_def(weapon_id: StringName) -> WeaponDef:
+	return WEAPON_DEFS.get(weapon_id) as WeaponDef
+
+
 @rpc("any_peer", "reliable")
-func request_shot(origin: Vector3, dir: Vector3, range_m: float, damage: float, hs_mult: float) -> void:
+func request_weapon_fire(origin: Vector3, look_dir: Vector3, weapon_id: StringName) -> void:
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
@@ -69,23 +78,78 @@ func request_shot(origin: Vector3, dir: Vector3, range_m: float, damage: float, 
 	var shooter := player_for_peer(peer)
 	if shooter == null or shooter.is_dead:
 		return
-	dir = dir.normalized()
-	var to := origin + dir * range_m
+	var def := weapon_def(weapon_id)
+	if def == null:
+		return
+	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, 1.0)
+	if best.get("hit", false):
+		notify_hit.rpc_id(peer, best.killed, best.headshot)
+
+
+func fire_weapon_locally(
+	shooter: Player,
+	origin: Vector3,
+	look_dir: Vector3,
+	def: WeaponDef,
+	spread_mult: float = 1.0
+) -> Dictionary:
+	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult)
+
+
+func _resolve_weapon_fire(
+	shooter: Player,
+	origin: Vector3,
+	look_dir: Vector3,
+	def: WeaponDef,
+	spread_mult: float
+) -> Dictionary:
+	look_dir = look_dir.normalized()
+	var spread := def.spread_deg * spread_mult
+	var best := {"killed": false, "headshot": false, "hit": false}
 	var space := shooter.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(origin, to)
-	query.collision_mask = SHOT_MASK
-	query.exclude = [shooter.get_rid()]
-	var hit := space.intersect_ray(query)
-	if hit.is_empty():
-		return
-	var result := _apply_shot_hit(shooter, hit, damage, hs_mult)
-	if result.is_empty():
-		return
-	notify_hit.rpc_id(peer, result.killed, result.headshot)
+	for _i in def.pellet_count:
+		var dir := _spread_dir(look_dir, spread)
+		var to := origin + dir * def.range_m
+		var query := PhysicsRayQueryParameters3D.create(origin, to)
+		query.collision_mask = SHOT_MASK
+		query.exclude = [shooter.get_rid()]
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			continue
+		var dist := origin.distance_to(hit.position)
+		var dmg := def.damage_at_distance(dist)
+		var result := _apply_shot_hit(shooter, hit, dmg, def.headshot_multiplier)
+		if result.is_empty():
+			continue
+		best = _merge_hit_result(best, result)
+	return best
 
 
-func apply_shot_locally(shooter: Player, hit: Dictionary, damage: float, hs_mult: float) -> Dictionary:
-	return _apply_shot_hit(shooter, hit, damage, hs_mult)
+func _merge_hit_result(best: Dictionary, result: Dictionary) -> Dictionary:
+	if result.get("killed", false):
+		return {"killed": true, "headshot": result.headshot, "hit": true}
+	if best.killed:
+		return best
+	if result.get("headshot", false):
+		return {"killed": false, "headshot": true, "hit": true}
+	if best.headshot:
+		return best
+	return {"killed": false, "headshot": false, "hit": true}
+
+
+func _spread_dir(forward: Vector3, deg: float) -> Vector3:
+	if deg <= 0.0:
+		return forward.normalized()
+	var rad := deg_to_rad(deg)
+	var theta := randf() * TAU
+	var phi := rad * sqrt(randf())
+	var up := Vector3.UP
+	var right := forward.cross(up)
+	if right.length_squared() < 0.001:
+		right = forward.cross(Vector3.RIGHT)
+	right = right.normalized()
+	up = right.cross(forward).normalized()
+	return (forward.normalized() * cos(phi) + (right * cos(theta) + up * sin(theta)) * sin(phi)).normalized()
 
 
 func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, hs_mult: float) -> Dictionary:
@@ -164,6 +228,7 @@ func _bind_inputs() -> void:
 	_key("move_right", KEY_D)
 	_key("jump", KEY_SPACE)
 	_key("reload", KEY_R)
+	_key("switch_weapon", KEY_Q)
 	_mouse("fire", MOUSE_BUTTON_LEFT)
 	_key("toggle_mouse", KEY_ESCAPE)
 	_key("sprint", KEY_SHIFT)

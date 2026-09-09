@@ -50,6 +50,38 @@ def rifle_fire(rng: random.Random) -> list[float]:
     return [s / peak * 0.9 for s in out]
 
 
+def pistol_fire(rng: random.Random) -> list[float]:
+    n = int(0.08 * SR)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SR
+        noise = rng.uniform(-1.0, 1.0)
+        hp = noise if i == 0 else noise - rng.uniform(-0.15, 0.15)
+        shot = hp * env(t, 0.0006, 0.016) * 0.38
+        click = math.sin(2 * math.pi * 2800 * t) * env(t, 0.0003, 0.005) * 0.5
+        snap = math.sin(2 * math.pi * 520 * t) * env(t, 0.0005, 0.012) * 0.35
+        body = math.sin(2 * math.pi * 210 * t) * env(t, 0.0008, 0.022) * 0.25
+        out[i] = shot + click + snap + body
+    peak = max(abs(s) for s in out) or 1.0
+    return [s / peak * 0.88 for s in out]
+
+
+def shotgun_fire(rng: random.Random) -> list[float]:
+    n = int(0.18 * SR)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / SR
+        noise = rng.uniform(-1.0, 1.0)
+        hp = noise if i == 0 else noise - rng.uniform(-0.25, 0.25)
+        blast = hp * env(t, 0.002, 0.045) * 0.55
+        boom = math.sin(2 * math.pi * 68 * t) * env(t, 0.002, 0.07) * 0.95
+        crack = math.sin(2 * math.pi * 1400 * t) * env(t, 0.001, 0.014) * 0.4
+        rattle = math.sin(2 * math.pi * 240 * t) * env(t, 0.003, 0.025) * 0.3
+        out[i] = blast + boom + crack + rattle
+    peak = max(abs(s) for s in out) or 1.0
+    return [s / peak * 0.92 for s in out]
+
+
 def tick(freq: float, decay: float, amp: float) -> list[float]:
     n = int((decay * 6 + 0.02) * SR)
     out = []
@@ -104,6 +136,8 @@ def empty_click() -> list[float]:
 def main() -> None:
     os.makedirs(OUT, exist_ok=True)
     write_wav(os.path.join(OUT, "rifle_fire.wav"), rifle_fire(random.Random(7)))
+    write_wav(os.path.join(OUT, "pistol_fire.wav"), pistol_fire(random.Random(13)))
+    write_wav(os.path.join(OUT, "shotgun_fire.wav"), shotgun_fire(random.Random(19)))
     write_wav(os.path.join(OUT, "hit.wav"), tick(1900, 0.018, 0.55))
     write_wav(os.path.join(OUT, "headshot.wav"), tick(2650, 0.022, 0.65))
     write_wav(os.path.join(OUT, "kill.wav"), kill_sound())

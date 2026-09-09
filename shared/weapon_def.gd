@@ -14,3 +14,16 @@ extends Resource
 @export var mag_size: int = 30
 @export var reload_time: float = 1.55
 @export var tracer_width: float = 0.022
+@export var fire_sound: AudioStream
+@export var pellet_count: int = 1
+@export var automatic: bool = true
+@export var falloff_start_m: float = 0.0
+@export var falloff_end_m: float = 0.0
+@export var falloff_min_mult: float = 1.0
+
+
+func damage_at_distance(dist: float) -> float:
+	if falloff_end_m <= falloff_start_m:
+		return damage
+	var t := clampf((dist - falloff_start_m) / (falloff_end_m - falloff_start_m), 0.0, 1.0)
+	return damage * lerpf(1.0, falloff_min_mult, t)

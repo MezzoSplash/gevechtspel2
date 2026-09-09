@@ -14,7 +14,7 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 
 - **WASD** move, **Space** jump, **mouse** look
 - **Shift** sprint (less accurate), **Ctrl** or **C** crouch (hides behind cover)
-- **LMB** fire, **R** reload
+- **LMB** fire, **R** reload, **Q** switch weapon (rifle, pistol, shotgun)
 - **Esc** frees the mouse, click the window to recapture
 
 Boot menu: **Play locally** (dummies), **Host game**, or **Connect**.

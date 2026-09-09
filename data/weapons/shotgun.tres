@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/weapon_def.gd" id="1_weapon"]
+[ext_resource type="AudioStream" path="res://assets/sounds/shotgun_fire.wav" id="2_fire"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"shotgun"
+display_name = "Shotgun"
+fire_rate = 1.25
+damage = 13.0
+headshot_multiplier = 1.6
+spread_deg = 5.5
+kick_pitch_deg = 1.4
+kick_yaw_deg = 0.35
+kick_fov = 2.0
+range_m = 32.0
+mag_size = 6
+reload_time = 2.1
+tracer_width = 0.012
+fire_sound = ExtResource("2_fire")
+pellet_count = 8
+automatic = false
+falloff_start_m = 0.0
+falloff_end_m = 28.0
+falloff_min_mult = 0.15

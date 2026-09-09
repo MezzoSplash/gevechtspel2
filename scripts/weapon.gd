@@ -2,10 +2,18 @@ class_name Weapon
 extends Node3D
 
 const HURT_MASK := 1 | 2 | 4
+const LOADOUT: Array[WeaponDef] = [
+	preload("res://data/weapons/rifle.tres"),
+	preload("res://data/weapons/pistol.tres"),
+	preload("res://data/weapons/shotgun.tres"),
+]
 
 @export var def: WeaponDef
 
 @onready var camera: CameraFeel = get_parent() as CameraFeel
+@onready var gun_body: MeshInstance3D = $GunBody
+@onready var barrel: MeshInstance3D = $Barrel
+@onready var mag: MeshInstance3D = $Mag
 @onready var muzzle: Marker3D = $Muzzle
 @onready var muzzle_flash: MeshInstance3D = $Muzzle/Flash
 @onready var muzzle_light: OmniLight3D = $Muzzle/FlashLight
@@ -24,17 +32,19 @@ var _kick_offset := Vector3.ZERO
 var _bob_t := 0.0
 var _rest_pos: Vector3
 var _hud: Hud
+var _weapon_state: Dictionary = {}
+var _active_index := 0
 
 
 func _ready() -> void:
 	if def == null:
-		def = load("res://data/weapons/rifle.tres") as WeaponDef
-	ammo = def.mag_size
+		def = LOADOUT[0]
 	_rest_pos = position
 	muzzle_flash.visible = false
 	muzzle_light.visible = false
+	_active_index = _index_for_def(def)
+	_equip(_active_index, false)
 	call_deferred("_hook_hit_fx")
-	_refresh_hud()
 
 
 func _hook_hit_fx() -> void:
@@ -57,12 +67,15 @@ func _process(delta: float) -> void:
 		rotation.x = sin(t * PI) * 0.55
 		if _reload_left <= 0.0:
 			ammo = def.mag_size
+			_save_weapon_state()
 			rotation.x = 0.0
 			_refresh_hud()
 	elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive():
-		if Input.is_action_just_pressed("reload") and ammo < def.mag_size:
+		if Input.is_action_just_pressed("switch_weapon"):
+			_cycle_weapon()
+		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size:
 			_start_reload()
-		elif Input.is_action_pressed("fire"):
+		elif _wants_fire():
 			_try_fire()
 
 	_kick_offset = _kick_offset.lerp(Vector3.ZERO, 1.0 - exp(-14.0 * delta))
@@ -72,6 +85,91 @@ func _process(delta: float) -> void:
 		bob.x = sin(_bob_t) * 0.012 * speed_factor
 		bob.y = absf(sin(_bob_t * 2.0)) * 0.01 * speed_factor
 	position = _rest_pos + _kick_offset + bob
+
+
+func _wants_fire() -> bool:
+	if def.automatic:
+		return Input.is_action_pressed("fire")
+	return Input.is_action_just_pressed("fire")
+
+
+func _cycle_weapon() -> void:
+	if not _owner_alive():
+		return
+	_equip((_active_index + 1) % LOADOUT.size())
+
+
+func _equip(index: int, save_current: bool = true) -> void:
+	if save_current and def != null:
+		_save_weapon_state()
+	_active_index = index
+	def = LOADOUT[index]
+	var state := _load_weapon_state(def.id)
+	ammo = int(state.ammo)
+	_reload_left = float(state.reload_left)
+	rotation.x = 0.0
+	if def.fire_sound:
+		fire_sfx.stream = def.fire_sound
+	_apply_view_for_def()
+	_refresh_hud()
+
+
+func _save_weapon_state() -> void:
+	if def == null:
+		return
+	_weapon_state[def.id] = {"ammo": ammo, "reload_left": _reload_left}
+
+
+func _load_weapon_state(id: StringName) -> Dictionary:
+	if not _weapon_state.has(id):
+		var weapon_def := _def_for_id(id)
+		_weapon_state[id] = {
+			"ammo": weapon_def.mag_size if weapon_def else 0,
+			"reload_left": 0.0,
+		}
+	return _weapon_state[id]
+
+
+func _def_for_id(id: StringName) -> WeaponDef:
+	for weapon_def in LOADOUT:
+		if weapon_def.id == id:
+			return weapon_def
+	return null
+
+
+func _index_for_def(weapon_def: WeaponDef) -> int:
+	for i in LOADOUT.size():
+		if LOADOUT[i].id == weapon_def.id:
+			return i
+	return 0
+
+
+func _apply_view_for_def() -> void:
+	mag.visible = true
+	match def.id:
+		&"pistol":
+			position = Vector3(0.22, -0.16, -0.34)
+			gun_body.scale = Vector3(0.72, 0.72, 0.72)
+			barrel.scale = Vector3(0.85, 0.85, 0.55)
+			barrel.position = Vector3(0.0, 0.02, -0.18)
+			mag.scale = Vector3(0.7, 0.65, 0.7)
+			mag.position = Vector3(0.0, -0.08, 0.01)
+			muzzle.position = Vector3(0.0, 0.02, -0.28)
+		&"shotgun":
+			position = Vector3(0.26, -0.17, -0.38)
+			gun_body.scale = Vector3(1.1, 0.95, 1.05)
+			barrel.scale = Vector3(1.35, 1.2, 0.42)
+			barrel.position = Vector3(0.0, 0.03, -0.22)
+			mag.visible = false
+			muzzle.position = Vector3(0.0, 0.03, -0.36)
+		_:
+			position = _rest_pos
+			gun_body.scale = Vector3.ONE
+			barrel.scale = Vector3.ONE
+			barrel.position = Vector3(0.0, 0.02, -0.28)
+			mag.scale = Vector3.ONE
+			mag.position = Vector3(0.0, -0.1, 0.02)
+			muzzle.position = Vector3(0.0, 0.02, -0.49)
 
 
 func _try_fire() -> void:
@@ -87,13 +185,15 @@ func _try_fire() -> void:
 
 func _fire() -> void:
 	ammo -= 1
+	_save_weapon_state()
 	_cooldown = 1.0 / def.fire_rate
-	_kick_offset += Vector3(0.0, 0.0, 0.055)
+	var kick_z := 0.055 if def.id != &"shotgun" else 0.09
+	_kick_offset += Vector3(0.0, 0.0, kick_z)
 	_kick_offset.y += randf_range(-0.008, 0.004)
-	_flash_left = 0.045
+	_flash_left = 0.06 if def.id == &"shotgun" else 0.045
 	muzzle_flash.visible = true
 	muzzle_light.visible = true
-	muzzle_light.light_energy = 4.5
+	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" else 4.5
 	if fire_sfx.stream:
 		fire_sfx.pitch_scale = randf_range(0.96, 1.05)
 		fire_sfx.play()
@@ -106,39 +206,40 @@ func _fire() -> void:
 	_refresh_hud()
 
 	var origin := camera.global_position
-	var dir := _spread(-camera.global_transform.basis.z, _current_spread())
-	var to := origin + dir * def.range_m
-	var space := camera.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(origin, to)
-	query.collision_mask = HURT_MASK
-	var player_body := owner as CollisionObject3D
-	if player_body:
-		query.exclude = [player_body.get_rid()]
-	var hit := space.intersect_ray(query)
-	var end: Vector3 = to
-	if hit:
-		end = hit.position
-		_spawn_spark(hit.position, hit.normal)
-	_spawn_tracer(muzzle.global_position, end)
+	var look_dir := -camera.global_transform.basis.z
+	_simulate_pellets_fx(origin, look_dir)
 
 	var shooter := owner as Player
+	var spread_mult := _spread_multiplier()
 	if Game.is_networked() and not multiplayer.is_server():
-		Game.request_shot.rpc_id(1, origin, dir, def.range_m, def.damage, def.headshot_multiplier)
-	elif hit:
-		_apply_hit(hit, shooter)
+		Game.request_weapon_fire.rpc_id(1, origin, look_dir, def.id)
+	elif shooter:
+		var best := Game.fire_weapon_locally(shooter, origin, look_dir, def, spread_mult)
+		if best.get("hit", false):
+			Game.hit_confirmed.emit(best.killed, best.headshot)
+			_play_hit_fx(best.killed, best.headshot)
 
 	if ammo <= 0:
 		_start_reload()
 
 
-func _apply_hit(hit: Dictionary, shooter: Player) -> void:
-	if shooter == null:
-		return
-	var result := Game.apply_shot_locally(shooter, hit, def.damage, def.headshot_multiplier)
-	if result.is_empty():
-		return
-	Game.hit_confirmed.emit(result.killed, result.headshot)
-	_play_hit_fx(result.killed, result.headshot)
+func _simulate_pellets_fx(origin: Vector3, look_dir: Vector3) -> void:
+	var spread := def.spread_deg * _spread_multiplier()
+	var space := camera.get_world_3d().direct_space_state
+	var player_body := owner as CollisionObject3D
+	for _i in def.pellet_count:
+		var dir := _spread(look_dir, spread)
+		var to := origin + dir * def.range_m
+		var query := PhysicsRayQueryParameters3D.create(origin, to)
+		query.collision_mask = HURT_MASK
+		if player_body:
+			query.exclude = [player_body.get_rid()]
+		var hit := space.intersect_ray(query)
+		var end: Vector3 = to
+		if hit:
+			end = hit.position
+			_spawn_spark(hit.position, hit.normal)
+		_spawn_tracer(muzzle.global_position, end)
 
 
 func _on_confirmed_hit(killed: bool, headshot: bool) -> void:
@@ -159,6 +260,13 @@ func _play_hit_fx(killed: bool, headshot: bool) -> void:
 		hit_sfx.play()
 
 
+func _spread_multiplier() -> float:
+	var p := owner as Player
+	if p == null or def.spread_deg <= 0.0:
+		return 1.0
+	return _current_spread() / def.spread_deg
+
+
 func _current_spread() -> float:
 	var spread := def.spread_deg
 	var p := owner as Player
@@ -171,10 +279,17 @@ func _crosshair_punch() -> float:
 	var p := owner as Player
 	if p and p.is_sprinting:
 		return 1.6
+	if def.id == &"shotgun":
+		return 2.2
 	return 1.0
 
 
 func refill() -> void:
+	for weapon_def in LOADOUT:
+		_weapon_state[weapon_def.id] = {
+			"ammo": weapon_def.mag_size,
+			"reload_left": 0.0,
+		}
 	ammo = def.mag_size
 	_reload_left = 0.0
 	rotation.x = 0.0
@@ -195,6 +310,7 @@ func _start_reload() -> void:
 	if _reload_left > 0.0 or ammo == def.mag_size:
 		return
 	_reload_left = def.reload_time
+	_save_weapon_state()
 	_refresh_hud()
 
 
@@ -238,9 +354,13 @@ func _spawn_tracer(from: Vector3, to: Vector3) -> void:
 	box.size = Vector3(def.tracer_width, def.tracer_width, length)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.82, 0.28)
+	if def.id == &"shotgun":
+		mat.albedo_color = Color(1.0, 0.65, 0.2)
+		mat.emission = Color(1.0, 0.5, 0.1)
+	else:
+		mat.albedo_color = Color(1.0, 0.82, 0.28)
+		mat.emission = Color(1.0, 0.7, 0.15)
 	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.7, 0.15)
 	mat.emission_energy_multiplier = 3.0
 	mesh_inst.mesh = box
 	mesh_inst.material_override = mat
