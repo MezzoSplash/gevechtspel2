@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2 (wip)** — 5v5 TDM with bot-fill: rifle / pistol / shotgun, Blue vs Orange, Tab scoreboard, host/join.
+**v0.2.0** — 5v5 TDM with bot-fill, larger 3-lane arena, gun dropoff, LAN host/join.
 
 ## Play (Linux)
 

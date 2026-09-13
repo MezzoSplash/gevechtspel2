@@ -26,7 +26,7 @@ Feel-first 5v5 arena FPS. Art is later. If a change does not make shooting or mo
 
 Do not add game modes, shops, extra maps, cosmetics, Steam, or matchmaking until 5v5 TDM with bot-fill is fun.
 
-Current slice: **5v5 TDM with bot-fill**. Loadout is rifle / pistol / shotgun (Q or 1/2/3). Bots are server player-pawns on the same navmesh and guns. Two teams (Blue / Orange), first team to 25 or time.
+Current slice: **arena feel + menu**. Same 5v5 TDM map, expanded lanes/cover. Loadout rifle / pistol / shotgun.
 
 ## Commands
 

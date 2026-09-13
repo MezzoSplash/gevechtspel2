@@ -2,18 +2,18 @@ extends Node3D
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const TEAM_A_SPAWNS := [
-	Vector3(0.0, 0.0, 18.0),
-	Vector3(6.0, 0.0, 18.0),
-	Vector3(-6.0, 0.0, 18.0),
-	Vector3(11.0, 0.0, 14.0),
-	Vector3(-11.0, 0.0, 14.0),
+	Vector3(0.0, 0.0, 26.5),
+	Vector3(3.0, 0.0, 26.5),
+	Vector3(-3.0, 0.0, 26.5),
+	Vector3(10.0, 0.0, 24.5),
+	Vector3(-10.0, 0.0, 24.5),
 ]
 const TEAM_B_SPAWNS := [
-	Vector3(0.0, 0.0, -18.0),
-	Vector3(6.0, 0.0, -18.0),
-	Vector3(-6.0, 0.0, -18.0),
-	Vector3(11.0, 0.0, -14.0),
-	Vector3(-11.0, 0.0, -14.0),
+	Vector3(0.0, 0.0, -26.5),
+	Vector3(3.0, 0.0, -26.5),
+	Vector3(-3.0, 0.0, -26.5),
+	Vector3(10.0, 0.0, -24.5),
+	Vector3(-10.0, 0.0, -24.5),
 ]
 
 enum MatchState { WARMUP, PLAYING, ROUND_END, INTERMISSION }
@@ -21,13 +21,9 @@ enum MatchState { WARMUP, PLAYING, ROUND_END, INTERMISSION }
 @onready var players_root: Node3D = $Players
 @onready var spawner: MultiplayerSpawner = $MultiplayerSpawner
 @onready var hud: Hud = $CanvasLayer/Hud
-@onready var menu: Control = $CanvasLayer/Menu
+@onready var menu = $CanvasLayer/Menu
 
 var _spawn_i := [0, 0]
-var _status: Label
-var _name_edit: LineEdit
-var _ip_edit: LineEdit
-var _port_edit: LineEdit
 var _match_state := MatchState.WARMUP
 var _state_timer := 0.0
 var _bot_id_counter := -1
@@ -36,7 +32,8 @@ var _bot_id_counter := -1
 func _ready() -> void:
 	DisplayServer.window_set_title("Gevechtspel")
 	if has_node("MenuCamera"):
-		$MenuCamera.look_at(Vector3(0, 1, 0))
+		$MenuCamera.global_position = Vector3(24, 14, 40)
+		$MenuCamera.look_at(Vector3(0, 1.2, 0))
 		$MenuCamera.current = true
 	hud.visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -49,18 +46,20 @@ func _ready() -> void:
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	Game.local_player_ready.connect(_on_local_player_ready)
 	Game.round_ended.connect(_on_round_ended)
+	menu.play_local_pressed.connect(_play_locally)
+	menu.host_pressed.connect(_host_game)
+	menu.connect_pressed.connect(_connect_to_server)
 	call_deferred("_bake_nav")
-	_build_menu()
 	var args := _parse_args()
 	if args.get("name", "") != "":
 		Game.player_name = args["name"]
-		_name_edit.text = Game.player_name
+		menu.set_player_name(Game.player_name)
 	if args.get("server", false):
 		_start_server(int(args.get("port", Game.DEFAULT_PORT)), true)
 		return
 	if str(args.get("connect", "")) != "":
-		_ip_edit.text = str(args["connect"])
-		_port_edit.text = str(args.get("port", Game.DEFAULT_PORT))
+		menu.set_host_ip(str(args["connect"]))
+		menu.set_host_port(int(args.get("port", Game.DEFAULT_PORT)))
 		_connect_to_server()
 		return
 	menu.visible = true
@@ -173,74 +172,6 @@ func _spawn_all_players() -> void:
 			p.apply_respawn_state()
 
 
-func _build_menu() -> void:
-	var root := menu
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_STOP
-	for c in root.get_children():
-		c.queue_free()
-	var dim := ColorRect.new()
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0.05, 0.06, 0.08, 0.82)
-	root.add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(center)
-	var col := VBoxContainer.new()
-	col.custom_minimum_size = Vector2(420, 0)
-	col.add_theme_constant_override("separation", 10)
-	center.add_child(col)
-	var title := Label.new()
-	title.text = "GEVECHTSPEL"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 36)
-	col.add_child(title)
-	_status = Label.new()
-	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status.text = "Play locally, or host / join a server."
-	col.add_child(_status)
-	var play_btn := Button.new()
-	play_btn.text = "Play locally"
-	play_btn.pressed.connect(_play_locally)
-	col.add_child(play_btn)
-	col.add_child(_labeled_edit("Name", "Player", true))
-	col.add_child(_labeled_edit("IP", "127.0.0.1", false))
-	col.add_child(_labeled_edit("Port", str(Game.DEFAULT_PORT), false))
-	var host_btn := Button.new()
-	host_btn.text = "Host game"
-	host_btn.pressed.connect(_host_game)
-	col.add_child(host_btn)
-	var join_btn := Button.new()
-	join_btn.text = "Connect"
-	join_btn.pressed.connect(_connect_to_server)
-	col.add_child(join_btn)
-	var hint := Label.new()
-	hint.text = "Host on this PC, then a friend Connects to your IP.\nTwo local windows: Host in one, Connect 127.0.0.1 in the other."
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(hint)
-
-
-func _labeled_edit(label: String, value: String, is_name: bool) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	var l := Label.new()
-	l.text = label
-	l.custom_minimum_size = Vector2(70, 0)
-	var edit := LineEdit.new()
-	edit.text = value
-	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(l)
-	row.add_child(edit)
-	if is_name:
-		_name_edit = edit
-	elif label == "IP":
-		_ip_edit = edit
-	else:
-		_port_edit = edit
-	return row
-
-
 func _enter_play() -> void:
 	menu.visible = false
 	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -258,7 +189,7 @@ func _disable_menu_camera() -> void:
 func _play_locally() -> void:
 	Game.is_offline = true
 	Game.is_dedicated = false
-	Game.player_name = _name_edit.text.strip_edges()
+	Game.player_name = menu.player_name()
 	if Game.player_name == "":
 		Game.player_name = "Player"
 	_enter_play()
@@ -269,10 +200,10 @@ func _play_locally() -> void:
 
 
 func _host_game() -> void:
-	Game.player_name = _name_edit.text.strip_edges()
+	Game.player_name = menu.player_name()
 	if Game.player_name == "":
 		Game.player_name = "Host"
-	_start_server(int(_port_edit.text), false)
+	_start_server(menu.host_port(), false)
 
 
 func _start_server(port: int, dedicated: bool) -> void:
@@ -304,11 +235,11 @@ func _start_server(port: int, dedicated: bool) -> void:
 
 
 func _connect_to_server() -> void:
-	Game.player_name = _name_edit.text.strip_edges()
+	Game.player_name = menu.player_name()
 	if Game.player_name == "":
 		Game.player_name = "Player"
-	var ip := _ip_edit.text.strip_edges()
-	var port := int(_port_edit.text)
+	var ip: String = menu.host_ip()
+	var port: int = menu.host_port()
 	print("CLIENT: Creating client peer for %s:%d" % [ip, port])
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(ip, port)
@@ -549,6 +480,6 @@ func _reset_round() -> void:
 
 
 func _set_status(t: String) -> void:
-	if _status:
-		_status.text = t
+	if menu:
+		menu.set_status(t)
 	print(t)

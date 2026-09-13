@@ -1,0 +1,124 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/menu.gd" id="1_menu"]
+
+[node name="Menu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1_menu")
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.04, 0.05, 0.07, 0.52)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Col" type="VBoxContainer" parent="Center"]
+layout_mode = 2
+custom_minimum_size = Vector2(460, 0)
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Center/Col"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "GEVECHTSPEL"
+horizontal_alignment = 1
+
+[node name="Tag" type="Label" parent="Center/Col"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.76, 0.82, 1)
+theme_override_font_sizes/font_size = 16
+text = "5v5 arena  ·  rifle / pistol / shotgun"
+horizontal_alignment = 1
+
+[node name="Status" type="Label" parent="Center/Col"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.88, 0.92, 1)
+text = "Play locally, or host / join on LAN."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="PlayButton" type="Button" parent="Center/Col"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Play locally"
+
+[node name="Gap" type="Control" parent="Center/Col"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+
+[node name="MpLabel" type="Label" parent="Center/Col"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.68, 0.78, 1)
+theme_override_font_sizes/font_size = 14
+text = "MULTIPLAYER"
+horizontal_alignment = 1
+
+[node name="NameRow" type="HBoxContainer" parent="Center/Col"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="NameLabel" type="Label" parent="Center/Col/NameRow"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "Name"
+
+[node name="NameEdit" type="LineEdit" parent="Center/Col/NameRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Player"
+placeholder_text = "Player"
+
+[node name="HostButton" type="Button" parent="Center/Col"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Host game"
+
+[node name="JoinRow" type="HBoxContainer" parent="Center/Col"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="IpEdit" type="LineEdit" parent="Center/Col/JoinRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "127.0.0.1"
+placeholder_text = "IP"
+
+[node name="PortEdit" type="LineEdit" parent="Center/Col/JoinRow"]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "7777"
+placeholder_text = "Port"
+
+[node name="JoinButton" type="Button" parent="Center/Col/JoinRow"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Connect"
+
+[node name="Hint" type="Label" parent="Center/Col"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.62, 0.68, 1)
+theme_override_font_sizes/font_size = 13
+text = "Host on this PC, then Connect to your IP.
+Two windows: Host in one, Connect 127.0.0.1 in the other."
+horizontal_alignment = 1
+autowrap_mode = 3
