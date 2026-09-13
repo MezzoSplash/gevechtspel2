@@ -71,6 +71,7 @@ func _owner_peer() -> int:
 
 
 func _enter_tree() -> void:
+	_restore_bot_identity()
 	if Game.is_offline:
 		return
 	if peer_id == 0 and str(name).is_valid_int():
@@ -79,6 +80,14 @@ func _enter_tree() -> void:
 		set_multiplayer_authority(1, true)
 	elif peer_id > 0:
 		set_multiplayer_authority(peer_id, true)
+
+
+func _restore_bot_identity() -> void:
+	var n := str(name)
+	if n.begins_with("bot") and n.substr(3).is_valid_int():
+		is_bot = true
+		if peer_id >= 0:
+			peer_id = -int(n.substr(3))
 
 
 func _ready() -> void:
@@ -351,6 +360,11 @@ func apply_network_pose(pos: Vector3, yaw: float, pitch: float) -> void:
 	if head:
 		head.rotation.x = pitch
 	velocity = Vector3.ZERO
+	if body_mesh:
+		body_mesh.visible = not is_dead
+	if nametag:
+		nametag.visible = true
+		nametag.text = display_name
 
 
 func _apply_remote_visual() -> void:

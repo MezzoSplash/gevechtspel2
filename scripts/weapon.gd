@@ -17,7 +17,7 @@ const LOADOUT: Array[WeaponDef] = [
 @onready var muzzle: Marker3D = $Muzzle
 @onready var muzzle_flash: MeshInstance3D = $Muzzle/Flash
 @onready var muzzle_light: OmniLight3D = $Muzzle/FlashLight
-@onready var fire_sfx: AudioStreamPlayer = $FireSfx
+@onready var fire_sfx: AudioStreamPlayer3D = $FireSfx
 @onready var hit_sfx: AudioStreamPlayer = $HitSfx
 @onready var head_sfx: AudioStreamPlayer = $HeadSfx
 @onready var kill_sfx: AudioStreamPlayer = $KillSfx
@@ -198,6 +198,13 @@ func _try_fire() -> void:
 	_fire()
 
 
+func play_fire_sfx() -> void:
+	if fire_sfx == null or fire_sfx.stream == null:
+		return
+	fire_sfx.pitch_scale = randf_range(0.96, 1.05)
+	fire_sfx.play()
+
+
 func bot_try_fire() -> bool:
 	if _cooldown > 0.0 or _reload_left > 0.0:
 		return false
@@ -219,9 +226,7 @@ func _fire() -> void:
 	muzzle_flash.visible = true
 	muzzle_light.visible = true
 	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" else 4.5
-	if fire_sfx.stream:
-		fire_sfx.pitch_scale = randf_range(0.96, 1.05)
-		fire_sfx.play()
+	play_fire_sfx()
 
 	var shooter := owner as Player
 	if shooter == null or not shooter.is_bot:

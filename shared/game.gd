@@ -32,6 +32,8 @@ var net_hp: Dictionary = {}
 var _hitstopping := false
 
 var scores: Dictionary = {}
+var pings: Dictionary = {}
+var _ping_accum := 0.0
 var _round_timer := 0.0
 var _round_active := false
 var _match_state := 0
@@ -55,6 +57,9 @@ func player_for_peer(peer_id: int) -> Player:
 		if p == null:
 			continue
 		if p.peer_id == peer_id or str(n.name) == str(peer_id):
+			return p
+		if p.is_bot and str(n.name) == "bot%d" % abs(peer_id):
+			p.peer_id = peer_id
 			return p
 	return null
 
@@ -401,6 +406,7 @@ func get_scores() -> Array[Dictionary]:
 			"name": scores[id].name,
 			"kills": scores[id].kills,
 			"team": int(scores[id].get("team", 0)),
+			"ping": int(pings.get(id, -1)),
 		})
 	out.sort_custom(_sort_scores)
 	return out
@@ -423,6 +429,9 @@ func broadcast_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int) -> void
 		return
 	if shooter_peer_id > 0 and shooter_peer_id != multiplayer.get_unique_id():
 		_spawn_net_tracer(from, to)
+		var remote_shooter := player_for_peer(shooter_peer_id)
+		if remote_shooter and remote_shooter.weapon:
+			remote_shooter.weapon.play_fire_sfx()
 	sync_shot_fx.rpc(from, to, shooter_peer_id)
 
 
@@ -431,6 +440,9 @@ func sync_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int = 0) -> void:
 	if shooter_peer_id != 0 and shooter_peer_id == multiplayer.get_unique_id():
 		return
 	_spawn_net_tracer(from, to)
+	var shooter := player_for_peer(shooter_peer_id)
+	if shooter and shooter.weapon:
+		shooter.weapon.play_fire_sfx()
 
 
 func _spawn_net_tracer(from: Vector3, to: Vector3) -> void:
@@ -456,9 +468,38 @@ func _spawn_net_tracer(from: Vector3, to: Vector3) -> void:
 	get_tree().create_timer(0.055).timeout.connect(mesh_inst.queue_free)
 
 
-func _physics_process(_delta: float) -> void:
+func _sample_pings() -> void:
 	if not is_networked() or not multiplayer.is_server():
 		return
+	pings[multiplayer.get_unique_id()] = 0
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet:
+		for id in multiplayer.get_peers():
+			var ep := enet.get_peer(int(id))
+			if ep == null or not ep.is_active():
+				continue
+			pings[int(id)] = int(ep.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
+	for id in scores:
+		if int(id) < 0:
+			pings[id] = -1
+	if not multiplayer.get_peers().is_empty():
+		sync_pings.rpc(pings)
+
+
+@rpc("authority", "unreliable")
+func sync_pings(data: Dictionary) -> void:
+	if multiplayer.is_server():
+		return
+	pings = data
+
+
+func _physics_process(delta: float) -> void:
+	if not is_networked() or not multiplayer.is_server():
+		return
+	_ping_accum += delta
+	if _ping_accum >= 0.45:
+		_ping_accum = 0.0
+		_sample_pings()
 	if multiplayer.get_peers().is_empty():
 		return
 	var poses: Array = []

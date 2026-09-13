@@ -329,9 +329,66 @@ func _finish_peer_join(id: int) -> void:
 	var scores_arr := Game.get_scores()
 	if scores_arr.size() > 0:
 		Game.sync_all_scores.rpc_id(id, scores_arr)
-	Game.broadcast_roster()
-	get_tree().create_timer(0.3).timeout.connect(Game.broadcast_roster)
-	get_tree().create_timer(1.0).timeout.connect(Game.broadcast_roster)
+	broadcast_pawns()
+	get_tree().create_timer(0.3).timeout.connect(broadcast_pawns)
+	get_tree().create_timer(1.0).timeout.connect(broadcast_pawns)
+
+
+func _pawn_snapshot() -> Array:
+	var out: Array = []
+	for child in players_root.get_children():
+		var p := child as Player
+		if p == null or p.is_queued_for_deletion():
+			continue
+		out.append({
+			"id": p.peer_id,
+			"pos": p.global_position,
+			"yaw": p.rotation.y,
+			"pitch": p.head.rotation.x if p.head else 0.0,
+			"n": p.display_name,
+			"bot": p.is_bot,
+			"team": p.team_id,
+		})
+	return out
+
+
+func broadcast_pawns() -> void:
+	if not Game.is_networked() or not multiplayer.is_server():
+		return
+	sync_pawns.rpc(_pawn_snapshot())
+
+
+@rpc("authority", "reliable")
+func sync_pawns(list: Array) -> void:
+	if multiplayer.is_server():
+		return
+	var wanted := {}
+	for entry in list:
+		if typeof(entry) != TYPE_DICTIONARY or not entry.has("id"):
+			continue
+		var id := int(entry["id"])
+		wanted[id] = true
+		var p := Game.player_for_peer(id)
+		if p == null:
+			var node_name := ("bot%d" % abs(id)) if bool(entry.get("bot", false)) else str(id)
+			if players_root.get_node_or_null(node_name):
+				p = players_root.get_node(node_name) as Player
+			else:
+				p = _spawn_player_node(entry) as Player
+				if p and p.get_parent() == null:
+					players_root.add_child(p, true)
+		if p and p.is_bot:
+			var pos: Vector3 = entry["pos"]
+			p.apply_network_pose(pos, float(entry.get("yaw", 0.0)), float(entry.get("pitch", 0.0)))
+			p.is_bot = true
+			p.team_id = int(entry.get("team", p.team_id))
+			p._apply_team_visual()
+	for child in players_root.get_children():
+		var extra := child as Player
+		if extra == null or extra.is_local() or extra.is_queued_for_deletion():
+			continue
+		if not wanted.has(extra.peer_id):
+			extra.queue_free()
 
 
 func _spawn_player_node(data: Variant) -> Node:

@@ -14,6 +14,7 @@ var _local_peer_id := 0
 var _round_end_timer := 0.0
 var _round_end_winner := ""
 var _intermission_timer := 0.0
+var _board_refresh := 0.0
 
 @onready var ammo_label: Label = $Ammo
 @onready var weapon_label: Label = $Weapon
@@ -154,7 +155,7 @@ func _refresh_scoreboard() -> void:
 
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 16)
-	for title in ["TEAM", "NAME", "KILLS"]:
+	for title in ["TEAM", "NAME", "KILLS", "PING"]:
 		var h := Label.new()
 		h.text = title
 		h.add_theme_font_size_override("font_size", 16)
@@ -188,9 +189,15 @@ func _refresh_scoreboard() -> void:
 		kills_l.text = str(entry.kills)
 		kills_l.custom_minimum_size = Vector2(70, 0)
 		kills_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var ping_l := Label.new()
+		var ping_ms := int(entry.get("ping", -1))
+		ping_l.text = "—" if ping_ms < 0 else str(ping_ms)
+		ping_l.custom_minimum_size = Vector2(70, 0)
+		ping_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		row.add_child(team_l)
 		row.add_child(name_l)
 		row.add_child(kills_l)
+		row.add_child(ping_l)
 		scoreboard_container.add_child(row)
 
 
@@ -215,6 +222,12 @@ func _process(delta: float) -> void:
 		_scoreboard_open = want_board
 		scoreboard_container.visible = _scoreboard_open
 		if _scoreboard_open:
+			_board_refresh = 0.0
+			_refresh_scoreboard()
+	elif _scoreboard_open:
+		_board_refresh += delta
+		if _board_refresh >= 0.45:
+			_board_refresh = 0.0
 			_refresh_scoreboard()
 
 	if _round_end_timer > 0.0:
