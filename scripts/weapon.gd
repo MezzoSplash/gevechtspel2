@@ -22,6 +22,7 @@ const LOADOUT: Array[WeaponDef] = [
 @onready var head_sfx: AudioStreamPlayer = $HeadSfx
 @onready var kill_sfx: AudioStreamPlayer = $KillSfx
 @onready var empty_sfx: AudioStreamPlayer = $EmptySfx
+@onready var reload_sfx: AudioStreamPlayer3D = $ReloadSfx
 
 var speed_factor := 0.0
 var ammo: int = 30
@@ -350,7 +351,19 @@ func _start_reload() -> void:
 		return
 	_reload_left = def.reload_time
 	_save_weapon_state()
+	_play_reload_sfx()
 	_refresh_hud()
+
+
+func _play_reload_sfx() -> void:
+	if reload_sfx == null or reload_sfx.stream == null:
+		return
+	var src_len := reload_sfx.stream.get_length()
+	if src_len > 0.05 and def.reload_time > 0.05:
+		reload_sfx.pitch_scale = clampf(src_len / def.reload_time, 0.85, 1.75)
+	else:
+		reload_sfx.pitch_scale = 1.0
+	reload_sfx.play()
 
 
 func _hud_node() -> Hud:
