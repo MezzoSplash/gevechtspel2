@@ -15,6 +15,8 @@ const DUMMY_SPAWNS := [
 	Vector3(-6.0, 0.0, -4.0),
 ]
 
+enum MatchState { WARMUP, PLAYING, ROUND_END, INTERMISSION }
+
 @onready var players_root: Node3D = $Players
 @onready var spawner: MultiplayerSpawner = $MultiplayerSpawner
 @onready var dummies_root: Node3D = $Dummies
@@ -27,6 +29,9 @@ var _status: Label
 var _name_edit: LineEdit
 var _ip_edit: LineEdit
 var _port_edit: LineEdit
+var _match_state := MatchState.WARMUP
+var _state_timer := 0.0
+var _dummy_peer_id_counter := -1
 
 
 func _ready() -> void:
@@ -39,13 +44,14 @@ func _ready() -> void:
 	spawner.spawn_path = NodePath("../Players")
 	spawner.spawn_function = _spawn_player_node
 	dummy_spawner.spawn_path = NodePath("../Dummies")
-	dummy_spawner.add_spawnable_scene("res://scenes/dummy_target.tscn")
+	dummy_spawner.spawn_function = _spawn_dummy_node
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	Game.local_player_ready.connect(_on_local_player_ready)
+	Game.round_ended.connect(_on_round_ended)
 	call_deferred("_bake_nav")
 	_build_menu()
 	var args := _parse_args()
@@ -111,6 +117,64 @@ func _parse_args() -> Dictionary:
 					out.name = args[i]
 		i += 1
 	return out
+
+
+func _process(delta: float) -> void:
+	if not multiplayer.is_server() and not Game.is_offline:
+		return
+	if _match_state == MatchState.WARMUP:
+		_tick_warmup(delta)
+	elif _match_state == MatchState.PLAYING:
+		_tick_playing(delta)
+	elif _match_state == MatchState.ROUND_END:
+		_tick_round_end(delta)
+	elif _match_state == MatchState.INTERMISSION:
+		_tick_intermission(delta)
+
+
+func _tick_warmup(delta: float) -> void:
+	_state_timer += delta
+	if _state_timer >= Game.WARMUP_TIME:
+		_start_round()
+
+
+func _tick_playing(delta: float) -> void:
+	if Game.update_round_timer(delta):
+		return
+	if Game.is_networked() and multiplayer.is_server():
+		_state_timer += delta
+		if _state_timer >= 1.0:
+			_state_timer = 0.0
+			Game.sync_round_time.rpc(Game.get_round_time_left())
+
+
+func _tick_round_end(delta: float) -> void:
+	_state_timer += delta
+	if _state_timer >= Game.ROUND_END_TIME:
+		_start_intermission()
+
+
+func _tick_intermission(delta: float) -> void:
+	_state_timer += delta
+	if _state_timer >= Game.INTERMISSION_TIME:
+		_reset_round()
+
+
+func _start_round() -> void:
+	_match_state = MatchState.PLAYING
+	_state_timer = 0.0
+	Game.start_round()
+	_spawn_all_players()
+	_spawn_dummies()
+	_set_status("Round started!")
+
+
+func _spawn_all_players() -> void:
+	for n in players_root.get_children():
+		var p := n as Player
+		if p:
+			p.apply_respawn_state()
+	_dummy_peer_id_counter = -1
 
 
 func _build_menu() -> void:
@@ -184,6 +248,8 @@ func _labeled_edit(label: String, value: String, is_name: bool) -> HBoxContainer
 func _enter_play() -> void:
 	menu.visible = false
 	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if get_viewport().gui_get_focus_owner():
+		get_viewport().gui_get_focus_owner().release_focus()
 	hud.visible = true
 	_disable_menu_camera()
 
@@ -200,6 +266,8 @@ func _play_locally() -> void:
 	if Game.player_name == "":
 		Game.player_name = "Player"
 	_enter_play()
+	_match_state = MatchState.WARMUP
+	_state_timer = 0.0
 	_spawn_player(multiplayer.get_unique_id())
 	_spawn_dummies()
 
@@ -216,18 +284,24 @@ func _start_server(port: int, dedicated: bool) -> void:
 	var err := peer.create_server(port, 10)
 	if err != OK:
 		_set_status("Could not host on port %d (err %d)" % [port, err])
+		print("SERVER: create_server failed with err %d" % err)
 		return
 	multiplayer.multiplayer_peer = peer
 	Game.is_offline = false
 	Game.is_dedicated = dedicated
+	print("SERVER: Server started on port %d, dedicated=%s" % [port, dedicated])
 	if dedicated:
 		_enter_play()
 		hud.visible = false
 		DisplayServer.window_set_title("Gevechtspel server :%d" % port)
 		print("Dedicated server on port ", port)
+		_match_state = MatchState.WARMUP
+		_state_timer = 0.0
 		_spawn_dummies()
 		return
 	_enter_play()
+	_match_state = MatchState.WARMUP
+	_state_timer = 0.0
 	_set_status("Hosting on port %d" % port)
 	_spawn_player(1)
 	_spawn_dummies()
@@ -239,18 +313,22 @@ func _connect_to_server() -> void:
 		Game.player_name = "Player"
 	var ip := _ip_edit.text.strip_edges()
 	var port := int(_port_edit.text)
+	print("CLIENT: Creating client peer for %s:%d" % [ip, port])
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(ip, port)
 	if err != OK:
 		_set_status("Connect failed to start (err %d)" % err)
+		print("CLIENT: create_client failed with err %d" % err)
 		return
 	multiplayer.multiplayer_peer = peer
 	Game.is_offline = false
 	Game.is_dedicated = false
 	_set_status("Connecting to %s:%d …" % [ip, port])
+	print("CLIENT: multiplayer_peer set, waiting for connection...")
 
 
 func _on_connected_to_server() -> void:
+	print("CLIENT: Connected to server!")
 	_enter_play()
 	_set_status("Connected.")
 	DisplayServer.window_set_title("Gevechtspel — %s" % Game.player_name)
@@ -258,6 +336,7 @@ func _on_connected_to_server() -> void:
 
 
 func _on_connection_failed() -> void:
+	print("CLIENT: Connection failed!")
 	_set_status("Connection failed. Is the host running, and is the port free?")
 	menu.visible = true
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -269,6 +348,7 @@ func _on_connection_failed() -> void:
 
 
 func _on_server_disconnected() -> void:
+	print("CLIENT: Server disconnected!")
 	_set_status("Server left.")
 	menu.visible = true
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -280,14 +360,19 @@ func _on_server_disconnected() -> void:
 
 
 func _on_peer_connected(id: int) -> void:
+	print("SERVER: Peer connected: %d" % id)
 	if not multiplayer.is_server():
 		return
 	if id == 1:
 		return
 	_spawn_player(id)
+	var scores_arr := Game.get_scores()
+	if scores_arr.size() > 0:
+		Game.sync_all_scores.rpc_id(id, scores_arr)
 
 
 func _on_peer_disconnected(id: int) -> void:
+	print("SERVER: Peer disconnected: %d" % id)
 	Game.clear_peer_hp(id)
 	var node := players_root.get_node_or_null(str(id))
 	if node:
@@ -295,12 +380,15 @@ func _on_peer_disconnected(id: int) -> void:
 
 
 func _spawn_player(peer_id: int) -> void:
+	print("SERVER: _spawn_player called for peer %d" % peer_id)
 	if players_root.get_node_or_null(str(peer_id)):
+		print("SERVER: Player %d already exists" % peer_id)
 		return
 	var pos: Vector3 = SPAWNS[_spawn_i % SPAWNS.size()]
 	_spawn_i += 1
-	var fallback := Game.player_name if peer_id == multiplayer.get_unique_id() else "Player"
-	var n := Game.take_pending_name(peer_id, fallback)
+	var fallback: String = Game.player_name if peer_id == multiplayer.get_unique_id() else "Player"
+	var n: String = Game.take_pending_name(peer_id, fallback)
+	print("SERVER: Spawning player %d at %s with name %s" % [peer_id, pos, n])
 	if Game.is_offline:
 		var p: Player = _spawn_player_node({"id": peer_id, "pos": pos, "n": n})
 		players_root.add_child(p, true)
@@ -323,7 +411,22 @@ func _spawn_player_node(data: Variant) -> Node:
 	p.position = d["pos"]
 	p.set_multiplayer_authority(id, true)
 	Game.set_hp(p, Player.MAX_HP)
+	Game.register_participant(id, p.display_name)
 	return p
+
+
+func _spawn_dummy_node(data: Variant) -> Node:
+	var d: Dictionary = data
+	if typeof(d) != TYPE_DICTIONARY or not d.has("id"):
+		push_error("Bad dummy spawn payload: %s" % str(data))
+		return Node.new()
+	var dummy: DummyTarget = DUMMY_SCENE.instantiate()
+	dummy.peer_id = int(d["id"])
+	dummy.name = "Dummy%d" % (int(d.get("index", 0)) + 1)
+	dummy.position = d["pos"]
+	dummy.set_multiplayer_authority(1, true)
+	Game.register_participant(dummy.peer_id, dummy.name)
+	return dummy
 
 
 func _spawn_dummies() -> void:
@@ -332,12 +435,17 @@ func _spawn_dummies() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
 	for i in DUMMY_SPAWNS.size():
-		var dummy: DummyTarget = DUMMY_SCENE.instantiate()
-		dummy.name = "Dummy%d" % (i + 1)
-		dummy.position = DUMMY_SPAWNS[i]
-		if Game.is_networked():
-			dummy.set_multiplayer_authority(1, true)
-		dummies_root.add_child(dummy, true)
+		var spawn_data := {
+			"id": _dummy_peer_id_counter,
+			"pos": DUMMY_SPAWNS[i],
+			"index": i,
+		}
+		_dummy_peer_id_counter -= 1
+		if Game.is_offline:
+			var dummy: DummyTarget = _spawn_dummy_node(spawn_data)
+			dummies_root.add_child(dummy, true)
+		else:
+			dummy_spawner.spawn(spawn_data)
 
 
 func _on_local_player_ready(player: Player) -> void:
@@ -346,6 +454,36 @@ func _on_local_player_ready(player: Player) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	hud.bind_player(player)
 	DisplayServer.window_set_title("Gevechtspel — %s" % Game.player_name)
+
+
+func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
+	_match_state = MatchState.ROUND_END
+	_state_timer = 0.0
+	_set_status("Round ended! Winner: %s" % winner_name)
+
+
+func _start_intermission() -> void:
+	_match_state = MatchState.INTERMISSION
+	_state_timer = 0.0
+	hud.show_intermission()
+	_set_status("Intermission...")
+
+
+func _reset_round() -> void:
+	_match_state = MatchState.WARMUP
+	_state_timer = 0.0
+	_spawn_i = 0
+	for n in players_root.get_children():
+		var p := n as Player
+		if p:
+			p.apply_respawn_state()
+	for n in dummies_root.get_children():
+		var d := n as DummyTarget
+		if d:
+			d._respawn()
+	_dummy_peer_id_counter = -1
+	_spawn_dummies()
+	_set_status("Warmup...")
 
 
 func _set_status(t: String) -> void:

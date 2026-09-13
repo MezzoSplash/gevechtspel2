@@ -220,7 +220,7 @@ func _fire() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		Game.request_weapon_fire.rpc_id(1, origin, look_dir, def.id)
 	elif shooter:
-		var best := Game.fire_weapon_locally(shooter, origin, look_dir, def, spread_mult)
+		var best: Dictionary = Game.fire_weapon_locally(shooter, origin, look_dir, def, spread_mult)
 		if best.get("hit", false):
 			Game.hit_confirmed.emit(best.killed, best.headshot)
 			_play_hit_fx(best.killed, best.headshot)

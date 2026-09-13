@@ -150,7 +150,7 @@ func set_display_name(n: String) -> void:
 		nametag.text = n
 
 
-func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_headshot: bool = true) -> Dictionary:
+func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_headshot: bool = true, killer_peer_id: int = 0) -> Dictionary:
 	if is_dead or _spawn_protect > 0.0:
 		return {"killed": false, "headshot": false, "damage": 0}
 	if Game.is_networked() and not multiplayer.is_server():
@@ -160,6 +160,8 @@ func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_heads
 	var new_hp := maxf(Game.hp_of(self) - float(dmg), 0.0)
 	Game.set_hp(self, new_hp)
 	var killed := new_hp <= 0.0
+	if killed:
+		Game.register_kill(killer_peer_id, peer_id)
 	if Game.is_networked():
 		Game.broadcast_hurt.rpc(peer_id, new_hp, killed)
 	else:

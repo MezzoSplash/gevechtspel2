@@ -8,6 +8,12 @@ var _hint_timer := 8.0
 var _hurt_flash := 0.0
 var _hp := 100.0
 var _max_hp := 100.0
+var _scoreboard_open := false
+var _scores: Array[Dictionary] = []
+var _local_peer_id := 0
+var _round_end_timer := 0.0
+var _round_end_winner := ""
+var _intermission_timer := 0.0
 
 @onready var ammo_label: Label = $Ammo
 @onready var weapon_label: Label = $Weapon
@@ -16,13 +22,23 @@ var _max_hp := 100.0
 @onready var reload_label: Label = $Reloading
 @onready var hp_label: Label = $Hp
 @onready var death_layer: ColorRect = $Death
+@onready var scoreboard_container: VBoxContainer = $Scoreboard
+@onready var round_end_label: Label = $RoundEnd
+@onready var intermission_label: Label = $Intermission
+@onready var timer_label: Label = $Timer
 
 
 func _ready() -> void:
 	add_to_group("hud")
 	Game.hit_confirmed.connect(_on_hit)
+	Game.score_changed.connect(_on_score_changed)
+	Game.round_ended.connect(_on_round_ended)
 	reload_label.visible = false
 	death_layer.visible = false
+	scoreboard_container.visible = false
+	scoreboard_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	round_end_label.visible = false
+	intermission_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	call_deferred("bind_player", null)
 
@@ -32,6 +48,7 @@ func bind_player(player: Player) -> void:
 		player = _local_player()
 	if player == null:
 		return
+	_local_peer_id = player.peer_id
 	if not player.health_changed.is_connected(_on_health):
 		player.health_changed.connect(_on_health)
 	if not player.died.is_connected(_on_died):
@@ -90,6 +107,75 @@ func _on_hit(killed: bool, _headshot: bool) -> void:
 	queue_redraw()
 
 
+func _on_score_changed(_peer_id: int, _score: int, _n: String) -> void:
+	if _scoreboard_open:
+		_refresh_scoreboard()
+
+
+func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
+	if a.kills == b.kills:
+		return str(a.name) < str(b.name)
+	return a.kills > b.kills
+
+
+func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
+	_round_end_timer = 5.0
+	_round_end_winner = winner_name
+	round_end_label.text = "WINNER: %s" % winner_name
+	round_end_label.visible = true
+	_scoreboard_open = true
+	scoreboard_container.visible = true
+	_refresh_scoreboard()
+
+
+func show_round_end(winner_name: String, scores: Dictionary) -> void:
+	_on_round_ended(0, winner_name, scores)
+
+
+func show_intermission() -> void:
+	_intermission_timer = 10.0
+	intermission_label.text = "INTERMISSION - NEXT ROUND SOON"
+	intermission_label.visible = true
+
+
+func _refresh_scoreboard() -> void:
+	for c in scoreboard_container.get_children():
+		c.queue_free()
+	_scores = Game.get_scores()
+	_scores.sort_custom(_sort_scores)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 20)
+	var name_h := Label.new()
+	name_h.text = "NAME"
+	name_h.custom_minimum_size = Vector2(200, 0)
+	name_h.add_theme_font_size_override("font_size", 18)
+	var kills_h := Label.new()
+	kills_h.text = "KILLS"
+	kills_h.custom_minimum_size = Vector2(80, 0)
+	kills_h.add_theme_font_size_override("font_size", 18)
+	kills_h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	header.add_child(name_h)
+	header.add_child(kills_h)
+	scoreboard_container.add_child(header)
+
+	for entry in _scores:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 20)
+		var name_l := Label.new()
+		name_l.text = entry.name
+		name_l.custom_minimum_size = Vector2(200, 0)
+		if entry.peer_id == _local_peer_id:
+			name_l.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+		var kills_l := Label.new()
+		kills_l.text = str(entry.kills)
+		kills_l.custom_minimum_size = Vector2(80, 0)
+		kills_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(name_l)
+		row.add_child(kills_l)
+		scoreboard_container.add_child(row)
+
+
 func _process(delta: float) -> void:
 	_hit_timer = maxf(_hit_timer - delta, 0.0)
 	_fire_punch = move_toward(_fire_punch, 0.0, delta * 9.0)
@@ -98,6 +184,34 @@ func _process(delta: float) -> void:
 		hint_label.modulate.a = clampf(_hint_timer, 0.0, 1.0)
 	_hurt_flash = maxf(_hurt_flash - delta, 0.0)
 	fps_label.text = "%d fps" % roundi(Engine.get_frames_per_second())
+	
+	var time_left: float = Game.get_round_time_left()
+	var mins: int = int(time_left / 60)
+	var secs: int = int(time_left) % 60
+	timer_label.text = "%d:%02d" % [mins, secs]
+	timer_label.visible = Game._round_active
+
+	var tab_pressed := Input.is_key_pressed(KEY_TAB)
+	var want_board := tab_pressed or _round_end_timer > 0.0
+	if want_board != _scoreboard_open:
+		_scoreboard_open = want_board
+		scoreboard_container.visible = _scoreboard_open
+		if _scoreboard_open:
+			_refresh_scoreboard()
+
+	if _round_end_timer > 0.0:
+		_round_end_timer -= delta
+		if _round_end_timer <= 0.0:
+			round_end_label.visible = false
+			if not tab_pressed:
+				_scoreboard_open = false
+				scoreboard_container.visible = false
+	
+	if _intermission_timer > 0.0:
+		_intermission_timer -= delta
+		if _intermission_timer <= 0.0:
+			intermission_label.visible = false
+	
 	queue_redraw()
 
 

@@ -35,6 +35,12 @@ var _last_seen := Vector3.ZERO
 var _strafe_t := 0.0
 var _strafe_sign := 1.0
 var _repath_t := 0.0
+@export var peer_id := 0
+
+
+func _enter_tree() -> void:
+	if Game.is_networked():
+		set_multiplayer_authority(1, true)
 
 
 func _ready() -> void:
@@ -47,12 +53,10 @@ func _ready() -> void:
 	_cooldown = randf_range(0.3, 1.1)
 	_strafe_sign = -1.0 if randf() < 0.5 else 1.0
 	floor_snap_length = 0.2
-	if Game.is_offline:
-		if has_node("Sync"):
-			$Sync.public_visibility = false
-	elif not multiplayer.is_server():
-		if has_node("Sync"):
-			$Sync.public_visibility = true
+	if has_node("Sync"):
+		$Sync.public_visibility = false
+	if Game.is_networked() and not multiplayer.is_server():
+		set_physics_process(false)
 
 
 func _process(delta: float) -> void:
@@ -79,6 +83,7 @@ func _physics_process(delta: float) -> void:
 	if player == null:
 		_acquire_left = ACQUIRE
 		_move_to(_home, MOVE_SPEED)
+		_broadcast_pose()
 		return
 	if _can_see(player):
 		_last_seen = player.global_position
@@ -86,16 +91,19 @@ func _physics_process(delta: float) -> void:
 		_fight(player, delta)
 	else:
 		_acquire_left = ACQUIRE
-		_hunt(delta)
+		_hunt(player, delta)
 	move_and_slide()
+	_broadcast_pose()
 
 
-func _hunt(delta: float) -> void:
+func _hunt(player: Player, delta: float) -> void:
 	_repath_t -= delta
+	var dest := player.global_position
+	dest.y = global_position.y
 	if _repath_t <= 0.0:
-		agent.target_position = _last_seen
+		agent.target_position = dest
 		_repath_t = 0.25
-	_follow_agent(MOVE_SPEED)
+	_follow_agent(MOVE_SPEED, dest)
 
 
 func _fight(player: Player, delta: float) -> void:
@@ -120,32 +128,48 @@ func _fight(player: Player, delta: float) -> void:
 	if _repath_t <= 0.0:
 		agent.target_position = dest
 		_repath_t = 0.18
-	_follow_agent(STRAFE_SPEED)
+	_follow_agent(STRAFE_SPEED, dest)
 	if _acquire_left <= 0.0 and _cooldown <= 0.0:
 		_shoot(player)
 
 
-func _follow_agent(speed: float) -> void:
-	if agent.is_navigation_finished():
-		velocity.x = move_toward(velocity.x, 0.0, speed)
-		velocity.z = move_toward(velocity.z, 0.0, speed)
-		return
-	var next := agent.get_next_path_position()
-	var dir := next - global_position
-	dir.y = 0.0
-	if dir.length() < 0.08:
-		velocity.x = move_toward(velocity.x, 0.0, speed)
-		velocity.z = move_toward(velocity.z, 0.0, speed)
-		return
-	dir = dir.normalized()
-	velocity.x = dir.x * speed
-	velocity.z = dir.z * speed
+func _follow_agent(speed: float, dest: Vector3 = Vector3.INF) -> void:
+	if not agent.is_navigation_finished():
+		var next := agent.get_next_path_position()
+		var dir := next - global_position
+		dir.y = 0.0
+		if dir.length() >= 0.08:
+			dir = dir.normalized()
+			velocity.x = dir.x * speed
+			velocity.z = dir.z * speed
+			return
+	if dest != Vector3.INF:
+		var straight := dest - global_position
+		straight.y = 0.0
+		if straight.length() >= 0.12:
+			straight = straight.normalized()
+			velocity.x = straight.x * speed
+			velocity.z = straight.z * speed
+			return
+	velocity.x = move_toward(velocity.x, 0.0, speed)
+	velocity.z = move_toward(velocity.z, 0.0, speed)
 
 
 func _move_to(dest: Vector3, speed: float) -> void:
 	agent.target_position = dest
-	_follow_agent(speed)
+	_follow_agent(speed, dest)
 	move_and_slide()
+
+
+func _broadcast_pose() -> void:
+	if Game.is_networked() and multiplayer.is_server():
+		Game.sync_dummy_pose.rpc(str(name), global_position, rotation.y)
+
+
+func apply_network_pose(pos: Vector3, yaw: float) -> void:
+	global_position = pos
+	rotation.y = yaw
+	velocity = Vector3.ZERO
 
 
 func _face(player: Player) -> void:
@@ -155,7 +179,7 @@ func _face(player: Player) -> void:
 		look_at(look, Vector3.UP)
 
 
-func apply_hit(part: Node, point: Vector3, _normal: Vector3, base_damage: float, headshot_mult: float) -> Dictionary:
+func apply_hit(part: Node, point: Vector3, _normal: Vector3, base_damage: float, headshot_mult: float, killer_peer_id: int = 0) -> Dictionary:
 	if _dead:
 		return {"killed": false, "headshot": false, "damage": 0}
 	if Game.is_networked() and not multiplayer.is_server():
@@ -165,17 +189,17 @@ func apply_hit(part: Node, point: Vector3, _normal: Vector3, base_damage: float,
 	var was_alive := hp > 0.0
 	hp -= float(dmg)
 	var killed := was_alive and hp <= 0.0
+	if killed:
+		Game.register_kill(killer_peer_id, peer_id)
+	_show_hit(dmg, point, is_head, killed)
 	if Game.is_networked():
-		_net_hit.rpc(dmg, point, is_head, killed)
-	else:
-		_show_hit(dmg, point, is_head, killed)
+		Game.sync_dummy_hit.rpc(str(name), dmg, point, is_head, killed)
 	if killed:
 		_die()
 	return {"killed": killed, "headshot": is_head, "damage": dmg}
 
 
-@rpc("authority", "call_local", "reliable")
-func _net_hit(dmg: int, point: Vector3, is_head: bool, killed: bool) -> void:
+func show_network_hit(dmg: int, point: Vector3, is_head: bool, killed: bool) -> void:
 	_show_hit(dmg, point, is_head, killed)
 
 
@@ -233,15 +257,13 @@ func _shoot(player: Player) -> void:
 	if hit:
 		end = hit.position
 		if hit.collider == player:
-			player.apply_hit(hit.position, hit.normal, DAMAGE, false)
+			player.apply_hit(hit.position, hit.normal, DAMAGE, false, peer_id)
+	_fx_shot(from, end)
 	if Game.is_networked():
-		_net_shot.rpc(from, end)
-	else:
-		_fx_shot(from, end)
+		Game.sync_dummy_shot.rpc(from, end)
 
 
-@rpc("authority", "call_local", "unreliable")
-func _net_shot(from: Vector3, to: Vector3) -> void:
+func play_shot_fx(from: Vector3, to: Vector3) -> void:
 	_fx_shot(from, to)
 
 
@@ -282,16 +304,16 @@ func _respawn() -> void:
 	_cooldown = randf_range(0.2, 0.8)
 	global_position = _home
 	velocity = Vector3.ZERO
+	_apply_alive_visual()
 	if Game.is_networked():
-		_net_alive.rpc()
-	else:
-		_apply_alive_visual()
+		Game.sync_dummy_alive.rpc(str(name), global_position)
+		_broadcast_pose()
 
 
-@rpc("authority", "call_local", "reliable")
-func _net_alive() -> void:
+func show_network_alive(pos: Vector3) -> void:
 	_dead = false
-	global_position = _home
+	global_position = pos
+	velocity = Vector3.ZERO
 	_apply_alive_visual()
 
 

@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.1.0** — playable snapshot: local dummies, host/join on LAN, names, death/respawn, rifle with sprint/crouch. Max 5v5 is the goal; this drop is 1v1 plus bots that stand still.
+**v0.1.2** — LAN arena slice: rifle / pistol / shotgun, hunting dummies on a navmesh, scoreboard (Tab), host/join. Bots move and shoot on host and clients.
 
 ## Play (Linux)
 
@@ -16,6 +16,7 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 - **Shift** sprint (less accurate), **Ctrl** or **C** crouch (hides behind cover)
 - **LMB** fire, **R** reload, **Q** or **1/2/3** switch guns (rifle, pistol, shotgun)
 - **Esc** frees the mouse, click the window to recapture
+- **Tab** scoreboard
 
 Boot menu: **Play locally** (dummies), **Host game**, or **Connect**.
 
