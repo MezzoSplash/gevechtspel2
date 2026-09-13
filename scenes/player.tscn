@@ -72,10 +72,16 @@ properties/4/replication_mode = 1
 properties/5/path = NodePath(".:peer_id")
 properties/5/spawn = true
 properties/5/replication_mode = 1
+properties/6/path = NodePath(".:is_bot")
+properties/6/spawn = true
+properties/6/replication_mode = 1
+properties/7/path = NodePath(".:team_id")
+properties/7/spawn = true
+properties/7/replication_mode = 1
 
 [node name="Player" type="CharacterBody3D"]
 collision_layer = 2
-collision_mask = 5
+collision_mask = 1
 floor_snap_length = 0.2
 groups = ["player"]
 script = ExtResource("1_player")
@@ -168,6 +174,13 @@ font_size = 48
 outline_size = 8
 text = "Player"
 no_depth_test = true
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+path_desired_distance = 0.55
+target_desired_distance = 1.1
+avoidance_enabled = false
+radius = 0.4
+height = 1.8
 
 [node name="Sync" type="MultiplayerSynchronizer" parent="."]
 replication_config = SubResource("SceneReplicationConfig_sync")

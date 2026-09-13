@@ -1,37 +1,36 @@
 extends Node3D
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
-const DUMMY_SCENE := preload("res://scenes/dummy_target.tscn")
-const SPAWNS := [
-	Vector3(0.0, 0.0, 11.0),
-	Vector3(7.0, 0.0, 11.0),
-	Vector3(-7.0, 0.0, 11.0),
-	Vector3(11.0, 0.0, 6.0),
-	Vector3(-11.0, 0.0, 6.0),
+const TEAM_A_SPAWNS := [
+	Vector3(0.0, 0.0, 18.0),
+	Vector3(6.0, 0.0, 18.0),
+	Vector3(-6.0, 0.0, 18.0),
+	Vector3(11.0, 0.0, 14.0),
+	Vector3(-11.0, 0.0, 14.0),
 ]
-const DUMMY_SPAWNS := [
-	Vector3(0.0, 0.0, -6.0),
-	Vector3(5.0, 0.0, -9.0),
-	Vector3(-6.0, 0.0, -4.0),
+const TEAM_B_SPAWNS := [
+	Vector3(0.0, 0.0, -18.0),
+	Vector3(6.0, 0.0, -18.0),
+	Vector3(-6.0, 0.0, -18.0),
+	Vector3(11.0, 0.0, -14.0),
+	Vector3(-11.0, 0.0, -14.0),
 ]
 
 enum MatchState { WARMUP, PLAYING, ROUND_END, INTERMISSION }
 
 @onready var players_root: Node3D = $Players
 @onready var spawner: MultiplayerSpawner = $MultiplayerSpawner
-@onready var dummies_root: Node3D = $Dummies
-@onready var dummy_spawner: MultiplayerSpawner = $DummySpawner
 @onready var hud: Hud = $CanvasLayer/Hud
 @onready var menu: Control = $CanvasLayer/Menu
 
-var _spawn_i := 0
+var _spawn_i := [0, 0]
 var _status: Label
 var _name_edit: LineEdit
 var _ip_edit: LineEdit
 var _port_edit: LineEdit
 var _match_state := MatchState.WARMUP
 var _state_timer := 0.0
-var _dummy_peer_id_counter := -1
+var _bot_id_counter := -1
 
 
 func _ready() -> void:
@@ -43,8 +42,6 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	spawner.spawn_path = NodePath("../Players")
 	spawner.spawn_function = _spawn_player_node
-	dummy_spawner.spawn_path = NodePath("../Dummies")
-	dummy_spawner.spawn_function = _spawn_dummy_node
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
@@ -165,7 +162,7 @@ func _start_round() -> void:
 	_state_timer = 0.0
 	Game.start_round()
 	_spawn_all_players()
-	_spawn_dummies()
+	_fill_bots()
 	_set_status("Round started!")
 
 
@@ -174,7 +171,6 @@ func _spawn_all_players() -> void:
 		var p := n as Player
 		if p:
 			p.apply_respawn_state()
-	_dummy_peer_id_counter = -1
 
 
 func _build_menu() -> void:
@@ -269,7 +265,7 @@ func _play_locally() -> void:
 	_match_state = MatchState.WARMUP
 	_state_timer = 0.0
 	_spawn_player(multiplayer.get_unique_id())
-	_spawn_dummies()
+	_fill_bots()
 
 
 func _host_game() -> void:
@@ -297,14 +293,14 @@ func _start_server(port: int, dedicated: bool) -> void:
 		print("Dedicated server on port ", port)
 		_match_state = MatchState.WARMUP
 		_state_timer = 0.0
-		_spawn_dummies()
+		_fill_bots()
 		return
 	_enter_play()
 	_match_state = MatchState.WARMUP
 	_state_timer = 0.0
 	_set_status("Hosting on port %d" % port)
 	_spawn_player(1)
-	_spawn_dummies()
+	_fill_bots()
 
 
 func _connect_to_server() -> void:
@@ -365,37 +361,46 @@ func _on_peer_connected(id: int) -> void:
 		return
 	if id == 1:
 		return
-	_spawn_player(id)
-	var scores_arr := Game.get_scores()
-	if scores_arr.size() > 0:
-		Game.sync_all_scores.rpc_id(id, scores_arr)
+	call_deferred("_finish_peer_join", id)
 
 
 func _on_peer_disconnected(id: int) -> void:
 	print("SERVER: Peer disconnected: %d" % id)
-	Game.clear_peer_hp(id)
+	var team := 0
 	var node := players_root.get_node_or_null(str(id))
-	if node:
+	if node is Player:
+		team = (node as Player).team_id
 		node.queue_free()
+	Game.clear_peer_hp(id)
+	Game.scores.erase(id)
+	_spawn_bot(team)
 
 
-func _spawn_player(peer_id: int) -> void:
+func _spawn_player(peer_id: int, team: int = -1) -> void:
 	print("SERVER: _spawn_player called for peer %d" % peer_id)
 	if players_root.get_node_or_null(str(peer_id)):
 		print("SERVER: Player %d already exists" % peer_id)
 		return
-	var pos: Vector3 = SPAWNS[_spawn_i % SPAWNS.size()]
-	_spawn_i += 1
+	if team < 0:
+		team = _team_for_human()
+	var pos := _next_spawn(team)
 	var fallback: String = Game.player_name if peer_id == multiplayer.get_unique_id() else "Player"
 	var n: String = Game.take_pending_name(peer_id, fallback)
-	print("SERVER: Spawning player %d at %s with name %s" % [peer_id, pos, n])
-	if Game.is_offline:
-		var p: Player = _spawn_player_node({"id": peer_id, "pos": pos, "n": n})
-		players_root.add_child(p, true)
-		return
+	print("SERVER: Spawning player %d team %d at %s with name %s" % [peer_id, team, pos, n])
+	_add_pawn({"id": peer_id, "pos": pos, "n": n, "bot": false, "team": team})
+
+
+func _finish_peer_join(id: int) -> void:
 	if not multiplayer.is_server():
 		return
-	spawner.spawn({"id": peer_id, "pos": pos, "n": n})
+	_spawn_player(id)
+	_trim_bots()
+	var scores_arr := Game.get_scores()
+	if scores_arr.size() > 0:
+		Game.sync_all_scores.rpc_id(id, scores_arr)
+	Game.broadcast_roster()
+	get_tree().create_timer(0.3).timeout.connect(Game.broadcast_roster)
+	get_tree().create_timer(1.0).timeout.connect(Game.broadcast_roster)
 
 
 func _spawn_player_node(data: Variant) -> Node:
@@ -406,46 +411,108 @@ func _spawn_player_node(data: Variant) -> Node:
 	var p: Player = PLAYER_SCENE.instantiate()
 	var id := int(d["id"])
 	p.peer_id = id
-	p.name = str(id)
+	p.is_bot = bool(d.get("bot", false))
+	p.team_id = int(d.get("team", 0))
+	p.name = ("bot%d" % abs(id)) if p.is_bot else str(id)
 	p.display_name = str(d.get("n", "Player"))
 	p.position = d["pos"]
-	p.set_multiplayer_authority(id, true)
+	if p.is_bot:
+		p.set_multiplayer_authority(1, true)
+	else:
+		p.set_multiplayer_authority(id, true)
 	Game.set_hp(p, Player.MAX_HP)
-	Game.register_participant(id, p.display_name)
+	Game.register_participant(id, p.display_name, p.team_id)
 	return p
 
 
-func _spawn_dummy_node(data: Variant) -> Node:
-	var d: Dictionary = data
-	if typeof(d) != TYPE_DICTIONARY or not d.has("id"):
-		push_error("Bad dummy spawn payload: %s" % str(data))
-		return Node.new()
-	var dummy: DummyTarget = DUMMY_SCENE.instantiate()
-	dummy.peer_id = int(d["id"])
-	dummy.name = "Dummy%d" % (int(d.get("index", 0)) + 1)
-	dummy.position = d["pos"]
-	dummy.set_multiplayer_authority(1, true)
-	Game.register_participant(dummy.peer_id, dummy.name)
-	return dummy
-
-
-func _spawn_dummies() -> void:
-	if dummies_root.get_child_count() > 0:
+func _add_pawn(data: Dictionary) -> void:
+	if Game.is_offline:
+		var p: Player = _spawn_player_node(data)
+		players_root.add_child(p, true)
 		return
+	if not multiplayer.is_server():
+		return
+	spawner.spawn(data)
+
+
+func _next_spawn(team: int) -> Vector3:
+	var list: Array = TEAM_A_SPAWNS if team == Game.TEAM_A else TEAM_B_SPAWNS
+	var i: int = int(_spawn_i[team]) % list.size()
+	_spawn_i[team] = i + 1
+	return list[i]
+
+
+func _team_count(team: int) -> int:
+	var n := 0
+	for child in players_root.get_children():
+		var p := child as Player
+		if p and p.team_id == team and not p.is_queued_for_deletion():
+			n += 1
+	return n
+
+
+func _human_count(team: int) -> int:
+	var n := 0
+	for child in players_root.get_children():
+		var p := child as Player
+		if p and not p.is_bot and p.team_id == team and not p.is_queued_for_deletion():
+			n += 1
+	return n
+
+
+func _team_for_human() -> int:
+	if _human_count(Game.TEAM_A) <= _human_count(Game.TEAM_B):
+		return Game.TEAM_A
+	return Game.TEAM_B
+
+
+func _smaller_team() -> int:
+	if _team_count(Game.TEAM_A) <= _team_count(Game.TEAM_B):
+		return Game.TEAM_A
+	return Game.TEAM_B
+
+
+func _spawn_bot(team: int) -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
-	for i in DUMMY_SPAWNS.size():
-		var spawn_data := {
-			"id": _dummy_peer_id_counter,
-			"pos": DUMMY_SPAWNS[i],
-			"index": i,
-		}
-		_dummy_peer_id_counter -= 1
-		if Game.is_offline:
-			var dummy: DummyTarget = _spawn_dummy_node(spawn_data)
-			dummies_root.add_child(dummy, true)
-		else:
-			dummy_spawner.spawn(spawn_data)
+	var id := _bot_id_counter
+	_bot_id_counter -= 1
+	var pos := _next_spawn(team)
+	_add_pawn({
+		"id": id,
+		"pos": pos,
+		"n": "Bot %d" % abs(id),
+		"bot": true,
+		"team": team,
+	})
+
+
+func _fill_bots() -> void:
+	if Game.is_networked() and not multiplayer.is_server():
+		return
+	for team in [Game.TEAM_A, Game.TEAM_B]:
+		while _team_count(team) < Game.TEAM_SIZE:
+			_spawn_bot(team)
+
+
+func _first_bot_on(team: int) -> Player:
+	for child in players_root.get_children():
+		var p := child as Player
+		if p and p.is_bot and p.team_id == team and not p.is_queued_for_deletion():
+			return p
+	return null
+
+
+func _trim_bots() -> void:
+	if Game.is_networked() and not multiplayer.is_server():
+		return
+	for team in [Game.TEAM_A, Game.TEAM_B]:
+		while _team_count(team) > Game.TEAM_SIZE:
+			var bot := _first_bot_on(team)
+			if bot == null:
+				break
+			Game.scores.erase(bot.peer_id)
+			bot.queue_free()
 
 
 func _on_local_player_ready(player: Player) -> void:
@@ -459,7 +526,7 @@ func _on_local_player_ready(player: Player) -> void:
 func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
 	_match_state = MatchState.ROUND_END
 	_state_timer = 0.0
-	_set_status("Round ended! Winner: %s" % winner_name)
+	_set_status("Round ended! %s wins" % winner_name)
 
 
 func _start_intermission() -> void:
@@ -472,17 +539,12 @@ func _start_intermission() -> void:
 func _reset_round() -> void:
 	_match_state = MatchState.WARMUP
 	_state_timer = 0.0
-	_spawn_i = 0
+	_spawn_i = [0, 0]
 	for n in players_root.get_children():
 		var p := n as Player
 		if p:
 			p.apply_respawn_state()
-	for n in dummies_root.get_children():
-		var d := n as DummyTarget
-		if d:
-			d._respawn()
-	_dummy_peer_id_counter = -1
-	_spawn_dummies()
+	_fill_bots()
 	_set_status("Warmup...")
 
 

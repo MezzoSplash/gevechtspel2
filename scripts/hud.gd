@@ -113,6 +113,8 @@ func _on_score_changed(_peer_id: int, _score: int, _n: String) -> void:
 
 
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
+	if int(a.get("team", 0)) != int(b.get("team", 0)):
+		return int(a.team) < int(b.team)
 	if a.kills == b.kills:
 		return str(a.name) < str(b.name)
 	return a.kills > b.kills
@@ -121,7 +123,7 @@ func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
 func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
 	_round_end_timer = 5.0
 	_round_end_winner = winner_name
-	round_end_label.text = "WINNER: %s" % winner_name
+	round_end_label.text = "%s WINS" % winner_name
 	round_end_label.visible = true
 	_scoreboard_open = true
 	scoreboard_container.visible = true
@@ -144,33 +146,49 @@ func _refresh_scoreboard() -> void:
 	_scores = Game.get_scores()
 	_scores.sort_custom(_sort_scores)
 
+	var totals := Label.new()
+	totals.text = "BLUE %d    ORANGE %d" % [Game.get_team_kills(Game.TEAM_A), Game.get_team_kills(Game.TEAM_B)]
+	totals.add_theme_font_size_override("font_size", 22)
+	totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	scoreboard_container.add_child(totals)
+
 	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 20)
-	var name_h := Label.new()
-	name_h.text = "NAME"
-	name_h.custom_minimum_size = Vector2(200, 0)
-	name_h.add_theme_font_size_override("font_size", 18)
-	var kills_h := Label.new()
-	kills_h.text = "KILLS"
-	kills_h.custom_minimum_size = Vector2(80, 0)
-	kills_h.add_theme_font_size_override("font_size", 18)
-	kills_h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	header.add_child(name_h)
-	header.add_child(kills_h)
+	header.add_theme_constant_override("separation", 16)
+	for title in ["TEAM", "NAME", "KILLS"]:
+		var h := Label.new()
+		h.text = title
+		h.add_theme_font_size_override("font_size", 16)
+		if title == "NAME":
+			h.custom_minimum_size = Vector2(180, 0)
+		elif title == "TEAM":
+			h.custom_minimum_size = Vector2(90, 0)
+		else:
+			h.custom_minimum_size = Vector2(70, 0)
+			h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		header.add_child(h)
 	scoreboard_container.add_child(header)
 
 	for entry in _scores:
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 20)
+		row.add_theme_constant_override("separation", 16)
+		var team_id := int(entry.get("team", 0))
+		var team_col: Color = Player.TEAM_COLORS[team_id]
+		var team_l := Label.new()
+		team_l.text = Game.TEAM_NAMES[team_id]
+		team_l.custom_minimum_size = Vector2(90, 0)
+		team_l.add_theme_color_override("font_color", team_col)
 		var name_l := Label.new()
 		name_l.text = entry.name
-		name_l.custom_minimum_size = Vector2(200, 0)
+		name_l.custom_minimum_size = Vector2(180, 0)
 		if entry.peer_id == _local_peer_id:
 			name_l.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+		else:
+			name_l.add_theme_color_override("font_color", team_col)
 		var kills_l := Label.new()
 		kills_l.text = str(entry.kills)
-		kills_l.custom_minimum_size = Vector2(80, 0)
+		kills_l.custom_minimum_size = Vector2(70, 0)
 		kills_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(team_l)
 		row.add_child(name_l)
 		row.add_child(kills_l)
 		scoreboard_container.add_child(row)

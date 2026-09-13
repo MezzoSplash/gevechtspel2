@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.1.2** — LAN arena slice: rifle / pistol / shotgun, hunting dummies on a navmesh, scoreboard (Tab), host/join. Bots move and shoot on host and clients.
+**v0.2 (wip)** — 5v5 TDM with bot-fill: rifle / pistol / shotgun, Blue vs Orange, Tab scoreboard, host/join.
 
 ## Play (Linux)
 
@@ -32,7 +32,7 @@ Dedicated server (optional):
 ./run.sh -- --connect 127.0.0.1:7777 --name Friend
 ```
 
-Three red dummies shoot back if they can see you. Use cover. Die and you respawn after 2 seconds.
+Bots fill empty slots to 5v5. Same guns as you. Use cover. Die and you respawn after 2 seconds. Tab shows team score.
 
 ## Editor
 

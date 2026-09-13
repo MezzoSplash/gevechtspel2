@@ -53,13 +53,22 @@ func _hook_hit_fx() -> void:
 
 
 func _process(delta: float) -> void:
-	if not _is_local():
+	var owner_player := owner as Player
+	var bot_auth := owner_player != null and owner_player.is_bot and (Game.is_offline or multiplayer.is_server())
+	if not _is_local() and not bot_auth:
 		return
 	_cooldown = maxf(_cooldown - delta, 0.0)
 	_flash_left = maxf(_flash_left - delta, 0.0)
 	if _flash_left <= 0.0:
 		muzzle_flash.visible = false
 		muzzle_light.visible = false
+	if bot_auth:
+		if _reload_left > 0.0:
+			_reload_left = maxf(_reload_left - delta, 0.0)
+			if _reload_left <= 0.0:
+				ammo = def.mag_size
+				_save_weapon_state()
+		return
 
 	if _reload_left > 0.0:
 		_reload_left = maxf(_reload_left - delta, 0.0)
@@ -189,6 +198,16 @@ func _try_fire() -> void:
 	_fire()
 
 
+func bot_try_fire() -> bool:
+	if _cooldown > 0.0 or _reload_left > 0.0:
+		return false
+	if ammo <= 0:
+		_start_reload()
+		return false
+	_fire()
+	return true
+
+
 func _fire() -> void:
 	ammo -= 1
 	_save_weapon_state()
@@ -204,24 +223,29 @@ func _fire() -> void:
 		fire_sfx.pitch_scale = randf_range(0.96, 1.05)
 		fire_sfx.play()
 
-	var yaw_kick := randf_range(-def.kick_yaw_deg, def.kick_yaw_deg)
-	camera.add_kick(def.kick_pitch_deg, yaw_kick, def.kick_fov)
-	var hud := _hud_node()
-	if hud:
-		hud.punch_crosshair(_crosshair_punch())
-	_refresh_hud()
+	var shooter := owner as Player
+	if shooter == null or not shooter.is_bot:
+		var yaw_kick := randf_range(-def.kick_yaw_deg, def.kick_yaw_deg)
+		camera.add_kick(def.kick_pitch_deg, yaw_kick, def.kick_fov)
+		var hud := _hud_node()
+		if hud:
+			hud.punch_crosshair(_crosshair_punch())
+		_refresh_hud()
 
 	var origin := camera.global_position
 	var look_dir := -camera.global_transform.basis.z
-	_simulate_pellets_fx(origin, look_dir)
+	var tracer_to := _simulate_pellets_fx(origin, look_dir)
+	if Game.is_networked() and multiplayer.is_server() and shooter:
+		Game.broadcast_shot_fx(muzzle.global_position, tracer_to, shooter.peer_id)
 
-	var shooter := owner as Player
 	var spread_mult := _spread_multiplier()
+	if shooter and shooter.is_bot:
+		spread_mult *= 2.4
 	if Game.is_networked() and not multiplayer.is_server():
-		Game.request_weapon_fire.rpc_id(1, origin, look_dir, def.id)
+		Game.request_weapon_fire.rpc_id(1, origin, look_dir, def.id, muzzle.global_position)
 	elif shooter:
 		var best: Dictionary = Game.fire_weapon_locally(shooter, origin, look_dir, def, spread_mult)
-		if best.get("hit", false):
+		if best.get("hit", false) and not shooter.is_bot:
 			Game.hit_confirmed.emit(best.killed, best.headshot)
 			_play_hit_fx(best.killed, best.headshot)
 
@@ -229,11 +253,12 @@ func _fire() -> void:
 		_start_reload()
 
 
-func _simulate_pellets_fx(origin: Vector3, look_dir: Vector3) -> void:
+func _simulate_pellets_fx(origin: Vector3, look_dir: Vector3) -> Vector3:
 	var spread := def.spread_deg * _spread_multiplier()
 	var space := camera.get_world_3d().direct_space_state
 	var player_body := owner as CollisionObject3D
-	for _i in def.pellet_count:
+	var tracer_end := origin + look_dir * def.range_m
+	for i in def.pellet_count:
 		var dir := _spread(look_dir, spread)
 		var to := origin + dir * def.range_m
 		var query := PhysicsRayQueryParameters3D.create(origin, to)
@@ -246,6 +271,9 @@ func _simulate_pellets_fx(origin: Vector3, look_dir: Vector3) -> void:
 			end = hit.position
 			_spawn_spark(hit.position, hit.normal)
 		_spawn_tracer(muzzle.global_position, end)
+		if i == 0:
+			tracer_end = end
+	return tracer_end
 
 
 func _on_confirmed_hit(killed: bool, headshot: bool) -> void:

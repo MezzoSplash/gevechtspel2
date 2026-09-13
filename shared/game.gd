@@ -10,6 +10,10 @@ signal round_ended(winner_peer_id: int, winner_name: String, scores: Dictionary)
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4
 const WIN_KILLS := 25
+const TEAM_SIZE := 5
+const TEAM_A := 0
+const TEAM_B := 1
+const TEAM_NAMES := ["BLUE", "ORANGE"]
 const ROUND_TIME := 600.0
 const WARMUP_TIME := 5.0
 const ROUND_END_TIME := 5.0
@@ -59,7 +63,7 @@ func hp_of(p: Player) -> float:
 	if not is_networked():
 		return p.hp
 	var id := p.peer_id
-	if id <= 0:
+	if id == 0:
 		id = p._owner_peer()
 	if not net_hp.has(id):
 		net_hp[id] = Player.MAX_HP
@@ -68,7 +72,7 @@ func hp_of(p: Player) -> float:
 
 func set_hp(p: Player, value: float) -> void:
 	p.hp = value
-	if is_networked() and p.peer_id > 0:
+	if is_networked() and p.peer_id != 0:
 		net_hp[p.peer_id] = value
 
 
@@ -83,7 +87,7 @@ func weapon_def(weapon_id: StringName) -> WeaponDef:
 
 
 @rpc("any_peer", "reliable")
-func request_weapon_fire(origin: Vector3, look_dir: Vector3, weapon_id: StringName) -> void:
+func request_weapon_fire(origin: Vector3, look_dir: Vector3, weapon_id: StringName, muzzle_pos: Vector3 = Vector3.ZERO) -> void:
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
@@ -95,6 +99,8 @@ func request_weapon_fire(origin: Vector3, look_dir: Vector3, weapon_id: StringNa
 	var def := weapon_def(weapon_id)
 	if def == null:
 		return
+	var from := muzzle_pos if muzzle_pos != Vector3.ZERO else origin
+	broadcast_shot_fx(from, origin + look_dir.normalized() * def.range_m, peer)
 	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, 1.0)
 	if best.get("hit", false):
 		notify_hit.rpc_id(peer, best.killed, best.headshot)
@@ -177,15 +183,9 @@ func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, hs_mult: f
 		var victim := collider as Player
 		if victim == shooter or victim.is_dead:
 			return {}
-		return victim.apply_hit(hit.position, hit.normal, damage, true, killer_id)
-	if collider is DummyTarget:
-		var dummy_body := collider as DummyTarget
-		return dummy_body.apply_hit(collider, hit.position, hit.normal, damage, hs_mult, killer_id)
-	if collider.is_in_group("hurtbox"):
-		var dummy := collider.get_parent() as DummyTarget
-		if dummy == null:
+		if victim.team_id == shooter.team_id:
 			return {}
-		return dummy.apply_hit(collider, hit.position, hit.normal, damage, hs_mult, killer_id)
+		return victim.apply_hit(hit.position, hit.normal, damage, true, killer_id)
 	return {}
 
 
@@ -211,8 +211,15 @@ func submit_display_name(n: String) -> void:
 @rpc("authority", "call_local", "reliable")
 func apply_display_name(peer_id: int, n: String) -> void:
 	var p := player_for_peer(peer_id)
+	var team := 0
+	var kills := 0
 	if p:
 		p.set_display_name(n)
+		team = p.team_id
+	if scores.has(peer_id):
+		kills = int(scores[peer_id].kills)
+		team = int(scores[peer_id].get("team", team))
+	_apply_score(peer_id, kills, n, team)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -250,24 +257,32 @@ func _display_name_for(peer_id: int) -> String:
 	return "Player"
 
 
-func _apply_score(peer_id: int, kills: int, n: String) -> void:
+func _apply_score(peer_id: int, kills: int, n: String, team: int = 0) -> void:
 	if not scores.has(peer_id):
-		scores[peer_id] = {"name": n, "kills": 0}
+		scores[peer_id] = {"name": n, "kills": 0, "team": team}
 	scores[peer_id].kills = kills
 	scores[peer_id].name = n
+	scores[peer_id].team = team
 	score_changed.emit(peer_id, kills, n)
 
 
-func register_participant(peer_id: int, n: String) -> void:
+func register_participant(peer_id: int, n: String, team: int = 0) -> void:
 	if scores.has(peer_id):
-		if n != "" and scores[peer_id].name != n:
-			_apply_score(peer_id, int(scores[peer_id].kills), n)
+		var existing: String = str(scores[peer_id].name)
+		var incoming_placeholder := n == "" or n == "Player"
+		var keep_existing := existing != "" and existing != "Player"
+		if incoming_placeholder and keep_existing:
+			if int(scores[peer_id].get("team", team)) != team:
+				_apply_score(peer_id, int(scores[peer_id].kills), existing, team)
+			return
+		if n != "" and existing != n:
+			_apply_score(peer_id, int(scores[peer_id].kills), n, int(scores[peer_id].get("team", team)))
 			if is_networked() and multiplayer.is_server():
-				sync_score.rpc(peer_id, int(scores[peer_id].kills), n)
+				sync_score.rpc(peer_id, int(scores[peer_id].kills), n, int(scores[peer_id].team))
 		return
-	_apply_score(peer_id, 0, n)
+	_apply_score(peer_id, 0, n, team)
 	if is_networked() and multiplayer.is_server():
-		sync_score.rpc(peer_id, 0, n)
+		sync_score.rpc(peer_id, 0, n, team)
 
 
 func register_kill(killer_peer_id: int, _victim_peer_id: int) -> void:
@@ -276,13 +291,16 @@ func register_kill(killer_peer_id: int, _victim_peer_id: int) -> void:
 	if killer_peer_id == 0:
 		return
 	if not scores.has(killer_peer_id):
-		register_participant(killer_peer_id, _display_name_for(killer_peer_id))
+		var killer := player_for_peer(killer_peer_id)
+		var team := killer.team_id if killer else 0
+		register_participant(killer_peer_id, _display_name_for(killer_peer_id), team)
 	var kills: int = int(scores[killer_peer_id].kills) + 1
 	var n: String = scores[killer_peer_id].name
-	_apply_score(killer_peer_id, kills, n)
+	var team_id: int = int(scores[killer_peer_id].get("team", 0))
+	_apply_score(killer_peer_id, kills, n, team_id)
 	if is_networked():
-		sync_score.rpc(killer_peer_id, kills, n)
-	_check_win(killer_peer_id)
+		sync_score.rpc(killer_peer_id, kills, n, team_id)
+	_check_win_team(team_id)
 
 
 @rpc("any_peer", "reliable")
@@ -293,8 +311,8 @@ func report_death(killer_peer_id: int, victim_peer_id: int) -> void:
 
 
 @rpc("authority", "reliable")
-func sync_score(peer_id: int, score: int, n: String) -> void:
-	_apply_score(peer_id, score, n)
+func sync_score(peer_id: int, score: int, n: String, team: int = 0) -> void:
+	_apply_score(peer_id, score, n, team)
 
 
 @rpc("authority", "reliable")
@@ -316,35 +334,39 @@ func sync_all_scores(scores_data: Array) -> void:
 		var pid: int = int(entry.peer_id)
 		var n: String = str(entry.name)
 		var kills: int = int(entry.kills)
-		_apply_score(pid, kills, n)
+		var team: int = int(entry.get("team", 0))
+		_apply_score(pid, kills, n, team)
 
 
-func _check_win(killer_peer_id: int) -> void:
+func _check_win_team(team_id: int) -> void:
 	if not _round_active:
 		return
-	if not scores.has(killer_peer_id):
-		return
-	if scores[killer_peer_id].kills >= WIN_KILLS:
-		_end_round(killer_peer_id)
+	if get_team_kills(team_id) >= WIN_KILLS:
+		_end_round_team(team_id)
 
 
 func _end_round(winner_peer_id: int) -> void:
-	_round_active = false
-	var winner_name := "Player"
+	var team := 0
 	if scores.has(winner_peer_id):
-		winner_name = str(scores[winner_peer_id].name)
-	round_ended.emit(winner_peer_id, winner_name, scores.duplicate())
+		team = int(scores[winner_peer_id].get("team", 0))
+	_end_round_team(team)
+
+
+func _end_round_team(team_id: int) -> void:
+	_round_active = false
+	var winner_name: String = TEAM_NAMES[clampi(team_id, 0, TEAM_NAMES.size() - 1)]
+	round_ended.emit(team_id, winner_name, scores.duplicate())
 	if is_networked():
-		sync_round_end.rpc(winner_peer_id, winner_name, scores.duplicate())
+		sync_round_end.rpc(team_id, winner_name, scores.duplicate())
 
 
 func start_round() -> void:
 	_round_timer = 0.0
 	_round_active = true
 	for id in scores:
-		_apply_score(id, 0, str(scores[id].name))
+		_apply_score(id, 0, str(scores[id].name), int(scores[id].get("team", 0)))
 		if is_networked() and multiplayer.is_server():
-			sync_score.rpc(id, 0, str(scores[id].name))
+			sync_score.rpc(id, 0, str(scores[id].name), int(scores[id].team))
 
 
 func update_round_timer(delta: float) -> bool:
@@ -352,34 +374,41 @@ func update_round_timer(delta: float) -> bool:
 		return false
 	_round_timer += delta
 	if _round_timer >= ROUND_TIME:
-		var winner_id := _get_leader()
-		_end_round(winner_id)
+		_end_round_team(_get_leader())
 		return true
 	return false
 
 
 func _get_leader() -> int:
-	var best_id := 0
-	var best_kills := -1
+	if get_team_kills(TEAM_A) >= get_team_kills(TEAM_B):
+		return TEAM_A
+	return TEAM_B
+
+
+func get_team_kills(team_id: int) -> int:
+	var total := 0
 	for id in scores:
-		if scores[id].kills > best_kills:
-			best_kills = scores[id].kills
-			best_id = id
-	if best_id == 0 and scores.size() > 0:
-		for id in scores:
-			return id
-	return 1
+		if int(scores[id].get("team", 0)) == team_id:
+			total += int(scores[id].kills)
+	return total
 
 
 func get_scores() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for id in scores:
-		out.append({"peer_id": id, "name": scores[id].name, "kills": scores[id].kills})
+		out.append({
+			"peer_id": id,
+			"name": scores[id].name,
+			"kills": scores[id].kills,
+			"team": int(scores[id].get("team", 0)),
+		})
 	out.sort_custom(_sort_scores)
 	return out
 
 
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
+	if int(a.get("team", 0)) != int(b.get("team", 0)):
+		return int(a.team) < int(b.team)
 	if a.kills == b.kills:
 		return str(a.name) < str(b.name)
 	return a.kills > b.kills
@@ -389,47 +418,100 @@ func get_round_time_left() -> float:
 	return maxf(ROUND_TIME - _round_timer, 0.0)
 
 
-func dummy_by_name(dummy_name: String) -> DummyTarget:
-	for n in get_tree().get_nodes_in_group("dummy"):
-		if str(n.name) == dummy_name:
-			return n as DummyTarget
-	return null
+func broadcast_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int) -> void:
+	if not is_networked() or not multiplayer.is_server():
+		return
+	if shooter_peer_id > 0 and shooter_peer_id != multiplayer.get_unique_id():
+		_spawn_net_tracer(from, to)
+	sync_shot_fx.rpc(from, to, shooter_peer_id)
 
 
 @rpc("authority", "unreliable")
-func sync_dummy_pose(dummy_name: String, pos: Vector3, yaw: float) -> void:
-	if multiplayer.is_server():
+func sync_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int = 0) -> void:
+	if shooter_peer_id != 0 and shooter_peer_id == multiplayer.get_unique_id():
 		return
-	var dummy := dummy_by_name(dummy_name)
-	if dummy:
-		dummy.apply_network_pose(pos, yaw)
+	_spawn_net_tracer(from, to)
+
+
+func _spawn_net_tracer(from: Vector3, to: Vector3) -> void:
+	var length := from.distance_to(to)
+	if length < 0.05:
+		return
+	var mesh_inst := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.02, 0.02, length)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.0, 0.82, 0.28)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.7, 0.15)
+	mat.emission_energy_multiplier = 3.0
+	mesh_inst.mesh = box
+	mesh_inst.material_override = mat
+	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_tree().root.add_child(mesh_inst)
+	mesh_inst.global_position = (from + to) * 0.5
+	if from.distance_squared_to(to) > 0.0001:
+		mesh_inst.look_at(to, Vector3.UP)
+	get_tree().create_timer(0.055).timeout.connect(mesh_inst.queue_free)
+
+
+func _physics_process(_delta: float) -> void:
+	if not is_networked() or not multiplayer.is_server():
+		return
+	if multiplayer.get_peers().is_empty():
+		return
+	var poses: Array = []
+	for n in get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p == null or not p.is_bot:
+			continue
+		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x])
+	if poses.is_empty():
+		return
+	sync_bot_poses.rpc(poses)
 
 
 @rpc("authority", "unreliable")
-func sync_dummy_shot(from: Vector3, to: Vector3) -> void:
+func sync_bot_poses(poses: Array) -> void:
 	if multiplayer.is_server():
 		return
-	var dummy := get_tree().get_first_node_in_group("dummy") as DummyTarget
-	if dummy:
-		dummy.play_shot_fx(from, to)
+	for entry in poses:
+		if typeof(entry) != TYPE_ARRAY or entry.size() < 4:
+			continue
+		var p := player_for_peer(int(entry[0]))
+		if p and p.is_bot:
+			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]))
+
+
+func live_peer_ids() -> Array:
+	var ids: Array = []
+	for n in get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p and not p.is_queued_for_deletion():
+			ids.append(p.peer_id)
+	return ids
+
+
+func broadcast_roster() -> void:
+	if not is_networked() or not multiplayer.is_server():
+		return
+	sync_roster.rpc(live_peer_ids())
 
 
 @rpc("authority", "reliable")
-func sync_dummy_hit(dummy_name: String, dmg: int, point: Vector3, is_head: bool, killed: bool) -> void:
+func sync_roster(ids: Array) -> void:
 	if multiplayer.is_server():
 		return
-	var dummy := dummy_by_name(dummy_name)
-	if dummy:
-		dummy.show_network_hit(dmg, point, is_head, killed)
-
-
-@rpc("authority", "reliable")
-func sync_dummy_alive(dummy_name: String, pos: Vector3) -> void:
-	if multiplayer.is_server():
-		return
-	var dummy := dummy_by_name(dummy_name)
-	if dummy:
-		dummy.show_network_alive(pos)
+	var valid := {}
+	for id in ids:
+		valid[int(id)] = true
+	for n in get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p == null or p.is_local() or p.is_queued_for_deletion():
+			continue
+		if not valid.has(p.peer_id):
+			p.queue_free()
 
 
 func _ready() -> void:

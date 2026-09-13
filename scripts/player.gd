@@ -33,9 +33,14 @@ const SPAWN_PROTECT := 1.8
 @onready var col_shape: CollisionShape3D = $CollisionShape3D
 @onready var nametag: Label3D = $Nametag
 
+const TEAM_COLORS := [Color(0.25, 0.55, 0.95), Color(0.92, 0.38, 0.22)]
+const Brain := preload("res://scripts/bot_brain.gd")
+
 var hp := MAX_HP
 @export var peer_id := 0
 @export var is_dead := false
+@export var is_bot := false
+@export var team_id := 0
 var is_sprinting := false
 @export var crouch := 0.0
 @export var display_name := "Player"
@@ -44,9 +49,13 @@ var _pitch := 0.0
 var _spawn_xform := Transform3D.IDENTITY
 var _capsule: CapsuleShape3D
 var _spawn_protect := 0.0
+var _bot_brain
+var _body_mat: StandardMaterial3D
 
 
 func is_local() -> bool:
+	if is_bot:
+		return false
 	if Game.is_offline:
 		return true
 	var id := _owner_peer()
@@ -54,7 +63,7 @@ func is_local() -> bool:
 
 
 func _owner_peer() -> int:
-	if peer_id > 0:
+	if peer_id != 0:
 		return peer_id
 	if str(name).is_valid_int():
 		return int(str(name))
@@ -64,9 +73,11 @@ func _owner_peer() -> int:
 func _enter_tree() -> void:
 	if Game.is_offline:
 		return
-	if peer_id <= 0 and str(name).is_valid_int():
+	if peer_id == 0 and str(name).is_valid_int():
 		peer_id = int(str(name))
-	if peer_id > 0:
+	if is_bot or peer_id < 0:
+		set_multiplayer_authority(1, true)
+	elif peer_id > 0:
 		set_multiplayer_authority(peer_id, true)
 
 
@@ -74,22 +85,31 @@ func _ready() -> void:
 	add_to_group("player")
 	floor_snap_length = 0.2
 	collision_layer = 2
-	collision_mask = 1 | 4
+	collision_mask = 1
 	_spawn_xform = global_transform
 	_capsule = col_shape.shape.duplicate() as CapsuleShape3D
 	col_shape.shape = _capsule
-	if peer_id <= 0:
+	if peer_id == 0:
 		peer_id = _owner_peer()
+	_dup_body_mat()
+	_apply_team_visual()
+	if has_node("Sync") and (Game.is_offline or is_bot or peer_id < 0):
+		$Sync.public_visibility = false
 	if Game.is_offline:
-		if has_node("Sync"):
-			$Sync.public_visibility = false
+		pass
+	elif is_bot or peer_id < 0:
+		set_multiplayer_authority(1, true)
 	elif peer_id > 0:
 		set_multiplayer_authority(peer_id, true)
 	_spawn_protect = SPAWN_PROTECT
+	if is_bot and (Game.is_offline or multiplayer.is_server()):
+		_bot_brain = Brain.new()
+		_bot_brain.setup(self, get_node_or_null("NavigationAgent3D") as NavigationAgent3D)
 	call_deferred("_configure_control")
 
 
 func _configure_control() -> void:
+	_apply_team_visual()
 	if is_local():
 		body_mesh.visible = false
 		weapon.visible = true
@@ -105,7 +125,7 @@ func _configure_control() -> void:
 	else:
 		body_mesh.visible = not is_dead
 		camera.current = false
-		weapon.visible = false
+		weapon.visible = true
 		nametag.visible = true
 		set_display_name(display_name)
 
@@ -148,6 +168,29 @@ func set_display_name(n: String) -> void:
 	display_name = n
 	if nametag:
 		nametag.text = n
+		nametag.modulate = TEAM_COLORS[team_id]
+
+
+func _dup_body_mat() -> void:
+	if body_mesh == null:
+		return
+	var src := body_mesh.get_active_material(0)
+	if src is StandardMaterial3D:
+		_body_mat = (src as StandardMaterial3D).duplicate()
+	else:
+		_body_mat = StandardMaterial3D.new()
+	body_mesh.set_surface_override_material(0, _body_mat)
+
+
+func _apply_team_visual() -> void:
+	var col: Color = TEAM_COLORS[clampi(team_id, 0, TEAM_COLORS.size() - 1)]
+	if _body_mat:
+		_body_mat.albedo_color = col
+		_body_mat.emission_enabled = true
+		_body_mat.emission = col * 0.45
+		_body_mat.emission_energy_multiplier = 0.7
+	if nametag:
+		nametag.modulate = col
 
 
 func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_headshot: bool = true, killer_peer_id: int = 0) -> Dictionary:
@@ -192,6 +235,7 @@ func _die() -> void:
 		died.emit()
 	else:
 		body_mesh.visible = false
+		weapon.visible = false
 	if Game.is_offline or multiplayer.is_server():
 		get_tree().create_timer(RESPAWN_TIME).timeout.connect(_server_respawn)
 
@@ -214,20 +258,20 @@ func apply_respawn_state() -> void:
 	velocity = Vector3.ZERO
 	crouch = 0.0
 	is_sprinting = false
-	if is_local():
-		global_transform = _spawn_xform
-		_yaw = rotation.y
-		_pitch = 0.0
-		head.rotation.x = 0.0
-		weapon.visible = true
+	global_transform = _spawn_xform
+	_yaw = rotation.y
+	_pitch = 0.0
+	head.rotation.x = 0.0
+	weapon.visible = true
+	if weapon:
 		weapon.refill()
-		_apply_stance()
+	_apply_stance()
+	_apply_team_visual()
+	if is_local():
 		health_changed.emit(hp, MAX_HP)
 		respawned.emit()
 	else:
 		body_mesh.visible = true
-		weapon.visible = false
-		_apply_stance()
 
 
 func spread_multiplier() -> float:
@@ -241,12 +285,15 @@ func spread_multiplier() -> float:
 
 func _physics_process(delta: float) -> void:
 	_spawn_protect = maxf(_spawn_protect - delta, 0.0)
+	if is_bot:
+		if Game.is_networked() and not multiplayer.is_server():
+			_apply_remote_visual()
+			return
+		if _bot_brain:
+			_bot_brain.physics_tick(delta)
+		return
 	if not is_local():
-		_apply_stance()
-		body_mesh.visible = not is_dead
-		collision_layer = 0 if is_dead else 2
-		if nametag:
-			nametag.text = display_name
+		_apply_remote_visual()
 		return
 	var on_floor := is_on_floor()
 	_update_stance(delta, on_floor)
@@ -294,6 +341,26 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	weapon.speed_factor = Vector2(velocity.x, velocity.z).length() / WALK_SPEED
+
+
+func apply_network_pose(pos: Vector3, yaw: float, pitch: float) -> void:
+	global_position = pos
+	rotation.y = yaw
+	_yaw = yaw
+	_pitch = pitch
+	if head:
+		head.rotation.x = pitch
+	velocity = Vector3.ZERO
+
+
+func _apply_remote_visual() -> void:
+	_apply_stance()
+	_apply_team_visual()
+	body_mesh.visible = not is_dead
+	weapon.visible = not is_dead
+	collision_layer = 0 if is_dead else 2
+	if nametag:
+		nametag.text = display_name
 
 
 func _update_stance(delta: float, _on_floor: bool) -> void:
