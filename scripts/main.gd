@@ -25,6 +25,9 @@ enum MatchState { WARMUP, PLAYING, ROUND_END, INTERMISSION }
 @onready var spawner: MultiplayerSpawner = $MultiplayerSpawner
 @onready var hud: Hud = $CanvasLayer/Hud
 @onready var menu = $CanvasLayer/Menu
+@onready var pause_ui = $CanvasLayer/Pause
+
+var _leaving := false
 
 var _spawn_i := [0, 0] # next spawn index per team
 var _match_state := MatchState.WARMUP
@@ -49,9 +52,20 @@ func _ready() -> void:
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	Game.local_player_ready.connect(_on_local_player_ready)
 	Game.round_ended.connect(_on_round_ended)
+	Game.match_starting.connect(_on_match_starting)
+	Game.lobby_changed.connect(_on_lobby_changed)
 	menu.play_local_pressed.connect(_play_locally)
 	menu.host_pressed.connect(_host_game)
 	menu.connect_pressed.connect(_connect_to_server)
+	if menu.has_signal("start_match_pressed"):
+		menu.start_match_pressed.connect(_start_match_from_lobby)
+	if menu.has_signal("lobby_team_picked"):
+		menu.lobby_team_picked.connect(_lobby_pick_team)
+	if menu.has_signal("lobby_leave_pressed"):
+		menu.lobby_leave_pressed.connect(_leave_to_menu)
+	if pause_ui:
+		pause_ui.resume_pressed.connect(_resume_game)
+		pause_ui.leave_pressed.connect(_leave_to_menu)
 	call_deferred("_bake_nav")
 	var args := _parse_args()
 	if args.get("name", "") != "":
@@ -121,6 +135,8 @@ func _parse_args() -> Dictionary:
 
 ## Match clock. Clients do not tick this; they get time/scores over RPC.
 func _process(delta: float) -> void:
+	if Game.in_lobby:
+		return
 	if not multiplayer.is_server() and not Game.is_offline:
 		return
 	if _match_state == MatchState.WARMUP:
@@ -184,7 +200,58 @@ func _enter_play() -> void:
 		get_viewport().gui_get_focus_owner().release_focus()
 	hud.visible = true
 	Game.chat_open = false
+	Game.pause_open = false
 	_disable_menu_camera()
+
+
+func _open_lobby(status: String) -> void:
+	menu.visible = true
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	hud.visible = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if has_node("MenuCamera"):
+		$MenuCamera.current = true
+	_set_status(status)
+	if menu.has_method("show_screen"):
+		menu.show_screen("lobby")
+	_on_lobby_changed()
+
+
+func _on_lobby_changed() -> void:
+	if menu.has_method("refresh_lobby"):
+		menu.refresh_lobby(Game.lobby, multiplayer.is_server())
+
+
+func _on_match_starting() -> void:
+	Game.in_lobby = false
+	_enter_play()
+	_match_state = MatchState.WARMUP
+	_state_timer = 0.0
+	if not multiplayer.is_server():
+		return
+	for id in Game.lobby:
+		var e: Dictionary = Game.lobby[id]
+		_spawn_player(int(id), int(e.get("team", 0)))
+	_fill_bots()
+	broadcast_pawns()
+
+
+func _start_match_from_lobby() -> void:
+	if not multiplayer.is_server() or not Game.in_lobby:
+		return
+	Game.begin_match.rpc()
+
+
+func _lobby_pick_team(team: int) -> void:
+	if menu.has_method("set_team"):
+		menu.set_team(team)
+	if Game.in_lobby and Game.is_networked():
+		if multiplayer.is_server():
+			Game.set_lobby_member(1, Game.player_name, team)
+		else:
+			Game.request_lobby_team.rpc_id(1, team)
+	elif Game.in_lobby:
+		Game.set_lobby_member(1, Game.player_name, team)
 
 
 func _disable_menu_camera() -> void:
@@ -198,10 +265,11 @@ func _play_locally() -> void:
 	Game.player_name = menu.player_name()
 	if Game.player_name == "":
 		Game.player_name = "Player"
+	Game.preferred_team = menu.selected_team()
 	_enter_play()
 	_match_state = MatchState.WARMUP
 	_state_timer = 0.0
-	_spawn_player(multiplayer.get_unique_id())
+	_spawn_player(multiplayer.get_unique_id(), Game.preferred_team)
 	_fill_bots()
 
 
@@ -209,6 +277,7 @@ func _host_game() -> void:
 	Game.player_name = menu.player_name()
 	if Game.player_name == "":
 		Game.player_name = "Host"
+	Game.preferred_team = menu.selected_team()
 	_start_server(menu.host_port(), false)
 
 
@@ -232,18 +301,16 @@ func _start_server(port: int, dedicated: bool) -> void:
 		_state_timer = 0.0
 		_fill_bots()
 		return
-	_enter_play()
-	_match_state = MatchState.WARMUP
-	_state_timer = 0.0
-	_set_status("Hosting on port %d" % port)
-	_spawn_player(1)
-	_fill_bots()
+	_open_lobby("Hosting on port %d — waiting in lobby." % port)
+	Game.in_lobby = true
+	Game.set_lobby_member(1, Game.player_name, Game.preferred_team)
 
 
 func _connect_to_server() -> void:
 	Game.player_name = menu.player_name()
 	if Game.player_name == "":
 		Game.player_name = "Player"
+	Game.preferred_team = menu.selected_team()
 	var ip: String = menu.host_ip()
 	var port: int = menu.host_port()
 	print("CLIENT: Creating client peer for %s:%d" % [ip, port])
@@ -262,10 +329,10 @@ func _connect_to_server() -> void:
 
 func _on_connected_to_server() -> void:
 	print("CLIENT: Connected to server!")
-	_enter_play()
-	_set_status("Connected.")
 	DisplayServer.window_set_title("Gevechtspel — %s" % Game.player_name)
-	Game.submit_display_name.rpc_id(1, Game.player_name)
+	Game.in_lobby = true
+	_open_lobby("Connected — waiting for host to start.")
+	Game.submit_display_name.rpc_id(1, Game.player_name, Game.preferred_team)
 
 
 func _on_connection_failed() -> void:
@@ -282,14 +349,8 @@ func _on_connection_failed() -> void:
 
 func _on_server_disconnected() -> void:
 	print("CLIENT: Server disconnected!")
+	_leave_to_menu()
 	_set_status("Server left.")
-	menu.visible = true
-	menu.mouse_filter = Control.MOUSE_FILTER_STOP
-	hud.visible = false
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	Game.is_offline = true
-	if has_node("MenuCamera"):
-		$MenuCamera.current = true
 
 
 ## Late join: defer so MultiplayerSpawner can replicate existing pawns first.
@@ -299,10 +360,67 @@ func _on_peer_connected(id: int) -> void:
 		return
 	if id == 1:
 		return
+	if Game.in_lobby:
+		return
 	call_deferred("_finish_peer_join", id)
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not hud.visible or Game.chat_open or Game.pause_open:
+		return
+	if event.is_action_pressed("toggle_mouse"):
+		_open_pause()
+		get_viewport().set_input_as_handled()
+
+
+func _open_pause() -> void:
+	if pause_ui:
+		pause_ui.open()
+
+
+func _resume_game() -> void:
+	if pause_ui:
+		pause_ui.close()
+
+
+func _leave_to_menu() -> void:
+	_leaving = true
+	if pause_ui:
+		pause_ui.close(false)
+	get_tree().paused = false
+	Game.pause_open = false
+	Game.chat_open = false
+	if multiplayer.multiplayer_peer:
+		multiplayer.multiplayer_peer.close()
+		multiplayer.multiplayer_peer = null
+	for c in players_root.get_children():
+		c.queue_free()
+	Game.scores.clear()
+	Game.pings.clear()
+	Game.net_hp.clear()
+	Game.lobby.clear()
+	Game.in_lobby = false
+	Game.is_offline = true
+	Game.is_dedicated = false
+	_bot_id_counter = -1
+	_spawn_i = [0, 0]
+	hud.visible = false
+	menu.visible = true
+	menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	if menu.has_method("show_screen"):
+		menu.show_screen("home")
+	if has_node("MenuCamera"):
+		$MenuCamera.current = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_leaving = false
+
+
 func _on_peer_disconnected(id: int) -> void:
+	if _leaving:
+		return
+	if Game.in_lobby:
+		Game.remove_lobby_member(id)
+		return
 	print("SERVER: Peer disconnected: %d" % id)
 	var team := 0
 	var leave_name := Game._display_name_for(id)
@@ -326,7 +444,11 @@ func _spawn_player(peer_id: int, team: int = -1) -> void:
 		print("SERVER: Player %d already exists" % peer_id)
 		return
 	if team < 0:
-		team = _team_for_human()
+		if Game.pending_teams.has(peer_id):
+			team = int(Game.pending_teams[peer_id])
+		else:
+			team = _team_for_human()
+	team = clampi(team, Game.TEAM_A, Game.TEAM_B)
 	var pos := _next_spawn(team)
 	var fallback: String = Game.player_name if peer_id == multiplayer.get_unique_id() else "Player"
 	var n: String = Game.take_pending_name(peer_id, fallback)
@@ -338,8 +460,16 @@ func _spawn_player(peer_id: int, team: int = -1) -> void:
 func _finish_peer_join(id: int) -> void:
 	if not multiplayer.is_server():
 		return
-	_spawn_player(id)
-	_trim_bots()
+	# Wait a beat so submit_display_name (name + team) can land first.
+	var join_id := id
+	get_tree().create_timer(0.2).timeout.connect(func() -> void:
+		_spawn_player(join_id)
+		_trim_bots()
+		_after_join_spawn(join_id)
+	)
+
+
+func _after_join_spawn(id: int) -> void:
 	var join_id := id
 	get_tree().create_timer(0.35).timeout.connect(func() -> void:
 		var joiner := Game.player_for_peer(join_id)

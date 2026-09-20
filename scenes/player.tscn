@@ -148,6 +148,7 @@ shadow_enabled = false
 [node name="FireSfx" type="AudioStreamPlayer3D" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("5_fire")
 volume_db = -6.0
+bus = "SFX"
 unit_size = 10.0
 max_distance = 42.0
 attenuation_model = 1
@@ -156,22 +157,27 @@ max_polyphony = 6
 [node name="HitSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("6_hit")
 volume_db = -6.0
+bus = "SFX"
 
 [node name="HeadSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("7_head")
 volume_db = -5.0
+bus = "SFX"
 
 [node name="KillSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("8_kill")
 volume_db = -3.0
+bus = "SFX"
 
 [node name="EmptySfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("9_empty")
 volume_db = -8.0
+bus = "SFX"
 
 [node name="ReloadSfx" type="AudioStreamPlayer3D" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("11_reload")
 volume_db = -8.0
+bus = "SFX"
 unit_size = 8.0
 max_distance = 28.0
 attenuation_model = 1
@@ -180,10 +186,12 @@ max_polyphony = 2
 [node name="HurtSfx" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("10_hurt")
 volume_db = -1.0
+bus = "SFX"
 
 [node name="StepSfx" type="AudioStreamPlayer3D" parent="."]
 stream = ExtResource("12_step")
 volume_db = -10.0
+bus = "SFX"
 unit_size = 7.0
 max_distance = 24.0
 attenuation_model = 1
@@ -192,6 +200,7 @@ max_polyphony = 3
 [node name="LandSfx" type="AudioStreamPlayer3D" parent="."]
 stream = ExtResource("13_land")
 volume_db = -8.0
+bus = "SFX"
 unit_size = 8.0
 max_distance = 26.0
 attenuation_model = 1

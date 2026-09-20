@@ -1,9 +1,10 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="4_hud"]
 [ext_resource type="PackedScene" path="res://scenes/menu.tscn" id="5_menu"]
+[ext_resource type="PackedScene" path="res://scenes/pause.tscn" id="6_pause"]
 
 [sub_resource type="Environment" id="Environment_arena"]
 background_mode = 1
@@ -195,7 +196,10 @@ material = SubResource("Mat_ramp")
 spawn_path = NodePath("../Players")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
+process_mode = 3
 
 [node name="Hud" parent="CanvasLayer" instance=ExtResource("4_hud")]
 
 [node name="Menu" parent="CanvasLayer" instance=ExtResource("5_menu")]
+
+[node name="Pause" parent="CanvasLayer" instance=ExtResource("6_pause")]

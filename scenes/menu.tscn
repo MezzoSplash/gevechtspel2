@@ -1,8 +1,10 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/menu.gd" id="1_menu"]
+[ext_resource type="PackedScene" path="res://scenes/settings_panel.tscn" id="2_settings"]
 
 [node name="Menu" type="Control"]
+process_mode = 3
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -31,94 +33,275 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Col" type="VBoxContainer" parent="Center"]
+[node name="Home" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(420, 0)
 layout_mode = 2
-custom_minimum_size = Vector2(460, 0)
 theme_override_constants/separation = 12
 
-[node name="Title" type="Label" parent="Center/Col"]
+[node name="Title" type="Label" parent="Center/Home"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 48
 text = "GEVECHTSPEL"
 horizontal_alignment = 1
 
-[node name="Tag" type="Label" parent="Center/Col"]
+[node name="Tag" type="Label" parent="Center/Home"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.76, 0.82, 1)
 theme_override_font_sizes/font_size = 16
-text = "5v5 arena  ·  rifle / pistol / shotgun"
+text = "5v5 arena  ·  rifle / pistol / shotgun / sniper"
 horizontal_alignment = 1
 
-[node name="Status" type="Label" parent="Center/Col"]
+[node name="Status" type="Label" parent="Center/Home"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.88, 0.92, 1)
-text = "Play locally, or host / join on LAN."
+text = "Singleplayer, LAN, or settings."
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="PlayButton" type="Button" parent="Center/Col"]
+[node name="SoloButton" type="Button" parent="Center/Home"]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Play locally"
+text = "Singleplayer"
 
-[node name="Gap" type="Control" parent="Center/Col"]
-custom_minimum_size = Vector2(0, 8)
+[node name="MpButton" type="Button" parent="Center/Home"]
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
+text = "Multiplayer"
 
-[node name="MpLabel" type="Label" parent="Center/Col"]
+[node name="SettingsButton" type="Button" parent="Center/Home"]
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.62, 0.68, 0.78, 1)
-theme_override_font_sizes/font_size = 14
-text = "MULTIPLAYER"
+text = "Settings"
+
+[node name="QuitButton" type="Button" parent="Center/Home"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Quit"
+
+[node name="Solo" type="VBoxContainer" parent="Center"]
+visible = false
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Center/Solo"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "SINGLEPLAYER"
 horizontal_alignment = 1
 
-[node name="NameRow" type="HBoxContainer" parent="Center/Col"]
+[node name="NameRow" type="HBoxContainer" parent="Center/Solo"]
 layout_mode = 2
-theme_override_constants/separation = 10
 
-[node name="NameLabel" type="Label" parent="Center/Col/NameRow"]
+[node name="NameLabel" type="Label" parent="Center/Solo/NameRow"]
 custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 text = "Name"
 
-[node name="NameEdit" type="LineEdit" parent="Center/Col/NameRow"]
+[node name="NameEdit" type="LineEdit" parent="Center/Solo/NameRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Player"
 placeholder_text = "Player"
 
-[node name="HostButton" type="Button" parent="Center/Col"]
+[node name="TeamRow" type="HBoxContainer" parent="Center/Solo"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="TeamLabel" type="Label" parent="Center/Solo/TeamRow"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "Team"
+
+[node name="BlueButton" type="Button" parent="Center/Solo/TeamRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "BLUE"
+
+[node name="OrangeButton" type="Button" parent="Center/Solo/TeamRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "ORANGE"
+
+[node name="PlayButton" type="Button" parent="Center/Solo"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Play"
+
+[node name="BackButton" type="Button" parent="Center/Solo"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Back"
+
+[node name="Mp" type="VBoxContainer" parent="Center"]
+visible = false
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Center/Mp"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "MULTIPLAYER"
+horizontal_alignment = 1
+
+[node name="Status" type="Label" parent="Center/Mp"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.88, 0.92, 1)
+text = "Host on this PC, then Connect from another window."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="NameRow" type="HBoxContainer" parent="Center/Mp"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="Center/Mp/NameRow"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+text = "Name"
+
+[node name="NameEdit" type="LineEdit" parent="Center/Mp/NameRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Player"
+placeholder_text = "Player"
+
+[node name="HostButton" type="Button" parent="Center/Mp"]
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 text = "Host game"
 
-[node name="JoinRow" type="HBoxContainer" parent="Center/Col"]
+[node name="JoinRow" type="HBoxContainer" parent="Center/Mp"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="IpEdit" type="LineEdit" parent="Center/Col/JoinRow"]
+[node name="IpEdit" type="LineEdit" parent="Center/Mp/JoinRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "127.0.0.1"
 placeholder_text = "IP"
 
-[node name="PortEdit" type="LineEdit" parent="Center/Col/JoinRow"]
+[node name="PortEdit" type="LineEdit" parent="Center/Mp/JoinRow"]
 custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 text = "7777"
 placeholder_text = "Port"
 
-[node name="JoinButton" type="Button" parent="Center/Col/JoinRow"]
+[node name="JoinButton" type="Button" parent="Center/Mp/JoinRow"]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
 text = "Connect"
 
-[node name="Hint" type="Label" parent="Center/Col"]
+[node name="Hint" type="Label" parent="Center/Mp"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.58, 0.62, 0.68, 1)
 theme_override_font_sizes/font_size = 13
-text = "Host on this PC, then Connect to your IP.
-Two windows: Host in one, Connect 127.0.0.1 in the other."
+text = "Two windows: Host in one, Connect 127.0.0.1 in the other."
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="BackButton" type="Button" parent="Center/Mp"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Back"
+
+[node name="Settings" type="VBoxContainer" parent="Center"]
+visible = false
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="SettingsPanel" parent="Center/Settings" instance=ExtResource("2_settings")]
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="Center/Settings"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Back"
+
+[node name="Lobby" type="VBoxContainer" parent="Center"]
+visible = false
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Center/Lobby"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "LOBBY"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="Center/Lobby"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.76, 0.82, 1)
+text = "Pick a team. Host starts the match."
+horizontal_alignment = 1
+
+[node name="Teams" type="HBoxContainer" parent="Center/Lobby"]
+layout_mode = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="BlueCol" type="VBoxContainer" parent="Center/Lobby/Teams"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Head" type="Label" parent="Center/Lobby/Teams/BlueCol"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.55, 0.95, 1)
+theme_override_font_sizes/font_size = 18
+text = "BLUE"
+horizontal_alignment = 1
+
+[node name="List" type="Label" parent="Center/Lobby/Teams/BlueCol"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "—"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="OrangeCol" type="VBoxContainer" parent="Center/Lobby/Teams"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Head" type="Label" parent="Center/Lobby/Teams/OrangeCol"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.45, 0.28, 1)
+theme_override_font_sizes/font_size = 18
+text = "ORANGE"
+horizontal_alignment = 1
+
+[node name="List" type="Label" parent="Center/Lobby/Teams/OrangeCol"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "—"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="TeamRow" type="HBoxContainer" parent="Center/Lobby"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BlueButton" type="Button" parent="Center/Lobby/TeamRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Join BLUE"
+
+[node name="OrangeButton" type="Button" parent="Center/Lobby/TeamRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Join ORANGE"
+
+[node name="StartButton" type="Button" parent="Center/Lobby"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Start match"
+
+[node name="LeaveButton" type="Button" parent="Center/Lobby"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Leave lobby"

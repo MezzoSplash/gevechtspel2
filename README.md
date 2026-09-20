@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.4** — all-chat (T), sniper slot 4 with RMB FOV zoom.
+**v0.2.5** — menus, pause, volume, multiplayer lobby with team pick.
 
 ## Play (Linux)
 

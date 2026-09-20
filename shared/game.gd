@@ -9,6 +9,8 @@ signal round_ended(winner_peer_id: int, winner_name: String, scores: Dictionary)
 signal kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int)
 signal presence(player_name: String, joined: bool, team: int)
 signal chat_message(player_name: String, team: int, text: String)
+signal lobby_changed
+signal match_starting
 
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4 # world | players | leftover dummy layer
@@ -31,8 +33,15 @@ const WEAPON_DEFS := {
 var is_offline := true
 var is_dedicated := false
 var chat_open := false # T-chat: blocks move/look/fire until Enter/Esc
+var pause_open := false
+var in_lobby := false
+var lobby: Dictionary = {} # peer_id → {name, team}
+var master_vol := 1.0
+var sfx_vol := 1.0
 var player_name := "Player"
+var preferred_team := 0 # 0 Blue, 1 Orange — chosen in the menu
 var pending_names: Dictionary = {} # peer_id → name, filled before spawn if the client RPCs first
+var pending_teams: Dictionary = {} # peer_id → team, from join RPC
 var net_hp: Dictionary = {} # server copy of HP, keyed by peer_id (bots included)
 var _hitstopping := false
 
@@ -208,7 +217,7 @@ func notify_hit(killed: bool, headshot: bool) -> void:
 
 
 @rpc("any_peer", "reliable")
-func submit_display_name(n: String) -> void:
+func submit_display_name(n: String, team: int = -1) -> void:
 	if not multiplayer.is_server():
 		return
 	n = n.strip_edges()
@@ -218,6 +227,11 @@ func submit_display_name(n: String) -> void:
 	if peer == 0:
 		peer = multiplayer.get_unique_id()
 	pending_names[peer] = n
+	if team == TEAM_A or team == TEAM_B:
+		pending_teams[peer] = team
+	if in_lobby:
+		set_lobby_member(peer, n, int(pending_teams.get(peer, preferred_team)))
+		return
 	apply_display_name.rpc(peer, n)
 
 
@@ -361,6 +375,55 @@ func broadcast_chat(n: String, team: int, text: String) -> void:
 
 func _deliver_chat(n: String, team: int, text: String) -> void:
 	chat_message.emit(n, team, text)
+
+
+func set_lobby_member(peer_id: int, n: String, team: int) -> void:
+	if not _is_match_authority():
+		return
+	lobby[peer_id] = {"name": n, "team": clampi(team, TEAM_A, TEAM_B)}
+	_push_lobby()
+
+
+func remove_lobby_member(peer_id: int) -> void:
+	if not lobby.has(peer_id):
+		return
+	lobby.erase(peer_id)
+	if _is_match_authority():
+		_push_lobby()
+
+
+func _push_lobby() -> void:
+	lobby_changed.emit()
+	if is_networked() and multiplayer.is_server():
+		sync_lobby.rpc(lobby)
+
+
+@rpc("authority", "reliable")
+func sync_lobby(data: Dictionary) -> void:
+	if multiplayer.is_server():
+		return
+	lobby = data
+	lobby_changed.emit()
+
+
+@rpc("any_peer", "reliable")
+func request_lobby_team(team: int) -> void:
+	if not multiplayer.is_server() or not in_lobby:
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	if peer == 0:
+		peer = multiplayer.get_unique_id()
+	if not lobby.has(peer):
+		return
+	lobby[peer].team = clampi(team, TEAM_A, TEAM_B)
+	pending_teams[peer] = int(lobby[peer].team)
+	_push_lobby()
+
+
+@rpc("authority", "call_local", "reliable")
+func begin_match() -> void:
+	in_lobby = false
+	match_starting.emit()
 
 
 func announce_presence(player_name: String, joined: bool, team: int) -> void:
@@ -674,7 +737,61 @@ func sync_roster(ids: Array) -> void:
 
 
 func _ready() -> void:
+	_ensure_sfx_bus()
+	load_settings()
 	_bind_inputs()
+
+
+func _ensure_sfx_bus() -> void:
+	if AudioServer.get_bus_index("SFX") != -1:
+		return
+	var i := AudioServer.bus_count
+	AudioServer.add_bus()
+	AudioServer.set_bus_name(i, "SFX")
+	AudioServer.set_bus_send(i, "Master")
+
+
+func load_settings() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load("user://settings.cfg") == OK:
+		master_vol = clampf(float(cfg.get_value("audio", "master", 1.0)), 0.0, 1.0)
+		sfx_vol = clampf(float(cfg.get_value("audio", "sfx", 1.0)), 0.0, 1.0)
+	apply_audio()
+
+
+func save_settings() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("audio", "master", master_vol)
+	cfg.set_value("audio", "sfx", sfx_vol)
+	cfg.save("user://settings.cfg")
+
+
+func set_master_vol(v: float) -> void:
+	master_vol = clampf(v, 0.0, 1.0)
+	apply_audio()
+	save_settings()
+
+
+func set_sfx_vol(v: float) -> void:
+	sfx_vol = clampf(v, 0.0, 1.0)
+	apply_audio()
+	save_settings()
+
+
+func apply_audio() -> void:
+	_set_bus_linear("Master", master_vol)
+	_set_bus_linear("SFX", sfx_vol)
+
+
+func _set_bus_linear(bus_name: String, linear: float) -> void:
+	var idx := AudioServer.get_bus_index(bus_name)
+	if idx < 0:
+		return
+	if linear <= 0.001:
+		AudioServer.set_bus_mute(idx, true)
+	else:
+		AudioServer.set_bus_mute(idx, false)
+		AudioServer.set_bus_volume_db(idx, linear_to_db(linear))
 
 
 func _bind_inputs() -> void:

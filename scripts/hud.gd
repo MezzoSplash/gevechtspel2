@@ -106,6 +106,8 @@ func _local_player() -> Player:
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
+	if Game.pause_open:
+		return
 	if Game.chat_open:
 		if event.is_action_pressed("toggle_mouse") or event.is_action_pressed("ui_cancel"):
 			_close_chat(false)
