@@ -348,6 +348,7 @@ func _pawn_snapshot() -> Array:
 			"n": p.display_name,
 			"bot": p.is_bot,
 			"team": p.team_id,
+			"loadout": p.loadout_index,
 		})
 	return out
 
@@ -382,6 +383,8 @@ func sync_pawns(list: Array) -> void:
 			p.apply_network_pose(pos, float(entry.get("yaw", 0.0)), float(entry.get("pitch", 0.0)))
 			p.is_bot = true
 			p.team_id = int(entry.get("team", p.team_id))
+			p.loadout_index = int(entry.get("loadout", p.loadout_index))
+			p._apply_bot_loadout()
 			p._apply_team_visual()
 	for child in players_root.get_children():
 		var extra := child as Player
@@ -401,6 +404,7 @@ func _spawn_player_node(data: Variant) -> Node:
 	p.peer_id = id
 	p.is_bot = bool(d.get("bot", false))
 	p.team_id = int(d.get("team", 0))
+	p.loadout_index = int(d.get("loadout", 0))
 	p.name = ("bot%d" % abs(id)) if p.is_bot else str(id)
 	p.display_name = str(d.get("n", "Player"))
 	p.position = d["pos"]
@@ -472,6 +476,7 @@ func _spawn_bot(team: int) -> void:
 		"n": "Bot %d" % abs(id),
 		"bot": true,
 		"team": team,
+		"loadout": abs(id) % 3,
 	})
 
 

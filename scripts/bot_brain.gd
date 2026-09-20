@@ -4,6 +4,9 @@ extends RefCounted
 const ACQUIRE := 0.28
 const FIGHT_RANGE := 11.0
 const TOO_CLOSE := 4.0
+const SHOTGUN_FIGHT := 6.0
+const RIFLE_FIGHT := 13.0
+const PISTOL_FIGHT := 9.0
 const STRAFE_SPEED := 6.2
 const SHOT_MASK := 1 | 2
 
@@ -74,17 +77,18 @@ func _fight(enemy: Player, delta: float) -> void:
 	away = away.normalized()
 	var side := Vector3.UP.cross(away).normalized() * _strafe_sign
 	var dist := pawn.global_position.distance_to(enemy.global_position)
+	var fight_r := _fight_range()
 	var dest := pawn.global_position + side * 2.6
 	if dist < TOO_CLOSE:
 		dest += away * 3.4
-	elif dist > FIGHT_RANGE:
+	elif dist > fight_r:
 		dest += -away * 2.8
 	_repath_t -= delta
 	if _repath_t <= 0.0 and agent:
 		agent.target_position = dest
 		_repath_t = 0.16
 	_steer_to(dest, STRAFE_SPEED, delta)
-	if _acquire_left <= 0.0:
+	if _acquire_left <= 0.0 and dist <= fight_r + 4.0:
 		_try_shoot(enemy)
 
 
@@ -125,14 +129,38 @@ func _face(enemy: Player) -> void:
 	pawn.head.rotation.x = pawn._pitch
 
 
+func _gun_id() -> StringName:
+	if pawn and pawn.weapon and pawn.weapon.def:
+		return pawn.weapon.def.id
+	return &"rifle"
+
+
+func _fight_range() -> float:
+	match _gun_id():
+		&"shotgun":
+			return SHOTGUN_FIGHT
+		&"pistol":
+			return PISTOL_FIGHT
+		_:
+			return RIFLE_FIGHT
+
+
 func _try_shoot(enemy: Player) -> void:
 	if pawn.weapon == null:
 		return
 	if _burst_left <= 0:
 		if _burst_pause > 0.0:
 			return
-		_burst_left = randi_range(2, 5)
-		_burst_pause = randf_range(0.35, 0.85)
+		match _gun_id():
+			&"shotgun":
+				_burst_left = 1
+				_burst_pause = randf_range(0.55, 1.05)
+			&"pistol":
+				_burst_left = randi_range(3, 6)
+				_burst_pause = randf_range(0.28, 0.6)
+			_:
+				_burst_left = randi_range(2, 5)
+				_burst_pause = randf_range(0.35, 0.85)
 	if pawn.weapon.bot_try_fire():
 		_burst_left -= 1
 

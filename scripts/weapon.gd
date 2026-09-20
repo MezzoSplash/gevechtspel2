@@ -71,6 +71,21 @@ func _process(delta: float) -> void:
 				_save_weapon_state()
 		return
 
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive():
+		if Input.is_action_just_pressed("switch_weapon"):
+			_cycle_weapon()
+		elif Input.is_action_just_pressed("weapon_1"):
+			_equip(0)
+		elif Input.is_action_just_pressed("weapon_2"):
+			_equip(1)
+		elif Input.is_action_just_pressed("weapon_3"):
+			_equip(2)
+		elif _reload_left > 0.0:
+			pass
+		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size:
+			_start_reload()
+		elif _wants_fire():
+			_try_fire()
 	if _reload_left > 0.0:
 		_reload_left = maxf(_reload_left - delta, 0.0)
 		var t := 1.0 - (_reload_left / def.reload_time)
@@ -80,19 +95,6 @@ func _process(delta: float) -> void:
 			_save_weapon_state()
 			rotation.x = 0.0
 			_refresh_hud()
-	elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive():
-		if Input.is_action_just_pressed("switch_weapon"):
-			_cycle_weapon()
-		elif Input.is_action_just_pressed("weapon_1"):
-			_equip(0)
-		elif Input.is_action_just_pressed("weapon_2"):
-			_equip(1)
-		elif Input.is_action_just_pressed("weapon_3"):
-			_equip(2)
-		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size:
-			_start_reload()
-		elif _wants_fire():
-			_try_fire()
 
 	_kick_offset = _kick_offset.lerp(Vector3.ZERO, 1.0 - exp(-14.0 * delta))
 	_bob_t += delta * (8.0 + speed_factor * 6.0)
@@ -115,19 +117,37 @@ func _cycle_weapon() -> void:
 	_equip((_active_index + 1) % LOADOUT.size())
 
 
+func equip_loadout(index: int) -> void:
+	_equip(clampi(index, 0, LOADOUT.size() - 1), false)
+
+
 func _equip(index: int, save_current: bool = true) -> void:
+	index = clampi(index, 0, LOADOUT.size() - 1)
+	if save_current and def != null and index == _active_index:
+		return
 	if save_current and def != null:
+		_cancel_reload()
 		_save_weapon_state()
 	_active_index = index
 	def = LOADOUT[index]
 	var state := _load_weapon_state(def.id)
 	ammo = int(state.ammo)
-	_reload_left = float(state.reload_left)
+	_reload_left = 0.0
 	rotation.x = 0.0
 	if def.fire_sound:
 		fire_sfx.stream = def.fire_sound
 	_apply_view_for_def()
 	_refresh_hud()
+
+
+func _cancel_reload() -> void:
+	_reload_left = 0.0
+	rotation.x = 0.0
+	if reload_sfx and reload_sfx.playing:
+		reload_sfx.stop()
+	var hud := _hud_node()
+	if hud:
+		hud.set_reloading(false)
 
 
 func _save_weapon_state() -> void:
@@ -246,7 +266,12 @@ func _fire() -> void:
 
 	var spread_mult := _spread_multiplier()
 	if shooter and shooter.is_bot:
-		spread_mult *= 2.4
+		if def.id == &"shotgun":
+			spread_mult *= 1.2
+		elif def.id == &"pistol":
+			spread_mult *= 1.9
+		else:
+			spread_mult *= 2.4
 	if Game.is_networked() and not multiplayer.is_server():
 		Game.request_weapon_fire.rpc_id(1, origin, look_dir, def.id, muzzle.global_position)
 	elif shooter:
@@ -377,6 +402,7 @@ func _refresh_hud() -> void:
 		return
 	var hud := _hud_node()
 	if hud:
+		hud.set_weapon_index(_active_index)
 		hud.set_ammo(ammo, def.mag_size)
 		hud.set_weapon_name(def.display_name)
 		hud.set_reloading(_reload_left > 0.0)

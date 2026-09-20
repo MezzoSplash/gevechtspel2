@@ -6,6 +6,7 @@ signal hit_confirmed(killed: bool, headshot: bool)
 signal local_player_ready(player: Player)
 signal score_changed(peer_id: int, score: int, name: String)
 signal round_ended(winner_peer_id: int, winner_name: String, scores: Dictionary)
+signal kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int)
 
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4
@@ -190,7 +191,7 @@ func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, hs_mult: f
 			return {}
 		if victim.team_id == shooter.team_id:
 			return {}
-		return victim.apply_hit(hit.position, hit.normal, damage, true, killer_id)
+		return victim.apply_hit(hit.position, hit.normal, damage, true, killer_id, shooter.weapon.def.id if shooter.weapon and shooter.weapon.def else &"rifle")
 	return {}
 
 
@@ -290,7 +291,7 @@ func register_participant(peer_id: int, n: String, team: int = 0) -> void:
 		sync_score.rpc(peer_id, 0, n, team)
 
 
-func register_kill(killer_peer_id: int, _victim_peer_id: int) -> void:
+func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName = &"rifle") -> void:
 	if not _is_match_authority():
 		return
 	if killer_peer_id == 0:
@@ -305,7 +306,31 @@ func register_kill(killer_peer_id: int, _victim_peer_id: int) -> void:
 	_apply_score(killer_peer_id, kills, n, team_id)
 	if is_networked():
 		sync_score.rpc(killer_peer_id, kills, n, team_id)
+	var killer_name := n
+	var victim_name := _display_name_for(victim_peer_id)
+	if scores.has(victim_peer_id):
+		victim_name = str(scores[victim_peer_id].name)
+	var victim_team := 0
+	var victim := player_for_peer(victim_peer_id)
+	if victim:
+		victim_team = victim.team_id
+	elif scores.has(victim_peer_id):
+		victim_team = int(scores[victim_peer_id].get("team", 0))
+	_emit_kill_feed(killer_name, victim_name, weapon_id, team_id, victim_team)
+	if is_networked():
+		sync_kill_feed.rpc(killer_name, victim_name, String(weapon_id), team_id, victim_team)
 	_check_win_team(team_id)
+
+
+func _emit_kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int) -> void:
+	kill_feed.emit(killer_name, victim_name, weapon_id, killer_team, victim_team)
+
+
+@rpc("authority", "reliable")
+func sync_kill_feed(killer_name: String, victim_name: String, weapon_id: String, killer_team: int, victim_team: int) -> void:
+	if multiplayer.is_server():
+		return
+	kill_feed.emit(killer_name, victim_name, StringName(weapon_id), killer_team, victim_team)
 
 
 @rpc("any_peer", "reliable")

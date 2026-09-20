@@ -15,18 +15,38 @@ var _round_end_timer := 0.0
 var _round_end_winner := ""
 var _intermission_timer := 0.0
 var _board_refresh := 0.0
+var _weapon_index := 0
+var _ammo := 30
+var _mag := 30
 
-@onready var ammo_label: Label = $Ammo
-@onready var weapon_label: Label = $Weapon
+const _SLOT_IDLE := Color(0.08, 0.09, 0.11, 0.82)
+const _SLOT_ON := Color(0.18, 0.16, 0.08, 0.92)
+const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN"]
+
 @onready var hint_label: Label = $Hint
 @onready var fps_label: Label = $Fps
 @onready var reload_label: Label = $Reloading
-@onready var hp_label: Label = $Hp
+@onready var hp_fill: ColorRect = $Bottom/HpWrap/HpFill
+@onready var hp_label: Label = $Bottom/HpWrap/HpLabel
 @onready var death_layer: ColorRect = $Death
+@onready var _slots: Array[ColorRect] = [
+	$Bottom/Weapons/Slot0,
+	$Bottom/Weapons/Slot1,
+	$Bottom/Weapons/Slot2,
+]
 @onready var scoreboard_container: VBoxContainer = $Scoreboard
 @onready var round_end_label: Label = $RoundEnd
 @onready var intermission_label: Label = $Intermission
 @onready var timer_label: Label = $Timer
+@onready var kill_feed: VBoxContainer = $KillFeed
+
+const _FEED_ICONS := {
+	&"rifle": preload("res://assets/ui/icon_rifle.svg"),
+	&"pistol": preload("res://assets/ui/icon_pistol.svg"),
+	&"shotgun": preload("res://assets/ui/icon_shotgun.svg"),
+}
+const _FEED_MAX := 6
+const _FEED_LIFE := 5.0
 
 
 func _ready() -> void:
@@ -34,6 +54,7 @@ func _ready() -> void:
 	Game.hit_confirmed.connect(_on_hit)
 	Game.score_changed.connect(_on_score_changed)
 	Game.round_ended.connect(_on_round_ended)
+	Game.kill_feed.connect(_on_kill_feed)
 	reload_label.visible = false
 	death_layer.visible = false
 	scoreboard_container.visible = false
@@ -41,6 +62,7 @@ func _ready() -> void:
 	round_end_label.visible = false
 	intermission_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_refresh_weapon_slots()
 	call_deferred("bind_player", null)
 
 
@@ -72,11 +94,38 @@ func punch_crosshair(amount: float = 1.0) -> void:
 
 
 func set_ammo(current: int, mag: int) -> void:
-	ammo_label.text = "%d / %d" % [current, mag]
+	_ammo = current
+	_mag = mag
+	_refresh_weapon_slots()
 
 
 func set_weapon_name(n: String) -> void:
-	weapon_label.text = n
+	var key := n.strip_edges().to_upper()
+	for i in _SLOT_NAMES.size():
+		if _SLOT_NAMES[i] == key:
+			_weapon_index = i
+			break
+	_refresh_weapon_slots()
+
+
+func set_weapon_index(index: int) -> void:
+	_weapon_index = clampi(index, 0, 2)
+	_refresh_weapon_slots()
+
+
+func _refresh_weapon_slots() -> void:
+	if _slots.is_empty() or _slots[0] == null:
+		return
+	for i in _slots.size():
+		var slot := _slots[i]
+		var on := i == _weapon_index
+		slot.color = _SLOT_ON if on else _SLOT_IDLE
+		var name_l := slot.get_node("Name") as Label
+		var ammo_l := slot.get_node("Ammo") as Label
+		if name_l:
+			name_l.modulate = Color(1, 0.92, 0.55) if on else Color(0.72, 0.74, 0.78)
+		if ammo_l:
+			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
 
 
 func set_reloading(on: bool) -> void:
@@ -89,8 +138,11 @@ func _on_health(hp: float, max_hp: float) -> void:
 	_hp = hp
 	_max_hp = max_hp
 	var t := clampf(hp / maxf(max_hp, 1.0), 0.0, 1.0)
-	hp_label.text = "HP  %d" % roundi(hp)
-	hp_label.modulate = Color(1.0, 0.28, 0.22) if t < 0.3 else Color(0.85, 0.95, 0.85)
+	if hp_label:
+		hp_label.text = str(roundi(hp))
+	if hp_fill:
+		hp_fill.anchor_right = t
+		hp_fill.color = Color(0.92, 0.16, 0.12, 0.96) if t < 0.3 else Color(0.78, 0.12, 0.1, 0.95)
 
 
 func _on_died() -> void:
@@ -100,6 +152,54 @@ func _on_died() -> void:
 func _on_respawned() -> void:
 	death_layer.visible = false
 	_hurt_flash = 0.0
+
+
+func _on_kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int) -> void:
+	if kill_feed == null:
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.alignment = BoxContainer.ALIGNMENT_END
+	var k := Label.new()
+	k.text = killer_name
+	k.add_theme_font_size_override("font_size", 16)
+	k.add_theme_color_override("font_color", Player.TEAM_COLORS[clampi(killer_team, 0, 1)])
+	if killer_name == _local_name():
+		k.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.8))
+		k.add_theme_constant_override("outline_size", 4)
+	var icon := TextureRect.new()
+	icon.texture = _FEED_ICONS.get(weapon_id, _FEED_ICONS[&"rifle"])
+	icon.custom_minimum_size = Vector2(56, 18)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.modulate = Color(1, 1, 1, 0.95)
+	var v := Label.new()
+	v.text = victim_name
+	v.add_theme_font_size_override("font_size", 16)
+	v.add_theme_color_override("font_color", Player.TEAM_COLORS[clampi(victim_team, 0, 1)])
+	if victim_name == _local_name():
+		v.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.8))
+		v.add_theme_constant_override("outline_size", 4)
+	row.add_child(k)
+	row.add_child(icon)
+	row.add_child(v)
+	kill_feed.add_child(row)
+	kill_feed.move_child(row, 0)
+	while kill_feed.get_child_count() > _FEED_MAX:
+		var old := kill_feed.get_child(kill_feed.get_child_count() - 1)
+		kill_feed.remove_child(old)
+		old.queue_free()
+	var tw := row.create_tween()
+	tw.tween_interval(_FEED_LIFE)
+	tw.tween_property(row, "modulate:a", 0.0, 0.45)
+	tw.tween_callback(row.queue_free)
+
+
+func _local_name() -> String:
+	var p := _local_player()
+	if p:
+		return p.display_name
+	return Game.player_name
 
 
 func _on_hit(killed: bool, _headshot: bool) -> void:

@@ -30,6 +30,8 @@ const SPAWN_PROTECT := 1.8
 @onready var weapon: Weapon = $Head/Camera3D/WeaponRoot
 @onready var body_mesh: MeshInstance3D = $BodyMesh
 @onready var hurt_sfx: AudioStreamPlayer = $HurtSfx
+@onready var step_sfx: AudioStreamPlayer3D = $StepSfx
+@onready var land_sfx: AudioStreamPlayer3D = $LandSfx
 @onready var col_shape: CollisionShape3D = $CollisionShape3D
 @onready var nametag: Label3D = $Nametag
 
@@ -41,6 +43,7 @@ var hp := MAX_HP
 @export var is_dead := false
 @export var is_bot := false
 @export var team_id := 0
+@export var loadout_index := 0
 var is_sprinting := false
 @export var crouch := 0.0
 @export var display_name := "Player"
@@ -51,6 +54,9 @@ var _capsule: CapsuleShape3D
 var _spawn_protect := 0.0
 var _bot_brain
 var _body_mat: StandardMaterial3D
+var _step_t := 0.0
+var _feet_last := Vector3.ZERO
+var _was_air := false
 
 
 func is_local() -> bool:
@@ -111,10 +117,18 @@ func _ready() -> void:
 	elif peer_id > 0:
 		set_multiplayer_authority(peer_id, true)
 	_spawn_protect = SPAWN_PROTECT
+	_feet_last = global_position
 	if is_bot and (Game.is_offline or multiplayer.is_server()):
 		_bot_brain = Brain.new()
 		_bot_brain.setup(self, get_node_or_null("NavigationAgent3D") as NavigationAgent3D)
+	if is_bot:
+		call_deferred("_apply_bot_loadout")
 	call_deferred("_configure_control")
+
+
+func _apply_bot_loadout() -> void:
+	if weapon:
+		weapon.equip_loadout(loadout_index)
 
 
 func _configure_control() -> void:
@@ -202,7 +216,7 @@ func _apply_team_visual() -> void:
 		nametag.modulate = col
 
 
-func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_headshot: bool = true, killer_peer_id: int = 0) -> Dictionary:
+func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_headshot: bool = true, killer_peer_id: int = 0, weapon_id: StringName = &"rifle") -> Dictionary:
 	if is_dead or _spawn_protect > 0.0:
 		return {"killed": false, "headshot": false, "damage": 0}
 	if Game.is_networked() and not multiplayer.is_server():
@@ -213,7 +227,7 @@ func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_heads
 	Game.set_hp(self, new_hp)
 	var killed := new_hp <= 0.0
 	if killed:
-		Game.register_kill(killer_peer_id, peer_id)
+		Game.register_kill(killer_peer_id, peer_id, weapon_id)
 	if Game.is_networked():
 		Game.broadcast_hurt.rpc(peer_id, new_hp, killed)
 	else:
@@ -297,12 +311,15 @@ func _physics_process(delta: float) -> void:
 	if is_bot:
 		if Game.is_networked() and not multiplayer.is_server():
 			_apply_remote_visual()
+			_tick_feet(delta)
 			return
 		if _bot_brain:
 			_bot_brain.physics_tick(delta)
+		_tick_feet(delta)
 		return
 	if not is_local():
 		_apply_remote_visual()
+		_tick_feet(delta)
 		return
 	var on_floor := is_on_floor()
 	_update_stance(delta, on_floor)
@@ -348,8 +365,47 @@ func _physics_process(delta: float) -> void:
 	velocity.x = horiz.x
 	velocity.z = horiz.z
 	move_and_slide()
+	_tick_feet(delta)
 
 	weapon.speed_factor = Vector2(velocity.x, velocity.z).length() / WALK_SPEED
+
+
+func _tick_feet(delta: float) -> void:
+	if is_dead:
+		_was_air = false
+		_feet_last = global_position
+		return
+	var dpos := global_position - _feet_last
+	var horiz := Vector2(velocity.x, velocity.z).length()
+	if horiz < 0.35:
+		horiz = Vector2(dpos.x, dpos.z).length() / maxf(delta, 0.0001)
+	var grounded := is_on_floor() or absf(dpos.y) < 0.05
+	if _was_air and grounded and land_sfx:
+		land_sfx.pitch_scale = randf_range(0.92, 1.06)
+		land_sfx.volume_db = -14.0 if is_local() else -8.0
+		land_sfx.play()
+	_was_air = not grounded
+	_feet_last = global_position
+	if not grounded or horiz < 1.15:
+		_step_t = 0.12
+		return
+	var interval := 0.40
+	if crouch > 0.45:
+		interval = 0.52
+	elif horiz > WALK_SPEED * 1.15:
+		interval = 0.28
+	_step_t -= delta
+	if _step_t > 0.0:
+		return
+	_step_t = interval
+	if step_sfx == null:
+		return
+	step_sfx.pitch_scale = randf_range(0.90, 1.10)
+	var quiet := -16.0 if is_local() else -9.0
+	if crouch > 0.45:
+		quiet -= 6.0
+	step_sfx.volume_db = quiet
+	step_sfx.play()
 
 
 func apply_network_pose(pos: Vector3, yaw: float, pitch: float) -> void:

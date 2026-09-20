@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/camera_feel.gd" id="2_cam"]
@@ -11,6 +11,8 @@
 [ext_resource type="AudioStream" path="res://assets/sounds/empty.wav" id="9_empty"]
 [ext_resource type="AudioStream" path="res://assets/sounds/hurt.wav" id="10_hurt"]
 [ext_resource type="AudioStream" path="res://assets/sounds/reload.wav" id="11_reload"]
+[ext_resource type="AudioStream" path="res://assets/sounds/step.wav" id="12_step"]
+[ext_resource type="AudioStream" path="res://assets/sounds/land.wav" id="13_land"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -178,6 +180,22 @@ max_polyphony = 2
 [node name="HurtSfx" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("10_hurt")
 volume_db = -1.0
+
+[node name="StepSfx" type="AudioStreamPlayer3D" parent="."]
+stream = ExtResource("12_step")
+volume_db = -10.0
+unit_size = 7.0
+max_distance = 24.0
+attenuation_model = 1
+max_polyphony = 3
+
+[node name="LandSfx" type="AudioStreamPlayer3D" parent="."]
+stream = ExtResource("13_land")
+volume_db = -8.0
+unit_size = 8.0
+max_distance = 26.0
+attenuation_model = 1
+max_polyphony = 2
 
 [node name="Nametag" type="Label3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.05, 0)

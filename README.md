@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.1** — 5v5 TDM, ping on Tab, 3D gun audio, reload sound, late-join bots visible.
+**v0.2.2** — footsteps, mixed bot loadouts, HP bar + weapon selector, kill feed, switch-while-reload.
 
 ## Play (Linux)
 
