@@ -8,6 +8,7 @@ const BASE_FOV := 90.0
 
 var _kick := Vector2.ZERO
 var extra_fov := 0.0
+var ads_fov := 0.0 # 0 = hip fire; sniper sets ~38
 
 
 func _ready() -> void:
@@ -17,7 +18,7 @@ func _ready() -> void:
 func add_kick(pitch_deg: float, yaw_deg: float, fov_amt: float) -> void:
 	_kick.x += deg_to_rad(pitch_deg)
 	_kick.y += deg_to_rad(yaw_deg)
-	fov = minf(fov + fov_amt, BASE_FOV + 8.0)
+	fov = minf(fov + fov_amt, _base_fov() + 8.0)
 
 
 func _process(delta: float) -> void:
@@ -25,4 +26,9 @@ func _process(delta: float) -> void:
 	_kick = _kick.lerp(Vector2.ZERO, k)
 	rotation.x = -_kick.x
 	rotation.y = _kick.y
-	fov = lerpf(fov, BASE_FOV + extra_fov, 1.0 - exp(-FOV_RECOVER * delta))
+	fov = lerpf(fov, _base_fov() + extra_fov, 1.0 - exp(-FOV_RECOVER * delta))
+
+
+## Hip = 90. Sniper zoom writes ads_fov (~38) while RMB is held.
+func _base_fov() -> float:
+	return ads_fov if ads_fov > 1.0 else BASE_FOV

@@ -8,6 +8,7 @@ signal score_changed(peer_id: int, score: int, name: String)
 signal round_ended(winner_peer_id: int, winner_name: String, scores: Dictionary)
 signal kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int)
 signal presence(player_name: String, joined: bool, team: int)
+signal chat_message(player_name: String, team: int, text: String)
 
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4 # world | players | leftover dummy layer
@@ -24,10 +25,12 @@ const WEAPON_DEFS := {
 	&"rifle": preload("res://data/weapons/rifle.tres"),
 	&"pistol": preload("res://data/weapons/pistol.tres"),
 	&"shotgun": preload("res://data/weapons/shotgun.tres"),
+	&"sniper": preload("res://data/weapons/sniper.tres"),
 }
 
 var is_offline := true
 var is_dedicated := false
+var chat_open := false # T-chat: blocks move/look/fire until Enter/Esc
 var player_name := "Player"
 var pending_names: Dictionary = {} # peer_id → name, filled before spawn if the client RPCs first
 var net_hp: Dictionary = {} # server copy of HP, keyed by peer_id (bots included)
@@ -296,7 +299,70 @@ func register_participant(peer_id: int, n: String, team: int = 0) -> void:
 		sync_score.rpc(peer_id, 0, n, team)
 
 
-## Server/offline only. Updates TDM score and kill feed (weapon_id is the gun used).
+const CHAT_MAX := 120
+
+
+## All-chat. Clients send to the server; host stamps name/team and broadcasts.
+func send_chat(text: String) -> void:
+	text = text.strip_edges()
+	if text.length() > CHAT_MAX:
+		text = text.substr(0, CHAT_MAX)
+	if text == "":
+		return
+	if not is_networked():
+		_deliver_chat(player_name, _local_team(), text)
+		return
+	if multiplayer.is_server():
+		_relay_chat(multiplayer.get_unique_id(), text)
+	else:
+		submit_chat.rpc_id(1, text)
+
+
+func _local_team() -> int:
+	var p := player_for_peer(multiplayer.get_unique_id() if is_networked() else 1)
+	return p.team_id if p else 0
+
+
+## Never trust the client for the display name — look up the pawn / scoreboard.
+func _relay_chat(peer_id: int, text: String) -> void:
+	var p := player_for_peer(peer_id)
+	var n := _display_name_for(peer_id)
+	var team := 0
+	if p:
+		n = p.display_name
+		team = p.team_id
+	elif scores.has(peer_id):
+		n = str(scores[peer_id].name)
+		team = int(scores[peer_id].get("team", 0))
+	broadcast_chat.rpc(n, team, text)
+
+
+## Client → server. Strip/cap here again in case of a bad peer.
+@rpc("any_peer", "reliable")
+func submit_chat(text: String) -> void:
+	if not multiplayer.is_server():
+		return
+	text = text.strip_edges()
+	if text.length() > CHAT_MAX:
+		text = text.substr(0, CHAT_MAX)
+	if text == "":
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	if peer == 0:
+		peer = multiplayer.get_unique_id()
+	_relay_chat(peer, text)
+
+
+## call_local so the listen-server HUD sees the line too.
+@rpc("authority", "call_local", "reliable")
+func broadcast_chat(n: String, team: int, text: String) -> void:
+	_deliver_chat(n, team, text)
+
+
+func _deliver_chat(n: String, team: int, text: String) -> void:
+	chat_message.emit(n, team, text)
+
+
 func announce_presence(player_name: String, joined: bool, team: int) -> void:
 	if not _is_match_authority():
 		return
@@ -312,6 +378,7 @@ func sync_presence(player_name: String, joined: bool, team: int) -> void:
 	presence.emit(player_name, joined, team)
 
 
+## Server/offline only. Updates TDM score and kill feed (weapon_id is the gun used).
 func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName = &"rifle") -> void:
 	if not _is_match_authority():
 		return
@@ -621,8 +688,11 @@ func _bind_inputs() -> void:
 	_key("weapon_1", KEY_1)
 	_key("weapon_2", KEY_2)
 	_key("weapon_3", KEY_3)
+	_key("weapon_4", KEY_4)
 	_mouse("fire", MOUSE_BUTTON_LEFT)
+	_mouse("zoom", MOUSE_BUTTON_RIGHT)
 	_key("toggle_mouse", KEY_ESCAPE)
+	_key("chat", KEY_T)
 	_key("sprint", KEY_SHIFT)
 	_key("crouch", KEY_CTRL)
 	_key("crouch", KEY_C)

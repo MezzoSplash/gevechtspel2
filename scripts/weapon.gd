@@ -1,12 +1,13 @@
 class_name Weapon
 extends Node3D
-## Hitscan loadout (1 rifle, 2 pistol, 3 shotgun). FX are local; damage is server-side.
+## Hitscan loadout (1 rifle, 2 pistol, 3 shotgun, 4 sniper). FX are local; damage is server-side.
 
 const HURT_MASK := 1 | 2 | 4
 const LOADOUT: Array[WeaponDef] = [
 	preload("res://data/weapons/rifle.tres"),
 	preload("res://data/weapons/pistol.tres"),
 	preload("res://data/weapons/shotgun.tres"),
+	preload("res://data/weapons/sniper.tres"),
 ]
 
 @export var def: WeaponDef
@@ -15,6 +16,7 @@ const MODEL_PATHS := {
 	&"rifle": "res://assets/weapons/rifle.glb",
 	&"pistol": "res://assets/weapons/pistol.glb",
 	&"shotgun": "res://assets/weapons/shotgun.glb",
+	&"sniper": "res://assets/weapons/sniper.glb", # slot 4; two body / one head
 }
 
 @onready var camera: CameraFeel = get_parent() as CameraFeel
@@ -44,6 +46,8 @@ var _hud: Hud
 var _weapon_state: Dictionary = {}
 var _active_index := 0
 var _view_models: Dictionary = {} # StringName → Node3D
+var _ads := false
+const SNIPER_ADS_FOV := 38.0 # hip is 90; hold RMB on sniper only
 
 
 func _ready() -> void:
@@ -76,6 +80,7 @@ func _process(delta: float) -> void:
 	if _flash_left <= 0.0:
 		muzzle_flash.visible = false
 		muzzle_light.visible = false
+	_update_ads()
 	if bot_auth:
 		if _reload_left > 0.0:
 			_reload_left = maxf(_reload_left - delta, 0.0)
@@ -84,7 +89,7 @@ func _process(delta: float) -> void:
 				_save_weapon_state()
 		return
 
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive():
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open:
 		if Input.is_action_just_pressed("switch_weapon"):
 			_cycle_weapon()
 		elif Input.is_action_just_pressed("weapon_1"):
@@ -93,6 +98,8 @@ func _process(delta: float) -> void:
 			_equip(1)
 		elif Input.is_action_just_pressed("weapon_3"):
 			_equip(2)
+		elif Input.is_action_just_pressed("weapon_4"):
+			_equip(3) # sniper
 		elif _reload_left > 0.0:
 			pass
 		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size:
@@ -122,6 +129,32 @@ func _wants_fire() -> bool:
 	if def.automatic:
 		return Input.is_action_pressed("fire")
 	return Input.is_action_just_pressed("fire")
+
+
+func is_ads() -> bool:
+	return _ads
+
+
+## Sniper only. Hold RMB: FOV 38, hide viewmodel. Other guns never ADS.
+func _update_ads() -> void:
+	var want := (
+		_is_local()
+		and def != null
+		and def.id == &"sniper"
+		and _owner_alive()
+		and not Game.chat_open
+		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		and Input.is_action_pressed("zoom")
+	)
+	_ads = want
+	if camera:
+		camera.ads_fov = SNIPER_ADS_FOV if _ads else 0.0
+	var hud := _hud_node()
+	if hud:
+		hud.set_sniper_ads(_ads)
+	for id in _view_models:
+		var n: Node3D = _view_models[id]
+		n.visible = (not _ads) and def != null and id == def.id
 
 
 func _cycle_weapon() -> void:
@@ -243,6 +276,9 @@ func _apply_view_for_def() -> void:
 		&"shotgun":
 			position = Vector3(0.22, -0.18, -0.30)
 			length = 0.50
+		&"sniper":
+			position = Vector3(0.22, -0.17, -0.28)
+			length = 0.58
 		_:
 			position = Vector3(_rest_pos.x, _rest_pos.y, _rest_pos.z + 0.06)
 			length = 0.42
@@ -297,7 +333,10 @@ func _try_fire() -> void:
 func play_fire_sfx() -> void:
 	if fire_sfx == null or fire_sfx.stream == null:
 		return
-	fire_sfx.pitch_scale = randf_range(0.96, 1.05)
+	if def and def.id == &"sniper":
+		fire_sfx.pitch_scale = randf_range(0.72, 0.80)
+	else:
+		fire_sfx.pitch_scale = randf_range(0.96, 1.05)
 	fire_sfx.play()
 
 
@@ -346,6 +385,8 @@ func _fire() -> void:
 			spread_mult *= 1.2
 		elif def.id == &"pistol":
 			spread_mult *= 1.9
+		elif def.id == &"sniper":
+			spread_mult *= 1.35
 		else:
 			spread_mult *= 2.4
 	if Game.is_networked() and not multiplayer.is_server():

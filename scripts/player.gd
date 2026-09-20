@@ -170,9 +170,14 @@ func make_active_camera() -> void:
 func _input(event: InputEvent) -> void:
 	if not is_local():
 		return
+	if Game.chat_open:
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		_yaw -= event.relative.x * MOUSE_SENS
-		_pitch -= event.relative.y * MOUSE_SENS
+		var sens := MOUSE_SENS
+		if weapon and weapon.is_ads():
+			sens *= 0.45 # match Scout-style zoom so flicks stay controllable
+		_yaw -= event.relative.x * sens
+		_pitch -= event.relative.y * sens
 		_pitch = clampf(_pitch, -MAX_PITCH, MAX_PITCH)
 		rotation.y = _yaw
 		head.rotation.x = _pitch
@@ -182,6 +187,8 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_local():
+		return
+	if Game.chat_open:
 		return
 	if event.is_action_pressed("toggle_mouse"):
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -330,12 +337,13 @@ func _physics_process(delta: float) -> void:
 		_apply_remote_visual()
 		_tick_feet(delta)
 		return
+	var chatting := Game.chat_open
 	var on_floor := is_on_floor()
 	_update_stance(delta, on_floor)
 
 	if not on_floor:
 		velocity.y += float(get_gravity().y) * delta
-	elif (not is_dead) and Input.is_action_just_pressed("jump"):
+	elif (not is_dead) and (not chatting) and Input.is_action_just_pressed("jump"):
 		if crouch > 0.2:
 			if not _ceiling_blocked():
 				crouch = 0.0
@@ -345,7 +353,7 @@ func _physics_process(delta: float) -> void:
 			velocity.y = JUMP_SPEED
 
 	var input_vec := Vector2.ZERO
-	if not is_dead:
+	if not is_dead and not chatting:
 		input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var wish := transform.basis * Vector3(input_vec.x, 0.0, input_vec.y)
 	wish.y = 0.0
@@ -356,13 +364,13 @@ func _physics_process(delta: float) -> void:
 
 	var wish_speed := WALK_SPEED
 	is_sprinting = false
-	if on_floor and (not is_dead) and crouch < 0.2 and Input.is_action_pressed("sprint") and wish.length_squared() > 0.04:
+	if on_floor and (not is_dead) and (not chatting) and crouch < 0.2 and Input.is_action_pressed("sprint") and wish.length_squared() > 0.04:
 		wish_speed = SPRINT_SPEED
 		is_sprinting = true
 	elif crouch > 0.5:
 		wish_speed = CROUCH_SPEED
 
-	camera.extra_fov = SPRINT_FOV if is_sprinting else 0.0
+	camera.extra_fov = 0.0 if weapon.is_ads() else (SPRINT_FOV if is_sprinting else 0.0)
 
 	var horiz := Vector3(velocity.x, 0.0, velocity.z)
 	if on_floor:
@@ -445,7 +453,7 @@ func _apply_remote_visual() -> void:
 
 
 func _update_stance(delta: float, _on_floor: bool) -> void:
-	var want := (not is_dead) and Input.is_action_pressed("crouch")
+	var want := (not is_dead) and (not Game.chat_open) and Input.is_action_pressed("crouch")
 	if (not want) and crouch > 0.05 and _ceiling_blocked():
 		want = true
 	var target := 1.0 if want else 0.0

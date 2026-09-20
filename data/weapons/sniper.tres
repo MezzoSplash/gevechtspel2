@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/weapon_def.gd" id="1_weapon"]
+[ext_resource type="AudioStream" path="res://assets/sounds/rifle_fire.wav" id="2_fire"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"sniper"
+display_name = "Sniper"
+fire_rate = 1.15
+damage = 50.0
+headshot_multiplier = 2.0
+spread_deg = 0.08
+kick_pitch_deg = 1.35
+kick_yaw_deg = 0.28
+kick_fov = 2.4
+range_m = 220.0
+mag_size = 10
+reload_time = 1.75
+tracer_width = 0.018
+fire_sound = ExtResource("2_fire")
+pellet_count = 1
+automatic = false
+falloff_start_m = 50.0
+falloff_end_m = 90.0
+falloff_min_mult = 0.92

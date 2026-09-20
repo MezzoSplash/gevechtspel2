@@ -183,6 +183,7 @@ func _enter_play() -> void:
 	if get_viewport().gui_get_focus_owner():
 		get_viewport().gui_get_focus_owner().release_focus()
 	hud.visible = true
+	Game.chat_open = false
 	_disable_menu_camera()
 
 
@@ -486,7 +487,7 @@ func _smaller_team() -> int:
 	return Game.TEAM_B
 
 
-## loadout = abs(id) % 3 → rifle / pistol / shotgun.
+## loadout = abs(id) % 4 → rifle / pistol / shotgun / sniper.
 func _spawn_bot(team: int) -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
@@ -499,7 +500,7 @@ func _spawn_bot(team: int) -> void:
 		"n": "Bot %d" % abs(id),
 		"bot": true,
 		"team": team,
-		"loadout": abs(id) % 3,
+		"loadout": abs(id) % 4,
 	})
 
 

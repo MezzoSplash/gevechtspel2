@@ -16,13 +16,14 @@ var _round_end_timer := 0.0
 var _round_end_winner := ""
 var _intermission_timer := 0.0
 var _board_refresh := 0.0
+var _sniper_ads := false
 var _weapon_index := 0
 var _ammo := 30
 var _mag := 30
 
 const _SLOT_IDLE := Color(0.08, 0.09, 0.11, 0.82)
 const _SLOT_ON := Color(0.18, 0.16, 0.08, 0.92)
-const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN"]
+const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"]
 
 @onready var hint_label: Label = $Hint
 @onready var fps_label: Label = $Fps
@@ -34,6 +35,7 @@ const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN"]
 	$Bottom/Weapons/Slot0,
 	$Bottom/Weapons/Slot1,
 	$Bottom/Weapons/Slot2,
+	$Bottom/Weapons/Slot3,
 ]
 @onready var scoreboard_container: VBoxContainer = $Scoreboard
 @onready var round_end_label: Label = $RoundEnd
@@ -41,11 +43,14 @@ const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN"]
 @onready var timer_label: Label = $Timer
 @onready var kill_feed: VBoxContainer = $KillFeed
 @onready var presence_feed: VBoxContainer = $PresenceFeed
+@onready var chat_log: VBoxContainer = $ChatLog
+@onready var chat_input: LineEdit = $ChatInput
 
 const _FEED_ICONS := {
 	&"rifle": preload("res://assets/ui/icon_rifle.svg"),
 	&"pistol": preload("res://assets/ui/icon_pistol.svg"),
 	&"shotgun": preload("res://assets/ui/icon_shotgun.svg"),
+	&"sniper": preload("res://assets/ui/icon_sniper.svg"),
 }
 const _FEED_MAX := 6
 const _FEED_LIFE := 5.0
@@ -58,6 +63,7 @@ func _ready() -> void:
 	Game.round_ended.connect(_on_round_ended)
 	Game.kill_feed.connect(_on_kill_feed)
 	Game.presence.connect(_on_presence)
+	Game.chat_message.connect(_on_chat_message)
 	reload_label.visible = false
 	death_layer.visible = false
 	scoreboard_container.visible = false
@@ -66,6 +72,10 @@ func _ready() -> void:
 	intermission_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_refresh_weapon_slots()
+	if chat_input:
+		chat_input.visible = false
+		chat_input.text_submitted.connect(_on_chat_submit)
+		chat_input.gui_input.connect(_on_chat_gui_input)
 	call_deferred("bind_player", null)
 
 
@@ -92,6 +102,75 @@ func _local_player() -> Player:
 	return null
 
 
+## T opens chat. Esc/toggle_mouse closes it without unlocking the cursor.
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	if Game.chat_open:
+		if event.is_action_pressed("toggle_mouse") or event.is_action_pressed("ui_cancel"):
+			_close_chat(false)
+			get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("chat") and not event.is_echo():
+		_open_chat()
+		get_viewport().set_input_as_handled()
+
+
+## Deferred focus so the T that opened chat is not typed into the box.
+func _open_chat() -> void:
+	Game.chat_open = true
+	if chat_input:
+		chat_input.visible = true
+		chat_input.text = ""
+		chat_input.call_deferred("grab_focus")
+	if chat_log:
+		for c in chat_log.get_children():
+			(c as CanvasItem).modulate.a = 1.0
+
+
+func _close_chat(send: bool) -> void:
+	if send and chat_input:
+		Game.send_chat(chat_input.text)
+	Game.chat_open = false
+	if chat_input:
+		chat_input.release_focus()
+		chat_input.text = ""
+		chat_input.visible = false
+
+
+func _on_chat_submit(text: String) -> void:
+	Game.send_chat(text)
+	_close_chat(false)
+
+
+func _on_chat_gui_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("toggle_mouse"):
+		_close_chat(false)
+		get_viewport().set_input_as_handled()
+
+
+## Newest at the bottom. Name uses team colour; lines fade after 8s.
+func _on_chat_message(n: String, team: int, text: String) -> void:
+	if chat_log == null:
+		return
+	var row := RichTextLabel.new()
+	row.bbcode_enabled = true
+	row.fit_content = true
+	row.scroll_active = false
+	row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var col: Color = Player.TEAM_COLORS[clampi(team, 0, 1)]
+	row.text = "[color=#%s]%s[/color]  %s" % [col.to_html(false), n, text]
+	chat_log.add_child(row)
+	while chat_log.get_child_count() > 8:
+		var old := chat_log.get_child(0)
+		chat_log.remove_child(old)
+		old.queue_free()
+	var tw := row.create_tween()
+	tw.tween_interval(8.0)
+	tw.tween_property(row, "modulate:a", 0.0, 0.5)
+
+
 func punch_crosshair(amount: float = 1.0) -> void:
 	_fire_punch = maxf(_fire_punch, amount)
 
@@ -111,8 +190,16 @@ func set_weapon_name(n: String) -> void:
 	_refresh_weapon_slots()
 
 
+## Tight crosshair + faint ring while sniper RMB zoom is held.
+func set_sniper_ads(on: bool) -> void:
+	if _sniper_ads == on:
+		return
+	_sniper_ads = on
+	queue_redraw()
+
+
 func set_weapon_index(index: int) -> void:
-	_weapon_index = clampi(index, 0, 2)
+	_weapon_index = clampi(index, 0, _SLOT_NAMES.size() - 1)
 	_refresh_weapon_slots()
 
 
@@ -383,7 +470,7 @@ func _draw() -> void:
 	var player := get_tree().get_first_node_in_group("player") as Player
 	if player:
 		stance = maxf(player.spread_multiplier() - 1.0, 0.0) * 5.0
-	var gap := 5.0 + _fire_punch * 7.0 + stance
+	var gap := (2.0 if _sniper_ads else 5.0) + _fire_punch * 7.0 + stance
 	var length := 8.0
 	var col := Color(0.95, 0.95, 0.95, 0.92)
 	var thick := 2.0
@@ -392,6 +479,8 @@ func _draw() -> void:
 	_bar(c + Vector2(0, gap), Vector2(0, length), col, thick)
 	_bar(c + Vector2(0, -gap), Vector2(0, -length), col, thick)
 	draw_circle(c, 1.4, col)
+	if _sniper_ads:
+		draw_arc(c, 22.0, 0.0, TAU, 48, Color(0.05, 0.05, 0.05, 0.45), 2.0, true)
 
 	if _hurt_flash > 0.0:
 		var a := _hurt_flash * 0.55

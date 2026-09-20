@@ -8,6 +8,7 @@ const TOO_CLOSE := 4.0
 const SHOTGUN_FIGHT := 6.0
 const RIFLE_FIGHT := 13.0
 const PISTOL_FIGHT := 9.0
+const SNIPER_FIGHT := 18.0 # keep range; one shot then a long pause
 const STRAFE_SPEED := 6.2
 const SHOT_MASK := 1 | 2
 
@@ -143,6 +144,8 @@ func _fight_range() -> float:
 			return SHOTGUN_FIGHT
 		&"pistol":
 			return PISTOL_FIGHT
+		&"sniper":
+			return SNIPER_FIGHT
 		_:
 			return RIFLE_FIGHT
 
@@ -157,6 +160,9 @@ func _try_shoot(enemy: Player) -> void:
 			&"shotgun":
 				_burst_left = 1
 				_burst_pause = randf_range(0.55, 1.05)
+			&"sniper":
+				_burst_left = 1
+				_burst_pause = randf_range(0.85, 1.4)
 			&"pistol":
 				_burst_left = randi_range(3, 6)
 				_burst_pause = randf_range(0.28, 0.6)

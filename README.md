@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.3** — GLB weapon models, join/leave notices, code comments.
+**v0.2.4** — all-chat (T), sniper slot 4 with RMB FOV zoom.
 
 ## Play (Linux)
 
