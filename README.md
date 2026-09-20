@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.2** — footsteps, mixed bot loadouts, HP bar + weapon selector, kill feed, switch-while-reload.
+**v0.2.3** — GLB weapon models, join/leave notices, code comments.
 
 ## Play (Linux)
 

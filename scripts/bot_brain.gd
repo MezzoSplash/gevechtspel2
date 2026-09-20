@@ -1,5 +1,6 @@
 class_name BotBrain
 extends RefCounted
+## Server-only AI. Same Player movement helpers. Gun choice changes fight distance.
 
 const ACQUIRE := 0.28
 const FIGHT_RANGE := 11.0
@@ -29,6 +30,7 @@ func setup(p: Player, nav: NavigationAgent3D) -> void:
 	_burst_pause = randf_range(0.25, 0.7)
 
 
+## Hunt if no LOS, strafe+shoot if visible. Shotgun bots push closer than rifle.
 func physics_tick(delta: float) -> void:
 	if pawn == null or pawn.is_dead:
 		pawn.velocity = Vector3.ZERO
@@ -165,6 +167,7 @@ func _try_shoot(enemy: Player) -> void:
 		_burst_left -= 1
 
 
+## World (1) + players (2). Does not hit other dummies leftover on layer 4.
 func _can_see(enemy: Player) -> bool:
 	var from := pawn.head.global_position
 	var to := enemy.global_position + Vector3(0.0, 1.0, 0.0)

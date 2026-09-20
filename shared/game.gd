@@ -1,15 +1,16 @@
 extends Node
-
-## Autoload. Input binds, hit-stop, net combat, and match-wide signals.
+## Autoload `Game`. Shared weapon stats, server-authoritative hits, scores, and LAN RPCs.
+## Clients never decide damage, deaths, or bot actions.
 
 signal hit_confirmed(killed: bool, headshot: bool)
 signal local_player_ready(player: Player)
 signal score_changed(peer_id: int, score: int, name: String)
 signal round_ended(winner_peer_id: int, winner_name: String, scores: Dictionary)
 signal kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int)
+signal presence(player_name: String, joined: bool, team: int)
 
 const DEFAULT_PORT := 7777
-const SHOT_MASK := 1 | 2 | 4
+const SHOT_MASK := 1 | 2 | 4 # world | players | leftover dummy layer
 const WIN_KILLS := 25
 const TEAM_SIZE := 5
 const TEAM_A := 0
@@ -28,8 +29,8 @@ const WEAPON_DEFS := {
 var is_offline := true
 var is_dedicated := false
 var player_name := "Player"
-var pending_names: Dictionary = {}
-var net_hp: Dictionary = {}
+var pending_names: Dictionary = {} # peer_id → name, filled before spawn if the client RPCs first
+var net_hp: Dictionary = {} # server copy of HP, keyed by peer_id (bots included)
 var _hitstopping := false
 
 var scores: Dictionary = {}
@@ -52,6 +53,7 @@ func rpc_from_server() -> bool:
 	return id == 1 or id == 0
 
 
+## Humans are named by peer id; bots are `bot1` with peer_id -1, etc.
 func player_for_peer(peer_id: int) -> Player:
 	for n in get_tree().get_nodes_in_group("player"):
 		var p := n as Player
@@ -92,6 +94,7 @@ func weapon_def(weapon_id: StringName) -> WeaponDef:
 	return WEAPON_DEFS.get(weapon_id) as WeaponDef
 
 
+## Client → server fire. Hits resolve here; tracers/sfx go back out via broadcast_shot_fx.
 @rpc("any_peer", "reliable")
 func request_weapon_fire(origin: Vector3, look_dir: Vector3, weapon_id: StringName, muzzle_pos: Vector3 = Vector3.ZERO) -> void:
 	if not multiplayer.is_server():
@@ -112,6 +115,7 @@ func request_weapon_fire(origin: Vector3, look_dir: Vector3, weapon_id: StringNa
 		notify_hit.rpc_id(peer, best.killed, best.headshot)
 
 
+## Host / offline / bots: resolve hits on this machine (must be match authority).
 func fire_weapon_locally(
 	shooter: Player,
 	origin: Vector3,
@@ -214,6 +218,7 @@ func submit_display_name(n: String) -> void:
 	apply_display_name.rpc(peer, n)
 
 
+## Also writes the scoreboard name. Spawn often happens before the client's name RPC.
 @rpc("authority", "call_local", "reliable")
 func apply_display_name(peer_id: int, n: String) -> void:
 	var p := player_for_peer(peer_id)
@@ -289,6 +294,22 @@ func register_participant(peer_id: int, n: String, team: int = 0) -> void:
 	_apply_score(peer_id, 0, n, team)
 	if is_networked() and multiplayer.is_server():
 		sync_score.rpc(peer_id, 0, n, team)
+
+
+## Server/offline only. Updates TDM score and kill feed (weapon_id is the gun used).
+func announce_presence(player_name: String, joined: bool, team: int) -> void:
+	if not _is_match_authority():
+		return
+	presence.emit(player_name, joined, team)
+	if is_networked():
+		sync_presence.rpc(player_name, joined, team)
+
+
+@rpc("authority", "reliable")
+func sync_presence(player_name: String, joined: bool, team: int) -> void:
+	if multiplayer.is_server():
+		return
+	presence.emit(player_name, joined, team)
 
 
 func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName = &"rifle") -> void:
@@ -449,6 +470,7 @@ func get_round_time_left() -> float:
 	return maxf(ROUND_TIME - _round_timer, 0.0)
 
 
+## Host already played local FX. Remote humans need a tracer/sfx on the listen-server too.
 func broadcast_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int) -> void:
 	if not is_networked() or not multiplayer.is_server():
 		return
@@ -460,6 +482,7 @@ func broadcast_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int) -> void
 	sync_shot_fx.rpc(from, to, shooter_peer_id)
 
 
+## Skip the shooter: they already spawned tracers locally in Weapon._fire.
 @rpc("authority", "unreliable")
 func sync_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int = 0) -> void:
 	if shooter_peer_id != 0 and shooter_peer_id == multiplayer.get_unique_id():
@@ -493,6 +516,7 @@ func _spawn_net_tracer(from: Vector3, to: Vector3) -> void:
 	get_tree().create_timer(0.055).timeout.connect(mesh_inst.queue_free)
 
 
+## Host is 0 ms. Bots are -1 (shown as —). Clients get ENet RTT from the server.
 func _sample_pings() -> void:
 	if not is_networked() or not multiplayer.is_server():
 		return
@@ -518,6 +542,7 @@ func sync_pings(data: Dictionary) -> void:
 	pings = data
 
 
+## Listen-server: bots have MultiplayerSynchronizer off, so we push poses ourselves.
 func _physics_process(delta: float) -> void:
 	if not is_networked() or not multiplayer.is_server():
 		return
@@ -565,6 +590,7 @@ func broadcast_roster() -> void:
 	sync_roster.rpc(live_peer_ids())
 
 
+## Client deletes pawns the server no longer has (ghost bots after join-replace).
 @rpc("authority", "reliable")
 func sync_roster(ids: Array) -> void:
 	if multiplayer.is_server():

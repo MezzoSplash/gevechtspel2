@@ -1,5 +1,6 @@
 class_name Weapon
 extends Node3D
+## Hitscan loadout (1 rifle, 2 pistol, 3 shotgun). FX are local; damage is server-side.
 
 const HURT_MASK := 1 | 2 | 4
 const LOADOUT: Array[WeaponDef] = [
@@ -9,6 +10,12 @@ const LOADOUT: Array[WeaponDef] = [
 ]
 
 @export var def: WeaponDef
+
+const MODEL_PATHS := {
+	&"rifle": "res://assets/weapons/rifle.glb",
+	&"pistol": "res://assets/weapons/pistol.glb",
+	&"shotgun": "res://assets/weapons/shotgun.glb",
+}
 
 @onready var camera: CameraFeel = get_parent() as CameraFeel
 @onready var gun_body: MeshInstance3D = $GunBody
@@ -32,17 +39,22 @@ var _flash_left := 0.0
 var _kick_offset := Vector3.ZERO
 var _bob_t := 0.0
 var _rest_pos: Vector3
+var _view_rest: Vector3
 var _hud: Hud
 var _weapon_state: Dictionary = {}
 var _active_index := 0
+var _view_models: Dictionary = {} # StringName → Node3D
 
 
 func _ready() -> void:
 	if def == null:
 		def = LOADOUT[0]
 	_rest_pos = position
+	_view_rest = position
 	muzzle_flash.visible = false
 	muzzle_light.visible = false
+	_hide_blockout_meshes()
+	_setup_view_models()
 	_active_index = _index_for_def(def)
 	_equip(_active_index, false)
 	call_deferred("_hook_hit_fx")
@@ -53,6 +65,7 @@ func _hook_hit_fx() -> void:
 		Game.hit_confirmed.connect(_on_confirmed_hit)
 
 
+## Weapon switch is allowed during reload and cancels it (sidearm ready immediately).
 func _process(delta: float) -> void:
 	var owner_player := owner as Player
 	var bot_auth := owner_player != null and owner_player.is_bot and (Game.is_offline or multiplayer.is_server())
@@ -102,7 +115,7 @@ func _process(delta: float) -> void:
 	if speed_factor > 0.08:
 		bob.x = sin(_bob_t) * 0.012 * speed_factor
 		bob.y = absf(sin(_bob_t * 2.0)) * 0.01 * speed_factor
-	position = _rest_pos + _kick_offset + bob
+	position = _view_rest + _kick_offset + bob
 
 
 func _wants_fire() -> bool:
@@ -121,6 +134,7 @@ func equip_loadout(index: int) -> void:
 	_equip(clampi(index, 0, LOADOUT.size() - 1), false)
 
 
+## Switching stores ammo of the old gun and loads the new one. Reload leftover is dropped.
 func _equip(index: int, save_current: bool = true) -> void:
 	index = clampi(index, 0, LOADOUT.size() - 1)
 	if save_current and def != null and index == _active_index:
@@ -180,32 +194,93 @@ func _index_for_def(weapon_def: WeaponDef) -> int:
 	return 0
 
 
+func _hide_blockout_meshes() -> void:
+	if gun_body:
+		gun_body.visible = false
+	if barrel:
+		barrel.visible = false
+	if mag:
+		mag.visible = false
+
+
+func _setup_view_models() -> void:
+	for id in MODEL_PATHS:
+		var ps := load(MODEL_PATHS[id]) as PackedScene
+		if ps == null:
+			continue
+		var inst: Node3D = ps.instantiate() as Node3D
+		inst.name = String(id)
+		inst.visible = false
+		_disable_shadows(inst)
+		add_child(inst)
+		_view_models[id] = inst
+
+
+func _disable_shadows(n: Node) -> void:
+	if n is GeometryInstance3D:
+		(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for c in n.get_children():
+		_disable_shadows(c)
+
+
 func _apply_view_for_def() -> void:
-	mag.visible = true
+	_hide_blockout_meshes()
+	for id in _view_models:
+		(_view_models[id] as Node3D).visible = false
+	if not _view_models.has(def.id):
+		return
+	var model: Node3D = _view_models[def.id]
+	model.visible = true
+	# GLBs are modeled along +X; +90 Y puts the muzzle down camera -Z.
+	model.rotation_degrees = Vector3(0.0, 90.0, 0.0)
+	model.position = Vector3.ZERO
+	model.scale = Vector3.ONE
+	var length := 0.42
 	match def.id:
 		&"pistol":
-			position = Vector3(0.22, -0.16, -0.34)
-			gun_body.scale = Vector3(0.72, 0.72, 0.72)
-			barrel.scale = Vector3(0.85, 0.85, 0.55)
-			barrel.position = Vector3(0.0, 0.02, -0.18)
-			mag.scale = Vector3(0.7, 0.65, 0.7)
-			mag.position = Vector3(0.0, -0.08, 0.01)
-			muzzle.position = Vector3(0.0, 0.02, -0.28)
+			position = Vector3(0.20, -0.16, -0.26)
+			length = 0.30
 		&"shotgun":
-			position = Vector3(0.26, -0.17, -0.38)
-			gun_body.scale = Vector3(1.1, 0.95, 1.05)
-			barrel.scale = Vector3(1.35, 1.2, 0.42)
-			barrel.position = Vector3(0.0, 0.03, -0.22)
-			mag.visible = false
-			muzzle.position = Vector3(0.0, 0.03, -0.36)
+			position = Vector3(0.22, -0.18, -0.30)
+			length = 0.50
 		_:
-			position = _rest_pos
-			gun_body.scale = Vector3.ONE
-			barrel.scale = Vector3.ONE
-			barrel.position = Vector3(0.0, 0.02, -0.28)
-			mag.scale = Vector3.ONE
-			mag.position = Vector3(0.0, -0.1, 0.02)
-			muzzle.position = Vector3(0.0, 0.02, -0.49)
+			position = Vector3(_rest_pos.x, _rest_pos.y, _rest_pos.z + 0.06)
+			length = 0.42
+	var aabb := _aabb_in_parent(model)
+	var long := maxf(aabb.size.z, 0.05)
+	var s := length / long
+	model.scale = Vector3(s, s, s)
+	aabb = _aabb_in_parent(model)
+	var center := aabb.get_center()
+	model.position -= Vector3(center.x, center.y + 0.02, center.z + length * 0.18)
+	aabb = _aabb_in_parent(model)
+	muzzle.position = Vector3(0.0, aabb.get_center().y, aabb.position.z)
+	_view_rest = position
+
+
+func _aabb_in_parent(n: Node3D) -> AABB:
+	var acc := AABB()
+	var has := false
+	var stack: Array = [[n, n.transform]]
+	while not stack.is_empty():
+		var item: Array = stack.pop_back()
+		var node: Node = item[0]
+		var xf: Transform3D = item[1]
+		if node is MeshInstance3D:
+			var mi := node as MeshInstance3D
+			if mi.mesh:
+				var a := xf * mi.mesh.get_aabb()
+				if not has:
+					acc = a
+					has = true
+				else:
+					acc = acc.merge(a)
+		for c in node.get_children():
+			if c is Node3D:
+				stack.append([c, xf * (c as Node3D).transform])
+			else:
+				stack.append([c, xf])
+	return acc if has else AABB(Vector3.ZERO, Vector3.ONE)
 
 
 func _try_fire() -> void:
@@ -236,6 +311,7 @@ func bot_try_fire() -> bool:
 	return true
 
 
+## Muzzle FX always. Clients ask the server to resolve hits; host/bots fire locally.
 func _fire() -> void:
 	ammo -= 1
 	_save_weapon_state()

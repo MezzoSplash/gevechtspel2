@@ -1,5 +1,7 @@
 class_name Player
 extends CharacterBody3D
+## Human or bot pawn. Same scene, same guns, same movement.
+## Bots: `is_bot`, negative `peer_id`, server authority. Humans: authority = peer_id.
 
 signal health_changed(hp: float, max_hp: float)
 signal died
@@ -59,6 +61,7 @@ var _feet_last := Vector3.ZERO
 var _was_air := false
 
 
+## Bots are never "local" (no camera/input), even in offline 5v5.
 func is_local() -> bool:
 	if is_bot:
 		return false
@@ -76,6 +79,7 @@ func _owner_peer() -> int:
 	return 0
 
 
+## Must run before MultiplayerSynchronizer starts. Bots always belong to peer 1.
 func _enter_tree() -> void:
 	_restore_bot_identity()
 	if Game.is_offline:
@@ -88,6 +92,7 @@ func _enter_tree() -> void:
 		set_multiplayer_authority(peer_id, true)
 
 
+## Late-join copies may only have the node name `bot7`; recover peer_id from that.
 func _restore_bot_identity() -> void:
 	var n := str(name)
 	if n.begins_with("bot") and n.substr(3).is_valid_int():
@@ -108,6 +113,7 @@ func _ready() -> void:
 		peer_id = _owner_peer()
 	_dup_body_mat()
 	_apply_team_visual()
+	# Bots/offline skip MultiplayerSynchronizer; bot poses are Game.sync_bot_poses.
 	if has_node("Sync") and (Game.is_offline or is_bot or peer_id < 0):
 		$Sync.public_visibility = false
 	if Game.is_offline:
@@ -131,6 +137,7 @@ func _apply_bot_loadout() -> void:
 		weapon.equip_loadout(loadout_index)
 
 
+## Local: hide body, capture mouse. Remote/bot: show mesh, nametag, world gun.
 func _configure_control() -> void:
 	_apply_team_visual()
 	if is_local():
@@ -216,6 +223,7 @@ func _apply_team_visual() -> void:
 		nametag.modulate = col
 
 
+## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
 func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_headshot: bool = true, killer_peer_id: int = 0, weapon_id: StringName = &"rifle") -> Dictionary:
 	if is_dead or _spawn_protect > 0.0:
 		return {"killed": false, "headshot": false, "damage": 0}
@@ -306,6 +314,7 @@ func spread_multiplier() -> float:
 	return 1.0 + move * 0.35
 
 
+## Server simulates bots. Remote humans/bots on a client only apply visuals + footsteps.
 func _physics_process(delta: float) -> void:
 	_spawn_protect = maxf(_spawn_protect - delta, 0.0)
 	if is_bot:
@@ -370,6 +379,7 @@ func _physics_process(delta: float) -> void:
 	weapon.speed_factor = Vector2(velocity.x, velocity.z).length() / WALK_SPEED
 
 
+## Uses velocity when we simulate, otherwise position delta (puppets have velocity zeroed).
 func _tick_feet(delta: float) -> void:
 	if is_dead:
 		_was_air = false
@@ -408,6 +418,7 @@ func _tick_feet(delta: float) -> void:
 	step_sfx.play()
 
 
+## Client-side bot transform from Game.sync_bot_poses (Synchronizer is off for bots).
 func apply_network_pose(pos: Vector3, yaw: float, pitch: float) -> void:
 	global_position = pos
 	rotation.y = yaw
@@ -464,6 +475,7 @@ func _ceiling_blocked() -> bool:
 	return space.intersect_ray(query).has("collider")
 
 
+## Quake-style stop: no Godot default air float.
 func _friction(vel: Vector3, delta: float) -> Vector3:
 	var speed := vel.length()
 	if speed < 0.01:

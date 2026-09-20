@@ -1,5 +1,6 @@
 class_name MainMenu
 extends Control
+## Boot UI only. Emits play/host/connect; Main handles the actual session.
 
 signal play_local_pressed
 signal host_pressed

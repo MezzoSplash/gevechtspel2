@@ -1,5 +1,6 @@
 class_name Hud
 extends Control
+## Crosshair, bottom HP bar + weapon slots, Tab scoreboard, kill feed. Mouse-filter ignore.
 
 var _hit_timer := 0.0
 var _kill_hit := false
@@ -39,6 +40,7 @@ const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN"]
 @onready var intermission_label: Label = $Intermission
 @onready var timer_label: Label = $Timer
 @onready var kill_feed: VBoxContainer = $KillFeed
+@onready var presence_feed: VBoxContainer = $PresenceFeed
 
 const _FEED_ICONS := {
 	&"rifle": preload("res://assets/ui/icon_rifle.svg"),
@@ -55,6 +57,7 @@ func _ready() -> void:
 	Game.score_changed.connect(_on_score_changed)
 	Game.round_ended.connect(_on_round_ended)
 	Game.kill_feed.connect(_on_kill_feed)
+	Game.presence.connect(_on_presence)
 	reload_label.visible = false
 	death_layer.visible = false
 	scoreboard_container.visible = false
@@ -152,6 +155,33 @@ func _on_died() -> void:
 func _on_respawned() -> void:
 	death_layer.visible = false
 	_hurt_flash = 0.0
+
+
+## Newest row on top. Local name gets a white outline (CS-style).
+func _on_presence(player_name: String, joined: bool, team: int) -> void:
+	if presence_feed == null:
+		return
+	var row := Label.new()
+	var team_n: String = Game.TEAM_NAMES[clampi(team, 0, 1)]
+	if joined:
+		row.text = "%s joined  (%s)" % [player_name, team_n]
+		row.add_theme_color_override("font_color", Color(0.55, 0.92, 0.62, 0.95))
+	else:
+		row.text = "%s left" % player_name
+		row.add_theme_color_override("font_color", Color(0.92, 0.55, 0.5, 0.95))
+	row.add_theme_font_size_override("font_size", 16)
+	row.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	row.add_theme_constant_override("outline_size", 4)
+	presence_feed.add_child(row)
+	presence_feed.move_child(row, 0)
+	while presence_feed.get_child_count() > 5:
+		var old := presence_feed.get_child(presence_feed.get_child_count() - 1)
+		presence_feed.remove_child(old)
+		old.queue_free()
+	var tw := row.create_tween()
+	tw.tween_interval(4.5)
+	tw.tween_property(row, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(row.queue_free)
 
 
 func _on_kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int) -> void:
@@ -346,6 +376,7 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+## Crosshair gap grows with spread/punch. Hurt vignette + hit/kill markers.
 func _draw() -> void:
 	var c := size * 0.5
 	var stance := 0.0

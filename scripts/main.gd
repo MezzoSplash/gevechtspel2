@@ -1,6 +1,9 @@
 extends Node3D
+## Arena root: menu, match flow (warmup → play → end → intermission), and pawn spawn.
+## Server (or offline host) is the only one that creates players/bots.
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
+# Inside the L-cover pockets, not in the walls. Blue = +Z, Orange = -Z.
 const TEAM_A_SPAWNS := [
 	Vector3(0.0, 0.0, 26.5),
 	Vector3(3.0, 0.0, 26.5),
@@ -23,10 +26,10 @@ enum MatchState { WARMUP, PLAYING, ROUND_END, INTERMISSION }
 @onready var hud: Hud = $CanvasLayer/Hud
 @onready var menu = $CanvasLayer/Menu
 
-var _spawn_i := [0, 0]
+var _spawn_i := [0, 0] # next spawn index per team
 var _match_state := MatchState.WARMUP
 var _state_timer := 0.0
-var _bot_id_counter := -1
+var _bot_id_counter := -1 # bots use negative peer_ids: -1, -2, …
 
 
 func _ready() -> void:
@@ -65,6 +68,7 @@ func _ready() -> void:
 	menu.visible = true
 
 
+## Runtime navmesh from arena collision (not GPU meshes).
 func _bake_nav() -> void:
 	var region := get_node_or_null("NavigationRegion3D") as NavigationRegion3D
 	var arena := get_node_or_null("Arena") as Node3D
@@ -115,6 +119,7 @@ func _parse_args() -> Dictionary:
 	return out
 
 
+## Match clock. Clients do not tick this; they get time/scores over RPC.
 func _process(delta: float) -> void:
 	if not multiplayer.is_server() and not Game.is_offline:
 		return
@@ -286,6 +291,7 @@ func _on_server_disconnected() -> void:
 		$MenuCamera.current = true
 
 
+## Late join: defer so MultiplayerSpawner can replicate existing pawns first.
 func _on_peer_connected(id: int) -> void:
 	print("SERVER: Peer connected: %d" % id)
 	if not multiplayer.is_server():
@@ -298,10 +304,16 @@ func _on_peer_connected(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	print("SERVER: Peer disconnected: %d" % id)
 	var team := 0
+	var leave_name := Game._display_name_for(id)
 	var node := players_root.get_node_or_null(str(id))
 	if node is Player:
 		team = (node as Player).team_id
+		leave_name = (node as Player).display_name
 		node.queue_free()
+	elif Game.scores.has(id):
+		leave_name = str(Game.scores[id].name)
+		team = int(Game.scores[id].get("team", 0))
+	Game.announce_presence(leave_name, false, team)
 	Game.clear_peer_hp(id)
 	Game.scores.erase(id)
 	_spawn_bot(team)
@@ -321,11 +333,18 @@ func _spawn_player(peer_id: int, team: int = -1) -> void:
 	_add_pawn({"id": peer_id, "pos": pos, "n": n, "bot": false, "team": team})
 
 
+## Spawn the human, then trim extra bots so each team stays at TEAM_SIZE.
 func _finish_peer_join(id: int) -> void:
 	if not multiplayer.is_server():
 		return
 	_spawn_player(id)
 	_trim_bots()
+	var join_id := id
+	get_tree().create_timer(0.35).timeout.connect(func() -> void:
+		var joiner := Game.player_for_peer(join_id)
+		if joiner:
+			Game.announce_presence(joiner.display_name, true, joiner.team_id)
+	)
 	var scores_arr := Game.get_scores()
 	if scores_arr.size() > 0:
 		Game.sync_all_scores.rpc_id(id, scores_arr)
@@ -353,6 +372,7 @@ func _pawn_snapshot() -> Array:
 	return out
 
 
+## Reliable snapshot so late joiners get bots even if the spawner missed them.
 func broadcast_pawns() -> void:
 	if not Game.is_networked() or not multiplayer.is_server():
 		return
@@ -394,6 +414,7 @@ func sync_pawns(list: Array) -> void:
 			extra.queue_free()
 
 
+## Used by MultiplayerSpawner on every peer. `bot` pawns are always authority 1.
 func _spawn_player_node(data: Variant) -> Node:
 	var d: Dictionary = data
 	if typeof(d) != TYPE_DICTIONARY or not d.has("id"):
@@ -452,6 +473,7 @@ func _human_count(team: int) -> int:
 	return n
 
 
+## First human → Blue, next → Orange (balance by human count, not bots).
 func _team_for_human() -> int:
 	if _human_count(Game.TEAM_A) <= _human_count(Game.TEAM_B):
 		return Game.TEAM_A
@@ -464,6 +486,7 @@ func _smaller_team() -> int:
 	return Game.TEAM_B
 
 
+## loadout = abs(id) % 3 → rifle / pistol / shotgun.
 func _spawn_bot(team: int) -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
@@ -496,6 +519,7 @@ func _first_bot_on(team: int) -> Player:
 	return null
 
 
+## Drop bots until each team is at most TEAM_SIZE (after a human joins).
 func _trim_bots() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return

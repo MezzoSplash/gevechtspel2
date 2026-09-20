@@ -1,5 +1,6 @@
 class_name CameraFeel
 extends Camera3D
+## Recoil kick + FOV punch. Recovers exponentially. No look smoothing.
 
 const RECOVER := 15.0
 const FOV_RECOVER := 18.0

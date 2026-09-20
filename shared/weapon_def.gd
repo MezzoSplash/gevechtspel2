@@ -1,5 +1,6 @@
 class_name WeaponDef
 extends Resource
+## Shared gun numbers. Live in data/weapons/*.tres — do not copy into client/server scripts.
 
 @export var id: StringName = &"rifle"
 @export var display_name: String = "Rifle"
@@ -22,6 +23,7 @@ extends Resource
 @export var falloff_min_mult: float = 1.0
 
 
+## Linear falloff after start_m. If end <= start, damage is constant (no dropoff).
 func damage_at_distance(dist: float) -> float:
 	if falloff_end_m <= falloff_start_m:
 		return damage
