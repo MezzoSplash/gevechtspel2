@@ -16,6 +16,7 @@ var _round_end_timer := 0.0
 var _round_end_winner := ""
 var _intermission_timer := 0.0
 var _board_refresh := 0.0
+var _freeze_left := 0.0
 var _sniper_ads := false
 var _weapon_index := 0
 var _ammo := 30
@@ -39,6 +40,7 @@ const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"]
 ]
 @onready var scoreboard_container: VBoxContainer = $Scoreboard
 @onready var round_end_label: Label = $RoundEnd
+@onready var countdown_label: Label = $Countdown
 @onready var intermission_label: Label = $Intermission
 @onready var timer_label: Label = $Timer
 @onready var kill_feed: VBoxContainer = $KillFeed
@@ -64,12 +66,16 @@ func _ready() -> void:
 	Game.kill_feed.connect(_on_kill_feed)
 	Game.presence.connect(_on_presence)
 	Game.chat_message.connect(_on_chat_message)
+	Game.round_freeze_changed.connect(_on_round_freeze)
+	Game.intermission_started.connect(show_intermission)
 	reload_label.visible = false
 	death_layer.visible = false
 	scoreboard_container.visible = false
 	scoreboard_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	round_end_label.visible = false
 	intermission_label.visible = false
+	if countdown_label:
+		countdown_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_refresh_weapon_slots()
 	if chat_input:
@@ -171,6 +177,14 @@ func _on_chat_message(n: String, team: int, text: String) -> void:
 	var tw := row.create_tween()
 	tw.tween_interval(8.0)
 	tw.tween_property(row, "modulate:a", 0.0, 0.5)
+
+
+func _on_round_freeze(on: bool) -> void:
+	_freeze_left = Game.FREEZE_TIME if on else 0.0
+	if countdown_label:
+		countdown_label.visible = on
+		if on:
+			countdown_label.text = str(ceili(_freeze_left))
 
 
 func punch_crosshair(amount: float = 1.0) -> void:
@@ -434,6 +448,13 @@ func _process(delta: float) -> void:
 	var secs: int = int(time_left) % 60
 	timer_label.text = "%d:%02d" % [mins, secs]
 	timer_label.visible = Game._round_active
+	if _freeze_left > 0.0:
+		_freeze_left = maxf(_freeze_left - delta, 0.0)
+		if countdown_label:
+			var n := ceili(_freeze_left)
+			countdown_label.text = str(n) if n > 0 else "GO"
+			if _freeze_left <= 0.0:
+				countdown_label.visible = false
 
 	var tab_pressed := Input.is_key_pressed(KEY_TAB)
 	var want_board := tab_pressed or _round_end_timer > 0.0

@@ -332,7 +332,7 @@ func _physics_process(delta: float) -> void:
 		_apply_remote_visual()
 		_tick_feet(delta)
 		return
-	var chatting := Game.chat_open
+	var chatting := Game.chat_open or Game.round_frozen
 	var on_floor := is_on_floor()
 	_update_stance(delta, on_floor)
 

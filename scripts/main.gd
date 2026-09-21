@@ -19,7 +19,7 @@ const TEAM_B_SPAWNS := [
 	Vector3(-10.0, 0.0, -24.5),
 ]
 
-enum MatchState { WARMUP, PLAYING, ROUND_END, INTERMISSION }
+enum MatchState { WARMUP, FREEZE, PLAYING, ROUND_END, INTERMISSION }
 
 @onready var players_root: Node3D = $Players
 @onready var spawner: MultiplayerSpawner = $MultiplayerSpawner
@@ -141,6 +141,8 @@ func _process(delta: float) -> void:
 		return
 	if _match_state == MatchState.WARMUP:
 		_tick_warmup(delta)
+	elif _match_state == MatchState.FREEZE:
+		_tick_freeze(delta)
 	elif _match_state == MatchState.PLAYING:
 		_tick_playing(delta)
 	elif _match_state == MatchState.ROUND_END:
@@ -177,19 +179,38 @@ func _tick_intermission(delta: float) -> void:
 		_reset_round()
 
 
+func _tick_freeze(delta: float) -> void:
+	_state_timer += delta
+	if _state_timer >= Game.FREEZE_TIME:
+		Game.end_freeze()
+		_match_state = MatchState.PLAYING
+		_state_timer = 0.0
+		_set_status("Round started!")
+
+
 func _start_round() -> void:
-	_match_state = MatchState.PLAYING
+	_match_state = MatchState.FREEZE
 	_state_timer = 0.0
 	Game.start_round()
 	_spawn_all_players()
 	_fill_bots()
-	_set_status("Round started!")
+	Game.set_round_frozen(true)
+	_set_status("Get ready")
 
 
 func _spawn_all_players() -> void:
+	_respawn_all_pawns()
+
+
+## Clients own their pawn transforms — must RPC respawn, not only move the server copy.
+func _respawn_all_pawns() -> void:
 	for n in players_root.get_children():
 		var p := n as Player
-		if p:
+		if p == null:
+			continue
+		if Game.is_networked():
+			Game.broadcast_respawn.rpc(p.peer_id)
+		else:
 			p.apply_respawn_state()
 
 
@@ -225,8 +246,6 @@ func _on_lobby_changed() -> void:
 func _on_match_starting() -> void:
 	Game.in_lobby = false
 	_enter_play()
-	_match_state = MatchState.WARMUP
-	_state_timer = 0.0
 	if not multiplayer.is_server():
 		return
 	for id in Game.lobby:
@@ -234,6 +253,7 @@ func _on_match_starting() -> void:
 		_spawn_player(int(id), int(e.get("team", 0)))
 	_fill_bots()
 	broadcast_pawns()
+	_start_round()
 
 
 func _start_match_from_lobby() -> void:
@@ -681,19 +701,14 @@ func _start_intermission() -> void:
 	_match_state = MatchState.INTERMISSION
 	_state_timer = 0.0
 	hud.show_intermission()
+	Game.notify_intermission()
 	_set_status("Intermission...")
 
 
 func _reset_round() -> void:
-	_match_state = MatchState.WARMUP
-	_state_timer = 0.0
 	_spawn_i = [0, 0]
-	for n in players_root.get_children():
-		var p := n as Player
-		if p:
-			p.apply_respawn_state()
 	_fill_bots()
-	_set_status("Warmup...")
+	_start_round()
 
 
 func _set_status(t: String) -> void:

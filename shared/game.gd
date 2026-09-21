@@ -11,6 +11,8 @@ signal presence(player_name: String, joined: bool, team: int)
 signal chat_message(player_name: String, team: int, text: String)
 signal lobby_changed
 signal match_starting
+signal round_freeze_changed(frozen: bool)
+signal intermission_started
 
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4 # world | players | leftover dummy layer
@@ -23,6 +25,7 @@ const ROUND_TIME := 600.0
 const WARMUP_TIME := 5.0
 const ROUND_END_TIME := 5.0
 const INTERMISSION_TIME := 10.0
+const FREEZE_TIME := 3.0
 const WEAPON_DEFS := {
 	&"rifle": preload("res://data/weapons/rifle.tres"),
 	&"pistol": preload("res://data/weapons/pistol.tres"),
@@ -35,6 +38,7 @@ var is_dedicated := false
 var chat_open := false # T-chat: blocks move/look/fire until Enter/Esc
 var pause_open := false
 var in_lobby := false
+var round_frozen := false # look OK, no walk/shoot; bots idle
 var lobby: Dictionary = {} # peer_id → {name, team}
 var master_vol := 1.0
 var sfx_vol := 1.0
@@ -44,6 +48,7 @@ var pending_names: Dictionary = {} # peer_id → name, filled before spawn if th
 var pending_teams: Dictionary = {} # peer_id → team, from join RPC
 var net_hp: Dictionary = {} # server copy of HP, keyed by peer_id (bots included)
 var _hitstopping := false
+var _round_music: AudioStreamPlayer
 
 var scores: Dictionary = {}
 var pings: Dictionary = {}
@@ -541,13 +546,65 @@ func _end_round_team(team_id: int) -> void:
 		sync_round_end.rpc(team_id, winner_name, scores.duplicate())
 
 
+func notify_intermission() -> void:
+	intermission_started.emit()
+	if is_networked() and multiplayer.is_server():
+		sync_intermission.rpc()
+
+
+@rpc("authority", "reliable")
+func sync_intermission() -> void:
+	if multiplayer.is_server():
+		return
+	intermission_started.emit()
+
+
+func set_round_frozen(on: bool) -> void:
+	round_frozen = on
+	round_freeze_changed.emit(on)
+	if on:
+		play_round_sting()
+	else:
+		stop_round_sting()
+	if is_networked() and multiplayer.is_server():
+		sync_round_frozen.rpc(on)
+
+
+@rpc("authority", "reliable")
+func sync_round_frozen(on: bool) -> void:
+	if multiplayer.is_server():
+		return
+	round_frozen = on
+	round_freeze_changed.emit(on)
+	if on:
+		play_round_sting()
+	else:
+		stop_round_sting()
+
+
+func play_round_sting() -> void:
+	if _round_music and _round_music.stream:
+		_round_music.play()
+
+
+func stop_round_sting() -> void:
+	if _round_music and _round_music.playing:
+		_round_music.stop()
+
+
 func start_round() -> void:
 	_round_timer = 0.0
-	_round_active = true
+	_round_active = false # timer starts after freeze
 	for id in scores:
 		_apply_score(id, 0, str(scores[id].name), int(scores[id].get("team", 0)))
 		if is_networked() and multiplayer.is_server():
 			sync_score.rpc(id, 0, str(scores[id].name), int(scores[id].team))
+
+
+func end_freeze() -> void:
+	_round_active = true
+	_round_timer = 0.0
+	set_round_frozen(false)
 
 
 func update_round_timer(delta: float) -> bool:
@@ -740,6 +797,10 @@ func _ready() -> void:
 	_ensure_sfx_bus()
 	load_settings()
 	_bind_inputs()
+	_round_music = AudioStreamPlayer.new()
+	_round_music.bus = "Master"
+	_round_music.stream = load("res://assets/sounds/round_start.wav")
+	add_child(_round_music)
 
 
 func _ensure_sfx_bus() -> void:

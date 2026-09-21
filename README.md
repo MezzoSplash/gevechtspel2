@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.5** — menus, pause, volume, multiplayer lobby with team pick.
+**v0.2.6** — round freeze countdown, placeholder sting, LAN respawn at round start.
 
 ## Play (Linux)
 

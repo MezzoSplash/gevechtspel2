@@ -36,6 +36,13 @@ func physics_tick(delta: float) -> void:
 	if pawn == null or pawn.is_dead:
 		pawn.velocity = Vector3.ZERO
 		return
+	if Game.round_frozen:
+		pawn.velocity.x = 0.0
+		pawn.velocity.z = 0.0
+		if not pawn.is_on_floor():
+			pawn.velocity.y += float(pawn.get_gravity().y) * delta
+		pawn.move_and_slide()
+		return
 	_burst_pause = maxf(_burst_pause - delta, 0.0)
 	if not pawn.is_on_floor():
 		pawn.velocity.y += float(pawn.get_gravity().y) * delta

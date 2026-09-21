@@ -89,7 +89,7 @@ func _process(delta: float) -> void:
 				_save_weapon_state()
 		return
 
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open:
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open and not Game.round_frozen:
 		if Input.is_action_just_pressed("switch_weapon"):
 			_cycle_weapon()
 		elif Input.is_action_just_pressed("weapon_1"):
@@ -144,6 +144,7 @@ func _update_ads() -> void:
 		and _owner_alive()
 		and not Game.chat_open
 		and not Game.pause_open
+		and not Game.round_frozen
 		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 		and Input.is_action_pressed("zoom")
 	)
