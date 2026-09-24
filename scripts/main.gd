@@ -179,6 +179,7 @@ func _tick_intermission(delta: float) -> void:
 		_reset_round()
 
 
+## Server clock only. Clients get the freeze flag and count the 3 seconds on the HUD.
 func _tick_freeze(delta: float) -> void:
 	_state_timer += delta
 	if _state_timer >= Game.FREEZE_TIME:
@@ -243,6 +244,7 @@ func _on_lobby_changed() -> void:
 		menu.refresh_lobby(Game.lobby, multiplayer.is_server())
 
 
+## Lobby closes on every peer. Only the server spawns humans and then the freeze.
 func _on_match_starting() -> void:
 	Game.in_lobby = false
 	_enter_play()
@@ -262,6 +264,7 @@ func _start_match_from_lobby() -> void:
 	Game.begin_match.rpc()
 
 
+## Host writes the roster directly. A client asks; the server echoes the new columns.
 func _lobby_pick_team(team: int) -> void:
 	if menu.has_method("set_team"):
 		menu.set_team(team)

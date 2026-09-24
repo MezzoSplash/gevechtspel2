@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=25 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/camera_feel.gd" id="2_cam"]
@@ -13,6 +13,7 @@
 [ext_resource type="AudioStream" path="res://assets/sounds/reload.wav" id="11_reload"]
 [ext_resource type="AudioStream" path="res://assets/sounds/step.wav" id="12_step"]
 [ext_resource type="AudioStream" path="res://assets/sounds/land.wav" id="13_land"]
+[ext_resource type="AudioStream" path="res://assets/sounds/slide.wav" id="14_slide"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -196,6 +197,14 @@ unit_size = 7.0
 max_distance = 24.0
 attenuation_model = 1
 max_polyphony = 3
+
+[node name="SlideSfx" type="AudioStreamPlayer3D" parent="."]
+stream = ExtResource("14_slide")
+volume_db = -8.0
+bus = "SFX"
+unit_size = 7.0
+max_distance = 22.0
+attenuation_model = 1
 
 [node name="LandSfx" type="AudioStreamPlayer3D" parent="."]
 stream = ExtResource("13_land")

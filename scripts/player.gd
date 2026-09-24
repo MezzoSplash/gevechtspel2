@@ -26,6 +26,8 @@ const CROUCH_EYE := 0.88
 const CROUCH_BLEND := 12.0
 const SPRINT_FOV := 6.0
 const SPAWN_PROTECT := 1.8
+const SLIDE_MIN := 0.35
+const SLIDE_FRICTION := 2.4
 
 @onready var head: Node3D = $Head
 @onready var camera: CameraFeel = $Head/Camera3D
@@ -34,13 +36,17 @@ const SPAWN_PROTECT := 1.8
 @onready var hurt_sfx: AudioStreamPlayer = $HurtSfx
 @onready var step_sfx: AudioStreamPlayer3D = $StepSfx
 @onready var land_sfx: AudioStreamPlayer3D = $LandSfx
+@onready var slide_sfx: AudioStreamPlayer3D = $SlideSfx
 @onready var col_shape: CollisionShape3D = $CollisionShape3D
 @onready var nametag: Label3D = $Nametag
 
 const TEAM_COLORS := [Color(0.25, 0.55, 0.95), Color(0.92, 0.38, 0.22)]
 const Brain := preload("res://scripts/bot_brain.gd")
 
+const GRENADE_MAX := 2
+
 var hp := MAX_HP
+var grenades := GRENADE_MAX
 @export var peer_id := 0
 @export var is_dead := false
 @export var is_bot := false
@@ -56,6 +62,11 @@ var _capsule: CapsuleShape3D
 var _spawn_protect := 0.0
 var _bot_brain
 var _body_mat: StandardMaterial3D
+var _radar_left := 0.0
+var _radar_mark: MeshInstance3D
+var _sliding := false
+var _slide_t := 0.0
+var _slide_dir := Vector3.FORWARD
 var _step_t := 0.0
 var _feet_last := Vector3.ZERO
 var _was_air := false
@@ -129,7 +140,54 @@ func _ready() -> void:
 		_bot_brain.setup(self, get_node_or_null("NavigationAgent3D") as NavigationAgent3D)
 	if is_bot:
 		call_deferred("_apply_bot_loadout")
+	_radar_mark = _make_radar_mark()
+	add_child(_radar_mark)
 	call_deferred("_configure_control")
+
+
+func _make_radar_mark() -> MeshInstance3D:
+	var mesh := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.18
+	sphere.height = 0.36
+	mesh.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.no_depth_test = true
+	mat.emission_enabled = true
+	mat.emission = Color(1, 0.35, 0.2)
+	mat.emission_energy_multiplier = 3.0
+	mesh.material_override = mat
+	mesh.position = Vector3(0, 2.35, 0)
+	mesh.visible = false
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mesh
+
+
+## Only the client that earned the streak calls this. Other machines keep it hidden.
+func show_radar_marker(seconds: float) -> void:
+	if _radar_mark == null:
+		return
+	var mat := _radar_mark.material_override as StandardMaterial3D
+	if mat:
+		var col: Color = TEAM_COLORS[clampi(team_id, 0, 1)]
+		mat.albedo_color = col
+		mat.emission = col
+	_radar_left = seconds
+	_radar_mark.visible = true
+
+
+func _process(delta: float) -> void:
+	if _radar_mark == null:
+		return
+	if is_dead:
+		_radar_left = 0.0
+		_radar_mark.visible = false
+		return
+	if _radar_left <= 0.0:
+		return
+	_radar_left = maxf(_radar_left - delta, 0.0)
+	_radar_mark.visible = _radar_left > 0.0
 
 
 func _apply_bot_loadout() -> void:
@@ -150,6 +208,7 @@ func _configure_control() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		Game.local_player_ready.emit(self)
 		health_changed.emit(hp, MAX_HP)
+		_notify_grenades()
 		if Game.is_networked() and not multiplayer.is_server():
 			Game.submit_display_name.rpc_id(1, Game.player_name)
 	else:
@@ -189,6 +248,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_local():
 		return
 	if Game.chat_open or Game.pause_open:
+		return
+	if event.is_action_pressed("grenade") and not is_dead and not Game.round_frozen:
+		_try_throw_grenade()
+		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
@@ -296,6 +359,8 @@ func apply_respawn_state() -> void:
 	_pitch = 0.0
 	head.rotation.x = 0.0
 	weapon.visible = true
+	grenades = GRENADE_MAX
+	_notify_grenades()
 	if weapon:
 		weapon.refill()
 	_apply_stance()
@@ -307,13 +372,35 @@ func apply_respawn_state() -> void:
 		body_mesh.visible = true
 
 
+## G. Offline/host throws here; a client only sends origin and look direction.
+func _try_throw_grenade() -> void:
+	if grenades <= 0 or camera == null:
+		return
+	var origin := camera.global_position + (-camera.global_basis.z) * 0.6
+	var dir := -camera.global_basis.z
+	if Game.is_networked() and not multiplayer.is_server():
+		Game.request_grenade.rpc_id(1, origin, dir)
+	else:
+		Game.throw_grenade(self, origin, dir)
+
+
+func _notify_grenades() -> void:
+	if not is_local():
+		return
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	if hud:
+		hud.set_grenades(grenades)
+
+
+## 1.0 is standing still. Walk, sprint, then slide stack on top of the gun's own spread.
 func spread_multiplier() -> float:
+	# Still is the accurate state. Slide is wider than sprint, which is wider than walking.
+	if is_sliding():
+		return 8.0
 	if is_sprinting:
-		return 4.2
-	if crouch > 0.5:
-		return 0.5
+		return 6.0
 	var move := minf(Vector2(velocity.x, velocity.z).length() / WALK_SPEED, 1.0)
-	return 1.0 + move * 0.35
+	return 1.0 + move * 1.15
 
 
 ## Server simulates bots. Remote humans/bots on a client only apply visuals + footsteps.
@@ -334,11 +421,14 @@ func _physics_process(delta: float) -> void:
 		return
 	var chatting := Game.chat_open or Game.round_frozen
 	var on_floor := is_on_floor()
+	_try_start_slide(on_floor, chatting)
 	_update_stance(delta, on_floor)
 
 	if not on_floor:
 		velocity.y += float(get_gravity().y) * delta
+		_sliding = false
 	elif (not is_dead) and (not chatting) and Input.is_action_just_pressed("jump"):
+		_sliding = false
 		if crouch > 0.2:
 			if not _ceiling_blocked():
 				crouch = 0.0
@@ -359,7 +449,11 @@ func _physics_process(delta: float) -> void:
 
 	var wish_speed := WALK_SPEED
 	is_sprinting = false
-	if on_floor and (not is_dead) and (not chatting) and crouch < 0.2 and Input.is_action_pressed("sprint") and wish.length_squared() > 0.04:
+	if _sliding:
+		wish = _slide_dir
+		wish_speed = SPRINT_SPEED
+		is_sprinting = false
+	elif on_floor and (not is_dead) and (not chatting) and crouch < 0.2 and Input.is_action_pressed("sprint") and wish.length_squared() > 0.04:
 		wish_speed = SPRINT_SPEED
 		is_sprinting = true
 	elif crouch > 0.5:
@@ -368,7 +462,9 @@ func _physics_process(delta: float) -> void:
 	camera.extra_fov = 0.0 if weapon.is_ads() else (SPRINT_FOV if is_sprinting else 0.0)
 
 	var horiz := Vector3(velocity.x, 0.0, velocity.z)
-	if on_floor:
+	if on_floor and _sliding:
+		horiz = _friction_amount(horiz, delta, SLIDE_FRICTION)
+	elif on_floor:
 		horiz = _friction(horiz, delta)
 		horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL, delta)
 	else:
@@ -377,6 +473,7 @@ func _physics_process(delta: float) -> void:
 	velocity.x = horiz.x
 	velocity.z = horiz.z
 	move_and_slide()
+	_finish_slide()
 	_tick_feet(delta)
 
 	weapon.speed_factor = Vector2(velocity.x, velocity.z).length() / WALK_SPEED
@@ -399,6 +496,9 @@ func _tick_feet(delta: float) -> void:
 		land_sfx.play()
 	_was_air = not grounded
 	_feet_last = global_position
+	if _sliding:
+		_step_t = 0.2
+		return
 	if not grounded or horiz < 1.15:
 		_step_t = 0.12
 		return
@@ -447,8 +547,50 @@ func _apply_remote_visual() -> void:
 		nametag.text = display_name
 
 
+func is_sliding() -> bool:
+	return _sliding
+
+
+## Sprint, or already faster than a walk, plus crouch. Plain crouch stays the slow stance.
+func _try_start_slide(on_floor: bool, locked: bool) -> void:
+	if _sliding or locked or is_dead or not on_floor:
+		return
+	if not Input.is_action_just_pressed("crouch"):
+		return
+	var speed := Vector2(velocity.x, velocity.z).length()
+	if not is_sprinting and speed < WALK_SPEED * 1.05:
+		return
+	_sliding = true
+	_slide_t = 0.0
+	_slide_dir = Vector3(velocity.x, 0.0, velocity.z)
+	if _slide_dir.length_squared() < 0.04:
+		_slide_dir = -transform.basis.z
+	_slide_dir = _slide_dir.normalized()
+	crouch = 1.0
+	if slide_sfx:
+		slide_sfx.play()
+
+
+## Minimum time so a tap still slides. After that: release, slow down, or a wall ends it.
+func _finish_slide() -> void:
+	if not _sliding:
+		return
+	_slide_t += get_physics_process_delta_time()
+	var speed := Vector2(velocity.x, velocity.z).length()
+	var release := not Input.is_action_pressed("crouch")
+	var slow := speed < WALK_SPEED * 0.95
+	var wall := false
+	for i in get_slide_collision_count():
+		var n := get_slide_collision(i).get_normal()
+		if n.y < 0.45:
+			wall = true
+			break
+	if _slide_t >= SLIDE_MIN and (release or slow or wall or not is_on_floor()):
+		_sliding = false
+
+
 func _update_stance(delta: float, _on_floor: bool) -> void:
-	var want := (not is_dead) and (not Game.chat_open) and Input.is_action_pressed("crouch")
+	var want := _sliding or ((not is_dead) and (not Game.chat_open) and Input.is_action_pressed("crouch"))
 	if (not want) and crouch > 0.05 and _ceiling_blocked():
 		want = true
 	var target := 1.0 if want else 0.0
@@ -480,11 +622,15 @@ func _ceiling_blocked() -> bool:
 
 ## Quake-style stop: no Godot default air float.
 func _friction(vel: Vector3, delta: float) -> Vector3:
+	return _friction_amount(vel, delta, GROUND_FRICTION)
+
+
+func _friction_amount(vel: Vector3, delta: float, friction: float) -> Vector3:
 	var speed := vel.length()
 	if speed < 0.01:
 		return Vector3.ZERO
 	var control := STOP_SPEED if speed < STOP_SPEED else speed
-	var drop := control * GROUND_FRICTION * delta
+	var drop := control * friction * delta
 	var new_speed := maxf(speed - drop, 0.0)
 	return vel * (new_speed / speed)
 

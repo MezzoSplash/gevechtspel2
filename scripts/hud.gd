@@ -17,6 +17,10 @@ var _round_end_winner := ""
 var _intermission_timer := 0.0
 var _board_refresh := 0.0
 var _freeze_left := 0.0
+var _radar_left := 0.0
+var _streak_n := 0
+var _streak_sel := 0
+var _announcer: AudioStreamPlayer
 var _sniper_ads := false
 var _weapon_index := 0
 var _ammo := 30
@@ -41,6 +45,13 @@ const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"]
 @onready var scoreboard_container: VBoxContainer = $Scoreboard
 @onready var round_end_label: Label = $RoundEnd
 @onready var countdown_label: Label = $Countdown
+@onready var grenade_label: Label = $Bottom/Grenades
+@onready var streak_label: Label = $StreakSlots/Streak
+@onready var _streak_slots: Array[ColorRect] = [
+	$StreakSlots/Slot0,
+	$StreakSlots/Slot1,
+	$StreakSlots/Slot2,
+]
 @onready var intermission_label: Label = $Intermission
 @onready var timer_label: Label = $Timer
 @onready var kill_feed: VBoxContainer = $KillFeed
@@ -53,6 +64,7 @@ const _FEED_ICONS := {
 	&"pistol": preload("res://assets/ui/icon_pistol.svg"),
 	&"shotgun": preload("res://assets/ui/icon_shotgun.svg"),
 	&"sniper": preload("res://assets/ui/icon_sniper.svg"),
+	&"grenade": preload("res://assets/ui/icon_grenade.svg"),
 }
 const _FEED_MAX := 6
 const _FEED_LIFE := 5.0
@@ -78,6 +90,13 @@ func _ready() -> void:
 		countdown_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_refresh_weapon_slots()
+	for slot in _streak_slots:
+		_add_streak_frame(slot)
+	_announcer = AudioStreamPlayer.new()
+	_announcer.bus = "SFX"
+	_announcer.volume_db = -2.0
+	add_child(_announcer)
+	_refresh_streak_ui()
 	if chat_input:
 		chat_input.visible = false
 		chat_input.text_submitted.connect(_on_chat_submit)
@@ -114,6 +133,22 @@ func _input(event: InputEvent) -> void:
 		return
 	if Game.pause_open:
 		return
+	# Arrows pick a streak box. Enter asks the server to fire it. Chat keeps Enter.
+	if not Game.chat_open and not event.is_echo():
+		if event.is_action_pressed("ui_up"):
+			_streak_sel = (_streak_sel + 2) % 3
+			_refresh_streak_ui()
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("ui_down"):
+			_streak_sel = (_streak_sel + 1) % 3
+			_refresh_streak_ui()
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("ui_accept"):
+			Game.request_use_streak(_streak_sel)
+			get_viewport().set_input_as_handled()
+			return
 	if Game.chat_open:
 		if event.is_action_pressed("toggle_mouse") or event.is_action_pressed("ui_cancel"):
 			_close_chat(false)
@@ -232,6 +267,97 @@ func _refresh_weapon_slots() -> void:
 			name_l.modulate = Color(1, 0.92, 0.55) if on else Color(0.72, 0.74, 0.78)
 		if ammo_l:
 			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
+
+
+## Crossing 3 plays "Radar on standby". The slot stays armed until Enter.
+func set_streak(n: int) -> void:
+	var unlocked := _streak_n < Game.STREAK_AT and n >= Game.STREAK_AT
+	_streak_n = n
+	_refresh_streak_ui()
+	if unlocked:
+		_play_announcer("res://assets/sounds/radar_standby.wav")
+
+
+## Spoken when the armed radar is actually switched on.
+func flash_radar() -> void:
+	_radar_left = Game.RADAR_TIME
+	_streak_n = 0
+	_refresh_streak_ui()
+	_play_announcer("res://assets/sounds/radar_online.wav")
+
+
+## Left column: slot 0 is radar, 1 and 2 are empty until more streaks exist.
+## The white frame is the arrow-key selection, not "ready".
+func _refresh_streak_ui() -> void:
+	if streak_label:
+		if _radar_left > 0.0:
+			streak_label.text = "RADAR"
+		else:
+			streak_label.text = "STREAK %d/%d" % [_streak_n, Game.STREAK_AT]
+		streak_label.visible = true
+	for i in _streak_slots.size():
+		var slot := _streak_slots[i]
+		if slot == null:
+			continue
+		var selected := i == _streak_sel
+		var ready := i == 0 and _streak_n >= Game.STREAK_AT
+		if ready:
+			slot.color = Color(0.35, 0.28, 0.08, 0.95) if selected else Color(0.22, 0.18, 0.06, 0.9)
+		elif selected:
+			slot.color = Color(0.16, 0.17, 0.2, 0.92)
+		else:
+			slot.color = Color(0.08, 0.09, 0.11, 0.55 if i > 0 else 0.82)
+		_set_streak_frame(slot, selected)
+
+
+## Four thin bars. A ColorRect has no border, so the selection is drawn as children.
+func _add_streak_frame(slot: ColorRect) -> void:
+	if slot == null or slot.get_node_or_null("FrameTop"):
+		return
+	var edges := {
+		"FrameTop": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 3.0],
+		"FrameBottom": [0.0, 1.0, 1.0, 1.0, 0.0, -3.0, 0.0, 0.0],
+		"FrameLeft": [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 3.0, 0.0],
+		"FrameRight": [1.0, 0.0, 1.0, 1.0, -3.0, 0.0, 0.0, 0.0],
+	}
+	for edge_name in edges:
+		var spec: Array = edges[edge_name]
+		var bar := ColorRect.new()
+		bar.name = edge_name
+		bar.color = Color.WHITE
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.visible = false
+		slot.add_child(bar)
+		bar.anchor_left = spec[0]
+		bar.anchor_top = spec[1]
+		bar.anchor_right = spec[2]
+		bar.anchor_bottom = spec[3]
+		bar.offset_left = spec[4]
+		bar.offset_top = spec[5]
+		bar.offset_right = spec[6]
+		bar.offset_bottom = spec[7]
+
+
+func _set_streak_frame(slot: ColorRect, on: bool) -> void:
+	for edge_name in ["FrameTop", "FrameBottom", "FrameLeft", "FrameRight"]:
+		var bar := slot.get_node_or_null(edge_name) as ColorRect
+		if bar:
+			bar.visible = on
+
+
+func _play_announcer(path: String) -> void:
+	if _announcer == null:
+		return
+	var stream := load(path) as AudioStream
+	if stream == null:
+		return
+	_announcer.stream = stream
+	_announcer.play()
+
+
+func set_grenades(n: int) -> void:
+	if grenade_label:
+		grenade_label.text = "G  %d" % n
 
 
 func set_reloading(on: bool) -> void:
@@ -448,6 +574,10 @@ func _process(delta: float) -> void:
 	var secs: int = int(time_left) % 60
 	timer_label.text = "%d:%02d" % [mins, secs]
 	timer_label.visible = Game._round_active
+	if _radar_left > 0.0:
+		_radar_left = maxf(_radar_left - delta, 0.0)
+		if _radar_left <= 0.0:
+			_refresh_streak_ui()
 	if _freeze_left > 0.0:
 		_freeze_left = maxf(_freeze_left - delta, 0.0)
 		if countdown_label:

@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.6** — round freeze countdown, placeholder sting, LAN respawn at round start.
+**v0.2.7** — grenades, sprint-slide, wider moving spread, activatable radar streak.
 
 ## Play (Linux)
 

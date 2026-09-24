@@ -49,6 +49,8 @@ var pending_teams: Dictionary = {} # peer_id → team, from join RPC
 var net_hp: Dictionary = {} # server copy of HP, keyed by peer_id (bots included)
 var _hitstopping := false
 var _round_music: AudioStreamPlayer
+var _grenade_seq := 0
+var _grenade_visuals: Dictionary = {}
 
 var scores: Dictionary = {}
 var pings: Dictionary = {}
@@ -130,6 +132,87 @@ func request_weapon_fire(origin: Vector3, look_dir: Vector3, weapon_id: StringNa
 	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, 1.0)
 	if best.get("hit", false):
 		notify_hit.rpc_id(peer, best.killed, best.headshot)
+
+
+func next_grenade_id() -> int:
+	_grenade_seq += 1
+	return _grenade_seq
+
+
+## Authority only. Clients ask via request_grenade; the count RPC updates their HUD.
+func throw_grenade(thrower: Player, origin: Vector3, dir: Vector3) -> void:
+	if thrower == null or thrower.is_dead or thrower.grenades <= 0 or round_frozen:
+		return
+	if is_networked() and not multiplayer.is_server():
+		return
+	thrower.grenades -= 1
+	thrower._notify_grenades()
+	if is_networked():
+		sync_grenade_count.rpc(thrower.peer_id, thrower.grenades)
+	Grenade.launch(thrower, origin, dir)
+
+
+## Client throw. Server re-checks ammo, death, and freeze.
+@rpc("any_peer", "reliable")
+func request_grenade(origin: Vector3, dir: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	if peer == 0:
+		peer = multiplayer.get_unique_id()
+	throw_grenade(player_for_peer(peer), origin, dir)
+
+
+@rpc("authority", "call_local", "reliable")
+func sync_grenade_count(peer_id: int, n: int) -> void:
+	var p := player_for_peer(peer_id)
+	if p == null:
+		return
+	p.grenades = n
+	p._notify_grenades()
+
+
+## Visual copy on clients. Physics stays on the server grenade.
+@rpc("authority", "reliable")
+func sync_grenade_spawn(net_id: int, pos: Vector3) -> void:
+	if multiplayer.is_server():
+		return
+	_grenade_visual(net_id, pos)
+
+
+@rpc("authority", "unreliable")
+func sync_grenade_pose(net_id: int, pos: Vector3) -> void:
+	if multiplayer.is_server():
+		return
+	var g := _grenade_visual(net_id, pos)
+	if g:
+		g.global_position = pos
+
+
+## Drop the flying mesh, then play the same boom the server already showed.
+@rpc("authority", "reliable")
+func sync_grenade_boom(pos: Vector3, net_id: int) -> void:
+	if multiplayer.is_server():
+		return
+	if _grenade_visuals.has(net_id):
+		var vis: Node = _grenade_visuals[net_id]
+		_grenade_visuals.erase(net_id)
+		if is_instance_valid(vis):
+			vis.queue_free()
+	Grenade.play_boom(pos)
+
+
+func _grenade_visual(net_id: int, pos: Vector3) -> Node3D:
+	if _grenade_visuals.has(net_id) and is_instance_valid(_grenade_visuals[net_id]):
+		return _grenade_visuals[net_id]
+	var g := Grenade.new()
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null
+	scene.add_child(g)
+	g.global_position = pos
+	_grenade_visuals[net_id] = g
+	return g
 
 
 ## Host / offline / bots: resolve hits on this machine (must be match authority).
@@ -476,6 +559,109 @@ func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringNa
 	if is_networked():
 		sync_kill_feed.rpc(killer_name, victim_name, String(weapon_id), team_id, victim_team)
 	_check_win_team(team_id)
+	_bump_streak(killer_peer_id, victim_peer_id)
+
+
+const STREAK_AT := 3
+const RADAR_TIME := 4.0
+
+var streaks: Dictionary = {}
+
+
+## Humans only. Death clears the victim. At 3 the radar is armed; Enter fires it.
+func _bump_streak(killer_peer_id: int, victim_peer_id: int) -> void:
+	if victim_peer_id > 0:
+		streaks[victim_peer_id] = 0
+		_push_streak(victim_peer_id, 0)
+	if killer_peer_id <= 0:
+		return
+	var n := int(streaks.get(killer_peer_id, 0))
+	if n < STREAK_AT:
+		n += 1
+	streaks[killer_peer_id] = n
+	_push_streak(killer_peer_id, n)
+
+
+func _push_streak(peer_id: int, n: int) -> void:
+	if not is_networked() or peer_id == multiplayer.get_unique_id():
+		_apply_streak_local(n)
+		return
+	sync_streak.rpc_id(peer_id, n)
+
+
+@rpc("authority", "reliable")
+func sync_streak(n: int) -> void:
+	_apply_streak_local(n)
+
+
+func _apply_streak_local(n: int) -> void:
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	if hud:
+		hud.set_streak(n)
+
+
+## Slot 0 is the radar. Other slots are reserved until more streaks exist.
+## Only slot 0 is wired. A charge is spent even if the radar is already running.
+func try_activate_streak(peer_id: int, slot: int) -> void:
+	if not _is_match_authority():
+		return
+	if slot != 0:
+		return
+	if int(streaks.get(peer_id, 0)) < STREAK_AT:
+		return
+	streaks[peer_id] = 0
+	_push_streak(peer_id, 0)
+	_grant_radar(peer_id)
+
+
+## HUD calls this. Clients cannot grant their own radar.
+func request_use_streak(slot: int) -> void:
+	if is_networked() and not multiplayer.is_server():
+		request_streak.rpc_id(1, slot)
+	else:
+		var id := multiplayer.get_unique_id() if is_networked() else 1
+		try_activate_streak(id, slot)
+
+
+@rpc("any_peer", "reliable")
+func request_streak(slot: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	if peer == 0:
+		peer = multiplayer.get_unique_id()
+	try_activate_streak(peer, slot)
+
+
+## rpc_id so teammates do not see the markers. The host calls the local path for themselves.
+func _grant_radar(peer_id: int) -> void:
+	if not is_networked() or peer_id == multiplayer.get_unique_id():
+		_show_radar_local()
+		var hud := get_tree().get_first_node_in_group("hud") as Hud
+		if hud:
+			hud.flash_radar()
+		return
+	sync_radar.rpc_id(peer_id)
+
+
+@rpc("authority", "reliable")
+func sync_radar() -> void:
+	_show_radar_local()
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	if hud:
+		hud.flash_radar()
+
+
+## Markers live on every pawn but start hidden. This only flips them on this machine.
+func _show_radar_local() -> void:
+	var me := player_for_peer(multiplayer.get_unique_id() if is_networked() else 1)
+	for node in get_tree().get_nodes_in_group("player"):
+		var p := node as Player
+		if p == null or p.is_dead or p == me:
+			continue
+		if me and p.team_id == me.team_id:
+			continue
+		p.show_radar_marker(RADAR_TIME)
 
 
 func _emit_kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int) -> void:
@@ -871,6 +1057,7 @@ func _bind_inputs() -> void:
 	_mouse("zoom", MOUSE_BUTTON_RIGHT)
 	_key("toggle_mouse", KEY_ESCAPE)
 	_key("chat", KEY_T)
+	_key("grenade", KEY_G)
 	_key("sprint", KEY_SHIFT)
 	_key("crouch", KEY_CTRL)
 	_key("crouch", KEY_C)

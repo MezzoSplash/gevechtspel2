@@ -114,6 +114,7 @@ func _paint_team_button(btn: Button, on: bool, col: Color) -> void:
 	btn.modulate = col if on else Color(0.55, 0.55, 0.58)
 
 
+## Two columns. Start is host-only. "(host)" is peer 1, not whoever created the listen server later.
 func refresh_lobby(lobby: Dictionary, is_host: bool) -> void:
 	var blue := $Center/Lobby/Teams/BlueCol/List as Label
 	var orange := $Center/Lobby/Teams/OrangeCol/List as Label

@@ -27,6 +27,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## Offline freezes the tree. A listen server must keep simulating for everyone else.
 func open() -> void:
 	visible = true
 	mouse_filter = Control.MOUSE_FILTER_STOP

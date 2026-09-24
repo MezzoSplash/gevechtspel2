@@ -131,6 +131,11 @@ func _wants_fire() -> bool:
 	return Input.is_action_just_pressed("fire")
 
 
+func _owner_sliding() -> bool:
+	var p := owner as Player
+	return p != null and p.is_sliding()
+
+
 func is_ads() -> bool:
 	return _ads
 
@@ -145,6 +150,7 @@ func _update_ads() -> void:
 		and not Game.chat_open
 		and not Game.pause_open
 		and not Game.round_frozen
+		and not _owner_sliding()
 		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 		and Input.is_action_pressed("zoom")
 	)
