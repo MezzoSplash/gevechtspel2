@@ -214,12 +214,15 @@ func _on_chat_message(n: String, team: int, text: String) -> void:
 	tw.tween_property(row, "modulate:a", 0.0, 0.5)
 
 
+## Freeze is the round start. The countdown and the "Round starting" line share that moment.
 func _on_round_freeze(on: bool) -> void:
 	_freeze_left = Game.FREEZE_TIME if on else 0.0
 	if countdown_label:
 		countdown_label.visible = on
 		if on:
 			countdown_label.text = str(ceili(_freeze_left))
+	if on:
+		_play_announcer("res://assets/sounds/round_starting.wav")
 
 
 func punch_crosshair(amount: float = 1.0) -> void:

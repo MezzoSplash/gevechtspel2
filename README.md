@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.7** — grenades, sprint-slide, wider moving spread, activatable radar streak.
+**v0.2.8** — longer block, jump-out windows, runnable stairs, faster shotgun, harder grenades, round-start announcer.
 
 ## Play (Linux)
 

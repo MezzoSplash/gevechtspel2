@@ -7,7 +7,7 @@
 script = ExtResource("1_weapon")
 id = &"shotgun"
 display_name = "Shotgun"
-fire_rate = 1.25
+fire_rate = 1.55
 damage = 24.0
 headshot_multiplier = 1.6
 spread_deg = 4.8

@@ -6,7 +6,7 @@ extends Node3D
 const FUSE := 1.2
 const THROW_SPEED := 18.0
 const RADIUS := 5.5
-const MAX_DAMAGE := 140.0
+const MAX_DAMAGE := 165.0
 const BOUNCE := 0.42
 const MASK := 1 | 2
 
@@ -73,7 +73,7 @@ func _physics_process(delta: float) -> void:
 		_explode()
 
 
-## Linear splash to 0 at RADIUS. 140 at the body is a kill; allow_headshot stays off.
+## Linear splash to 0 at RADIUS. 165 at the body is a kill; allow_headshot stays off.
 func _explode() -> void:
 	var pos := global_position
 	for n in get_tree().get_nodes_in_group("player"):

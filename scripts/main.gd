@@ -3,20 +3,21 @@ extends Node3D
 ## Server (or offline host) is the only one that creates players/bots.
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
-# Inside the L-cover pockets, not in the walls. Blue = +Z, Orange = -Z.
+# Backyards behind the houses, not in the center lane. Blue = +Z, Orange = -Z.
+# Wings at x=±5.3 block the lane between the two houses from seeing these points.
 const TEAM_A_SPAWNS := [
-	Vector3(0.0, 0.0, 26.5),
-	Vector3(3.0, 0.0, 26.5),
-	Vector3(-3.0, 0.0, 26.5),
-	Vector3(10.0, 0.0, 24.5),
-	Vector3(-10.0, 0.0, 24.5),
+	Vector3(-17.4, 0.0, 31.6),
+	Vector3(-8.6, 0.0, 32.4),
+	Vector3(-16.0, 0.0, 35.6),
+	Vector3(8.6, 0.0, 32.4),
+	Vector3(17.4, 0.0, 31.6),
 ]
 const TEAM_B_SPAWNS := [
-	Vector3(0.0, 0.0, -26.5),
-	Vector3(3.0, 0.0, -26.5),
-	Vector3(-3.0, 0.0, -26.5),
-	Vector3(10.0, 0.0, -24.5),
-	Vector3(-10.0, 0.0, -24.5),
+	Vector3(-17.4, 0.0, -31.6),
+	Vector3(-8.6, 0.0, -32.4),
+	Vector3(-16.0, 0.0, -35.6),
+	Vector3(8.6, 0.0, -32.4),
+	Vector3(17.4, 0.0, -31.6),
 ]
 
 enum MatchState { WARMUP, FREEZE, PLAYING, ROUND_END, INTERMISSION }
@@ -38,8 +39,8 @@ var _bot_id_counter := -1 # bots use negative peer_ids: -1, -2, …
 func _ready() -> void:
 	DisplayServer.window_set_title("Gevechtspel")
 	if has_node("MenuCamera"):
-		$MenuCamera.global_position = Vector3(24, 14, 40)
-		$MenuCamera.look_at(Vector3(0, 1.2, 0))
+		$MenuCamera.global_position = Vector3(26, 24, 62)
+		$MenuCamera.look_at(Vector3(0, 2.0, 0))
 		$MenuCamera.current = true
 	hud.visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
