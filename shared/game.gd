@@ -29,7 +29,7 @@ const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.8"
+const NET_VERSION := "0.2.9"
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
 const FIRE_ORIGIN_TOLERANCE := 4.0 # metres between the client's eye and our copy of it

@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene load_steps=27 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/camera_feel.gd" id="2_cam"]
@@ -19,9 +19,15 @@
 radius = 0.4
 height = 1.8
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
-radius = 0.4
-height = 1.8
+[sub_resource type="BoxMesh" id="BoxMesh_torso"]
+size = Vector3(0.46, 0.92, 0.3)
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.2
+height = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_arm"]
+size = Vector3(0.12, 0.5, 0.12)
 
 [sub_resource type="StandardMaterial3D" id="Mat_body"]
 albedo_color = Color(0.25, 0.55, 0.95, 1)
@@ -82,11 +88,34 @@ script = ExtResource("1_player")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_body")
 
-[node name="BodyMesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
-mesh = SubResource("CapsuleMesh_body")
+[node name="BodyMesh" type="Node3D" parent="."]
+
+[node name="Torso" type="MeshInstance3D" parent="BodyMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.86, 0)
+mesh = SubResource("BoxMesh_torso")
 surface_material_override/0 = SubResource("Mat_body")
 cast_shadow = 0
+
+[node name="HeadMesh" type="MeshInstance3D" parent="BodyMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.52, 0)
+mesh = SubResource("SphereMesh_head")
+surface_material_override/0 = SubResource("Mat_body")
+cast_shadow = 0
+
+[node name="ArmL" type="MeshInstance3D" parent="BodyMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 1.02, 0)
+mesh = SubResource("BoxMesh_arm")
+surface_material_override/0 = SubResource("Mat_body")
+cast_shadow = 0
+
+[node name="ArmR" type="MeshInstance3D" parent="BodyMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 1.02, 0)
+mesh = SubResource("BoxMesh_arm")
+surface_material_override/0 = SubResource("Mat_body")
+cast_shadow = 0
+
+[node name="HeadHit" type="Marker3D" parent="BodyMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.52, 0)
 
 [node name="Head" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)

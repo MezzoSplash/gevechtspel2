@@ -4,6 +4,7 @@ extends Control
 
 var _hit_timer := 0.0
 var _kill_hit := false
+var _head_hit := false
 var _fire_punch := 0.0
 var _hint_timer := 8.0
 var _hurt_flash := 0.0
@@ -488,9 +489,10 @@ func _local_name() -> String:
 	return Game.player_name
 
 
-func _on_hit(killed: bool, _headshot: bool) -> void:
-	_hit_timer = 0.16 if killed else 0.085
+func _on_hit(killed: bool, headshot: bool) -> void:
+	_hit_timer = 0.16 if killed or headshot else 0.085
 	_kill_hit = killed
+	_head_hit = headshot
 	queue_redraw()
 
 
@@ -673,8 +675,12 @@ func _draw() -> void:
 
 	if _hit_timer > 0.0:
 		var hit_a := clampf(_hit_timer / 0.08, 0.0, 1.0)
-		var hit_col := Color(1.0, 0.22, 0.18, hit_a) if _kill_hit else Color(1, 1, 1, hit_a)
-		var s := 11.0 if _kill_hit else 8.0
+		var hit_col := Color(1, 1, 1, hit_a)
+		if _kill_hit:
+			hit_col = Color(1.0, 0.22, 0.18, hit_a)
+		elif _head_hit:
+			hit_col = Color(1.0, 0.86, 0.2, hit_a)
+		var s := 11.0 if _kill_hit or _head_hit else 8.0
 		draw_line(c + Vector2(-s, -s), c + Vector2(-s * 0.35, -s * 0.35), hit_col, 2.2, true)
 		draw_line(c + Vector2(s, -s), c + Vector2(s * 0.35, -s * 0.35), hit_col, 2.2, true)
 		draw_line(c + Vector2(-s, s), c + Vector2(-s * 0.35, s * 0.35), hit_col, 2.2, true)

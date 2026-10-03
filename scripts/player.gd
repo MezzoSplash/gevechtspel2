@@ -23,6 +23,10 @@ const STAND_CAPSULE := 1.8
 const CROUCH_CAPSULE := 1.0
 const STAND_EYE := 1.6
 const CROUCH_EYE := 0.88
+# Drawn head sits on the movement capsule. The ray hits that shell, not the mesh.
+const HEAD_STAND_Y := 1.52
+const HEAD_CROUCH_Y := 0.78
+const HEAD_HIT_R := 0.41
 const CROUCH_BLEND := 12.0
 const SPRINT_FOV := 6.0
 const SPAWN_PROTECT := 1.8
@@ -32,7 +36,7 @@ const SLIDE_FRICTION := 2.4
 @onready var head: Node3D = $Head
 @onready var camera: CameraFeel = $Head/Camera3D
 @onready var weapon: Weapon = $Head/Camera3D/WeaponRoot
-@onready var body_mesh: MeshInstance3D = $BodyMesh
+@onready var body_mesh: Node3D = $BodyMesh
 @onready var hurt_sfx: AudioStreamPlayer = $HurtSfx
 @onready var step_sfx: AudioStreamPlayer3D = $StepSfx
 @onready var land_sfx: AudioStreamPlayer3D = $LandSfx
@@ -271,12 +275,17 @@ func set_display_name(n: String) -> void:
 func _dup_body_mat() -> void:
 	if body_mesh == null:
 		return
-	var src := body_mesh.get_active_material(0)
+	var src_mesh := body_mesh.get_node_or_null("Torso") as MeshInstance3D
+	var src: Material = src_mesh.get_active_material(0) if src_mesh else null
 	if src is StandardMaterial3D:
 		_body_mat = (src as StandardMaterial3D).duplicate()
 	else:
 		_body_mat = StandardMaterial3D.new()
-	body_mesh.set_surface_override_material(0, _body_mat)
+	for child in body_mesh.get_children():
+		var part := child as MeshInstance3D
+		if part:
+			part.set_surface_override_material(0, _body_mat)
+			part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _apply_team_visual() -> void:
@@ -292,6 +301,7 @@ func _apply_team_visual() -> void:
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
 ## `headshot_mult` comes from the gun's WeaponDef (sniper 2.0, others 1.6).
+## Grenades pass allow_headshot false. The test uses the drawn head, not a height band.
 func apply_hit(
 	point: Vector3,
 	_normal: Vector3,
@@ -305,7 +315,7 @@ func apply_hit(
 		return {"killed": false, "headshot": false, "damage": 0}
 	if Game.is_networked() and not multiplayer.is_server():
 		return {"killed": false, "headshot": false, "damage": 0}
-	var headshot := allow_headshot and point.y >= global_position.y + lerpf(1.45, 0.75, crouch)
+	var headshot := allow_headshot and _point_hits_head(point)
 	var dmg := roundi(base_damage * (headshot_mult if headshot else 1.0))
 	var new_hp := maxf(Game.hp_of(self) - float(dmg), 0.0)
 	Game.set_hp(self, new_hp)
@@ -317,6 +327,15 @@ func apply_hit(
 	else:
 		apply_hurt_state(new_hp, killed)
 	return {"killed": killed, "headshot": headshot, "damage": dmg}
+
+
+## True when the capsule hit lands on the drawn head, including while crouched.
+func _point_hits_head(point: Vector3) -> bool:
+	var center := global_position + Vector3(0.0, lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch), 0.0)
+	var mark := body_mesh.get_node_or_null("HeadHit") if body_mesh else null
+	if mark is Node3D:
+		center = (mark as Node3D).global_position
+	return point.distance_to(center) <= HEAD_HIT_R
 
 
 func apply_hurt_state(new_hp: float, killed: bool) -> void:
@@ -628,9 +647,30 @@ func _apply_stance() -> void:
 	_capsule.height = h
 	col_shape.position.y = h * 0.5
 	head.position.y = lerpf(STAND_EYE, CROUCH_EYE, crouch)
-	if body_mesh:
-		body_mesh.position.y = h * 0.5
-		body_mesh.scale.y = h / STAND_CAPSULE
+	_pose_figure()
+
+
+## Crouch lowers the torso, arms, and head together. The head marker is the hit target.
+func _pose_figure() -> void:
+	if body_mesh == null:
+		return
+	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch)
+	var torso := body_mesh.get_node_or_null("Torso") as MeshInstance3D
+	var head_mesh := body_mesh.get_node_or_null("HeadMesh") as MeshInstance3D
+	var arm_l := body_mesh.get_node_or_null("ArmL") as MeshInstance3D
+	var arm_r := body_mesh.get_node_or_null("ArmR") as MeshInstance3D
+	var hit := body_mesh.get_node_or_null("HeadHit") as Node3D
+	if torso:
+		torso.position.y = lerpf(0.86, 0.50, crouch)
+		torso.scale.y = lerpf(1.0, 0.62, crouch)
+	if head_mesh:
+		head_mesh.position.y = head_y
+	if arm_l:
+		arm_l.position.y = lerpf(1.02, 0.58, crouch)
+	if arm_r:
+		arm_r.position.y = lerpf(1.02, 0.58, crouch)
+	if hit:
+		hit.position.y = head_y
 
 
 func _ceiling_blocked() -> bool:

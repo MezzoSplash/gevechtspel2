@@ -463,15 +463,15 @@ func _on_confirmed_hit(killed: bool, headshot: bool) -> void:
 	_play_hit_fx(killed, headshot)
 
 
+## Headshot tick plays on a kill too, under the kill sting.
 func _play_hit_fx(killed: bool, headshot: bool) -> void:
+	if headshot and head_sfx.stream:
+		head_sfx.play()
 	if killed:
 		if kill_sfx.stream:
 			kill_sfx.play()
 		Game.hitstop()
-	elif headshot:
-		if head_sfx.stream:
-			head_sfx.play()
-	elif hit_sfx.stream:
+	elif not headshot and hit_sfx.stream:
 		hit_sfx.play()
 
 
