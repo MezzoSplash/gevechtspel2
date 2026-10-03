@@ -25,6 +25,7 @@ var _sniper_ads := false
 var _weapon_index := 0
 var _ammo := 30
 var _mag := 30
+var _player: Player # the local pawn from bind_player; crosshair bloom follows it
 
 const _SLOT_IDLE := Color(0.08, 0.09, 0.11, 0.82)
 const _SLOT_ON := Color(0.18, 0.16, 0.08, 0.92)
@@ -109,6 +110,7 @@ func bind_player(player: Player) -> void:
 		player = _local_player()
 	if player == null:
 		return
+	_player = player
 	_local_peer_id = player.peer_id
 	if not player.health_changed.is_connected(_on_health):
 		player.health_changed.connect(_on_health)
@@ -145,7 +147,7 @@ func _input(event: InputEvent) -> void:
 			_refresh_streak_ui()
 			get_viewport().set_input_as_handled()
 			return
-		if event.is_action_pressed("ui_accept"):
+		if event.is_action_pressed("use_streak"):
 			Game.request_use_streak(_streak_sel)
 			get_viewport().set_input_as_handled()
 			return
@@ -203,7 +205,7 @@ func _on_chat_message(n: String, team: int, text: String) -> void:
 	row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var col: Color = Player.TEAM_COLORS[clampi(team, 0, 1)]
-	row.text = "[color=#%s]%s[/color]  %s" % [col.to_html(false), n, text]
+	row.text = "[color=#%s]%s[/color]  %s" % [col.to_html(false), _bb_escape(n), _bb_escape(text)]
 	chat_log.add_child(row)
 	while chat_log.get_child_count() > 8:
 		var old := chat_log.get_child(0)
@@ -212,6 +214,28 @@ func _on_chat_message(n: String, team: int, text: String) -> void:
 	var tw := row.create_tween()
 	tw.tween_interval(8.0)
 	tw.tween_property(row, "modulate:a", 0.0, 0.5)
+
+
+## Player text must not become BBCode ([img], [font_size], …). [lb] is a literal "[".
+func _bb_escape(s: String) -> String:
+	return s.replace("[", "[lb]")
+
+
+## Leave to menu: drop streak/radar/death overlay from the old session.
+func reset_session() -> void:
+	_player = null
+	_local_peer_id = 0
+	_streak_n = 0
+	_radar_left = 0.0
+	_freeze_left = 0.0
+	_round_end_timer = 0.0
+	_intermission_timer = 0.0
+	death_layer.visible = false
+	round_end_label.visible = false
+	intermission_label.visible = false
+	if countdown_label:
+		countdown_label.visible = false
+	_refresh_streak_ui()
 
 
 ## Freeze is the round start. The countdown and the "Round starting" line share that moment.
@@ -623,7 +647,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var c := size * 0.5
 	var stance := 0.0
-	var player := get_tree().get_first_node_in_group("player") as Player
+	var player := _player if is_instance_valid(_player) else null
 	if player:
 		stance = maxf(player.spread_multiplier() - 1.0, 0.0) * 5.0
 	var gap := (2.0 if _sniper_ads else 5.0) + _fire_punch * 7.0 + stance

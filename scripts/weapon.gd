@@ -12,11 +12,13 @@ const LOADOUT: Array[WeaponDef] = [
 
 @export var def: WeaponDef
 
-const MODEL_PATHS := {
-	&"rifle": "res://assets/weapons/rifle.glb",
-	&"pistol": "res://assets/weapons/pistol.glb",
-	&"shotgun": "res://assets/weapons/shotgun.glb",
-	&"sniper": "res://assets/weapons/sniper.glb", # slot 4; two body / one head
+## Preloaded, not load()ed per pawn: nothing else holds the PackedScenes, so every spawn re-read
+## all four GLBs (~0.4 s per pawn). Ten at match start stalled the host long enough for ENet to drop clients.
+const MODEL_SCENES := {
+	&"rifle": preload("res://assets/weapons/rifle.glb"),
+	&"pistol": preload("res://assets/weapons/pistol.glb"),
+	&"shotgun": preload("res://assets/weapons/shotgun.glb"),
+	&"sniper": preload("res://assets/weapons/sniper.glb"), # slot 4; two body / one head
 }
 
 @onready var camera: CameraFeel = get_parent() as CameraFeel
@@ -75,7 +77,8 @@ func _process(delta: float) -> void:
 	var bot_auth := owner_player != null and owner_player.is_bot and (Game.is_offline or multiplayer.is_server())
 	if not _is_local() and not bot_auth:
 		return
-	_cooldown = maxf(_cooldown - delta, 0.0)
+	# May go below 0: _fire carries the leftover so the rate does not depend on the frame rate.
+	_cooldown = maxf(_cooldown - delta, -1.0)
 	_flash_left = maxf(_flash_left - delta, 0.0)
 	if _flash_left <= 0.0:
 		muzzle_flash.visible = false
@@ -175,6 +178,18 @@ func equip_loadout(index: int) -> void:
 	_equip(clampi(index, 0, LOADOUT.size() - 1), false)
 
 
+func active_index() -> int:
+	return _active_index
+
+
+## Remote copy of someone else's gun (Game.sync_weapon). No HUD, no ammo bookkeeping that matters.
+func equip_remote(index: int) -> void:
+	index = clampi(index, 0, LOADOUT.size() - 1)
+	if index == _active_index:
+		return
+	_equip(index, false)
+
+
 ## Switching stores ammo of the old gun and loads the new one. Reload leftover is dropped.
 func _equip(index: int, save_current: bool = true) -> void:
 	index = clampi(index, 0, LOADOUT.size() - 1)
@@ -193,6 +208,8 @@ func _equip(index: int, save_current: bool = true) -> void:
 		fire_sfx.stream = def.fire_sound
 	_apply_view_for_def()
 	_refresh_hud()
+	if save_current and _is_local():
+		Game.announce_weapon(owner as Player, index)
 
 
 func _cancel_reload() -> void:
@@ -245,8 +262,8 @@ func _hide_blockout_meshes() -> void:
 
 
 func _setup_view_models() -> void:
-	for id in MODEL_PATHS:
-		var ps := load(MODEL_PATHS[id]) as PackedScene
+	for id in MODEL_SCENES:
+		var ps := MODEL_SCENES[id] as PackedScene
 		if ps == null:
 			continue
 		var inst: Node3D = ps.instantiate() as Node3D
@@ -362,7 +379,9 @@ func bot_try_fire() -> bool:
 func _fire() -> void:
 	ammo -= 1
 	_save_weapon_state()
-	_cooldown = 1.0 / def.fire_rate
+	# Carry at most one frame of overshoot, so a held trigger fires at the real rate at any fps.
+	var frame := maxf(get_process_delta_time(), get_physics_process_delta_time())
+	_cooldown = maxf(_cooldown, -frame) + 1.0 / def.fire_rate
 	var kick_z := 0.055 if def.id != &"shotgun" else 0.09
 	_kick_offset += Vector3(0.0, 0.0, kick_z)
 	_kick_offset.y += randf_range(-0.008, 0.004)
@@ -383,10 +402,6 @@ func _fire() -> void:
 
 	var origin := camera.global_position
 	var look_dir := -camera.global_transform.basis.z
-	var tracer_to := _simulate_pellets_fx(origin, look_dir)
-	if Game.is_networked() and multiplayer.is_server() and shooter:
-		Game.broadcast_shot_fx(muzzle.global_position, tracer_to, shooter.peer_id)
-
 	var spread_mult := _spread_multiplier()
 	if shooter and shooter.is_bot:
 		if def.id == &"shotgun":
@@ -397,10 +412,16 @@ func _fire() -> void:
 			spread_mult *= 1.35
 		else:
 			spread_mult *= 2.4
+	# One seed for the tracers here and the hit rays on the server, so they line up.
+	var shot_seed := randi() | 1
+	var tracer_to := _simulate_pellets_fx(origin, look_dir, spread_mult, shot_seed)
+	if Game.is_networked() and multiplayer.is_server() and shooter:
+		Game.broadcast_shot_fx(muzzle.global_position, tracer_to, shooter.peer_id)
+
 	if Game.is_networked() and not multiplayer.is_server():
-		Game.request_weapon_fire.rpc_id(1, origin, look_dir, def.id, muzzle.global_position)
+		Game.request_weapon_fire.rpc_id(1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed)
 	elif shooter:
-		var best: Dictionary = Game.fire_weapon_locally(shooter, origin, look_dir, def, spread_mult)
+		var best: Dictionary = Game.fire_weapon_locally(shooter, origin, look_dir, def, spread_mult, shot_seed)
 		if best.get("hit", false) and not shooter.is_bot:
 			Game.hit_confirmed.emit(best.killed, best.headshot)
 			_play_hit_fx(best.killed, best.headshot)
@@ -409,18 +430,22 @@ func _fire() -> void:
 		_start_reload()
 
 
-func _simulate_pellets_fx(origin: Vector3, look_dir: Vector3) -> Vector3:
-	var spread := def.spread_deg * _spread_multiplier()
+## Same rays as Game._resolve_weapon_fire (same seed, spread, and excludes), but only FX.
+func _simulate_pellets_fx(origin: Vector3, look_dir: Vector3, spread_mult: float, shot_seed: int) -> Vector3:
+	look_dir = look_dir.normalized()
+	var spread := def.spread_deg * spread_mult
 	var space := camera.get_world_3d().direct_space_state
-	var player_body := owner as CollisionObject3D
+	var shooter := owner as Player
 	var tracer_end := origin + look_dir * def.range_m
+	var rng := RandomNumberGenerator.new()
+	rng.seed = shot_seed
 	for i in def.pellet_count:
-		var dir := _spread(look_dir, spread)
+		var dir := Game.spread_dir(look_dir, spread, rng)
 		var to := origin + dir * def.range_m
 		var query := PhysicsRayQueryParameters3D.create(origin, to)
 		query.collision_mask = HURT_MASK
-		if player_body:
-			query.exclude = [player_body.get_rid()]
+		if shooter:
+			query.exclude = Game.shot_exclude(shooter)
 		var hit := space.intersect_ray(query)
 		var end: Vector3 = to
 		if hit:
@@ -531,21 +556,6 @@ func _refresh_hud() -> void:
 		hud.set_ammo(ammo, def.mag_size)
 		hud.set_weapon_name(def.display_name)
 		hud.set_reloading(_reload_left > 0.0)
-
-
-func _spread(forward: Vector3, deg: float) -> Vector3:
-	if deg <= 0.0:
-		return forward.normalized()
-	var rad := deg_to_rad(deg)
-	var theta := randf() * TAU
-	var phi := rad * sqrt(randf())
-	var up := Vector3.UP
-	var right := forward.cross(up)
-	if right.length_squared() < 0.001:
-		right = forward.cross(Vector3.RIGHT)
-	right = right.normalized()
-	up = right.cross(forward).normalized()
-	return (forward.normalized() * cos(phi) + (right * cos(theta) + up * sin(theta)) * sin(phi)).normalized()
 
 
 func _spawn_tracer(from: Vector3, to: Vector3) -> void:
