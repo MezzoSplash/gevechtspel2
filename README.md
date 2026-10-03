@@ -14,7 +14,7 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 
 - **WASD** move, **Space** jump, **mouse** look
 - **Shift** sprint (less accurate), **Ctrl** or **C** crouch (hides behind cover); crouch while sprinting slides
-- **LMB** fire, **R** reload, **Q** or **1/2/3/4** switch guns (rifle, pistol, shotgun, sniper)
+- **LMB** fire (rifle holds; pistol, shotgun and sniper fire once per click), **R** reload, **Q** or **1/2/3/4** switch guns (rifle, pistol, shotgun, sniper)
 - **RMB** zoom (sniper only)
 - **G** grenade (two per life)
 - **Up/Down** pick a streak slot, **Enter** activates it (radar after 3 kills)
@@ -36,10 +36,14 @@ Dedicated server (optional):
 ./run.sh -- --connect 127.0.0.1:7777 --name Friend
 ```
 
-Bots fill empty slots to 5v5. Same guns as you. Use cover. Die and you respawn after 2 seconds. Tab shows team score.
+Bots fill empty slots to 5v5. Same guns as you. Use cover. Health comes back after 4.5 seconds without damage. Die and you respawn after 2 seconds. Tab shows team score.
 
 ## Editor
 
 ```bash
 ./run.sh --editor
 ```
+
+## Credits
+
+Gun, footstep, hurt and grenade sounds are CC0 (Free Firearm Sound Library, Kenney). See [CREDITS.md](CREDITS.md).

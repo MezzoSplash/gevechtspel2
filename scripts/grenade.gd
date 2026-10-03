@@ -142,8 +142,9 @@ static func play_boom(pos: Vector3) -> void:
 	var sfx := AudioStreamPlayer3D.new()
 	sfx.stream = load("res://assets/sounds/grenade_boom.wav")
 	sfx.bus = "SFX"
-	sfx.unit_size = 8.0
-	sfx.max_distance = 40.0
+	sfx.unit_size = 10.0
+	sfx.max_distance = 90.0 # a boom carries over the whole arena, muffled by the distance filter
+	sfx.attenuation_filter_cutoff_hz = 3000.0
 	scene.add_child(sfx)
 	sfx.global_position = pos
 	sfx.play()
@@ -156,7 +157,7 @@ static func play_boom(pos: Vector3) -> void:
 	glow.tween_property(light, "light_energy", 0.0, 0.35)
 	glow.tween_callback(light.queue_free)
 	_spawn_fragments(scene, pos)
-	tree.create_timer(1.2).timeout.connect(sfx.queue_free)
+	tree.create_timer(2.3).timeout.connect(sfx.queue_free)
 
 
 ## Short streaks, not extra damage. They fade inside the splash radius.

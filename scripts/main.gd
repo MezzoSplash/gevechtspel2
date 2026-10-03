@@ -518,6 +518,8 @@ func _on_peer_disconnected(id: int) -> void:
 	Game.announce_presence(leave_name, false, team)
 	Game.clear_peer_hp(id)
 	_spawn_bot(team)
+	# Bots are not in the spawner's replication (Sync visibility off): send the new roster.
+	broadcast_pawns.call_deferred()
 
 
 func _spawn_player(peer_id: int, team: int = -1) -> void:
