@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.11** — final killcam: the last kill of the round replayed through the killer's eyes.
+**v0.2.13** — classes (custom loadouts), melee on E, bullet impacts, punchier shotgun, team radar with announcer.
 
 ## Play (Linux)
 
