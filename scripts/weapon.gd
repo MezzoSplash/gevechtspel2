@@ -50,7 +50,14 @@ var _weapon_state: Dictionary = {}
 var _active_index := 0
 var _view_models: Dictionary = {} # StringName → Node3D
 var _ads := false
+var _melee_left := 0.0 # animation time left
+var _melee_cd := 0.0 # local cooldown (the server keeps its own)
+var _melee_swing_sfx: AudioStreamPlayer3D
+var _melee_hit_sfx: AudioStreamPlayer3D
 const CLICK_BUFFER := 0.12
+const MELEE_ANIM := 0.36 # seconds: thrust out, hold, pull back
+const MELEE_SWING := preload("res://assets/sounds/melee_swing.wav")
+const MELEE_HIT := preload("res://assets/sounds/melee_hit.wav")
 const SNIPER_ADS_FOV := 38.0 # hip is 90; hold RMB on sniper only
 
 
@@ -65,7 +72,21 @@ func _ready() -> void:
 	_setup_view_models()
 	_active_index = _index_for_def(def)
 	_equip(_active_index, false)
+	_melee_swing_sfx = _melee_player(MELEE_SWING, -4.0)
+	_melee_hit_sfx = _melee_player(MELEE_HIT, -2.0)
 	call_deferred("_hook_hit_fx")
+
+
+func _melee_player(stream: AudioStream, db: float) -> AudioStreamPlayer3D:
+	var s := AudioStreamPlayer3D.new()
+	s.stream = stream
+	s.volume_db = db
+	s.bus = "SFX"
+	s.unit_size = 6.0
+	s.max_distance = 40.0
+	s.max_polyphony = 2
+	add_child(s)
+	return s
 
 
 func _hook_hit_fx() -> void:
@@ -77,6 +98,9 @@ func _hook_hit_fx() -> void:
 func _process(delta: float) -> void:
 	var owner_player := owner as Player
 	var bot_auth := owner_player != null and owner_player.is_bot and (Game.is_offline or multiplayer.is_server())
+	_melee_cd = maxf(_melee_cd - delta, 0.0)
+	if not _is_local():
+		_tick_melee_pose(delta, Vector3.ZERO)
 	if not _is_local() and not bot_auth:
 		return
 	# May go below 0: _fire carries the leftover so the rate does not depend on the frame rate.
@@ -96,7 +120,9 @@ func _process(delta: float) -> void:
 		return
 
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open and not Game.play_locked():
-		if Input.is_action_just_pressed("switch_weapon"):
+		if Input.is_action_just_pressed("melee"):
+			Game.melee.swing(owner_player)
+		elif Input.is_action_just_pressed("switch_weapon"):
 			_cycle_weapon()
 		elif Input.is_action_just_pressed("weapon_1"):
 			_equip(0)
@@ -106,7 +132,7 @@ func _process(delta: float) -> void:
 			_equip(2)
 		elif Input.is_action_just_pressed("weapon_4"):
 			_equip(3) # sniper
-		elif _reload_left > 0.0:
+		elif _reload_left > 0.0 or _melee_left > 0.0:
 			pass
 		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size:
 			_start_reload()
@@ -129,6 +155,63 @@ func _process(delta: float) -> void:
 		bob.x = sin(_bob_t) * 0.012 * speed_factor
 		bob.y = absf(sin(_bob_t * 2.0)) * 0.01 * speed_factor
 	position = _view_rest + _kick_offset + bob
+	_tick_melee_pose(delta, _kick_offset + bob)
+
+
+func melee_ready() -> bool:
+	return _melee_cd <= 0.0
+
+
+## Thrust animation + swing sound. Cancels a reload and blocks firing until the gun is back.
+func play_melee() -> void:
+	_melee_cd = Melee.COOLDOWN
+	_melee_left = MELEE_ANIM
+	var p := owner as Player
+	if _is_local() or p.is_bot:
+		if _reload_left > 0.0:
+			if _is_local():
+				_cancel_reload()
+			else:
+				_reload_left = 0.0
+			_save_weapon_state()
+		_cooldown = maxf(_cooldown, MELEE_ANIM * 0.85)
+		rotation = Vector3.ZERO
+	if _melee_swing_sfx:
+		_melee_swing_sfx.pitch_scale = randf_range(0.93, 1.07)
+		_melee_swing_sfx.play()
+	if _is_local() and camera:
+		camera.add_kick(-1.2, randf_range(-0.6, 0.6), -4.0)
+
+
+func play_melee_hit() -> void:
+	if _melee_hit_sfx:
+		_melee_hit_sfx.pitch_scale = randf_range(0.94, 1.06)
+		_melee_hit_sfx.play()
+
+
+func play_hit_feedback(killed: bool, headshot: bool) -> void:
+	_play_hit_fx(killed, headshot)
+
+
+## 0 → 1 fast (stab out), short hold, then ease back to 0.
+func _melee_amount() -> float:
+	var t := 1.0 - _melee_left / MELEE_ANIM
+	if t < 0.3:
+		return sin(t / 0.3 * PI * 0.5)
+	if t < 0.45:
+		return 1.0
+	return 1.0 - smoothstep(0.45, 1.0, t)
+
+
+## Short bash: the gun swings sideways toward the centre and forward, so its side leads.
+## Local view and remote pawns alike.
+func _tick_melee_pose(delta: float, base: Vector3) -> void:
+	if _melee_left <= 0.0:
+		return
+	_melee_left = maxf(_melee_left - delta, 0.0)
+	var k := _melee_amount() if _melee_left > 0.0 else 0.0
+	position = _view_rest + base + Vector3(-0.13, 0.05, -0.12) * k
+	rotation = Vector3(-0.1, 0.75, 0.4) * k
 
 
 ## Semi-auto (pistol, shotgun, sniper): one shot per click. Holding does nothing more.
@@ -467,6 +550,7 @@ func _simulate_pellets_fx(origin: Vector3, look_dir: Vector3, spread_mult: float
 		if hit:
 			end = hit.position
 			_spawn_spark(hit.position, hit.normal)
+			Game.impacts.add(hit.position, hit.normal, hit.collider)
 		_spawn_tracer(muzzle.global_position, end)
 		if i == 0:
 			tracer_end = end

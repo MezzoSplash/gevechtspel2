@@ -110,6 +110,7 @@ func sync_lock(on: bool) -> void:
 func _apply_lock(on: bool) -> void:
 	Game.killcam_active = on
 	if on:
+		Game.clear_radar()
 		return
 	if _playing:
 		_end_playback()

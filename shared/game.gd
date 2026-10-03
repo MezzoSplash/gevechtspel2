@@ -29,7 +29,7 @@ const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.11"
+const NET_VERSION := "0.2.12"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -51,6 +51,10 @@ var round_frozen := false # look OK, no walk/shoot; bots idle
 var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
 var killcam: Killcam
+var melee: Melee
+var impacts: ImpactMarks
+var radar_left := 0.0 # this machine: own team's radar time left (enemy markers on)
+var radar_team := -1 # team whose radar is running here; its enemies get markers
 var lobby: Dictionary = {} # peer_id → {name, team}
 var master_vol := 1.0
 var sfx_vol := 1.0
@@ -142,6 +146,8 @@ func clear_peer_hp(peer_id: int) -> void:
 	streaks.erase(peer_id)
 	pings.erase(peer_id)
 	_fire_credit.erase(peer_id)
+	if melee:
+		melee.forget(peer_id)
 	drop_score(peer_id)
 
 
@@ -733,7 +739,7 @@ const RADAR_TIME := 4.0
 var streaks: Dictionary = {}
 
 
-## Humans only. Death clears the victim. At 3 the radar is armed; Enter fires it.
+## Humans only. Death clears the victim. At 3 the radar is armed; Enter turns it on for the whole team.
 func _bump_streak(killer_peer_id: int, victim_peer_id: int) -> void:
 	if victim_peer_id > 0:
 		streaks[victim_peer_id] = 0
@@ -766,11 +772,12 @@ func _apply_streak_local(n: int) -> void:
 
 
 ## Slot 0 is the radar. Other slots are reserved until more streaks exist.
-## Only slot 0 is wired. A charge is spent even if the radar is already running.
+## Only slot 0 is wired. A charge is spent even if the radar is already running (time is not stacked).
+## Not during the round-start freeze or the killcam: the charge is kept.
 func try_activate_streak(peer_id: int, slot: int) -> void:
 	if not _is_match_authority():
 		return
-	if slot != 0:
+	if slot != 0 or play_locked():
 		return
 	if int(streaks.get(peer_id, 0)) < STREAK_AT:
 		return
@@ -798,35 +805,51 @@ func request_streak(slot: int) -> void:
 	try_activate_streak(peer, slot)
 
 
-## rpc_id so teammates do not see the markers. The host calls the local path for themselves.
+## Team radar (UAV): every machine hears about it; the activator's team gets the markers,
+## the other team only the "enemy radar" cue. Markers follow the pawns (Player._process), so
+## enemies that respawn during the radar show up too.
 func _grant_radar(peer_id: int) -> void:
-	if not is_networked() or peer_id == multiplayer.get_unique_id():
-		_show_radar_local()
-		var hud := get_tree().get_first_node_in_group("hud") as Hud
-		if hud:
-			hud.flash_radar()
-		return
-	sync_radar.rpc_id(peer_id)
+	var team := 0
+	var p := player_for_peer(peer_id)
+	if p:
+		team = p.team_id
+	elif scores.has(peer_id):
+		team = int(scores[peer_id].get("team", 0))
+	var by := _display_name_for(peer_id)
+	if scores.has(peer_id):
+		by = str(scores[peer_id].name)
+	if is_networked():
+		sync_radar.rpc(team, by, RADAR_TIME, peer_id)
+	_apply_radar(team, by, RADAR_TIME, peer_id)
 
 
 @rpc("authority", "reliable")
-func sync_radar() -> void:
-	_show_radar_local()
+func sync_radar(team: int, by_name: String, seconds: float, by_peer: int) -> void:
+	if multiplayer.is_server():
+		return
+	_apply_radar(team, by_name, clampf(seconds, 0.0, RADAR_TIME), by_peer)
+
+
+func _apply_radar(team: int, by_name: String, seconds: float, by_peer: int) -> void:
+	var mine := local_team()
+	if mine < 0:
+		return
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	var friendly := team == mine
+	if friendly:
+		radar_team = team
+		radar_left = maxf(radar_left, seconds)
+	if hud:
+		hud.show_radar_event(by_name, team, friendly, by_peer == multiplayer.get_unique_id())
+
+
+## Round end, round start, killcam, and leaving: no markers carry over.
+func clear_radar() -> void:
+	radar_left = 0.0
+	radar_team = -1
 	var hud := get_tree().get_first_node_in_group("hud") as Hud
 	if hud:
-		hud.flash_radar()
-
-
-## Markers live on every pawn but start hidden. This only flips them on this machine.
-func _show_radar_local() -> void:
-	var me := player_for_peer(multiplayer.get_unique_id() if is_networked() else 1)
-	for node in get_tree().get_nodes_in_group("player"):
-		var p := node as Player
-		if p == null or p.is_dead or p == me:
-			continue
-		if me and p.team_id == me.team_id:
-			continue
-		p.show_radar_marker(RADAR_TIME)
+		hud.clear_radar()
 
 
 func _emit_kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int) -> void:
@@ -848,6 +871,7 @@ func sync_score(peer_id: int, score: int, n: String, team: int = 0) -> void:
 @rpc("authority", "reliable")
 func sync_round_end(winner_peer_id: int, winner_name: String, round_scores: Dictionary) -> void:
 	_round_active = false # hides the HUD clock on clients too
+	clear_radar()
 	round_ended.emit(winner_peer_id, winner_name, round_scores)
 
 
@@ -885,6 +909,7 @@ func _end_round(winner_peer_id: int) -> void:
 
 func _end_round_team(team_id: int) -> void:
 	_round_active = false
+	clear_radar()
 	var winner_name: String = TEAM_NAMES[clampi(team_id, 0, TEAM_NAMES.size() - 1)]
 	round_ended.emit(team_id, winner_name, scores.duplicate())
 	if is_networked():
@@ -906,6 +931,8 @@ func sync_intermission() -> void:
 
 func set_round_frozen(on: bool) -> void:
 	round_frozen = on
+	if on:
+		clear_radar()
 	round_freeze_changed.emit(on)
 	if on:
 		play_round_sting()
@@ -922,6 +949,7 @@ func sync_round_frozen(on: bool) -> void:
 	round_frozen = on
 	if on:
 		_round_active = false
+		clear_radar()
 	round_freeze_changed.emit(on)
 	if on:
 		play_round_sting()
@@ -994,6 +1022,11 @@ func reset_session() -> void:
 	final_kill.clear()
 	if killcam:
 		killcam.reset()
+	if melee:
+		melee.reset()
+	if impacts:
+		impacts.clear()
+	clear_radar()
 	_round_active = false
 	_round_timer = 0.0
 	stop_round_sting()
@@ -1091,6 +1124,7 @@ func _spawn_net_tracer(from: Vector3, to: Vector3) -> void:
 	var length := from.distance_to(to)
 	if length < 0.05:
 		return
+	impacts.add_from_tracer(from, to)
 	var mesh_inst := MeshInstance3D.new()
 	var box := BoxMesh.new()
 	box.size = Vector3(0.02, 0.02, length)
@@ -1139,6 +1173,8 @@ func sync_pings(data: Dictionary) -> void:
 ## Listen-server: bots have MultiplayerSynchronizer off, so we push poses ourselves.
 func _physics_process(delta: float) -> void:
 	_tick_regen(delta)
+	if radar_left > 0.0:
+		radar_left = maxf(radar_left - delta, 0.0)
 	if not is_networked() or not multiplayer.is_server():
 		return
 	_ping_accum += delta
@@ -1286,6 +1322,12 @@ func _ready() -> void:
 	killcam = Killcam.new()
 	killcam.name = "Killcam" # same path on every peer: its RPCs need that
 	add_child(killcam)
+	melee = Melee.new()
+	melee.name = "Melee"
+	add_child(melee)
+	impacts = ImpactMarks.new()
+	impacts.name = "ImpactMarks"
+	add_child(impacts)
 	_ensure_sfx_bus()
 	load_settings()
 	_bind_inputs()
@@ -1376,6 +1418,7 @@ func _bind_inputs() -> void:
 	_key("toggle_mouse", KEY_ESCAPE)
 	_key("chat", KEY_T)
 	_key("grenade", KEY_G)
+	_key("melee", KEY_E)
 	_key("sprint", KEY_SHIFT)
 	_key("crouch", KEY_CTRL)
 	_key("crouch", KEY_C)
