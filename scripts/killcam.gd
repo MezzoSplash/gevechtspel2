@@ -205,7 +205,7 @@ func _snapshot() -> void:
 		var p := n as Player
 		if p == null or p.is_queued_for_deletion() or p.head == null:
 			continue
-		var wpn := p.weapon.active_index() if p.weapon else 0
+		var wpn := p.weapon.armory_index() if p.weapon else 0
 		pawns[p.peer_id] = [p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, wpn, not p.is_dead]
 		_meta[p.peer_id] = [p.display_name, p.team_id]
 	if pawns.is_empty():

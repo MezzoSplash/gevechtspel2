@@ -1,6 +1,8 @@
 class_name Weapon
 extends Node3D
-## Hitscan loadout (1 rifle, 2 pistol, 3 shotgun, 4 sniper). FX are local; damage is server-side.
+## Hitscan guns. FX are local; damage is server-side.
+## `LOADOUT` is the whole armory (killcam and bots index it). `slots` is what this pawn carries:
+## a human's class (primary + secondary, keys 1/2), or the full armory for bots.
 
 const HURT_MASK := 1 | 2 | 4
 const LOADOUT: Array[WeaponDef] = [
@@ -47,7 +49,8 @@ var _rest_pos: Vector3
 var _view_rest: Vector3
 var _hud: Hud
 var _weapon_state: Dictionary = {}
-var _active_index := 0
+var _active_index := 0 # index into `slots`
+var slots: Array[WeaponDef] = []
 var _view_models: Dictionary = {} # StringName → Node3D
 var _ads := false
 var _melee_left := 0.0 # animation time left
@@ -70,8 +73,9 @@ func _ready() -> void:
 	muzzle_light.visible = false
 	_hide_blockout_meshes()
 	_setup_view_models()
-	_active_index = _index_for_def(def)
-	_equip(_active_index, false)
+	if slots.is_empty():
+		slots = LOADOUT.duplicate()
+	_equip_def(def, false)
 	_melee_swing_sfx = _melee_player(MELEE_SWING, -4.0)
 	_melee_hit_sfx = _melee_player(MELEE_HIT, -2.0)
 	call_deferred("_hook_hit_fx")
@@ -131,7 +135,7 @@ func _process(delta: float) -> void:
 		elif Input.is_action_just_pressed("weapon_3"):
 			_equip(2)
 		elif Input.is_action_just_pressed("weapon_4"):
-			_equip(3) # sniper
+			_equip(3)
 		elif _reload_left > 0.0 or _melee_left > 0.0:
 			pass
 		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size:
@@ -264,35 +268,74 @@ func _update_ads() -> void:
 func _cycle_weapon() -> void:
 	if not _owner_alive():
 		return
-	_equip((_active_index + 1) % LOADOUT.size())
+	if slots.size() > 1:
+		_equip((_active_index + 1) % slots.size())
 
 
+## Bots: armory index (they carry everything and never switch).
 func equip_loadout(index: int) -> void:
-	_equip(clampi(index, 0, LOADOUT.size() - 1), false)
+	_equip_def(LOADOUT[clampi(index, 0, LOADOUT.size() - 1)], false)
 
 
+## Slot of the held gun in `slots`.
 func active_index() -> int:
 	return _active_index
 
 
+## Armory index of the held gun (killcam frames use it; stable across classes).
+func armory_index() -> int:
+	return _armory_index(def)
+
+
+func has_weapon(id: StringName) -> bool:
+	for w in slots:
+		if w.id == id:
+			return true
+	return false
+
+
+## Class change / spawn: carry only these guns and hold the first one. Unknown ids are skipped.
+func set_slots(ids: Array) -> void:
+	var out: Array[WeaponDef] = []
+	for id in ids:
+		var w := _def_for_id(StringName(id))
+		if w and not out.has(w):
+			out.append(w)
+	if out.is_empty():
+		out = LOADOUT.duplicate()
+	slots = out
+	_cancel_reload()
+	_melee_left = 0.0
+	_equip_def(slots[0], false)
+
+
 ## Remote copy of someone else's gun (Game.sync_weapon). No HUD, no ammo bookkeeping that matters.
-func equip_remote(index: int) -> void:
-	index = clampi(index, 0, LOADOUT.size() - 1)
-	if index == _active_index:
+## Remote copies do not know the class, so this goes by id and ignores `slots`.
+func equip_remote(id: StringName) -> void:
+	var w := _def_for_id(id)
+	if w == null or (def != null and w.id == def.id):
 		return
-	_equip(index, false)
+	_equip_def(w, false)
+
+
+## Number keys / Q. Out of range (key 3 with two guns) does nothing.
+func _equip(index: int, save_current: bool = true) -> void:
+	if index < 0 or index >= slots.size():
+		return
+	_equip_def(slots[index], save_current)
 
 
 ## Switching stores ammo of the old gun and loads the new one. Reload leftover is dropped.
-func _equip(index: int, save_current: bool = true) -> void:
-	index = clampi(index, 0, LOADOUT.size() - 1)
-	if save_current and def != null and index == _active_index:
+func _equip_def(weapon_def: WeaponDef, save_current: bool = true) -> void:
+	if weapon_def == null:
+		weapon_def = slots[0] if not slots.is_empty() else LOADOUT[0]
+	if save_current and def != null and weapon_def.id == def.id:
 		return
 	if save_current and def != null:
 		_cancel_reload()
 		_save_weapon_state()
-	_active_index = index
-	def = LOADOUT[index]
+	_active_index = maxi(slots.find(weapon_def), 0)
+	def = weapon_def
 	_click_left = 0.0
 	var state := _load_weapon_state(def.id)
 	ammo = int(state.ammo)
@@ -303,7 +346,7 @@ func _equip(index: int, save_current: bool = true) -> void:
 	_apply_view_for_def()
 	_refresh_hud()
 	if save_current and _is_local():
-		Game.announce_weapon(owner as Player, index)
+		Game.announce_weapon(owner as Player, def.id)
 
 
 func _cancel_reload() -> void:
@@ -339,7 +382,9 @@ func _def_for_id(id: StringName) -> WeaponDef:
 	return null
 
 
-func _index_for_def(weapon_def: WeaponDef) -> int:
+func _armory_index(weapon_def: WeaponDef) -> int:
+	if weapon_def == null:
+		return 0
 	for i in LOADOUT.size():
 		if LOADOUT[i].id == weapon_def.id:
 			return i
@@ -600,7 +645,7 @@ func _crosshair_punch() -> float:
 
 
 func refill() -> void:
-	for weapon_def in LOADOUT:
+	for weapon_def in slots:
 		_weapon_state[weapon_def.id] = {
 			"ammo": weapon_def.mag_size,
 			"reload_left": 0.0,
@@ -652,9 +697,12 @@ func _refresh_hud() -> void:
 		return
 	var hud := _hud_node()
 	if hud:
+		var names: PackedStringArray = []
+		for w in slots:
+			names.append(w.display_name)
+		hud.set_weapon_slots(names)
 		hud.set_weapon_index(_active_index)
 		hud.set_ammo(ammo, def.mag_size)
-		hud.set_weapon_name(def.display_name)
 		hud.set_reloading(_reload_left > 0.0)
 
 
