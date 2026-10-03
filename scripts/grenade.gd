@@ -32,6 +32,7 @@ static func launch(thrower: Player, origin: Vector3, dir: Vector3) -> void:
 
 
 func _ready() -> void:
+	add_to_group("grenade") # Game.reset_session frees leftovers on leave
 	var mesh := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
 	sphere.radius = 0.12
@@ -83,15 +84,27 @@ func _explode() -> void:
 		if p != _thrower() and p.team_id == thrower_team:
 			continue
 		var dist := pos.distance_to(p.global_position + Vector3(0.0, 1.0, 0.0))
-		if dist > RADIUS:
+		if dist > RADIUS or not _blast_reaches(pos, p):
 			continue
 		var dmg := MAX_DAMAGE * (1.0 - dist / RADIUS)
 		p.apply_hit(p.global_position + Vector3(0, 1, 0), Vector3.UP, dmg, false, thrower_id, &"grenade")
+	# The listen-server host needs the boom too (the RPC skips the server). Headless has nobody to show it to.
+	if not Game.is_dedicated:
+		Grenade.play_boom(pos)
 	if Game.is_networked():
 		Game.sync_grenade_boom.rpc(pos, _net_id)
-	else:
-		Grenade.play_boom(pos)
 	queue_free()
+
+
+## Walls block splash. Feet, chest, or head in the open is enough; other bodies do not shield.
+func _blast_reaches(pos: Vector3, p: Player) -> bool:
+	var space := get_world_3d().direct_space_state
+	for h in [1.0, 1.6, 0.3]:
+		var query := PhysicsRayQueryParameters3D.create(pos, p.global_position + Vector3(0.0, h, 0.0))
+		query.collision_mask = 1
+		if space.intersect_ray(query).is_empty():
+			return true
+	return false
 
 
 func _thrower() -> Player:

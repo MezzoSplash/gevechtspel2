@@ -34,6 +34,7 @@ var _spawn_i := [0, 0] # next spawn index per team
 var _match_state := MatchState.WARMUP
 var _state_timer := 0.0
 var _bot_id_counter := -1 # bots use negative peer_ids: -1, -2, …
+var _version_mismatch := "" # server's NET_VERSION when the auth step refused us
 
 
 func _ready() -> void:
@@ -51,6 +52,7 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	_setup_version_auth()
 	Game.local_player_ready.connect(_on_local_player_ready)
 	Game.round_ended.connect(_on_round_ended)
 	Game.match_starting.connect(_on_match_starting)
@@ -70,7 +72,7 @@ func _ready() -> void:
 	call_deferred("_bake_nav")
 	var args := _parse_args()
 	if args.get("name", "") != "":
-		Game.player_name = args["name"]
+		Game.player_name = Game.clean_name(str(args["name"]))
 		menu.set_player_name(Game.player_name)
 	if args.get("server", false):
 		_start_server(int(args.get("port", Game.DEFAULT_PORT)), true)
@@ -81,6 +83,56 @@ func _ready() -> void:
 		_connect_to_server()
 		return
 	menu.visible = true
+
+
+## ENet auth step: both sides send NET_VERSION before the peer counts as connected.
+## A mismatch never reaches the lobby or the RPCs (whose ids shift between versions).
+func _setup_version_auth() -> void:
+	var sm := multiplayer as SceneMultiplayer
+	if sm == null:
+		return
+	sm.auth_callback = _on_auth_data
+	sm.auth_timeout = 5.0
+	sm.peer_authenticating.connect(_on_peer_authenticating)
+	sm.peer_authentication_failed.connect(_on_peer_authentication_failed)
+
+
+func _on_peer_authenticating(id: int) -> void:
+	(multiplayer as SceneMultiplayer).send_auth(id, Game.NET_VERSION.to_utf8_buffer())
+
+
+func _on_auth_data(id: int, data: PackedByteArray) -> void:
+	var sm := multiplayer as SceneMultiplayer
+	var theirs := data.get_string_from_utf8()
+	if theirs == Game.NET_VERSION:
+		sm.complete_auth(id)
+		return
+	print("NET: version mismatch with peer %d: theirs %s, ours %s" % [id, theirs, Game.NET_VERSION])
+	if not multiplayer.is_server():
+		_version_mismatch = theirs
+	# Not right away: our own version packet must still reach them, so they can show the mismatch too.
+	var link := multiplayer.multiplayer_peer
+	get_tree().create_timer(0.3).timeout.connect(func() -> void:
+		if multiplayer.multiplayer_peer == link and link.get_connection_status() != MultiplayerPeer.CONNECTION_DISCONNECTED:
+			sm.disconnect_peer(id)
+	)
+
+
+func _on_peer_authentication_failed(id: int) -> void:
+	print("NET: authentication failed for peer %d" % id)
+	if multiplayer.is_server():
+		return
+	var why := "Could not join: no version reply from the server (older build?)."
+	if _version_mismatch != "":
+		why = "Version mismatch: server %s, you %s." % [_version_mismatch, Game.NET_VERSION]
+	_version_mismatch = ""
+	# Deferred: swapping multiplayer_peer inside a SceneMultiplayer signal crashes the engine.
+	call_deferred("_drop_to_menu", why)
+
+
+func _drop_to_menu(status: String) -> void:
+	_leave_to_menu()
+	_set_status(status)
 
 
 ## Runtime navmesh from arena collision (not GPU meshes).
@@ -286,9 +338,7 @@ func _disable_menu_camera() -> void:
 func _play_locally() -> void:
 	Game.is_offline = true
 	Game.is_dedicated = false
-	Game.player_name = menu.player_name()
-	if Game.player_name == "":
-		Game.player_name = "Player"
+	Game.player_name = Game.clean_name(menu.player_name())
 	Game.preferred_team = menu.selected_team()
 	_enter_play()
 	_match_state = MatchState.WARMUP
@@ -298,9 +348,7 @@ func _play_locally() -> void:
 
 
 func _host_game() -> void:
-	Game.player_name = menu.player_name()
-	if Game.player_name == "":
-		Game.player_name = "Host"
+	Game.player_name = Game.clean_name(menu.player_name(), "Host")
 	Game.preferred_team = menu.selected_team()
 	_start_server(menu.host_port(), false)
 
@@ -317,6 +365,7 @@ func _start_server(port: int, dedicated: bool) -> void:
 	Game.is_dedicated = dedicated
 	print("SERVER: Server started on port %d, dedicated=%s" % [port, dedicated])
 	if dedicated:
+		Engine.max_fps = 60 # headless has no vsync; no need to spin a Pi core on menus/HUD
 		_enter_play()
 		hud.visible = false
 		DisplayServer.window_set_title("Gevechtspel server :%d" % port)
@@ -331,9 +380,7 @@ func _start_server(port: int, dedicated: bool) -> void:
 
 
 func _connect_to_server() -> void:
-	Game.player_name = menu.player_name()
-	if Game.player_name == "":
-		Game.player_name = "Player"
+	Game.player_name = Game.clean_name(menu.player_name())
 	Game.preferred_team = menu.selected_team()
 	var ip: String = menu.host_ip()
 	var port: int = menu.host_port()
@@ -361,6 +408,7 @@ func _on_connected_to_server() -> void:
 
 func _on_connection_failed() -> void:
 	print("CLIENT: Connection failed!")
+	call_deferred("_reset_to_offline")
 	_set_status("Connection failed. Is the host running, and is the port free?")
 	menu.visible = true
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -373,8 +421,16 @@ func _on_connection_failed() -> void:
 
 func _on_server_disconnected() -> void:
 	print("CLIENT: Server disconnected!")
-	_leave_to_menu()
-	_set_status("Server left.")
+	call_deferred("_drop_to_menu", "Server left.")
+
+
+## Failed connect: back to a valid offline peer (id 1), outside the multiplayer signal.
+func _reset_to_offline() -> void:
+	if multiplayer.multiplayer_peer:
+		multiplayer.multiplayer_peer.close()
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	Game.reset_session()
+	Game.is_offline = true
 
 
 ## Late join: defer so MultiplayerSpawner can replicate existing pawns first.
@@ -416,18 +472,18 @@ func _leave_to_menu() -> void:
 	Game.chat_open = false
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.close()
-		multiplayer.multiplayer_peer = null
+	# Not null: a null peer makes get_unique_id() 0 (+ an error every frame) and solo would spawn pawn "0".
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	for c in players_root.get_children():
 		c.queue_free()
-	Game.scores.clear()
-	Game.pings.clear()
-	Game.net_hp.clear()
-	Game.lobby.clear()
-	Game.in_lobby = false
+	Game.reset_session()
 	Game.is_offline = true
 	Game.is_dedicated = false
 	_bot_id_counter = -1
 	_spawn_i = [0, 0]
+	_match_state = MatchState.WARMUP
+	_state_timer = 0.0
+	hud.reset_session()
 	hud.visible = false
 	menu.visible = true
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -445,6 +501,9 @@ func _on_peer_disconnected(id: int) -> void:
 	if Game.in_lobby:
 		Game.remove_lobby_member(id)
 		return
+	# Clients only mirror: the spawner despawns the pawn and the server syncs the score removal.
+	if not multiplayer.is_server():
+		return
 	print("SERVER: Peer disconnected: %d" % id)
 	var team := 0
 	var leave_name := Game._display_name_for(id)
@@ -458,7 +517,6 @@ func _on_peer_disconnected(id: int) -> void:
 		team = int(Game.scores[id].get("team", 0))
 	Game.announce_presence(leave_name, false, team)
 	Game.clear_peer_hp(id)
-	Game.scores.erase(id)
 	_spawn_bot(team)
 
 
@@ -500,9 +558,7 @@ func _after_join_spawn(id: int) -> void:
 		if joiner:
 			Game.announce_presence(joiner.display_name, true, joiner.team_id)
 	)
-	var scores_arr := Game.get_scores()
-	if scores_arr.size() > 0:
-		Game.sync_all_scores.rpc_id(id, scores_arr)
+	Game.send_match_state(id)
 	broadcast_pawns()
 	get_tree().create_timer(0.3).timeout.connect(broadcast_pawns)
 	get_tree().create_timer(1.0).timeout.connect(broadcast_pawns)
@@ -523,6 +579,7 @@ func _pawn_snapshot() -> Array:
 			"bot": p.is_bot,
 			"team": p.team_id,
 			"loadout": p.loadout_index,
+			"weapon": p.weapon.active_index() if p.weapon else 0,
 		})
 	return out
 
@@ -561,6 +618,13 @@ func sync_pawns(list: Array) -> void:
 			p.loadout_index = int(entry.get("loadout", p.loadout_index))
 			p._apply_bot_loadout()
 			p._apply_team_visual()
+		elif p and not p.is_local():
+			# Name/team are server-owned (not in the Synchronizer), so late joiners get them here.
+			p.team_id = int(entry.get("team", p.team_id))
+			p.set_display_name(str(entry.get("n", p.display_name)))
+			p._apply_team_visual()
+			if p.weapon:
+				p.weapon.equip_remote(int(entry.get("weapon", 0)))
 	for child in players_root.get_children():
 		var extra := child as Player
 		if extra == null or extra.is_local() or extra.is_queued_for_deletion():
@@ -584,6 +648,8 @@ func _spawn_player_node(data: Variant) -> Node:
 	p.name = ("bot%d" % abs(id)) if p.is_bot else str(id)
 	p.display_name = str(d.get("n", "Player"))
 	p.position = d["pos"]
+	if p.team_id == Game.TEAM_B:
+		p.rotation.y = PI # Orange spawns at -Z: face the street, not the back wall
 	if p.is_bot:
 		p.set_multiplayer_authority(1, true)
 	else:
@@ -683,11 +749,16 @@ func _trim_bots() -> void:
 			var bot := _first_bot_on(team)
 			if bot == null:
 				break
-			Game.scores.erase(bot.peer_id)
+			Game.net_hp.erase(bot.peer_id)
+			Game.drop_score(bot.peer_id)
 			bot.queue_free()
 
 
 func _on_local_player_ready(player: Player) -> void:
+	# Late join / dedicated server: we opened the lobby on connect, but the match is already running.
+	if Game.in_lobby or menu.visible:
+		Game.in_lobby = false
+		_enter_play()
 	_disable_menu_camera()
 	player.make_active_camera()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

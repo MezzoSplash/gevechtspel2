@@ -70,6 +70,7 @@ var _slide_dir := Vector3.FORWARD
 var _step_t := 0.0
 var _feet_last := Vector3.ZERO
 var _was_air := false
+var _obs_speed := 0.0 # smoothed ground speed from position deltas (server's view of remote humans)
 
 
 ## Bots are never "local" (no camera/input), even in offline 5v5.
@@ -118,6 +119,7 @@ func _ready() -> void:
 	collision_layer = 2
 	collision_mask = 1
 	_spawn_xform = global_transform
+	_yaw = rotation.y # Orange spawns turned 180°; the first mouse move must not snap back
 	_capsule = col_shape.shape.duplicate() as CapsuleShape3D
 	col_shape.shape = _capsule
 	if peer_id == 0:
@@ -263,7 +265,7 @@ func set_display_name(n: String) -> void:
 	display_name = n
 	if nametag:
 		nametag.text = n
-		nametag.modulate = TEAM_COLORS[team_id]
+		nametag.modulate = TEAM_COLORS[clampi(team_id, 0, TEAM_COLORS.size() - 1)]
 
 
 func _dup_body_mat() -> void:
@@ -289,13 +291,22 @@ func _apply_team_visual() -> void:
 
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
-func apply_hit(point: Vector3, _normal: Vector3, base_damage: float, allow_headshot: bool = true, killer_peer_id: int = 0, weapon_id: StringName = &"rifle") -> Dictionary:
+## `headshot_mult` comes from the gun's WeaponDef (sniper 2.0, others 1.6).
+func apply_hit(
+	point: Vector3,
+	_normal: Vector3,
+	base_damage: float,
+	allow_headshot: bool = true,
+	killer_peer_id: int = 0,
+	weapon_id: StringName = &"rifle",
+	headshot_mult: float = 1.6
+) -> Dictionary:
 	if is_dead or _spawn_protect > 0.0:
 		return {"killed": false, "headshot": false, "damage": 0}
 	if Game.is_networked() and not multiplayer.is_server():
 		return {"killed": false, "headshot": false, "damage": 0}
 	var headshot := allow_headshot and point.y >= global_position.y + lerpf(1.45, 0.75, crouch)
-	var dmg := roundi(base_damage * (1.6 if headshot else 1.0))
+	var dmg := roundi(base_damage * (headshot_mult if headshot else 1.0))
 	var new_hp := maxf(Game.hp_of(self) - float(dmg), 0.0)
 	Game.set_hp(self, new_hp)
 	var killed := new_hp <= 0.0
@@ -348,6 +359,9 @@ func _server_respawn() -> void:
 
 func apply_respawn_state() -> void:
 	hp = MAX_HP
+	# Round-start respawns come through here too; the server's HP copy must reset with them.
+	if Game._is_match_authority():
+		Game.set_hp(self, MAX_HP)
 	is_dead = false
 	_spawn_protect = SPAWN_PROTECT
 	collision_layer = 2
@@ -390,6 +404,12 @@ func _notify_grenades() -> void:
 	var hud := get_tree().get_first_node_in_group("hud") as Hud
 	if hud:
 		hud.set_grenades(grenades)
+
+
+## Server floor for a remote human's claimed spread: half the walk penalty at the speed we see them move.
+## Lenient on purpose (sync lag), it only stops "always standing still" clients.
+func min_spread_multiplier() -> float:
+	return 1.0 + minf(_obs_speed / WALK_SPEED, 1.0) * 1.15 * 0.5
 
 
 ## 1.0 is standing still. Walk, sprint, then slide stack on top of the gun's own spread.
@@ -481,6 +501,9 @@ func _physics_process(delta: float) -> void:
 
 ## Uses velocity when we simulate, otherwise position delta (puppets have velocity zeroed).
 func _tick_feet(delta: float) -> void:
+	var moved := global_position - _feet_last
+	var inst_speed := minf(Vector2(moved.x, moved.z).length() / maxf(delta, 0.0001), SPRINT_SPEED * 1.5)
+	_obs_speed = lerpf(_obs_speed, inst_speed, 0.15)
 	if is_dead:
 		_was_air = false
 		_feet_last = global_position

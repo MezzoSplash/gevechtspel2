@@ -26,6 +26,14 @@ const WARMUP_TIME := 5.0
 const ROUND_END_TIME := 5.0
 const INTERMISSION_TIME := 10.0
 const FREEZE_TIME := 3.0
+const NAME_MAX := 24
+## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
+## so old clients get a clear "version mismatch" instead of silently broken RPCs.
+const NET_VERSION := "0.2.8"
+## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
+const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
+const FIRE_ORIGIN_TOLERANCE := 4.0 # metres between the client's eye and our copy of it
+const SPREAD_MAX := 8.0 # slide spread; clients cannot ask for more (or less than standing)
 const WEAPON_DEFS := {
 	&"rifle": preload("res://data/weapons/rifle.tres"),
 	&"pistol": preload("res://data/weapons/pistol.tres"),
@@ -51,8 +59,11 @@ var _hitstopping := false
 var _round_music: AudioStreamPlayer
 var _grenade_seq := 0
 var _grenade_visuals: Dictionary = {}
+var _grenade_done: Dictionary = {} # net_id → true once it exploded; late unreliable poses are ignored
+var _fire_credit: Dictionary = {} # peer_id → {weapon_id: [credit_s, last_s]}
 
 var scores: Dictionary = {}
+var team_kills := [0, 0] # own counter, so leavers and trimmed bots do not take kills with them
 var pings: Dictionary = {}
 var _ping_accum := 0.0
 var _round_timer := 0.0
@@ -74,13 +85,16 @@ func rpc_from_server() -> bool:
 
 ## Humans are named by peer id; bots are `bot1` with peer_id -1, etc.
 func player_for_peer(peer_id: int) -> Player:
+	if peer_id == 0:
+		return null
 	for n in get_tree().get_nodes_in_group("player"):
 		var p := n as Player
 		if p == null:
 			continue
 		if p.peer_id == peer_id or str(n.name) == str(peer_id):
 			return p
-		if p.is_bot and str(n.name) == "bot%d" % abs(peer_id):
+		# Bot ids are negative only. A human id (host = 1) must never match `bot1`.
+		if peer_id < 0 and p.is_bot and str(n.name) == "bot%d" % -peer_id:
 			p.peer_id = peer_id
 			return p
 	return null
@@ -103,10 +117,38 @@ func set_hp(p: Player, value: float) -> void:
 		net_hp[p.peer_id] = value
 
 
+## Forget a peer that left: HP, name/team, streak, ping, shot credit, and its scoreboard row (synced).
 func clear_peer_hp(peer_id: int) -> void:
 	net_hp.erase(peer_id)
 	pending_names.erase(peer_id)
+	pending_teams.erase(peer_id)
+	streaks.erase(peer_id)
+	pings.erase(peer_id)
+	_fire_credit.erase(peer_id)
+	drop_score(peer_id)
+
+
+## Removes a scoreboard row on every machine. Team totals live in team_kills and stay.
+func drop_score(peer_id: int) -> void:
 	scores.erase(peer_id)
+	if is_networked() and multiplayer.is_server():
+		sync_score_removed.rpc(peer_id)
+
+
+@rpc("authority", "reliable")
+func sync_score_removed(peer_id: int) -> void:
+	if multiplayer.is_server():
+		return
+	scores.erase(peer_id)
+	pings.erase(peer_id)
+
+
+## Trimmed to NAME_MAX, one line. Used for every name that reaches the scoreboard.
+func clean_name(n: String, fallback: String = "Player") -> String:
+	n = n.replace("\n", " ").replace("\r", " ").replace("\t", " ").strip_edges()
+	if n.length() > NAME_MAX:
+		n = n.substr(0, NAME_MAX).strip_edges()
+	return n if n != "" else fallback
 
 
 func weapon_def(weapon_id: StringName) -> WeaponDef:
@@ -114,24 +156,64 @@ func weapon_def(weapon_id: StringName) -> WeaponDef:
 
 
 ## Client → server fire. Hits resolve here; tracers/sfx go back out via broadcast_shot_fx.
+## The server checks: equipped gun, fire rate, freeze, and that the shot starts near our copy of the shooter.
+## `shot_seed` makes the server's pellets the same as the client's tracers.
 @rpc("any_peer", "reliable")
-func request_weapon_fire(origin: Vector3, look_dir: Vector3, weapon_id: StringName, muzzle_pos: Vector3 = Vector3.ZERO) -> void:
+func request_weapon_fire(
+	origin: Vector3,
+	look_dir: Vector3,
+	weapon_id: StringName,
+	muzzle_pos: Vector3 = Vector3.ZERO,
+	spread_mult: float = 1.0,
+	shot_seed: int = 0
+) -> void:
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	if peer == 0:
 		peer = multiplayer.get_unique_id()
 	var shooter := player_for_peer(peer)
-	if shooter == null or shooter.is_dead:
+	if shooter == null or shooter.is_dead or shooter.is_bot or round_frozen:
 		return
-	var def := weapon_def(weapon_id)
-	if def == null:
+	if shooter.weapon == null or shooter.weapon.def == null or shooter.weapon.def.id != weapon_id:
 		return
-	var from := muzzle_pos if muzzle_pos != Vector3.ZERO else origin
-	broadcast_shot_fx(from, origin + look_dir.normalized() * def.range_m, peer)
-	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, 1.0)
+	var def := shooter.weapon.def
+	if look_dir.length_squared() < 0.0001 or not origin_plausible(shooter, origin):
+		return
+	if not _take_fire_credit(peer, def):
+		return
+	var mult := clampf(spread_mult, shooter.min_spread_multiplier(), SPREAD_MAX)
+	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed)
+	var from := muzzle_pos
+	if from == Vector3.ZERO or from.distance_to(origin) > 2.0:
+		from = origin
+	broadcast_shot_fx(from, best.get("end", origin + look_dir.normalized() * def.range_m), peer)
 	if best.get("hit", false):
 		notify_hit.rpc_id(peer, best.killed, best.headshot)
+
+
+## Client eye vs. our copy of it. Position is client-synced, so this only stops "shoot from anywhere".
+func origin_plausible(shooter: Player, origin: Vector3) -> bool:
+	var eye := shooter.camera.global_position if shooter.camera else shooter.global_position
+	return eye.distance_to(origin) <= FIRE_ORIGIN_TOLERANCE
+
+
+## Per gun: credit refills a bit faster than the fire rate and holds ~1.5 shots, so packet bunching passes
+## but a fast-fire hack does not. Per gun because a switch does not reset the client's cooldown either.
+func _take_fire_credit(peer: int, def: WeaponDef) -> bool:
+	var interval := 1.0 / maxf(def.fire_rate, 0.01)
+	var cap := interval * 1.5 + 0.1
+	var now := Time.get_ticks_msec() / 1000.0
+	if not _fire_credit.has(peer):
+		_fire_credit[peer] = {}
+	var per_gun: Dictionary = _fire_credit[peer]
+	var state: Array = per_gun.get(def.id, [cap, now])
+	var credit := minf(float(state[0]) + (now - float(state[1])) * FIRE_RATE_SLACK, cap)
+	if credit < interval * 0.85:
+		per_gun[def.id] = [credit, now]
+		return false
+	per_gun[def.id] = [credit - interval, now]
+	return true
 
 
 func next_grenade_id() -> int:
@@ -160,7 +242,10 @@ func request_grenade(origin: Vector3, dir: Vector3) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	if peer == 0:
 		peer = multiplayer.get_unique_id()
-	throw_grenade(player_for_peer(peer), origin, dir)
+	var thrower := player_for_peer(peer)
+	if thrower == null or dir.length_squared() < 0.0001 or not origin_plausible(thrower, origin):
+		return
+	throw_grenade(thrower, origin, dir)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -175,14 +260,15 @@ func sync_grenade_count(peer_id: int, n: int) -> void:
 ## Visual copy on clients. Physics stays on the server grenade.
 @rpc("authority", "reliable")
 func sync_grenade_spawn(net_id: int, pos: Vector3) -> void:
-	if multiplayer.is_server():
+	if multiplayer.is_server() or _grenade_done.has(net_id):
 		return
 	_grenade_visual(net_id, pos)
 
 
 @rpc("authority", "unreliable")
 func sync_grenade_pose(net_id: int, pos: Vector3) -> void:
-	if multiplayer.is_server():
+	# Unreliable can arrive after the reliable boom; that would leave a ghost grenade.
+	if multiplayer.is_server() or _grenade_done.has(net_id):
 		return
 	var g := _grenade_visual(net_id, pos)
 	if g:
@@ -194,6 +280,7 @@ func sync_grenade_pose(net_id: int, pos: Vector3) -> void:
 func sync_grenade_boom(pos: Vector3, net_id: int) -> void:
 	if multiplayer.is_server():
 		return
+	_grenade_done[net_id] = true
 	if _grenade_visuals.has(net_id):
 		var vis: Node = _grenade_visuals[net_id]
 		_grenade_visuals.erase(net_id)
@@ -221,38 +308,59 @@ func fire_weapon_locally(
 	origin: Vector3,
 	look_dir: Vector3,
 	def: WeaponDef,
-	spread_mult: float = 1.0
+	spread_mult: float = 1.0,
+	shot_seed: int = 0
 ) -> Dictionary:
-	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult)
+	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult, shot_seed)
 
 
+## `shot_seed` drives the pellet spread, so Weapon._simulate_pellets_fx draws the same rays.
+## Teammates are excluded: shots pass through friends instead of being soaked up by them.
 func _resolve_weapon_fire(
 	shooter: Player,
 	origin: Vector3,
 	look_dir: Vector3,
 	def: WeaponDef,
-	spread_mult: float
+	spread_mult: float,
+	shot_seed: int = 0
 ) -> Dictionary:
 	look_dir = look_dir.normalized()
 	var spread := def.spread_deg * spread_mult
-	var best := {"killed": false, "headshot": false, "hit": false}
+	var best := {"killed": false, "headshot": false, "hit": false, "end": origin + look_dir * def.range_m}
 	var space := shooter.get_world_3d().direct_space_state
-	for _i in def.pellet_count:
-		var dir := _spread_dir(look_dir, spread)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = shot_seed if shot_seed != 0 else randi()
+	var exclude := shot_exclude(shooter)
+	for i in def.pellet_count:
+		var dir := spread_dir(look_dir, spread, rng)
 		var to := origin + dir * def.range_m
 		var query := PhysicsRayQueryParameters3D.create(origin, to)
 		query.collision_mask = SHOT_MASK
-		query.exclude = [shooter.get_rid()]
+		query.exclude = exclude
 		var hit := space.intersect_ray(query)
+		if i == 0:
+			best.end = to if hit.is_empty() else hit.position
 		if hit.is_empty():
 			continue
 		var dist := origin.distance_to(hit.position)
 		var dmg := def.damage_at_distance(dist)
-		var result := _apply_shot_hit(shooter, hit, dmg, def.headshot_multiplier)
+		var result := _apply_shot_hit(shooter, hit, dmg, def)
 		if result.is_empty():
 			continue
+		var end: Vector3 = best.end
 		best = _merge_hit_result(best, result)
+		best.end = end
 	return best
+
+
+## Shooter plus living teammates. Used for shots, tracers, and bot line of sight.
+func shot_exclude(shooter: Player) -> Array[RID]:
+	var out: Array[RID] = [shooter.get_rid()]
+	for n in get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p and p != shooter and p.team_id == shooter.team_id and not p.is_dead:
+			out.append(p.get_rid())
+	return out
 
 
 func _merge_hit_result(best: Dictionary, result: Dictionary) -> Dictionary:
@@ -267,12 +375,13 @@ func _merge_hit_result(best: Dictionary, result: Dictionary) -> Dictionary:
 	return {"killed": false, "headshot": false, "hit": true}
 
 
-func _spread_dir(forward: Vector3, deg: float) -> Vector3:
+## Shared by server hits and client tracers. Same rng seed → same pellets.
+func spread_dir(forward: Vector3, deg: float, rng: RandomNumberGenerator) -> Vector3:
 	if deg <= 0.0:
 		return forward.normalized()
 	var rad := deg_to_rad(deg)
-	var theta := randf() * TAU
-	var phi := rad * sqrt(randf())
+	var theta := rng.randf() * TAU
+	var phi := rad * sqrt(rng.randf())
 	var up := Vector3.UP
 	var right := forward.cross(up)
 	if right.length_squared() < 0.001:
@@ -282,7 +391,7 @@ func _spread_dir(forward: Vector3, deg: float) -> Vector3:
 	return (forward.normalized() * cos(phi) + (right * cos(theta) + up * sin(theta)) * sin(phi)).normalized()
 
 
-func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, hs_mult: float) -> Dictionary:
+func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, def: WeaponDef) -> Dictionary:
 	var collider := hit.collider as Node
 	if collider == null:
 		return {}
@@ -295,7 +404,7 @@ func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, hs_mult: f
 			return {}
 		if victim.team_id == shooter.team_id:
 			return {}
-		return victim.apply_hit(hit.position, hit.normal, damage, true, killer_id, shooter.weapon.def.id if shooter.weapon and shooter.weapon.def else &"rifle")
+		return victim.apply_hit(hit.position, hit.normal, damage, true, killer_id, def.id, def.headshot_multiplier)
 	return {}
 
 
@@ -308,9 +417,7 @@ func notify_hit(killed: bool, headshot: bool) -> void:
 func submit_display_name(n: String, team: int = -1) -> void:
 	if not multiplayer.is_server():
 		return
-	n = n.strip_edges()
-	if n == "":
-		n = "Player"
+	n = clean_name(n)
 	var peer := multiplayer.get_remote_sender_id()
 	if peer == 0:
 		peer = multiplayer.get_unique_id()
@@ -535,6 +642,9 @@ func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringNa
 		return
 	if killer_peer_id == 0:
 		return
+	if killer_peer_id == victim_peer_id:
+		_register_suicide(victim_peer_id, weapon_id)
+		return
 	if not scores.has(killer_peer_id):
 		var killer := player_for_peer(killer_peer_id)
 		var team := killer.team_id if killer else 0
@@ -545,6 +655,7 @@ func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringNa
 	_apply_score(killer_peer_id, kills, n, team_id)
 	if is_networked():
 		sync_score.rpc(killer_peer_id, kills, n, team_id)
+	_add_team_kill(team_id)
 	var killer_name := n
 	var victim_name := _display_name_for(victim_peer_id)
 	if scores.has(victim_peer_id):
@@ -560,6 +671,35 @@ func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringNa
 		sync_kill_feed.rpc(killer_name, victim_name, String(weapon_id), team_id, victim_team)
 	_check_win_team(team_id)
 	_bump_streak(killer_peer_id, victim_peer_id)
+
+
+## Own grenade: kill feed shows it, the streak resets, but no kill for you or your team.
+func _register_suicide(peer_id: int, weapon_id: StringName) -> void:
+	var n := _display_name_for(peer_id)
+	if scores.has(peer_id):
+		n = str(scores[peer_id].name)
+	var team := 0
+	var p := player_for_peer(peer_id)
+	if p:
+		team = p.team_id
+	elif scores.has(peer_id):
+		team = int(scores[peer_id].get("team", 0))
+	_emit_kill_feed(n, n, weapon_id, team, team)
+	if is_networked():
+		sync_kill_feed.rpc(n, n, String(weapon_id), team, team)
+	_bump_streak(0, peer_id)
+
+
+func _add_team_kill(team_id: int) -> void:
+	var t := clampi(team_id, TEAM_A, TEAM_B)
+	team_kills[t] = int(team_kills[t]) + 1
+	if is_networked() and multiplayer.is_server():
+		sync_team_kills.rpc(int(team_kills[0]), int(team_kills[1]))
+
+
+@rpc("authority", "reliable")
+func sync_team_kills(blue: int, orange: int) -> void:
+	team_kills = [blue, orange]
 
 
 const STREAK_AT := 3
@@ -675,13 +815,6 @@ func sync_kill_feed(killer_name: String, victim_name: String, weapon_id: String,
 	kill_feed.emit(killer_name, victim_name, StringName(weapon_id), killer_team, victim_team)
 
 
-@rpc("any_peer", "reliable")
-func report_death(killer_peer_id: int, victim_peer_id: int) -> void:
-	if not multiplayer.is_server():
-		return
-	register_kill(killer_peer_id, victim_peer_id)
-
-
 @rpc("authority", "reliable")
 func sync_score(peer_id: int, score: int, n: String, team: int = 0) -> void:
 	_apply_score(peer_id, score, n, team)
@@ -689,6 +822,7 @@ func sync_score(peer_id: int, score: int, n: String, team: int = 0) -> void:
 
 @rpc("authority", "reliable")
 func sync_round_end(winner_peer_id: int, winner_name: String, round_scores: Dictionary) -> void:
+	_round_active = false # hides the HUD clock on clients too
 	round_ended.emit(winner_peer_id, winner_name, round_scores)
 
 
@@ -761,6 +895,8 @@ func sync_round_frozen(on: bool) -> void:
 	if multiplayer.is_server():
 		return
 	round_frozen = on
+	if on:
+		_round_active = false
 	round_freeze_changed.emit(on)
 	if on:
 		play_round_sting()
@@ -781,6 +917,9 @@ func stop_round_sting() -> void:
 func start_round() -> void:
 	_round_timer = 0.0
 	_round_active = false # timer starts after freeze
+	team_kills = [0, 0]
+	if is_networked() and multiplayer.is_server():
+		sync_team_kills.rpc(0, 0)
 	for id in scores:
 		_apply_score(id, 0, str(scores[id].name), int(scores[id].get("team", 0)))
 		if is_networked() and multiplayer.is_server():
@@ -791,6 +930,49 @@ func end_freeze() -> void:
 	_round_active = true
 	_round_timer = 0.0
 	set_round_frozen(false)
+	if is_networked() and multiplayer.is_server():
+		sync_round_time.rpc(ROUND_TIME)
+
+
+## Late joiner: scores, team totals, freeze, and clock, so the HUD is right from the first frame.
+func send_match_state(peer_id: int) -> void:
+	if not is_networked() or not multiplayer.is_server():
+		return
+	var scores_arr := get_scores()
+	if scores_arr.size() > 0:
+		sync_all_scores.rpc_id(peer_id, scores_arr)
+	sync_team_kills.rpc_id(peer_id, int(team_kills[0]), int(team_kills[1]))
+	if round_frozen:
+		sync_round_frozen.rpc_id(peer_id, true)
+	if _round_active:
+		sync_round_time.rpc_id(peer_id, get_round_time_left())
+
+
+## Leave to menu: nothing from the old session may leak into the next one.
+func reset_session() -> void:
+	scores.clear()
+	pings.clear()
+	net_hp.clear()
+	lobby.clear()
+	streaks.clear()
+	pending_names.clear()
+	pending_teams.clear()
+	_fire_credit.clear()
+	team_kills = [0, 0]
+	in_lobby = false
+	round_frozen = false
+	_round_active = false
+	_round_timer = 0.0
+	stop_round_sting()
+	Engine.time_scale = 1.0
+	for id in _grenade_visuals:
+		var vis: Node = _grenade_visuals[id]
+		if is_instance_valid(vis):
+			vis.queue_free()
+	_grenade_visuals.clear()
+	_grenade_done.clear()
+	for g in get_tree().get_nodes_in_group("grenade"):
+		g.queue_free()
 
 
 func update_round_timer(delta: float) -> bool:
@@ -810,11 +992,7 @@ func _get_leader() -> int:
 
 
 func get_team_kills(team_id: int) -> int:
-	var total := 0
-	for id in scores:
-		if int(scores[id].get("team", 0)) == team_id:
-			total += int(scores[id].kills)
-	return total
+	return int(team_kills[clampi(team_id, TEAM_A, TEAM_B)])
 
 
 func get_scores() -> Array[Dictionary]:
@@ -948,6 +1126,40 @@ func sync_bot_poses(poses: Array) -> void:
 			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]))
 
 
+## Local human switched guns. Everyone needs the same def: sound, viewmodel, kill feed, server checks.
+func announce_weapon(p: Player, index: int) -> void:
+	if not is_networked() or p == null or p.is_bot:
+		return
+	if multiplayer.is_server():
+		sync_weapon.rpc(p.peer_id, index)
+	else:
+		request_weapon_switch.rpc_id(1, index)
+
+
+## Reliable and on the same channel as request_weapon_fire, so the server sees the switch before the shot.
+@rpc("any_peer", "reliable")
+func request_weapon_switch(index: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var p := player_for_peer(peer)
+	if p == null or p.is_bot or p.weapon == null:
+		return
+	index = clampi(index, 0, Weapon.LOADOUT.size() - 1)
+	p.weapon.equip_remote(index)
+	sync_weapon.rpc(peer, index)
+
+
+@rpc("authority", "reliable")
+func sync_weapon(peer_id: int, index: int) -> void:
+	if multiplayer.is_server():
+		return
+	var p := player_for_peer(peer_id)
+	if p == null or p.is_local() or p.weapon == null:
+		return
+	p.weapon.equip_remote(index)
+
+
 func live_peer_ids() -> Array:
 	var ids: Array = []
 	for n in get_tree().get_nodes_in_group("player"):
@@ -1053,6 +1265,8 @@ func _bind_inputs() -> void:
 	_key("weapon_2", KEY_2)
 	_key("weapon_3", KEY_3)
 	_key("weapon_4", KEY_4)
+	_key("use_streak", KEY_ENTER) # not ui_accept: that one includes Space (jump)
+	_key("use_streak", KEY_KP_ENTER)
 	_mouse("fire", MOUSE_BUTTON_LEFT)
 	_mouse("zoom", MOUSE_BUTTON_RIGHT)
 	_key("toggle_mouse", KEY_ESCAPE)
@@ -1097,8 +1311,9 @@ func _has_mouse(action: String, button: MouseButton) -> bool:
 	return false
 
 
+## Engine.time_scale is global: on a listen server it would slow bots, timers, and physics for everyone.
 func hitstop(seconds: float = 0.05, scale: float = 0.22) -> void:
-	if _hitstopping:
+	if _hitstopping or (is_networked() and multiplayer.is_server()):
 		return
 	_hitstopping = true
 	Engine.time_scale = scale

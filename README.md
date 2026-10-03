@@ -13,9 +13,13 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 ```
 
 - **WASD** move, **Space** jump, **mouse** look
-- **Shift** sprint (less accurate), **Ctrl** or **C** crouch (hides behind cover)
-- **LMB** fire, **R** reload, **Q** or **1/2/3** switch guns (rifle, pistol, shotgun)
-- **Esc** frees the mouse, click the window to recapture
+- **Shift** sprint (less accurate), **Ctrl** or **C** crouch (hides behind cover); crouch while sprinting slides
+- **LMB** fire, **R** reload, **Q** or **1/2/3/4** switch guns (rifle, pistol, shotgun, sniper)
+- **RMB** zoom (sniper only)
+- **G** grenade (two per life)
+- **Up/Down** pick a streak slot, **Enter** activates it (radar after 3 kills)
+- **T** chat (Enter sends, Esc cancels)
+- **Esc** pause menu (resume, settings, leave, quit)
 - **Tab** scoreboard
 
 Boot menu: **Play locally** (dummies), **Host game**, or **Connect**.
