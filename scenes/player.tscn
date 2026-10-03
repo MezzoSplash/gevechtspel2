@@ -167,10 +167,11 @@ shadow_enabled = false
 stream = ExtResource("5_fire")
 volume_db = -6.0
 bus = "SFX"
-unit_size = 10.0
-max_distance = 42.0
+unit_size = 12.0
+max_distance = 110.0
 attenuation_model = 1
 max_polyphony = 6
+attenuation_filter_cutoff_hz = 4000.0
 
 [node name="HitSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("6_hit")

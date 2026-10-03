@@ -38,6 +38,7 @@ const MODEL_SCENES := {
 var speed_factor := 0.0
 var ammo: int = 30
 var _cooldown := 0.0
+var _click_left := 0.0 # buffered semi-auto click (see _wants_fire)
 var _reload_left := 0.0
 var _flash_left := 0.0
 var _kick_offset := Vector3.ZERO
@@ -49,6 +50,7 @@ var _weapon_state: Dictionary = {}
 var _active_index := 0
 var _view_models: Dictionary = {} # StringName → Node3D
 var _ads := false
+const CLICK_BUFFER := 0.12
 const SNIPER_ADS_FOV := 38.0 # hip is 90; hold RMB on sniper only
 
 
@@ -79,6 +81,7 @@ func _process(delta: float) -> void:
 		return
 	# May go below 0: _fire carries the leftover so the rate does not depend on the frame rate.
 	_cooldown = maxf(_cooldown - delta, -1.0)
+	_click_left = maxf(_click_left - delta, 0.0)
 	_flash_left = maxf(_flash_left - delta, 0.0)
 	if _flash_left <= 0.0:
 		muzzle_flash.visible = false
@@ -128,10 +131,17 @@ func _process(delta: float) -> void:
 	position = _view_rest + _kick_offset + bob
 
 
+## Semi-auto (pistol, shotgun, sniper): one shot per click. Holding does nothing more.
+## A click just before the gun is ready is kept for CLICK_BUFFER, so fast tapping is not eaten.
 func _wants_fire() -> bool:
 	if def.automatic:
 		return Input.is_action_pressed("fire")
-	return Input.is_action_just_pressed("fire")
+	if Input.is_action_just_pressed("fire"):
+		_click_left = CLICK_BUFFER
+	if _click_left > 0.0 and _cooldown <= 0.0:
+		_click_left = 0.0
+		return true
+	return false
 
 
 func _owner_sliding() -> bool:
@@ -200,6 +210,7 @@ func _equip(index: int, save_current: bool = true) -> void:
 		_save_weapon_state()
 	_active_index = index
 	def = LOADOUT[index]
+	_click_left = 0.0
 	var state := _load_weapon_state(def.id)
 	ammo = int(state.ammo)
 	_reload_left = 0.0
@@ -358,10 +369,8 @@ func _try_fire() -> void:
 func play_fire_sfx() -> void:
 	if fire_sfx == null or fire_sfx.stream == null:
 		return
-	if def and def.id == &"sniper":
-		fire_sfx.pitch_scale = randf_range(0.72, 0.80)
-	else:
-		fire_sfx.pitch_scale = randf_range(0.96, 1.05)
+	# Small random pitch so a held trigger does not sound like one looped sample.
+	fire_sfx.pitch_scale = randf_range(0.95, 1.05)
 	fire_sfx.play()
 
 

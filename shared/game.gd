@@ -29,7 +29,8 @@ const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.9"
+const NET_VERSION := "0.2.10"
+const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
 const FIRE_ORIGIN_TOLERANCE := 4.0 # metres between the client's eye and our copy of it
@@ -55,6 +56,8 @@ var preferred_team := 0 # 0 Blue, 1 Orange — chosen in the menu
 var pending_names: Dictionary = {} # peer_id → name, filled before spawn if the client RPCs first
 var pending_teams: Dictionary = {} # peer_id → team, from join RPC
 var net_hp: Dictionary = {} # server copy of HP, keyed by peer_id (bots included)
+var _regen_dirty: Dictionary = {} # peer_id -> hp changed by regen since the last sync_regen
+var _regen_sync_t := 0.0
 var _hitstopping := false
 var _round_music: AudioStreamPlayer
 var _grenade_seq := 0
@@ -98,6 +101,12 @@ func player_for_peer(peer_id: int) -> Player:
 			p.peer_id = peer_id
 			return p
 	return null
+
+
+## Team of this machine's own pawn, -1 when there is none (menu, dedicated server).
+func local_team() -> int:
+	var me := player_for_peer(multiplayer.get_unique_id())
+	return me.team_id if me else -1
 
 
 func hp_of(p: Player) -> float:
@@ -953,6 +962,7 @@ func reset_session() -> void:
 	scores.clear()
 	pings.clear()
 	net_hp.clear()
+	_regen_dirty.clear()
 	lobby.clear()
 	streaks.clear()
 	pending_names.clear()
@@ -1095,6 +1105,7 @@ func sync_pings(data: Dictionary) -> void:
 
 ## Listen-server: bots have MultiplayerSynchronizer off, so we push poses ourselves.
 func _physics_process(delta: float) -> void:
+	_tick_regen(delta)
 	if not is_networked() or not multiplayer.is_server():
 		return
 	_ping_accum += delta
@@ -1112,6 +1123,53 @@ func _physics_process(delta: float) -> void:
 	if poses.is_empty():
 		return
 	sync_bot_poses.rpc(poses)
+
+
+## Health regen on the match authority: REGEN_DELAY s after the last hit, REGEN_RATE HP/s (bots too).
+## Clients get the values in batches every REGEN_SYNC s; the last step to full HP is sent at once.
+func _tick_regen(delta: float) -> void:
+	if not _is_match_authority():
+		return
+	var to_send := false
+	for n in get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p == null or p.is_dead or p.is_queued_for_deletion():
+			continue
+		p.since_hurt += delta
+		var cur := hp_of(p)
+		if cur >= Player.MAX_HP or p.since_hurt < Player.REGEN_DELAY:
+			continue
+		var new_hp := minf(cur + Player.REGEN_RATE * delta, Player.MAX_HP)
+		set_hp(p, new_hp)
+		p.apply_regen_hp(new_hp)
+		_regen_dirty[p.peer_id] = new_hp
+		if new_hp >= Player.MAX_HP:
+			to_send = true
+	if not is_networked():
+		_regen_dirty.clear()
+		return
+	_regen_sync_t -= delta
+	if _regen_dirty.is_empty() or (_regen_sync_t > 0.0 and not to_send):
+		return
+	_regen_sync_t = REGEN_SYNC
+	var batch: Array = []
+	for id in _regen_dirty:
+		batch.append([id, float(_regen_dirty[id])])
+	_regen_dirty.clear()
+	if not multiplayer.get_peers().is_empty():
+		sync_regen.rpc(batch)
+
+
+@rpc("authority", "reliable")
+func sync_regen(batch: Array) -> void:
+	if multiplayer.is_server():
+		return
+	for entry in batch:
+		if typeof(entry) != TYPE_ARRAY or entry.size() < 2:
+			continue
+		var p := player_for_peer(int(entry[0]))
+		if p:
+			p.apply_regen_hp(clampf(float(entry[1]), 0.0, Player.MAX_HP))
 
 
 @rpc("authority", "unreliable")
@@ -1208,6 +1266,16 @@ func _ensure_sfx_bus() -> void:
 	AudioServer.add_bus()
 	AudioServer.set_bus_name(i, "SFX")
 	AudioServer.set_bus_send(i, "Master")
+	# Ten guns at once: a soft compressor keeps the mix even, the limiter on Master stops clipping.
+	var comp := AudioEffectCompressor.new()
+	comp.threshold = -16.0
+	comp.ratio = 3.0
+	comp.attack_us = 3000.0
+	comp.release_ms = 140.0
+	AudioServer.add_bus_effect(i, comp)
+	var limiter := AudioEffectHardLimiter.new()
+	limiter.ceiling_db = -0.5
+	AudioServer.add_bus_effect(AudioServer.get_bus_index("Master"), limiter)
 
 
 func load_settings() -> void:

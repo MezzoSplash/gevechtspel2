@@ -16,12 +16,26 @@ const SEPARATION_R := 1.3 # push away from any pawn closer than this
 const STUCK_CHECK := 1.0
 const STUCK_DIST := 0.4
 const UNSTICK_TIME := 0.6
+## Hand wobble around the aim point (metres at the target), so a correct aim is not an aimbot.
+const AIM_WOBBLE_BASE := 0.85
+const AIM_WOBBLE_PER_M := 0.012 # wider with distance
+const AIM_WOBBLE_PER_SPEED := 0.07 # and when the target moves (per m/s)
+const AIM_WOBBLE_FRESH := 1.8 # first moments on a new target
+const AIM_WOBBLE_REPICK := 0.3
+const AIM_TRACK := 14.0 # how fast the aim catches up with a moving target (1/s)
 
 var pawn: Player
 var agent: NavigationAgent3D
 var _acquire_left := ACQUIRE
 var _strafe_t := 0.0
 var _strafe_sign := 1.0
+var _seen_target = null # untyped: may be freed. Last pawn _can_see found, and where (body or head)
+var _seen_point := Vector3.ZERO
+var _aim_err := Vector2.ZERO # current wobble (sideways, up) in metres, eased toward _aim_err_goal
+var _aim_err_goal := Vector2.ZERO
+var _aim_err_t := 0.0
+var _aim_track := Vector3.ZERO # lagged aim point (world)
+var _aim_for = null # untyped: may be freed. Target the wobble was rolled for
 var _repath_t := 0.0
 var _burst_left := 0
 var _burst_pause := 0.4
@@ -148,11 +162,13 @@ func _hunt(enemy: Player, delta: float) -> void:
 	if _repath_t <= 0.0 and agent:
 		agent.target_position = dest
 		_repath_t = 0.22
+	_tick_aim_wobble(enemy, delta)
 	_face(enemy)
 	_steer_to(dest, Player.WALK_SPEED, delta)
 
 
 func _fight(enemy: Player, delta: float) -> void:
+	_tick_aim_wobble(enemy, delta)
 	_face(enemy)
 	_strafe_t -= delta
 	if _strafe_t <= 0.0:
@@ -211,18 +227,50 @@ func _steer_to(dest: Vector3, speed: float, delta: float) -> void:
 	pawn.velocity.z = horiz.z
 
 
-func _face(enemy: Player) -> void:
-	var look := enemy.global_position
+## Turn toward _aim_track (see _tick_aim_wobble). Call _tick_aim_wobble first in the same tick.
+func _face(_enemy: Player) -> void:
+	var look := _aim_track
 	look.y = pawn.global_position.y
 	if look.distance_squared_to(pawn.global_position) > 0.04:
 		pawn.look_at(look, Vector3.UP)
 		pawn._yaw = pawn.rotation.y
-	var aim := enemy.global_position + Vector3(0.0, 1.05, 0.0) - pawn.head.global_position
+	var aim := _aim_track - pawn.head.global_position
 	if aim.length_squared() < 0.0001:
 		return
 	aim = aim.normalized()
-	pawn._pitch = clampf(-asin(clampf(aim.y, -1.0, 1.0)), -Player.MAX_PITCH, Player.MAX_PITCH)
+	# Positive pitch looks up (same as the mouse). This was negated, so bots aimed mirrored:
+	# above anyone lower than their eyes, which is everyone, and crouchers most of all.
+	pawn._pitch = clampf(asin(clampf(aim.y, -1.0, 1.0)), -Player.MAX_PITCH, Player.MAX_PITCH)
 	pawn.head.rotation.x = pawn._pitch
+
+
+## New random offset every AIM_WOBBLE_REPICK s, eased in so the crosshair drifts like a hand.
+## The offset lies in the plane facing the bot (sideways and up/down), in metres at the target.
+func _tick_aim_wobble(enemy: Player, delta: float) -> void:
+	var fresh: bool = _aim_for != enemy
+	if fresh:
+		_aim_for = enemy
+		_aim_err_t = 0.0
+	_aim_err_t -= delta
+	if _aim_err_t <= 0.0:
+		_aim_err_t = AIM_WOBBLE_REPICK
+		var dist := pawn.global_position.distance_to(enemy.global_position)
+		var r := AIM_WOBBLE_BASE + AIM_WOBBLE_PER_M * dist + AIM_WOBBLE_PER_SPEED * enemy._obs_speed
+		if fresh:
+			r *= AIM_WOBBLE_FRESH
+		var ang := randf() * TAU
+		var mag := r * sqrt(randf())
+		_aim_err_goal = Vector2(cos(ang) * mag, sin(ang) * mag * 0.7)
+		if fresh:
+			_aim_err = _aim_err_goal
+	_aim_err = _aim_err.lerp(_aim_err_goal, 1.0 - exp(-8.0 * delta))
+	var base := _seen_point if _seen_target == enemy else enemy.aim_point()
+	var right := (base - pawn.head.global_position).cross(Vector3.UP)
+	right = right.normalized() if right.length_squared() > 0.0001 else Vector3.RIGHT
+	# Aim where the target really is (crouch lowers it), not at a fixed standing height.
+	# The crosshair follows the target a beat late: a fast strafe is harder to hit than standing still.
+	var goal := base + right * _aim_err.x + Vector3.UP * _aim_err.y
+	_aim_track = goal if fresh else _aim_track.lerp(goal, 1.0 - exp(-AIM_TRACK * delta))
 
 
 func _gun_id() -> StringName:
@@ -267,15 +315,20 @@ func _try_shoot(enemy: Player) -> void:
 
 
 ## World (1) + players (2). Teammates are see-through (shots pass them too); other enemies still block.
+## Body centre first, then the head (peeking over cover). The point that is clear becomes the aim point.
 func _can_see(enemy: Player) -> bool:
 	var from := pawn.head.global_position
-	var to := enemy.global_position + Vector3(0.0, 1.0, 0.0)
 	var space := pawn.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = SHOT_MASK
-	query.exclude = Game.shot_exclude(pawn)
-	var hit := space.intersect_ray(query)
-	return hit.has("collider") and hit.collider == enemy
+	for to in [enemy.aim_point(), enemy.head_point()]:
+		var query := PhysicsRayQueryParameters3D.create(from, to)
+		query.collision_mask = SHOT_MASK
+		query.exclude = Game.shot_exclude(pawn)
+		var hit := space.intersect_ray(query)
+		if hit.has("collider") and hit.collider == enemy:
+			_seen_target = enemy
+			_seen_point = to
+			return true
+	return false
 
 
 func _enemies_by_distance() -> Array[Player]:

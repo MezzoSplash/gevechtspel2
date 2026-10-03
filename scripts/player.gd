@@ -32,6 +32,9 @@ const SPRINT_FOV := 6.0
 const SPAWN_PROTECT := 1.8
 const SLIDE_MIN := 0.35
 const SLIDE_FRICTION := 2.4
+const REGEN_DELAY := 4.5 # seconds without damage before health comes back
+const REGEN_RATE := 12.0 # HP per second, up to MAX_HP
+const TAG_CHECK := 0.1 # seconds between nametag line-of-sight rays
 
 @onready var head: Node3D = $Head
 @onready var camera: CameraFeel = $Head/Camera3D
@@ -46,6 +49,14 @@ const SLIDE_FRICTION := 2.4
 
 const TEAM_COLORS := [Color(0.25, 0.55, 0.95), Color(0.92, 0.38, 0.22)]
 const Brain := preload("res://scripts/bot_brain.gd")
+## Concrete footsteps (Kenney, CC0). A different one each step, never the same twice in a row.
+const STEP_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sounds/step.wav"),
+	preload("res://assets/sounds/step_1.wav"),
+	preload("res://assets/sounds/step_2.wav"),
+	preload("res://assets/sounds/step_3.wav"),
+	preload("res://assets/sounds/step_4.wav"),
+]
 
 const GRENADE_MAX := 2
 
@@ -72,8 +83,12 @@ var _sliding := false
 var _slide_t := 0.0
 var _slide_dir := Vector3.FORWARD
 var _step_t := 0.0
+var _step_last := -1
 var _feet_last := Vector3.ZERO
 var _was_air := false
+var since_hurt := 0.0 # match authority only: seconds since the last damage (regen gate)
+var _tag_show := false # nametag allowed (teammate, or enemy in line of sight)
+var _tag_check_t := 0.0
 var _obs_speed := 0.0 # smoothed ground speed from position deltas (server's view of remote humans)
 
 
@@ -184,6 +199,7 @@ func show_radar_marker(seconds: float) -> void:
 
 
 func _process(delta: float) -> void:
+	_update_nametag(delta)
 	if _radar_mark == null:
 		return
 	if is_dead:
@@ -221,8 +237,8 @@ func _configure_control() -> void:
 		body_mesh.visible = not is_dead
 		camera.current = false
 		weapon.visible = true
-		nametag.visible = true
 		set_display_name(display_name)
+		_update_nametag(0.0, true)
 
 
 func make_active_camera() -> void:
@@ -317,6 +333,8 @@ func apply_hit(
 		return {"killed": false, "headshot": false, "damage": 0}
 	var headshot := allow_headshot and _point_hits_head(point)
 	var dmg := roundi(base_damage * (headshot_mult if headshot else 1.0))
+	if dmg > 0:
+		since_hurt = 0.0
 	var new_hp := maxf(Game.hp_of(self) - float(dmg), 0.0)
 	Game.set_hp(self, new_hp)
 	var killed := new_hp <= 0.0
@@ -555,7 +573,12 @@ func _tick_feet(delta: float) -> void:
 	_step_t = interval
 	if step_sfx == null:
 		return
-	step_sfx.pitch_scale = randf_range(0.90, 1.10)
+	var pick := randi() % (STEP_SOUNDS.size() - 1)
+	if pick >= _step_last:
+		pick += 1
+	_step_last = pick
+	step_sfx.stream = STEP_SOUNDS[pick]
+	step_sfx.pitch_scale = randf_range(0.92, 1.08)
 	var quiet := -16.0 if is_local() else -9.0
 	if crouch > 0.45:
 		quiet -= 6.0
@@ -575,8 +598,58 @@ func apply_network_pose(pos: Vector3, yaw: float, pitch: float) -> void:
 	if body_mesh:
 		body_mesh.visible = not is_dead
 	if nametag:
-		nametag.visible = true
 		nametag.text = display_name
+
+
+## Where bots aim: chest height of the current stance (crouch is 1.0 m tall, not 1.8).
+func aim_point() -> Vector3:
+	return global_position + Vector3(0.0, lerpf(1.05, 0.6, crouch), 0.0)
+
+
+## Centre of the drawn head for this stance.
+func head_point() -> Vector3:
+	return global_position + Vector3(0.0, lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch), 0.0)
+
+
+## Regen tick from the match authority (Game._tick_regen / sync_regen). No hurt flash or sound.
+func apply_regen_hp(new_hp: float) -> void:
+	if is_dead:
+		return
+	hp = new_hp
+	if is_local():
+		health_changed.emit(hp, MAX_HP)
+
+
+## Teammates keep their tag through walls (where is my team). Enemies only show it in line of sight,
+## so the tag is no wallhack and the radar streak is still the way to find them.
+func _update_nametag(delta: float, force: bool = false) -> void:
+	if nametag == null or is_local():
+		return
+	if Game.is_dedicated or DisplayServer.get_name() == "headless":
+		nametag.visible = false
+		return
+	_tag_check_t -= delta
+	if force or _tag_check_t <= 0.0:
+		_tag_check_t = TAG_CHECK + randf() * 0.03 # spread the rays over frames
+		var mate := team_id == Game.local_team()
+		nametag.no_depth_test = mate
+		_tag_show = mate or _enemy_in_sight()
+	nametag.visible = _tag_show and not is_dead
+
+
+## World-only rays (players do not block) from the active camera to the head and the chest.
+func _enemy_in_sight() -> bool:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return false
+	var space := get_world_3d().direct_space_state
+	var from := cam.global_position
+	for to in [head_point(), aim_point()]:
+		var query := PhysicsRayQueryParameters3D.create(from, to)
+		query.collision_mask = 1
+		if space.intersect_ray(query).is_empty():
+			return true
+	return false
 
 
 func _apply_remote_visual() -> void:
