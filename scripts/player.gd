@@ -77,7 +77,6 @@ var _capsule: CapsuleShape3D
 var _spawn_protect := 0.0
 var _bot_brain
 var _body_mat: StandardMaterial3D
-var _radar_left := 0.0
 var _radar_mark: MeshInstance3D
 var _sliding := false
 var _slide_t := 0.0
@@ -185,31 +184,26 @@ func _make_radar_mark() -> MeshInstance3D:
 	return mesh
 
 
-## Only the client that earned the streak calls this. Other machines keep it hidden.
-func show_radar_marker(seconds: float) -> void:
+## Team radar: on this machine, while Game.radar_left runs, every living pawn not on
+## Game.radar_team shows its marker. Machines without a running radar keep them hidden.
+func _update_radar_mark() -> void:
 	if _radar_mark == null:
 		return
-	var mat := _radar_mark.material_override as StandardMaterial3D
-	if mat:
-		var col: Color = TEAM_COLORS[clampi(team_id, 0, 1)]
-		mat.albedo_color = col
-		mat.emission = col
-	_radar_left = seconds
-	_radar_mark.visible = true
+	var on := Game.radar_left > 0.0 and not is_dead and team_id != Game.radar_team and not is_local()
+	if on == _radar_mark.visible:
+		return
+	if on:
+		var mat := _radar_mark.material_override as StandardMaterial3D
+		if mat:
+			var col: Color = TEAM_COLORS[clampi(team_id, 0, 1)]
+			mat.albedo_color = col
+			mat.emission = col
+	_radar_mark.visible = on
 
 
 func _process(delta: float) -> void:
 	_update_nametag(delta)
-	if _radar_mark == null:
-		return
-	if is_dead:
-		_radar_left = 0.0
-		_radar_mark.visible = false
-		return
-	if _radar_left <= 0.0:
-		return
-	_radar_left = maxf(_radar_left - delta, 0.0)
-	_radar_mark.visible = _radar_left > 0.0
+	_update_radar_mark()
 
 
 func _apply_bot_loadout() -> void:

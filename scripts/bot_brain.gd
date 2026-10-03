@@ -11,6 +11,7 @@ const PISTOL_FIGHT := 9.0
 const SNIPER_FIGHT := 18.0 # keep range; one shot then a long pause
 const STRAFE_SPEED := 6.2
 const SHOT_MASK := 1 | 2
+const MELEE_R := 1.8 # enemy this close (feet to feet) gets bashed instead of shot
 const RETARGET := 0.25 # seconds between target picks (each pick costs up to 5 rays)
 const SEPARATION_R := 1.3 # push away from any pawn closer than this
 const STUCK_CHECK := 1.0
@@ -192,6 +193,8 @@ func _fight(enemy: Player, delta: float) -> void:
 		agent.target_position = dest
 		_repath_t = 0.16
 	_steer_to(dest, STRAFE_SPEED, delta)
+	if _acquire_left <= 0.0 and dist <= MELEE_R and Game.melee.swing(pawn):
+		return
 	if _acquire_left <= 0.0 and dist <= fight_r + 4.0:
 		_try_shoot(enemy)
 

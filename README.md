@@ -17,7 +17,8 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 - **LMB** fire (rifle holds; pistol, shotgun and sniper fire once per click), **R** reload, **Q** or **1/2/3/4** switch guns (rifle, pistol, shotgun, sniper)
 - **RMB** zoom (sniper only)
 - **G** grenade (two per life)
-- **Up/Down** pick a streak slot, **Enter** activates it (radar after 3 kills)
+- **E** melee: weapon bash, 2 m reach, 50 damage (two hits kill), once per 0.8 s
+- **Up/Down** pick a streak slot, **Enter** activates it (radar after 3 kills: your whole team sees the enemies for 4 seconds, and the other team hears "Enemy radar online")
 - **T** chat (Enter sends, Esc cancels)
 - **Esc** pause menu (resume, settings, leave, quit)
 - **Tab** scoreboard
@@ -46,4 +47,4 @@ Bots fill empty slots to 5v5. Same guns as you. Use cover. Health comes back aft
 
 ## Credits
 
-Gun, footstep, hurt and grenade sounds are CC0 (Free Firearm Sound Library, Kenney). See [CREDITS.md](CREDITS.md).
+Gun, footstep, hurt, melee and grenade sounds are CC0 (Free Firearm Sound Library, Kenney); the radar voice lines are Piper TTS with the public-domain LJ Speech voice. See [CREDITS.md](CREDITS.md).

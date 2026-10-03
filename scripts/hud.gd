@@ -67,9 +67,19 @@ const _FEED_ICONS := {
 	&"shotgun": preload("res://assets/ui/icon_shotgun.svg"),
 	&"sniper": preload("res://assets/ui/icon_sniper.svg"),
 	&"grenade": preload("res://assets/ui/icon_grenade.svg"),
+	&"melee": preload("res://assets/ui/icon_melee.svg"),
 }
 const _FEED_MAX := 6
 const _FEED_LIFE := 5.0
+const _POPUP_HOLD := 2.4 # streak popup under the clock: hold, then fade
+const _POPUP_FADE := 0.6
+const _POPUP_FRIENDLY := Color(1.0, 0.86, 0.4)
+const _POPUP_HOSTILE := Color(1.0, 0.36, 0.3)
+
+var _popup: VBoxContainer
+var _popup_title: Label
+var _popup_by: RichTextLabel
+var _popup_tween: Tween
 
 
 func _ready() -> void:
@@ -100,6 +110,7 @@ func _ready() -> void:
 	_announcer.volume_db = -2.0
 	add_child(_announcer)
 	_refresh_streak_ui()
+	_build_popup()
 	if chat_input:
 		chat_input.visible = false
 		chat_input.text_submitted.connect(_on_chat_submit)
@@ -229,6 +240,7 @@ func reset_session() -> void:
 	_local_peer_id = 0
 	_streak_n = 0
 	_radar_left = 0.0
+	_hide_popup()
 	_freeze_left = 0.0
 	_round_end_timer = 0.0
 	_round_end_winner = ""
@@ -308,12 +320,89 @@ func set_streak(n: int) -> void:
 		_play_announcer("res://assets/sounds/radar_standby.wav")
 
 
-## Spoken when the armed radar is actually switched on.
-func flash_radar() -> void:
-	_radar_left = Game.RADAR_TIME
-	_streak_n = 0
+## Team radar switched on. Own team: markers, "Friendly radar online" (the activator keeps the
+## old "Radar online"), popup in gold. Other team: "Enemy radar online", popup in red.
+func show_radar_event(by_name: String, team: int, friendly: bool, own: bool) -> void:
+	if friendly:
+		_radar_left = maxf(_radar_left, Game.radar_left)
+		if own:
+			_streak_n = 0
+		_refresh_streak_ui()
+		if own:
+			_play_announcer("res://assets/sounds/radar_online.wav")
+		else:
+			_play_announcer("res://assets/sounds/radar_friendly.wav")
+		show_popup("RADAR", _POPUP_FRIENDLY, by_name, team)
+	else:
+		_play_announcer("res://assets/sounds/radar_enemy.wav")
+		show_popup("ENEMY RADAR", _POPUP_HOSTILE, by_name, team)
+
+
+func clear_radar() -> void:
+	if _radar_left <= 0.0:
+		return
+	_radar_left = 0.0
 	_refresh_streak_ui()
-	_play_announcer("res://assets/sounds/radar_online.wav")
+
+
+## Top centre, under the round clock: what was switched on, and by whom (name in team colour).
+func show_popup(title: String, title_col: Color, by_name: String, team: int) -> void:
+	if _popup == null:
+		return
+	_popup_title.text = title
+	_popup_title.add_theme_color_override("font_color", title_col)
+	var col: Color = Player.TEAM_COLORS[clampi(team, 0, Player.TEAM_COLORS.size() - 1)]
+	_popup_by.text = "[center][color=#d8dade]by[/color] [color=#%s]%s[/color][/center]" % [
+		col.to_html(false), _bb_escape(by_name)
+	]
+	if _popup_tween:
+		_popup_tween.kill()
+	_popup.modulate.a = 1.0
+	_popup.visible = true
+	_popup_tween = _popup.create_tween()
+	_popup_tween.tween_interval(_POPUP_HOLD)
+	_popup_tween.tween_property(_popup, "modulate:a", 0.0, _POPUP_FADE)
+	_popup_tween.tween_callback(_hide_popup)
+
+
+func _hide_popup() -> void:
+	if _popup_tween:
+		_popup_tween.kill()
+		_popup_tween = null
+	if _popup:
+		_popup.visible = false
+
+
+func _build_popup() -> void:
+	_popup = VBoxContainer.new()
+	_popup.name = "StreakPopup"
+	_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_popup.anchor_left = 0.5
+	_popup.anchor_right = 0.5
+	_popup.offset_left = -220.0
+	_popup.offset_right = 220.0
+	_popup.offset_top = 66.0
+	_popup.offset_bottom = 136.0
+	_popup.add_theme_constant_override("separation", 0)
+	_popup.visible = false
+	add_child(_popup)
+	_popup_title = Label.new()
+	_popup_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_popup_title.add_theme_font_size_override("font_size", 30)
+	_popup_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_popup_title.add_theme_constant_override("outline_size", 8)
+	_popup_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_popup.add_child(_popup_title)
+	_popup_by = RichTextLabel.new()
+	_popup_by.bbcode_enabled = true
+	_popup_by.fit_content = true
+	_popup_by.scroll_active = false
+	_popup_by.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_popup_by.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_popup_by.add_theme_font_size_override("normal_font_size", 18)
+	_popup_by.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_popup_by.add_theme_constant_override("outline_size", 6)
+	_popup.add_child(_popup_by)
 
 
 ## Left column: slot 0 is radar, 1 and 2 are empty until more streaks exist.
