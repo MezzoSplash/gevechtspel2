@@ -65,7 +65,7 @@ func physics_tick(delta: float) -> void:
 	if pawn.is_dead:
 		pawn.velocity = Vector3.ZERO
 		return
-	if Game.round_frozen:
+	if Game.play_locked():
 		pawn.velocity.x = 0.0
 		pawn.velocity.z = 0.0
 		if not pawn.is_on_floor():
