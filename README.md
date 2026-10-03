@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.8** — longer block, jump-out windows, runnable stairs, faster shotgun, harder grenades, round-start announcer.
+**v0.2.9** — visible heads, headshot tick and marker, network version check, join and bot fixes.
 
 ## Play (Linux)
 
