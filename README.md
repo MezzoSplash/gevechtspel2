@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.10** — enemy names hidden behind walls, semi-auto pistol, bots aim at crouched players, health regen, new sounds.
+**v0.2.11** — final killcam: the last kill of the round replayed through the killer's eyes.
 
 ## Play (Linux)
 
