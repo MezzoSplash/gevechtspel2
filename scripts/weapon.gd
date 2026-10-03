@@ -95,7 +95,7 @@ func _process(delta: float) -> void:
 				_save_weapon_state()
 		return
 
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open and not Game.round_frozen:
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open and not Game.play_locked():
 		if Input.is_action_just_pressed("switch_weapon"):
 			_cycle_weapon()
 		elif Input.is_action_just_pressed("weapon_1"):
@@ -162,7 +162,7 @@ func _update_ads() -> void:
 		and _owner_alive()
 		and not Game.chat_open
 		and not Game.pause_open
-		and not Game.round_frozen
+		and not Game.play_locked()
 		and not _owner_sliding()
 		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 		and Input.is_action_pressed("zoom")
@@ -280,16 +280,16 @@ func _setup_view_models() -> void:
 		var inst: Node3D = ps.instantiate() as Node3D
 		inst.name = String(id)
 		inst.visible = false
-		_disable_shadows(inst)
+		no_shadows(inst)
 		add_child(inst)
 		_view_models[id] = inst
 
 
-func _disable_shadows(n: Node) -> void:
+static func no_shadows(n: Node) -> void:
 	if n is GeometryInstance3D:
 		(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for c in n.get_children():
-		_disable_shadows(c)
+		no_shadows(c)
 
 
 func _apply_view_for_def() -> void:
@@ -300,24 +300,31 @@ func _apply_view_for_def() -> void:
 		return
 	var model: Node3D = _view_models[def.id]
 	model.visible = true
+	var fit := fit_model(model, def.id, _rest_pos)
+	position = fit.root
+	muzzle.position = fit.muzzle
+	_view_rest = position
+
+
+## Scales and centres a gun GLB for this slot. Returns where the gun root sits under the camera
+## ("root") and the muzzle in root space ("muzzle"). The killcam ghosts use the same numbers.
+static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dictionary:
 	# GLBs are modeled along +X; +90 Y puts the muzzle down camera -Z.
 	model.rotation_degrees = Vector3(0.0, 90.0, 0.0)
 	model.position = Vector3.ZERO
 	model.scale = Vector3.ONE
+	var root := Vector3(rest_pos.x, rest_pos.y, rest_pos.z + 0.06)
 	var length := 0.42
-	match def.id:
+	match id:
 		&"pistol":
-			position = Vector3(0.20, -0.16, -0.26)
+			root = Vector3(0.20, -0.16, -0.26)
 			length = 0.30
 		&"shotgun":
-			position = Vector3(0.22, -0.18, -0.30)
+			root = Vector3(0.22, -0.18, -0.30)
 			length = 0.50
 		&"sniper":
-			position = Vector3(0.22, -0.17, -0.28)
+			root = Vector3(0.22, -0.17, -0.28)
 			length = 0.58
-		_:
-			position = Vector3(_rest_pos.x, _rest_pos.y, _rest_pos.z + 0.06)
-			length = 0.42
 	var aabb := _aabb_in_parent(model)
 	var long := maxf(aabb.size.z, 0.05)
 	var s := length / long
@@ -326,11 +333,10 @@ func _apply_view_for_def() -> void:
 	var center := aabb.get_center()
 	model.position -= Vector3(center.x, center.y + 0.02, center.z + length * 0.18)
 	aabb = _aabb_in_parent(model)
-	muzzle.position = Vector3(0.0, aabb.get_center().y, aabb.position.z)
-	_view_rest = position
+	return {"root": root, "muzzle": Vector3(0.0, aabb.get_center().y, aabb.position.z)}
 
 
-func _aabb_in_parent(n: Node3D) -> AABB:
+static func _aabb_in_parent(n: Node3D) -> AABB:
 	var acc := AABB()
 	var has := false
 	var stack: Array = [[n, n.transform]]
@@ -401,6 +407,7 @@ func _fire() -> void:
 	play_fire_sfx()
 
 	var shooter := owner as Player
+	Game.killcam.note_fire(shooter.peer_id if shooter else 0, def.id)
 	if shooter == null or not shooter.is_bot:
 		var yaw_kick := randf_range(-def.kick_yaw_deg, def.kick_yaw_deg)
 		camera.add_kick(def.kick_pitch_deg, yaw_kick, def.kick_fov)
@@ -571,6 +578,8 @@ func _spawn_tracer(from: Vector3, to: Vector3) -> void:
 	var length := from.distance_to(to)
 	if length < 0.05:
 		return
+	var shooter := owner as Player
+	Game.killcam.note_tracer(shooter.peer_id if shooter else 0, from, to, def.id)
 	var mesh_inst := MeshInstance3D.new()
 	var box := BoxMesh.new()
 	box.size = Vector3(def.tracer_width, def.tracer_width, length)

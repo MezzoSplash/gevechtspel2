@@ -113,6 +113,7 @@ func _thrower() -> Player:
 
 ## Local-only FX: flash, light, boom, and outward tracer shards.
 static func play_boom(pos: Vector3) -> void:
+	Game.killcam.note_boom(pos)
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null or tree.current_scene == null:
 		return

@@ -82,6 +82,7 @@ func _ready() -> void:
 	Game.chat_message.connect(_on_chat_message)
 	Game.round_freeze_changed.connect(_on_round_freeze)
 	Game.intermission_started.connect(show_intermission)
+	Game.killcam.finished.connect(_on_killcam_finished)
 	reload_label.visible = false
 	death_layer.visible = false
 	scoreboard_container.visible = false
@@ -230,6 +231,7 @@ func reset_session() -> void:
 	_radar_left = 0.0
 	_freeze_left = 0.0
 	_round_end_timer = 0.0
+	_round_end_winner = ""
 	_intermission_timer = 0.0
 	death_layer.visible = false
 	round_end_label.visible = false
@@ -517,6 +519,12 @@ func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Diction
 	_scoreboard_open = true
 	scoreboard_container.visible = true
 	_refresh_scoreboard()
+
+
+## The final killcam hid the round-end board; show it again for its full time.
+func _on_killcam_finished() -> void:
+	if _round_end_winner != "":
+		_on_round_ended(0, _round_end_winner, {})
 
 
 func show_round_end(winner_name: String, scores: Dictionary) -> void:

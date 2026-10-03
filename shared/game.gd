@@ -29,7 +29,7 @@ const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.10"
+const NET_VERSION := "0.2.11"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -48,6 +48,9 @@ var chat_open := false # T-chat: blocks move/look/fire until Enter/Esc
 var pause_open := false
 var in_lobby := false
 var round_frozen := false # look OK, no walk/shoot; bots idle
+var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
+var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
+var killcam: Killcam
 var lobby: Dictionary = {} # peer_id → {name, team}
 var master_vol := 1.0
 var sfx_vol := 1.0
@@ -77,6 +80,11 @@ var _state_timer := 0.0
 
 func is_networked() -> bool:
 	return not is_offline
+
+
+## Round-start freeze or final killcam: nobody moves, shoots, or throws.
+func play_locked() -> bool:
+	return round_frozen or killcam_active
 
 
 func rpc_from_server() -> bool:
@@ -182,7 +190,7 @@ func request_weapon_fire(
 	if peer == 0:
 		peer = multiplayer.get_unique_id()
 	var shooter := player_for_peer(peer)
-	if shooter == null or shooter.is_dead or shooter.is_bot or round_frozen:
+	if shooter == null or shooter.is_dead or shooter.is_bot or play_locked():
 		return
 	if shooter.weapon == null or shooter.weapon.def == null or shooter.weapon.def.id != weapon_id:
 		return
@@ -232,7 +240,7 @@ func next_grenade_id() -> int:
 
 ## Authority only. Clients ask via request_grenade; the count RPC updates their HUD.
 func throw_grenade(thrower: Player, origin: Vector3, dir: Vector3) -> void:
-	if thrower == null or thrower.is_dead or thrower.grenades <= 0 or round_frozen:
+	if thrower == null or thrower.is_dead or thrower.grenades <= 0 or play_locked():
 		return
 	if is_networked() and not multiplayer.is_server():
 		return
@@ -646,7 +654,10 @@ func sync_presence(player_name: String, joined: bool, team: int) -> void:
 
 
 ## Server/offline only. Updates TDM score and kill feed (weapon_id is the gun used).
-func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName = &"rifle") -> void:
+## Also remembers the kill as this round's final kill until a later one replaces it.
+func register_kill(
+	killer_peer_id: int, victim_peer_id: int, weapon_id: StringName = &"rifle", headshot: bool = false
+) -> void:
 	if not _is_match_authority():
 		return
 	if killer_peer_id == 0:
@@ -678,6 +689,11 @@ func register_kill(killer_peer_id: int, victim_peer_id: int, weapon_id: StringNa
 	_emit_kill_feed(killer_name, victim_name, weapon_id, team_id, victim_team)
 	if is_networked():
 		sync_kill_feed.rpc(killer_name, victim_name, String(weapon_id), team_id, victim_team)
+	if _round_active:
+		final_kill = {
+			"k": killer_peer_id, "v": victim_peer_id, "kn": killer_name, "vn": victim_name,
+			"kt": team_id, "vt": victim_team, "w": String(weapon_id), "hs": headshot,
+		}
 	_check_win_team(team_id)
 	_bump_streak(killer_peer_id, victim_peer_id)
 
@@ -926,6 +942,7 @@ func stop_round_sting() -> void:
 func start_round() -> void:
 	_round_timer = 0.0
 	_round_active = false # timer starts after freeze
+	final_kill.clear()
 	team_kills = [0, 0]
 	if is_networked() and multiplayer.is_server():
 		sync_team_kills.rpc(0, 0)
@@ -953,6 +970,8 @@ func send_match_state(peer_id: int) -> void:
 	sync_team_kills.rpc_id(peer_id, int(team_kills[0]), int(team_kills[1]))
 	if round_frozen:
 		sync_round_frozen.rpc_id(peer_id, true)
+	if killcam_active:
+		killcam.send_lock_to(peer_id)
 	if _round_active:
 		sync_round_time.rpc_id(peer_id, get_round_time_left())
 
@@ -971,6 +990,10 @@ func reset_session() -> void:
 	team_kills = [0, 0]
 	in_lobby = false
 	round_frozen = false
+	killcam_active = false
+	final_kill.clear()
+	if killcam:
+		killcam.reset()
 	_round_active = false
 	_round_timer = 0.0
 	stop_round_sting()
@@ -1040,6 +1063,7 @@ func broadcast_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int) -> void
 		var remote_shooter := player_for_peer(shooter_peer_id)
 		if remote_shooter and remote_shooter.weapon:
 			remote_shooter.weapon.play_fire_sfx()
+		_note_net_shot(from, to, remote_shooter)
 	sync_shot_fx.rpc(from, to, shooter_peer_id)
 
 
@@ -1052,6 +1076,15 @@ func sync_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int = 0) -> void:
 	var shooter := player_for_peer(shooter_peer_id)
 	if shooter and shooter.weapon:
 		shooter.weapon.play_fire_sfx()
+	_note_net_shot(from, to, shooter)
+
+
+## Someone else's shot as this machine saw it, for the killcam buffer. Own shots are noted in Weapon._fire.
+func _note_net_shot(from: Vector3, to: Vector3, shooter: Player) -> void:
+	if shooter == null or shooter.weapon == null or shooter.weapon.def == null:
+		return
+	killcam.note_fire(shooter.peer_id, shooter.weapon.def.id)
+	killcam.note_tracer(shooter.peer_id, from, to, shooter.weapon.def.id)
 
 
 func _spawn_net_tracer(from: Vector3, to: Vector3) -> void:
@@ -1250,6 +1283,9 @@ func sync_roster(ids: Array) -> void:
 
 
 func _ready() -> void:
+	killcam = Killcam.new()
+	killcam.name = "Killcam" # same path on every peer: its RPCs need that
+	add_child(killcam)
 	_ensure_sfx_bus()
 	load_settings()
 	_bind_inputs()

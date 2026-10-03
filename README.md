@@ -36,7 +36,7 @@ Dedicated server (optional):
 ./run.sh -- --connect 127.0.0.1:7777 --name Friend
 ```
 
-Bots fill empty slots to 5v5. Same guns as you. Use cover. Health comes back after 4.5 seconds without damage. Die and you respawn after 2 seconds. Tab shows team score.
+Bots fill empty slots to 5v5. Same guns as you. Use cover. Health comes back after 4.5 seconds without damage. Die and you respawn after 2 seconds. Tab shows team score. When a round ends, everyone watches the final killcam: the last kill of the round through the killer's eyes, slowed down at the kill, before the scoreboard.
 
 ## Editor
 

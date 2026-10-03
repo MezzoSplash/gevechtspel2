@@ -251,7 +251,7 @@ func make_active_camera() -> void:
 func _input(event: InputEvent) -> void:
 	if not is_local():
 		return
-	if Game.chat_open or Game.pause_open:
+	if Game.chat_open or Game.pause_open or Game.killcam_active:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var sens := MOUSE_SENS
@@ -271,7 +271,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if Game.chat_open or Game.pause_open:
 		return
-	if event.is_action_pressed("grenade") and not is_dead and not Game.round_frozen:
+	if event.is_action_pressed("grenade") and not is_dead and not Game.play_locked():
 		_try_throw_grenade()
 		get_viewport().set_input_as_handled()
 		return
@@ -307,12 +307,18 @@ func _dup_body_mat() -> void:
 func _apply_team_visual() -> void:
 	var col: Color = TEAM_COLORS[clampi(team_id, 0, TEAM_COLORS.size() - 1)]
 	if _body_mat:
-		_body_mat.albedo_color = col
-		_body_mat.emission_enabled = true
-		_body_mat.emission = col * 0.45
-		_body_mat.emission_energy_multiplier = 0.7
+		paint_body(_body_mat, team_id)
 	if nametag:
 		nametag.modulate = col
+
+
+## Team colour on a body material. Also used for the killcam ghosts.
+static func paint_body(mat: StandardMaterial3D, team: int) -> void:
+	var col: Color = TEAM_COLORS[clampi(team, 0, TEAM_COLORS.size() - 1)]
+	mat.albedo_color = col
+	mat.emission_enabled = true
+	mat.emission = col * 0.45
+	mat.emission_energy_multiplier = 0.7
 
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
@@ -327,7 +333,7 @@ func apply_hit(
 	weapon_id: StringName = &"rifle",
 	headshot_mult: float = 1.6
 ) -> Dictionary:
-	if is_dead or _spawn_protect > 0.0:
+	if is_dead or _spawn_protect > 0.0 or Game.killcam_active:
 		return {"killed": false, "headshot": false, "damage": 0}
 	if Game.is_networked() and not multiplayer.is_server():
 		return {"killed": false, "headshot": false, "damage": 0}
@@ -339,7 +345,7 @@ func apply_hit(
 	Game.set_hp(self, new_hp)
 	var killed := new_hp <= 0.0
 	if killed:
-		Game.register_kill(killer_peer_id, peer_id, weapon_id)
+		Game.register_kill(killer_peer_id, peer_id, weapon_id, headshot)
 	if Game.is_networked():
 		Game.broadcast_hurt.rpc(peer_id, new_hp, killed)
 	else:
@@ -358,6 +364,8 @@ func _point_hits_head(point: Vector3) -> bool:
 
 func apply_hurt_state(new_hp: float, killed: bool) -> void:
 	hp = new_hp
+	if not killed:
+		Game.killcam.note_hurt(peer_id)
 	if is_local():
 		camera.add_kick(0.85, randf_range(-0.35, 0.35), 2.2)
 		if hurt_sfx.stream:
@@ -372,6 +380,7 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	Game.killcam.note_death(peer_id)
 	velocity = Vector3.ZERO
 	collision_layer = 0
 	if is_local():
@@ -476,7 +485,7 @@ func _physics_process(delta: float) -> void:
 		_apply_remote_visual()
 		_tick_feet(delta)
 		return
-	var chatting := Game.chat_open or Game.round_frozen
+	var chatting := Game.chat_open or Game.play_locked()
 	var on_floor := is_on_floor()
 	_try_start_slide(on_floor, chatting)
 	_update_stance(delta, on_floor)
@@ -723,25 +732,30 @@ func _apply_stance() -> void:
 	_pose_figure()
 
 
-## Crouch lowers the torso, arms, and head together. The head marker is the hit target.
 func _pose_figure() -> void:
-	if body_mesh == null:
+	pose_body(body_mesh, crouch)
+
+
+## Crouch lowers the torso, arms, and head together. The head marker is the hit target.
+## Static so the killcam ghosts (a copy of BodyMesh) crouch the same way.
+static func pose_body(body: Node3D, crouch_amt: float) -> void:
+	if body == null:
 		return
-	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch)
-	var torso := body_mesh.get_node_or_null("Torso") as MeshInstance3D
-	var head_mesh := body_mesh.get_node_or_null("HeadMesh") as MeshInstance3D
-	var arm_l := body_mesh.get_node_or_null("ArmL") as MeshInstance3D
-	var arm_r := body_mesh.get_node_or_null("ArmR") as MeshInstance3D
-	var hit := body_mesh.get_node_or_null("HeadHit") as Node3D
+	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt)
+	var torso := body.get_node_or_null("Torso") as MeshInstance3D
+	var head_mesh := body.get_node_or_null("HeadMesh") as MeshInstance3D
+	var arm_l := body.get_node_or_null("ArmL") as MeshInstance3D
+	var arm_r := body.get_node_or_null("ArmR") as MeshInstance3D
+	var hit := body.get_node_or_null("HeadHit") as Node3D
 	if torso:
-		torso.position.y = lerpf(0.86, 0.50, crouch)
-		torso.scale.y = lerpf(1.0, 0.62, crouch)
+		torso.position.y = lerpf(0.86, 0.50, crouch_amt)
+		torso.scale.y = lerpf(1.0, 0.62, crouch_amt)
 	if head_mesh:
 		head_mesh.position.y = head_y
 	if arm_l:
-		arm_l.position.y = lerpf(1.02, 0.58, crouch)
+		arm_l.position.y = lerpf(1.02, 0.58, crouch_amt)
 	if arm_r:
-		arm_r.position.y = lerpf(1.02, 0.58, crouch)
+		arm_r.position.y = lerpf(1.02, 0.58, crouch_amt)
 	if hit:
 		hit.position.y = head_y
 

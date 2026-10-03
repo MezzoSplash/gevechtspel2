@@ -1,5 +1,5 @@
 extends Node3D
-## Arena root: menu, match flow (warmup → play → end → intermission), and pawn spawn.
+## Arena root: menu, match flow (warmup → play → final killcam → end → intermission), and pawn spawn.
 ## Server (or offline host) is the only one that creates players/bots.
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
@@ -20,7 +20,7 @@ const TEAM_B_SPAWNS := [
 	Vector3(17.4, 0.0, -31.6),
 ]
 
-enum MatchState { WARMUP, FREEZE, PLAYING, ROUND_END, INTERMISSION }
+enum MatchState { WARMUP, FREEZE, PLAYING, ROUND_END, INTERMISSION, KILLCAM }
 
 @onready var players_root: Node3D = $Players
 @onready var spawner: MultiplayerSpawner = $MultiplayerSpawner
@@ -35,6 +35,7 @@ var _match_state := MatchState.WARMUP
 var _state_timer := 0.0
 var _bot_id_counter := -1 # bots use negative peer_ids: -1, -2, …
 var _version_mismatch := "" # server's NET_VERSION when the auth step refused us
+var _killcam_sent := false
 
 
 func _ready() -> void:
@@ -198,6 +199,8 @@ func _process(delta: float) -> void:
 		_tick_freeze(delta)
 	elif _match_state == MatchState.PLAYING:
 		_tick_playing(delta)
+	elif _match_state == MatchState.KILLCAM:
+		_tick_killcam(delta)
 	elif _match_state == MatchState.ROUND_END:
 		_tick_round_end(delta)
 	elif _match_state == MatchState.INTERMISSION:
@@ -218,6 +221,19 @@ func _tick_playing(delta: float) -> void:
 		if _state_timer >= 1.0:
 			_state_timer = 0.0
 			Game.sync_round_time.rpc(Game.get_round_time_left())
+
+
+## Locked since the round ended. After POST the replay starts everywhere; when it is over, unlock and
+## go on with the normal round end (board, intermission, next round).
+func _tick_killcam(delta: float) -> void:
+	_state_timer += delta
+	if not _killcam_sent and _state_timer >= Killcam.POST:
+		_killcam_sent = true
+		Game.killcam.play_final(Game.final_kill)
+	if _state_timer >= Killcam.total_time():
+		Game.killcam.set_lock(false)
+		_match_state = MatchState.ROUND_END
+		_state_timer = 0.0
 
 
 func _tick_round_end(delta: float) -> void:
@@ -768,10 +784,15 @@ func _on_local_player_ready(player: Player) -> void:
 	DisplayServer.window_set_title("Gevechtspel — %s" % Game.player_name)
 
 
+## Clients only mirror the state. The match authority plays the final killcam first, if the round had a kill.
 func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
 	_match_state = MatchState.ROUND_END
 	_state_timer = 0.0
 	_set_status("Round ended! %s wins" % winner_name)
+	if Game._is_match_authority() and not Game.final_kill.is_empty():
+		_match_state = MatchState.KILLCAM
+		_killcam_sent = false
+		Game.killcam.set_lock(true)
 
 
 func _start_intermission() -> void:
