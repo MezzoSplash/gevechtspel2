@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.9** — visible heads, headshot tick and marker, network version check, join and bot fixes.
+**v0.2.10** — enemy names hidden behind walls, semi-auto pistol, bots aim at crouched players, health regen, new sounds.
 
 ## Play (Linux)
 
