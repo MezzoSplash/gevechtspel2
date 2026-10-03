@@ -3,22 +3,9 @@ extends Node3D
 ## Server (or offline host) is the only one that creates players/bots.
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
-# Backyards behind the houses, not in the center lane. Blue = +Z, Orange = -Z.
-# Wings at x=±5.3 block the lane between the two houses from seeing these points.
-const TEAM_A_SPAWNS := [
-	Vector3(-17.4, 0.0, 31.6),
-	Vector3(-8.6, 0.0, 32.4),
-	Vector3(-16.0, 0.0, 35.6),
-	Vector3(8.6, 0.0, 32.4),
-	Vector3(17.4, 0.0, 31.6),
-]
-const TEAM_B_SPAWNS := [
-	Vector3(-17.4, 0.0, -31.6),
-	Vector3(-8.6, 0.0, -32.4),
-	Vector3(-16.0, 0.0, -35.6),
-	Vector3(8.6, 0.0, -32.4),
-	Vector3(17.4, 0.0, -31.6),
-]
+# Spawn points live per map in Maps (scripts/maps.gd). FFA: a point that was just handed out
+# counts as occupied for this long, so pawns respawning together do not share one.
+const FFA_RECENT_SPAWN := 2.0
 
 enum MatchState { WARMUP, FREEZE, PLAYING, ROUND_END, INTERMISSION, KILLCAM }
 
@@ -27,6 +14,12 @@ enum MatchState { WARMUP, FREEZE, PLAYING, ROUND_END, INTERMISSION, KILLCAM }
 @onready var hud: Hud = $CanvasLayer/Hud
 @onready var menu = $CanvasLayer/Menu
 @onready var pause_ui = $CanvasLayer/Pause
+@onready var world: Node3D = $World
+
+var map_node: Node3D # the loaded map scene under World
+var _loaded_map: StringName = &""
+var _nav_baked_for: StringName = &""
+var _recent_spawns: Array[Dictionary] = [] # FFA: {pos, t} handed out lately
 
 var _leaving := false
 var class_select: ClassSelect
@@ -41,9 +34,14 @@ var _killcam_sent := false
 
 func _ready() -> void:
 	DisplayServer.window_set_title("Gevechtspel")
+	Game.spawn_picker = _pick_respawn
+	Game.match_config_handler = _on_match_config
+	var args := _parse_args()
+	# Menu backdrop: the map you played last (or the one the server CLI asks for).
+	Game.map_id = args.map if args.map != &"" else Game.last_map
+	Game.mode = int(args.mode) if int(args.mode) >= 0 else Game.last_mode
+	_load_map(Game.map_id, false)
 	if has_node("MenuCamera"):
-		$MenuCamera.global_position = Vector3(26, 24, 62)
-		$MenuCamera.look_at(Vector3(0, 2.0, 0))
 		$MenuCamera.current = true
 	hud.visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -62,6 +60,7 @@ func _ready() -> void:
 	menu.play_local_pressed.connect(_play_locally)
 	menu.host_pressed.connect(_host_game)
 	menu.connect_pressed.connect(_connect_to_server)
+	menu.match_choice_changed.connect(_on_menu_match_choice)
 	if menu.has_signal("start_match_pressed"):
 		menu.start_match_pressed.connect(_start_match_from_lobby)
 	if menu.has_signal("lobby_team_picked"):
@@ -78,13 +77,11 @@ func _ready() -> void:
 	class_select.picked.connect(_on_class_picked)
 	class_select.back_pressed.connect(_open_pause)
 	Game.loadouts.loadout_applied.connect(_on_loadout_applied)
-	call_deferred("_bake_nav")
-	var args := _parse_args()
 	if args.get("name", "") != "":
 		Game.player_name = Game.clean_name(str(args["name"]))
 		menu.set_player_name(Game.player_name)
 	if args.get("server", false):
-		_start_server(int(args.get("port", Game.DEFAULT_PORT)), true)
+		_start_server(int(args.get("port", Game.DEFAULT_PORT)), true, Game.map_id, Game.mode)
 		return
 	if str(args.get("connect", "")) != "":
 		menu.set_host_ip(str(args["connect"]))
@@ -144,10 +141,52 @@ func _drop_to_menu(status: String) -> void:
 	_set_status(status)
 
 
+## Map scene under World. The old one goes at once (same node names, and no one may hit its
+## colliders after this). Bots only run on the match authority, so only it bakes the navmesh.
+func _load_map(id: StringName, bake: bool) -> void:
+	if not Maps.has(id):
+		id = Maps.DEFAULT
+	if _loaded_map != id or map_node == null:
+		if map_node:
+			world.remove_child(map_node)
+			map_node.free()
+		var scene := load(str(Maps.info(id).scene)) as PackedScene
+		map_node = scene.instantiate() as Node3D
+		world.add_child(map_node)
+		_loaded_map = id
+		_nav_baked_for = &""
+		if Game.impacts:
+			Game.impacts.clear()
+		var cam: Array = Maps.info(id).menu_cam
+		if has_node("MenuCamera"):
+			$MenuCamera.global_position = cam[0]
+			$MenuCamera.look_at(cam[1])
+		print("MAP: loaded %s" % Maps.display_name(id))
+	if bake and _nav_baked_for != id:
+		_nav_baked_for = id
+		_bake_nav.call_deferred() # CSG builds its collision deferred after entering the tree
+
+
+## Menu backdrop follows the map picker (not while a session or lobby is open).
+func _on_menu_match_choice(id: StringName, _mode: int) -> void:
+	if Game.is_offline and not Game.in_lobby and not hud.visible:
+		_load_map(id, false)
+
+
+## Server/offline picks map+mode; clients get here through Game.sync_match_config.
+func _on_match_config(id: StringName, mode: int) -> void:
+	_load_map(id, Game._is_match_authority())
+	if menu and menu.has_method("set_lobby_match_info"):
+		menu.set_lobby_match_info(id, mode)
+	print("MATCH: %s on %s" % [Game.mode_name(mode), Maps.display_name(id)])
+
+
 ## Runtime navmesh from arena collision (not GPU meshes).
 func _bake_nav() -> void:
-	var region := get_node_or_null("NavigationRegion3D") as NavigationRegion3D
-	var arena := get_node_or_null("Arena") as Node3D
+	if map_node == null:
+		return
+	var region := map_node.get_node_or_null("NavigationRegion3D") as NavigationRegion3D
+	var arena := map_node.get_node_or_null("Arena") as Node3D
 	if region == null or arena == null:
 		return
 	var nav_mesh := NavigationMesh.new()
@@ -165,7 +204,7 @@ func _bake_nav() -> void:
 
 
 func _parse_args() -> Dictionary:
-	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": ""}
+	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1}
 	var args := OS.get_cmdline_user_args()
 	var i := 0
 	while i < args.size():
@@ -191,6 +230,18 @@ func _parse_args() -> Dictionary:
 				i += 1
 				if i < args.size():
 					out.name = args[i]
+			"--map":
+				i += 1
+				if i < args.size():
+					out.map = Maps.parse(args[i])
+					if out.map == &"":
+						printerr("Unknown --map '%s'. Maps: %s" % [args[i], ", ".join(Maps.ORDER)])
+			"--mode":
+				i += 1
+				if i < args.size():
+					out.mode = Game.parse_mode(args[i])
+					if out.mode < 0:
+						printerr("Unknown --mode '%s'. Use tdm or ffa." % args[i])
 		i += 1
 	return out
 
@@ -361,6 +412,7 @@ func _play_locally() -> void:
 	Game.is_dedicated = false
 	Game.player_name = Game.clean_name(menu.player_name())
 	Game.preferred_team = menu.selected_team()
+	Game.set_match_config(menu.selected_map(), menu.selected_mode())
 	_enter_play()
 	_match_state = MatchState.WARMUP
 	_state_timer = 0.0
@@ -371,10 +423,10 @@ func _play_locally() -> void:
 func _host_game() -> void:
 	Game.player_name = Game.clean_name(menu.player_name(), "Host")
 	Game.preferred_team = menu.selected_team()
-	_start_server(menu.host_port(), false)
+	_start_server(menu.host_port(), false, menu.selected_map(), menu.selected_mode())
 
 
-func _start_server(port: int, dedicated: bool) -> void:
+func _start_server(port: int, dedicated: bool, map_id: StringName, mode: int) -> void:
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, 10)
 	if err != OK:
@@ -384,7 +436,10 @@ func _start_server(port: int, dedicated: bool) -> void:
 	multiplayer.multiplayer_peer = peer
 	Game.is_offline = false
 	Game.is_dedicated = dedicated
-	print("SERVER: Server started on port %d, dedicated=%s" % [port, dedicated])
+	Game.set_match_config(map_id, mode)
+	print("SERVER: Server started on port %d, dedicated=%s, %s on %s" % [
+		port, dedicated, Game.mode_name(), Maps.display_name(Game.map_id)
+	])
 	if dedicated:
 		Engine.max_fps = 60 # headless has no vsync; no need to spin a Pi core on menus/HUD
 		_enter_play()
@@ -461,6 +516,8 @@ func _on_peer_connected(id: int) -> void:
 		return
 	if id == 1:
 		return
+	# Map + mode first, so the client loads the right arena before its pawn and the bots arrive.
+	Game.sync_match_config.rpc_id(id, String(Game.map_id), Game.mode)
 	if Game.in_lobby:
 		return
 	call_deferred("_finish_peer_join", id)
@@ -525,6 +582,7 @@ func _leave_to_menu() -> void:
 	Game.is_dedicated = false
 	_bot_id_counter = -1
 	_spawn_i = [0, 0]
+	_recent_spawns.clear()
 	_match_state = MatchState.WARMUP
 	_state_timer = 0.0
 	hud.reset_session()
@@ -576,12 +634,14 @@ func _spawn_player(peer_id: int, team: int = -1) -> void:
 			team = int(Game.pending_teams[peer_id])
 		else:
 			team = _team_for_human()
+	if Game.is_ffa():
+		team = _team_for_human() # no teams in FFA; this only keeps the 5+5 bot fill even
 	team = clampi(team, Game.TEAM_A, Game.TEAM_B)
 	var pos := _next_spawn(team)
 	var fallback: String = Game.player_name if peer_id == multiplayer.get_unique_id() else "Player"
 	var n: String = Game.take_pending_name(peer_id, fallback)
 	print("SERVER: Spawning player %d team %d at %s with name %s" % [peer_id, team, pos, n])
-	_add_pawn({"id": peer_id, "pos": pos, "n": n, "bot": false, "team": team})
+	_add_pawn({"id": peer_id, "pos": pos, "yaw": Maps.spawn_yaw(pos, team, Game.is_ffa()), "n": n, "bot": false, "team": team})
 
 
 ## Spawn the human, then trim extra bots so each team stays at TEAM_SIZE.
@@ -694,7 +754,9 @@ func _spawn_player_node(data: Variant) -> Node:
 	p.name = ("bot%d" % abs(id)) if p.is_bot else str(id)
 	p.display_name = str(d.get("n", "Player"))
 	p.position = d["pos"]
-	if p.team_id == Game.TEAM_B:
+	if d.has("yaw"):
+		p.rotation.y = float(d["yaw"])
+	elif p.team_id == Game.TEAM_B:
 		p.rotation.y = PI # Orange spawns at -Z: face the street, not the back wall
 	if p.is_bot:
 		p.set_multiplayer_authority(1, true)
@@ -716,10 +778,51 @@ func _add_pawn(data: Dictionary) -> void:
 
 
 func _next_spawn(team: int) -> Vector3:
-	var list: Array = TEAM_A_SPAWNS if team == Game.TEAM_A else TEAM_B_SPAWNS
+	if Game.is_ffa():
+		return _ffa_spawn(null)
+	var list: Array = Maps.team_spawns(Game.map_id, team)
 	var i: int = int(_spawn_i[team]) % list.size()
 	_spawn_i[team] = i + 1
 	return list[i]
+
+
+## Game.respawn_pawn asks this for every respawn. TDM: the pawn's own team spawn (set when it
+## spawned). FFA: a fresh point each time, as far as possible from everyone else.
+func _pick_respawn(p: Player) -> Transform3D:
+	if not Game.is_ffa():
+		return p._spawn_xform
+	var pos := _ffa_spawn(p)
+	return Transform3D(Basis(Vector3.UP, Maps.spawn_yaw(pos, p.team_id, true)), pos)
+
+
+## FFA spawn: the candidate whose nearest living other pawn (or a point handed out in the last
+## FFA_RECENT_SPAWN s) is farthest away. A little jitter so equal spots do not always win in order.
+func _ffa_spawn(for_pawn: Player) -> Vector3:
+	var now := Time.get_ticks_msec() / 1000.0
+	for i in range(_recent_spawns.size() - 1, -1, -1):
+		if now - float(_recent_spawns[i].t) > FFA_RECENT_SPAWN:
+			_recent_spawns.remove_at(i)
+	var others: Array[Vector3] = []
+	for child in players_root.get_children():
+		var o := child as Player
+		if o == null or o == for_pawn or o.is_dead or o.is_queued_for_deletion():
+			continue
+		others.append(o.global_position if o.is_inside_tree() else o.position)
+	for r in _recent_spawns:
+		others.append(r.pos)
+	var best := Vector3.ZERO
+	var best_score := -INF
+	for c in Maps.ffa_spawns(Game.map_id):
+		var cv: Vector3 = c
+		var nearest := 1000.0
+		for o in others:
+			nearest = minf(nearest, cv.distance_to(o))
+		var score := nearest + randf() * 1.5
+		if score > best_score:
+			best_score = score
+			best = c
+	_recent_spawns.append({"pos": best, "t": now})
+	return best
 
 
 func _team_count(team: int) -> int:
@@ -763,6 +866,7 @@ func _spawn_bot(team: int) -> void:
 	_add_pawn({
 		"id": id,
 		"pos": pos,
+		"yaw": Maps.spawn_yaw(pos, team, Game.is_ffa()),
 		"n": "Bot %d" % abs(id),
 		"bot": true,
 		"team": team,

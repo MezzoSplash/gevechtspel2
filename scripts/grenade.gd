@@ -81,13 +81,13 @@ func _explode() -> void:
 		var p := n as Player
 		if p == null or p.is_dead:
 			continue
-		if p != _thrower() and p.team_id == thrower_team:
+		if p != _thrower() and p.team_id == thrower_team and not Game.is_ffa():
 			continue
 		var dist := pos.distance_to(p.global_position + Vector3(0.0, 1.0, 0.0))
 		if dist > RADIUS or not _blast_reaches(pos, p):
 			continue
 		var dmg := MAX_DAMAGE * (1.0 - dist / RADIUS)
-		p.apply_hit(p.global_position + Vector3(0, 1, 0), Vector3.UP, dmg, false, thrower_id, &"grenade")
+		p.apply_hit(p.global_position + Vector3(0, 1, 0), Vector3.UP, dmg, false, thrower_id, &"grenade", 1.0, pos)
 	# The listen-server host needs the boom too (the RPC skips the server). Headless has nobody to show it to.
 	if not Game.is_dedicated:
 		Grenade.play_boom(pos)

@@ -108,7 +108,7 @@ func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float)
 		var v := n as Player
 		if v == null or v == attacker or v.is_dead or v.is_queued_for_deletion():
 			continue
-		if v.team_id == attacker.team_id:
+		if not Game.is_enemy(v, attacker):
 			continue
 		var feet := v.global_position + Vector3(0, 0.25, 0)
 		var pt := Geometry3D.get_closest_point_to_segment(origin, feet, v.head_point())
@@ -131,7 +131,7 @@ func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float)
 	var killer_id := attacker.peer_id
 	if killer_id <= 0:
 		killer_id = attacker._owner_peer()
-	var r := best.apply_hit(best_pt, -dir, DAMAGE, false, killer_id, WEAPON_ID, 1.0)
+	var r := best.apply_hit(best_pt, -dir, DAMAGE, false, killer_id, WEAPON_ID, 1.0, attacker.global_position)
 	out.hit = int(r.get("damage", 0)) > 0
 	out.killed = bool(r.get("killed", false))
 	return out

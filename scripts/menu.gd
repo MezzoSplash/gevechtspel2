@@ -8,6 +8,7 @@ signal connect_pressed
 signal start_match_pressed
 signal lobby_leave_pressed
 signal lobby_team_picked(team: int)
+signal match_choice_changed(map_id: StringName, mode: int)
 
 @onready var status_label: Label = $Center/Home/Status
 @onready var solo_name: LineEdit = $Center/Solo/NameRow/NameEdit
@@ -18,6 +19,10 @@ signal lobby_team_picked(team: int)
 
 var _team := 0
 var class_editor: ClassEditor
+var _map_opts: Array[OptionButton] = [] # Solo + Mp (host) pickers, kept in sync
+var _mode_opts: Array[OptionButton] = []
+var _map_blurbs: Array[Label] = []
+var _lobby_info: Label
 
 
 func _ready() -> void:
@@ -44,8 +49,113 @@ func _ready() -> void:
 	$Center/Settings/BackButton.pressed.connect(func() -> void: show_screen("home"))
 	$Center/Solo/TeamRow/BlueButton.pressed.connect(func() -> void: set_team(0))
 	$Center/Solo/TeamRow/OrangeButton.pressed.connect(func() -> void: set_team(1))
+	_build_match_rows($Center/Solo, $Center/Solo/TeamRow.get_index())
+	_build_match_rows($Center/Mp, $Center/Mp/HostButton.get_index())
+	_lobby_info = Label.new()
+	_lobby_info.name = "MatchInfo"
+	_lobby_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lobby_info.add_theme_font_size_override("font_size", 18)
+	_lobby_info.add_theme_color_override("font_color", Color(1.0, 0.84, 0.42))
+	$Center/Lobby.add_child(_lobby_info)
+	$Center/Lobby.move_child(_lobby_info, $Center/Lobby/Title.get_index() + 1)
+	set_match_choice(Game.last_map, Game.last_mode)
 	set_team(0)
 	show_screen("home")
+
+
+## Map + mode pickers (singleplayer, and host settings under Multiplayer). Built here so both
+## screens share one list (Maps.ORDER) and stay in sync.
+func _build_match_rows(screen: VBoxContainer, at: int) -> void:
+	var map_row := HBoxContainer.new()
+	map_row.name = "MapRow"
+	var map_l := Label.new()
+	map_l.text = "Map"
+	map_l.custom_minimum_size = Vector2(70, 0)
+	map_row.add_child(map_l)
+	var map_opt := OptionButton.new()
+	map_opt.name = "MapOption"
+	map_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for id in Maps.ORDER:
+		map_opt.add_item(Maps.display_name(id))
+	map_row.add_child(map_opt)
+	var mode_row := HBoxContainer.new()
+	mode_row.name = "ModeRow"
+	var mode_l := Label.new()
+	mode_l.text = "Mode"
+	mode_l.custom_minimum_size = Vector2(70, 0)
+	mode_row.add_child(mode_l)
+	var mode_opt := OptionButton.new()
+	mode_opt.name = "ModeOption"
+	mode_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for m in Game.MODE_NAMES.size():
+		mode_opt.add_item(Game.mode_name(m))
+	mode_row.add_child(mode_opt)
+	var blurb := Label.new()
+	blurb.name = "MapBlurb"
+	blurb.add_theme_font_size_override("font_size", 14)
+	blurb.add_theme_color_override("font_color", Color(0.72, 0.76, 0.82))
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	screen.add_child(map_row)
+	screen.move_child(map_row, at)
+	screen.add_child(mode_row)
+	screen.move_child(mode_row, at + 1)
+	screen.add_child(blurb)
+	screen.move_child(blurb, at + 2)
+	_map_opts.append(map_opt)
+	_mode_opts.append(mode_opt)
+	_map_blurbs.append(blurb)
+	map_opt.item_selected.connect(func(_i: int) -> void: _on_choice_changed(map_opt, mode_opt))
+	mode_opt.item_selected.connect(func(_i: int) -> void: _on_choice_changed(map_opt, mode_opt))
+
+
+func _on_choice_changed(map_opt: OptionButton, mode_opt: OptionButton) -> void:
+	var m: StringName = Maps.ORDER[clampi(map_opt.selected, 0, Maps.ORDER.size() - 1)]
+	set_match_choice(m, mode_opt.selected)
+	Game.remember_match_choice(selected_map(), selected_mode())
+	match_choice_changed.emit(selected_map(), selected_mode())
+
+
+func set_match_choice(map_id: StringName, mode: int) -> void:
+	var mi := maxi(Maps.ORDER.find(map_id), 0)
+	var mo := clampi(mode, Game.MODE_TDM, Game.MODE_FFA)
+	for o in _map_opts:
+		o.select(mi)
+	for o in _mode_opts:
+		o.select(mo)
+	var info := Maps.info(Maps.ORDER[mi])
+	var rule := "first to %d kills" % (Game.FFA_WIN_KILLS if mo == Game.MODE_FFA else Game.WIN_KILLS)
+	for b in _map_blurbs:
+		b.text = "%s\n%s · %s or %d min" % [info.blurb, Game.mode_name(mo), rule, int(Game.ROUND_TIME / 60.0)]
+	# Solo team pick means nothing in FFA.
+	$Center/Solo/TeamRow.visible = mo != Game.MODE_FFA
+
+
+func selected_map() -> StringName:
+	if _map_opts.is_empty():
+		return Maps.DEFAULT
+	return Maps.ORDER[clampi(_map_opts[0].selected, 0, Maps.ORDER.size() - 1)]
+
+
+func selected_mode() -> int:
+	if _mode_opts.is_empty():
+		return Game.MODE_TDM
+	return clampi(_mode_opts[0].selected, Game.MODE_TDM, Game.MODE_FFA)
+
+
+## Lobby header: what the server runs. FFA: one player list, no team buttons.
+func set_lobby_match_info(map_id: StringName, mode: int) -> void:
+	if _lobby_info:
+		_lobby_info.text = "%s  ·  %s" % [Maps.display_name(map_id), Game.mode_name(mode)]
+	var ffa := mode == Game.MODE_FFA
+	$Center/Lobby/TeamRow.visible = not ffa
+	$Center/Lobby/Teams/OrangeCol.visible = not ffa
+	var head := $Center/Lobby/Teams/BlueCol/Head as Label
+	head.text = "PLAYERS" if ffa else "BLUE"
+	head.add_theme_color_override("font_color", Color(0.9, 0.9, 0.92) if ffa else Color(0.35, 0.55, 0.95))
+	($Center/Lobby/Hint as Label).text = (
+		"Everyone vs everyone. Host starts the match." if ffa else "Pick a team. Host starts the match."
+	)
 
 
 func show_screen(id: String) -> void:
@@ -132,6 +242,7 @@ func refresh_lobby(lobby: Dictionary, is_host: bool) -> void:
 	var start_btn := $Center/Lobby/StartButton as Button
 	if start_btn:
 		start_btn.visible = is_host
+	set_lobby_match_info(Game.map_id, Game.mode)
 	var blue_names: PackedStringArray = []
 	var orange_names: PackedStringArray = []
 	for id in lobby:
@@ -139,7 +250,7 @@ func refresh_lobby(lobby: Dictionary, is_host: bool) -> void:
 		var n := str(e.get("name", "Player"))
 		if int(id) == 1:
 			n += "  (host)"
-		if int(e.get("team", 0)) == 0:
+		if int(e.get("team", 0)) == 0 or Game.is_ffa():
 			blue_names.append(n)
 		else:
 			orange_names.append(n)
