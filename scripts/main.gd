@@ -29,6 +29,7 @@ enum MatchState { WARMUP, FREEZE, PLAYING, ROUND_END, INTERMISSION, KILLCAM }
 @onready var pause_ui = $CanvasLayer/Pause
 
 var _leaving := false
+var class_select: ClassSelect
 
 var _spawn_i := [0, 0] # next spawn index per team
 var _match_state := MatchState.WARMUP
@@ -70,6 +71,13 @@ func _ready() -> void:
 	if pause_ui:
 		pause_ui.resume_pressed.connect(_resume_game)
 		pause_ui.leave_pressed.connect(_leave_to_menu)
+		pause_ui.change_class_pressed.connect(_open_change_class)
+	class_select = ClassSelect.new()
+	class_select.name = "ClassSelect"
+	$CanvasLayer.add_child(class_select)
+	class_select.picked.connect(_on_class_picked)
+	class_select.back_pressed.connect(_open_pause)
+	Game.loadouts.loadout_applied.connect(_on_loadout_applied)
 	call_deferred("_bake_nav")
 	var args := _parse_args()
 	if args.get("name", "") != "":
@@ -278,10 +286,7 @@ func _respawn_all_pawns() -> void:
 		var p := n as Player
 		if p == null:
 			continue
-		if Game.is_networked():
-			Game.broadcast_respawn.rpc(p.peer_id)
-		else:
-			p.apply_respawn_state()
+		Game.respawn_pawn(p)
 
 
 func _enter_play() -> void:
@@ -474,6 +479,27 @@ func _open_pause() -> void:
 		pause_ui.open()
 
 
+func _open_change_class() -> void:
+	if pause_ui:
+		pause_ui.hide_for_overlay()
+	class_select.open_change()
+
+
+## Back to the game either way; a mid-match pick only tells you when it lands.
+func _on_class_picked(index: int, queued: bool) -> void:
+	if pause_ui:
+		pause_ui.close(hud.visible, false)
+	elif hud.visible:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if queued:
+		hud.show_notice("Class changes at next spawn: %s" % Game.loadouts.class_name_at(index), 3.5)
+
+
+func _on_loadout_applied(loadout: Dictionary, now: bool) -> void:
+	if not now and hud.visible:
+		hud.show_notice("Class: %s" % PlayerClasses.summary(loadout), 2.5)
+
+
 func _resume_game() -> void:
 	if pause_ui:
 		pause_ui.close()
@@ -481,6 +507,8 @@ func _resume_game() -> void:
 
 func _leave_to_menu() -> void:
 	_leaving = true
+	if class_select:
+		class_select.close_silently()
 	if pause_ui:
 		pause_ui.close(false)
 	get_tree().paused = false
@@ -597,7 +625,7 @@ func _pawn_snapshot() -> Array:
 			"bot": p.is_bot,
 			"team": p.team_id,
 			"loadout": p.loadout_index,
-			"weapon": p.weapon.active_index() if p.weapon else 0,
+			"weapon": String(p.weapon.def.id) if p.weapon and p.weapon.def else "rifle",
 		})
 	return out
 
@@ -642,7 +670,7 @@ func sync_pawns(list: Array) -> void:
 			p.set_display_name(str(entry.get("n", p.display_name)))
 			p._apply_team_visual()
 			if p.weapon:
-				p.weapon.equip_remote(int(entry.get("weapon", 0)))
+				p.weapon.equip_remote(StringName(str(entry.get("weapon", "rifle"))))
 	for child in players_root.get_children():
 		var extra := child as Player
 		if extra == null or extra.is_local() or extra.is_queued_for_deletion():
@@ -782,6 +810,9 @@ func _on_local_player_ready(player: Player) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	hud.bind_player(player)
 	DisplayServer.window_set_title("Gevechtspel — %s" % Game.player_name)
+	# First spawn of this session: pick a class (auto-assigns after ClassSelect.AUTO_TIME).
+	if not Game.loadouts.picked_once and not class_select.is_open():
+		class_select.open_initial()
 
 
 ## Clients only mirror the state. The match authority plays the final killcam first, if the round had a kill.

@@ -50,6 +50,11 @@ custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Resume"
 
+[node name="ClassButton" type="Button" parent="Center/Buttons"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Change class"
+
 [node name="SettingsButton" type="Button" parent="Center/Buttons"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2

@@ -26,11 +26,13 @@ var _sniper_ads := false
 var _weapon_index := 0
 var _ammo := 30
 var _mag := 30
+var _notice: Label
+var _notice_tween: Tween
 var _player: Player # the local pawn from bind_player; crosshair bloom follows it
 
 const _SLOT_IDLE := Color(0.08, 0.09, 0.11, 0.82)
 const _SLOT_ON := Color(0.18, 0.16, 0.08, 0.92)
-const _SLOT_NAMES := ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"]
+var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # the local pawn's guns
 
 @onready var hint_label: Label = $Hint
 @onready var fps_label: Label = $Fps
@@ -241,6 +243,7 @@ func reset_session() -> void:
 	_streak_n = 0
 	_radar_left = 0.0
 	_hide_popup()
+	_hide_notice()
 	_freeze_left = 0.0
 	_round_end_timer = 0.0
 	_round_end_winner = ""
@@ -274,12 +277,14 @@ func set_ammo(current: int, mag: int) -> void:
 	_refresh_weapon_slots()
 
 
-func set_weapon_name(n: String) -> void:
-	var key := n.strip_edges().to_upper()
-	for i in _SLOT_NAMES.size():
-		if _SLOT_NAMES[i] == key:
-			_weapon_index = i
-			break
+## The class decides the guns: one box per carried gun, keys 1..n in that order.
+func set_weapon_slots(names: PackedStringArray) -> void:
+	var upper: PackedStringArray = []
+	for n in names:
+		upper.append(n.strip_edges().to_upper())
+	if upper == _slot_names:
+		return
+	_slot_names = upper
 	_refresh_weapon_slots()
 
 
@@ -292,7 +297,7 @@ func set_sniper_ads(on: bool) -> void:
 
 
 func set_weapon_index(index: int) -> void:
-	_weapon_index = clampi(index, 0, _SLOT_NAMES.size() - 1)
+	_weapon_index = clampi(index, 0, maxi(_slot_names.size() - 1, 0))
 	_refresh_weapon_slots()
 
 
@@ -301,11 +306,18 @@ func _refresh_weapon_slots() -> void:
 		return
 	for i in _slots.size():
 		var slot := _slots[i]
+		slot.visible = i < _slot_names.size()
+		if not slot.visible:
+			continue
 		var on := i == _weapon_index
 		slot.color = _SLOT_ON if on else _SLOT_IDLE
 		var name_l := slot.get_node("Name") as Label
 		var ammo_l := slot.get_node("Ammo") as Label
+		var key_l := slot.get_node_or_null("Key") as Label
+		if key_l:
+			key_l.text = str(i + 1)
 		if name_l:
+			name_l.text = _slot_names[i]
 			name_l.modulate = Color(1, 0.92, 0.55) if on else Color(0.72, 0.74, 0.78)
 		if ammo_l:
 			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
@@ -371,6 +383,54 @@ func _hide_popup() -> void:
 		_popup_tween = null
 	if _popup:
 		_popup.visible = false
+
+
+## Small line above the weapon boxes ("Class changes at next spawn"). Fades by itself.
+func show_notice(text: String, seconds: float = 3.0) -> void:
+	if _notice == null:
+		_build_notice()
+	_notice.text = text
+	if _notice_tween:
+		_notice_tween.kill()
+	_notice.modulate.a = 1.0
+	_notice.visible = true
+	_notice_tween = _notice.create_tween()
+	_notice_tween.tween_interval(seconds)
+	_notice_tween.tween_property(_notice, "modulate:a", 0.0, 0.5)
+	_notice_tween.tween_callback(_hide_notice)
+
+
+func notice_text() -> String:
+	return _notice.text if _notice and _notice.visible else ""
+
+
+func _hide_notice() -> void:
+	if _notice_tween:
+		_notice_tween.kill()
+		_notice_tween = null
+	if _notice:
+		_notice.visible = false
+
+
+func _build_notice() -> void:
+	_notice = Label.new()
+	_notice.name = "Notice"
+	_notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_notice.anchor_left = 0.5
+	_notice.anchor_right = 0.5
+	_notice.anchor_top = 1.0
+	_notice.anchor_bottom = 1.0
+	_notice.offset_left = -300.0
+	_notice.offset_right = 300.0
+	_notice.offset_top = -196.0
+	_notice.offset_bottom = -168.0
+	_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_notice.add_theme_font_size_override("font_size", 18)
+	_notice.add_theme_color_override("font_color", Color(1, 0.92, 0.55))
+	_notice.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_notice.add_theme_constant_override("outline_size", 6)
+	_notice.visible = false
+	add_child(_notice)
 
 
 func _build_popup() -> void:

@@ -58,7 +58,7 @@ const STEP_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/sounds/step_4.wav"),
 ]
 
-const GRENADE_MAX := 2
+const GRENADE_MAX := 2 # bots; humans get their class's count
 
 var hp := MAX_HP
 var grenades := GRENADE_MAX
@@ -66,7 +66,10 @@ var grenades := GRENADE_MAX
 @export var is_dead := false
 @export var is_bot := false
 @export var team_id := 0
-@export var loadout_index := 0
+@export var loadout_index := 0 # bots: armory index of their one gun
+## Humans, on the authority and the owner: validated class loadout (PlayerClasses.parse_loadout).
+## Empty = bot or a remote copy: full armory, GRENADE_MAX.
+var loadout: Dictionary = {}
 var is_sprinting := false
 @export var crouch := 0.0
 @export var display_name := "Player"
@@ -144,6 +147,7 @@ func _ready() -> void:
 		peer_id = _owner_peer()
 	_dup_body_mat()
 	_apply_team_visual()
+	_init_loadout()
 	# Bots/offline skip MultiplayerSynchronizer; bot poses are Game.sync_bot_poses.
 	if has_node("Sync") and (Game.is_offline or is_bot or peer_id < 0):
 		$Sync.public_visibility = false
@@ -204,6 +208,53 @@ func _update_radar_mark() -> void:
 func _process(delta: float) -> void:
 	_update_nametag(delta)
 	_update_radar_mark()
+
+
+## Server: what this peer picked (or the default). Owner: what the server last confirmed.
+func _init_loadout() -> void:
+	if is_bot or peer_id < 0:
+		return
+	if Game._is_match_authority():
+		loadout = Game.loadouts.spawn_loadout(peer_id)
+	elif is_local():
+		var mine := Game.loadouts.mine
+		loadout = mine.duplicate(true) if not mine.is_empty() else PlayerClasses.default_loadout()
+	else:
+		return
+	apply_loadout()
+
+
+func weapon_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	if loadout.is_empty():
+		for w in Weapon.LOADOUT:
+			ids.append(w.id)
+		return ids
+	ids.append(StringName(loadout.primary))
+	ids.append(StringName(loadout.secondary))
+	return ids
+
+
+## Server fire/switch check. Remote copies (empty loadout) say yes; they never validate anything.
+func has_weapon(id: StringName) -> bool:
+	return weapon_ids().has(id)
+
+
+## Per type in the class; only frags exist, so that is the throwable count.
+func grenade_max() -> int:
+	if loadout.is_empty():
+		return GRENADE_MAX
+	var g: Dictionary = loadout.get("grenades", {})
+	return clampi(int(g.get("frag", 0)), 0, PlayerClasses.MAX_GRENADES)
+
+
+## Carry the class's guns (holding the primary), full ammo, class grenades.
+func apply_loadout() -> void:
+	if weapon:
+		weapon.set_slots(weapon_ids())
+		weapon.refill()
+	grenades = grenade_max()
+	_notify_grenades()
 
 
 func _apply_bot_loadout() -> void:
@@ -390,11 +441,7 @@ func _die() -> void:
 func _server_respawn() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
-	Game.set_hp(self, MAX_HP)
-	if Game.is_networked():
-		Game.broadcast_respawn.rpc(peer_id)
-	else:
-		apply_respawn_state()
+	Game.respawn_pawn(self)
 
 
 func apply_respawn_state() -> void:
@@ -413,7 +460,9 @@ func apply_respawn_state() -> void:
 	_pitch = 0.0
 	head.rotation.x = 0.0
 	weapon.visible = true
-	grenades = GRENADE_MAX
+	if not loadout.is_empty() and weapon:
+		weapon.set_slots(weapon_ids()) # spawn holding the primary
+	grenades = grenade_max()
 	_notify_grenades()
 	if weapon:
 		weapon.refill()

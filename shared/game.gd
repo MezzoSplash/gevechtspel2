@@ -29,7 +29,7 @@ const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.12"
+const NET_VERSION := "0.2.13"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -53,6 +53,7 @@ var final_kill: Dictionary = {} # match authority: last real kill of this round,
 var killcam: Killcam
 var melee: Melee
 var impacts: ImpactMarks
+var loadouts: Loadouts
 var radar_left := 0.0 # this machine: own team's radar time left (enemy markers on)
 var radar_team := -1 # team whose radar is running here; its enemies get markers
 var lobby: Dictionary = {} # peer_id → {name, team}
@@ -148,6 +149,8 @@ func clear_peer_hp(peer_id: int) -> void:
 	_fire_credit.erase(peer_id)
 	if melee:
 		melee.forget(peer_id)
+	if loadouts:
+		loadouts.forget(peer_id)
 	drop_score(peer_id)
 
 
@@ -199,6 +202,8 @@ func request_weapon_fire(
 	if shooter == null or shooter.is_dead or shooter.is_bot or play_locked():
 		return
 	if shooter.weapon == null or shooter.weapon.def == null or shooter.weapon.def.id != weapon_id:
+		return
+	if not shooter.has_weapon(weapon_id): # not in their class
 		return
 	var def := shooter.weapon.def
 	if look_dir.length_squared() < 0.0001 or not origin_plausible(shooter, origin):
@@ -453,18 +458,21 @@ func submit_display_name(n: String, team: int = -1) -> void:
 	apply_display_name.rpc(peer, n)
 
 
-## Also writes the scoreboard name. Spawn often happens before the client's name RPC.
+## Also writes the scoreboard name. Spawn often happens before the client's name RPC, but on a
+## dedicated server the name can also win the race: then there is no pawn yet and the row would be
+## made with team 0. The pawn's team wins when it exists, then the row's, then the joiner's pick;
+## register_participant corrects the team again when the pawn spawns.
 @rpc("authority", "call_local", "reliable")
 func apply_display_name(peer_id: int, n: String) -> void:
 	var p := player_for_peer(peer_id)
-	var team := 0
+	var team := int(pending_teams.get(peer_id, 0))
 	var kills := 0
-	if p:
-		p.set_display_name(n)
-		team = p.team_id
 	if scores.has(peer_id):
 		kills = int(scores[peer_id].kills)
 		team = int(scores[peer_id].get("team", team))
+	if p:
+		p.set_display_name(n)
+		team = p.team_id
 	_apply_score(peer_id, kills, n, team)
 
 
@@ -473,6 +481,22 @@ func broadcast_hurt(peer_id: int, new_hp: float, killed: bool) -> void:
 	var p := player_for_peer(peer_id)
 	if p:
 		p.apply_hurt_state(new_hp, killed)
+
+
+## Authority: every respawn (death timer, round start) goes through here so a waiting class
+## change reaches the owner before the respawn does, and everyone sees the primary in hand.
+func respawn_pawn(p: Player) -> void:
+	if p == null:
+		return
+	set_hp(p, Player.MAX_HP)
+	if loadouts:
+		loadouts.promote_pending(p)
+	if is_networked():
+		broadcast_respawn.rpc(p.peer_id)
+		if not p.is_bot and not p.loadout.is_empty():
+			sync_weapon.rpc(p.peer_id, String(p.loadout.primary))
+	else:
+		p.apply_respawn_state()
 
 
 @rpc("authority", "call_local", "reliable")
@@ -512,19 +536,19 @@ func _apply_score(peer_id: int, kills: int, n: String, team: int = 0) -> void:
 	score_changed.emit(peer_id, kills, n)
 
 
+## Called when a pawn spawns (and for a killer without a row). `team` is the pawn's, so it always
+## wins over a row made earlier by apply_display_name, and the fix is synced to everyone.
 func register_participant(peer_id: int, n: String, team: int = 0) -> void:
 	if scores.has(peer_id):
 		var existing: String = str(scores[peer_id].name)
 		var incoming_placeholder := n == "" or n == "Player"
 		var keep_existing := existing != "" and existing != "Player"
-		if incoming_placeholder and keep_existing:
-			if int(scores[peer_id].get("team", team)) != team:
-				_apply_score(peer_id, int(scores[peer_id].kills), existing, team)
+		var new_name := existing if n == "" or (incoming_placeholder and keep_existing) else n
+		if new_name == existing and int(scores[peer_id].get("team", -1)) == team:
 			return
-		if n != "" and existing != n:
-			_apply_score(peer_id, int(scores[peer_id].kills), n, int(scores[peer_id].get("team", team)))
-			if is_networked() and multiplayer.is_server():
-				sync_score.rpc(peer_id, int(scores[peer_id].kills), n, int(scores[peer_id].team))
+		_apply_score(peer_id, int(scores[peer_id].kills), new_name, team)
+		if is_networked() and multiplayer.is_server():
+			sync_score.rpc(peer_id, int(scores[peer_id].kills), new_name, team)
 		return
 	_apply_score(peer_id, 0, n, team)
 	if is_networked() and multiplayer.is_server():
@@ -678,6 +702,9 @@ func register_kill(
 	var kills: int = int(scores[killer_peer_id].kills) + 1
 	var n: String = scores[killer_peer_id].name
 	var team_id: int = int(scores[killer_peer_id].get("team", 0))
+	var killer_pawn := player_for_peer(killer_peer_id)
+	if killer_pawn:
+		team_id = killer_pawn.team_id # the pawn is the truth; a stale row must not credit the other team
 	_apply_score(killer_peer_id, kills, n, team_id)
 	if is_networked():
 		sync_score.rpc(killer_peer_id, kills, n, team_id)
@@ -1026,6 +1053,8 @@ func reset_session() -> void:
 		melee.reset()
 	if impacts:
 		impacts.clear()
+	if loadouts:
+		loadouts.reset()
 	clear_radar()
 	_round_active = false
 	_round_timer = 0.0
@@ -1254,37 +1283,42 @@ func sync_bot_poses(poses: Array) -> void:
 
 
 ## Local human switched guns. Everyone needs the same def: sound, viewmodel, kill feed, server checks.
-func announce_weapon(p: Player, index: int) -> void:
+## By weapon id: slot numbers differ per class.
+func announce_weapon(p: Player, weapon_id: StringName) -> void:
 	if not is_networked() or p == null or p.is_bot:
 		return
 	if multiplayer.is_server():
-		sync_weapon.rpc(p.peer_id, index)
+		sync_weapon.rpc(p.peer_id, String(weapon_id))
 	else:
-		request_weapon_switch.rpc_id(1, index)
+		request_weapon_switch.rpc_id(1, String(weapon_id))
 
 
 ## Reliable and on the same channel as request_weapon_fire, so the server sees the switch before the shot.
+## A gun outside the sender's class is refused (the server copy keeps the old one, so its shots fail too).
 @rpc("any_peer", "reliable")
-func request_weapon_switch(index: int) -> void:
+func request_weapon_switch(weapon_id: String) -> void:
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	var p := player_for_peer(peer)
 	if p == null or p.is_bot or p.weapon == null:
 		return
-	index = clampi(index, 0, Weapon.LOADOUT.size() - 1)
-	p.weapon.equip_remote(index)
-	sync_weapon.rpc(peer, index)
+	var id := StringName(weapon_id)
+	if weapon_def(id) == null or not p.has_weapon(id):
+		print("SERVER: refused switch to %s from %d (not in loadout)" % [weapon_id, peer])
+		return
+	p.weapon.equip_remote(id)
+	sync_weapon.rpc(peer, weapon_id)
 
 
 @rpc("authority", "reliable")
-func sync_weapon(peer_id: int, index: int) -> void:
+func sync_weapon(peer_id: int, weapon_id: String) -> void:
 	if multiplayer.is_server():
 		return
 	var p := player_for_peer(peer_id)
 	if p == null or p.is_local() or p.weapon == null:
 		return
-	p.weapon.equip_remote(index)
+	p.weapon.equip_remote(StringName(weapon_id))
 
 
 func live_peer_ids() -> Array:
@@ -1328,6 +1362,9 @@ func _ready() -> void:
 	impacts = ImpactMarks.new()
 	impacts.name = "ImpactMarks"
 	add_child(impacts)
+	loadouts = Loadouts.new()
+	loadouts.name = "Loadouts"
+	add_child(loadouts)
 	_ensure_sfx_bus()
 	load_settings()
 	_bind_inputs()

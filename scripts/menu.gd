@@ -17,6 +17,7 @@ signal lobby_team_picked(team: int)
 @onready var settings_panel = $Center/Settings/SettingsPanel
 
 var _team := 0
+var class_editor: ClassEditor
 
 
 func _ready() -> void:
@@ -24,6 +25,12 @@ func _ready() -> void:
 	$Center/Home/SoloButton.pressed.connect(func() -> void: show_screen("solo"))
 	$Center/Home/MpButton.pressed.connect(func() -> void: show_screen("mp"))
 	$Center/Home/SettingsButton.pressed.connect(func() -> void: show_screen("settings"))
+	$Center/Home/ClassesButton.pressed.connect(func() -> void: show_screen("classes"))
+	class_editor = ClassEditor.new()
+	class_editor.name = "Classes"
+	class_editor.visible = false
+	$Center.add_child(class_editor)
+	class_editor.back_pressed.connect(func() -> void: show_screen("home"))
 	$Center/Home/QuitButton.pressed.connect(func() -> void: get_tree().quit())
 	$Center/Solo/PlayButton.pressed.connect(func() -> void: play_local_pressed.emit())
 	$Center/Solo/BackButton.pressed.connect(func() -> void: show_screen("home"))
@@ -47,6 +54,10 @@ func show_screen(id: String) -> void:
 	$Center/Mp.visible = id == "mp"
 	$Center/Settings.visible = id == "settings"
 	$Center/Lobby.visible = id == "lobby"
+	if class_editor:
+		class_editor.visible = id == "classes"
+		if id == "classes":
+			class_editor.refresh()
 	if id == "solo":
 		solo_name.text = mp_name.text
 	elif id == "mp":

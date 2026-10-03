@@ -3,6 +3,7 @@ extends Control
 
 signal resume_pressed
 signal leave_pressed
+signal change_class_pressed
 
 @onready var buttons: VBoxContainer = $Center/Buttons
 @onready var settings_wrap: VBoxContainer = $Center/SettingsWrap
@@ -13,6 +14,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	$Center/Buttons/ResumeButton.pressed.connect(func() -> void: resume_pressed.emit())
+	$Center/Buttons/ClassButton.pressed.connect(func() -> void: change_class_pressed.emit())
 	$Center/Buttons/SettingsButton.pressed.connect(_show_settings)
 	$Center/Buttons/LeaveButton.pressed.connect(func() -> void: leave_pressed.emit())
 	$Center/Buttons/QuitButton.pressed.connect(func() -> void: get_tree().quit())
@@ -38,15 +40,23 @@ func open() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
-func close(capture_mouse: bool = true) -> void:
+## release_input=false: an overlay that replaced this menu (class select) clears Game.pause_open itself.
+func close(capture_mouse: bool = true, release_input: bool = true) -> void:
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	get_tree().paused = false
-	Game.pause_open = false
+	if release_input:
+		Game.pause_open = false
 	if capture_mouse:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## Change class: the picker draws instead of this menu; offline stays paused meanwhile.
+func hide_for_overlay() -> void:
+	visible = false
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 func _show_buttons() -> void:
