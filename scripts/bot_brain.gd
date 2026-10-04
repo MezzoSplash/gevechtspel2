@@ -85,7 +85,10 @@ func physics_tick(delta: float) -> void:
 		_steer_to(_home, Player.WALK_SPEED, delta)
 		pawn.move_and_slide()
 		return
-	if _can_see(enemy):
+	# Seen but out of weapon range (a shotgun bot at a window, the enemy across the street): walk the
+	# navmesh toward him instead of pushing straight at him into the wall.
+	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > _fight_range() + 4.0
+	if _can_see(enemy) and not out_of_range:
 		_acquire_left = maxf(_acquire_left - delta, 0.0)
 		_fight(enemy, delta)
 	else:
