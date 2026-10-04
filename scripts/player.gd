@@ -974,6 +974,7 @@ func _tick_style_track(delta: float) -> void:
 		_fall_peak = maxf(_fall_peak, y)
 		if steep or _ramp_beside():
 			_surf_seen_t = _style_clock
+			_fall_peak = y # riding a ramp is not falling: DROP counts the free fall after it
 	else:
 		if _style_in_air:
 			_landed_drop = _fall_peak - global_position.y

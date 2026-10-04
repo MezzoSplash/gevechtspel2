@@ -1162,28 +1162,40 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23.2, 0.55, -16.5)
 size = Vector3(2.2, 1.1, 1.4)
 material = SubResource("Mat_cover")
 
-[node name="SurfWestN" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28.000, 0, -1.800)
-polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)
-depth = 22.20
-material = SubResource("Mat_surf")
-
-[node name="SurfWestS" type="CSGPolygon3D" parent="Arena"]
+[node name="SurfWest" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28.000, 0, 24.000)
 polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)
-depth = 22.20
+depth = 48.0
 material = SubResource("Mat_surf")
 
-[node name="SurfEastN" type="CSGPolygon3D" parent="Arena"]
+[node name="BevelA" type="CSGBox3D" parent="Arena/SurfWest"]
+transform = Transform3D(1, 0, 0, 0, 0.766044, -0.642788, 0, 0.642788, 0.766044, 1.3000, 7.6604, 6.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="BevelB" type="CSGBox3D" parent="Arena/SurfWest"]
+transform = Transform3D(1, 0, 0, 0, 0.766044, 0.642788, 0, -0.642788, 0.766044, 1.3000, 7.6604, -54.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="SurfEast" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 28.000, 0, -24.000)
 polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)
-depth = 22.20
+depth = 48.0
 material = SubResource("Mat_surf")
 
-[node name="SurfEastS" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 28.000, 0, 1.800)
-polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)
-depth = 22.20
+[node name="BevelA" type="CSGBox3D" parent="Arena/SurfEast"]
+transform = Transform3D(1, 0, 0, 0, 0.766044, -0.642788, 0, 0.642788, 0.766044, 1.3000, 7.6604, 6.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="BevelB" type="CSGBox3D" parent="Arena/SurfEast"]
+transform = Transform3D(1, 0, 0, 0, 0.766044, 0.642788, 0, -0.642788, 0.766044, 1.3000, 7.6604, -54.4279)
+operation = 2
+size = Vector3(8, 20, 30)
 material = SubResource("Mat_surf")
 
 [node name="LightBlueW" type="OmniLight3D" parent="."]
