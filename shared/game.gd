@@ -1098,8 +1098,8 @@ func _note_trick_history(killer_peer_id: int, victim_peer_id: int, weapon_id: St
 	_hs_streak.erase(victim_peer_id) # dying ends your streak
 	if weapon_id == &"rifle" and headshot:
 		_hs_streak[killer_peer_id] = int(_hs_streak.get(killer_peer_id, 0)) + 1
-	elif not headshot:
-		_hs_streak.erase(killer_peer_id)
+	else:
+		_hs_streak.erase(killer_peer_id) # any other kill breaks the run
 	if weapon_id == &"shotgun":
 		_shotgun_kill_t[killer_peer_id] = Time.get_ticks_msec() / 1000.0
 	if not _shot_ctx.is_empty():
