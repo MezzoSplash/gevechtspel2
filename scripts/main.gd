@@ -30,6 +30,9 @@ var _state_timer := 0.0
 var _bot_id_counter := -1 # bots use negative peer_ids: -1, -2, …
 var _version_mismatch := "" # server's NET_VERSION when the auth step refused us
 var _killcam_sent := false
+## True while the home menu is up: the offline match clock then runs a bot-only background match.
+## It loops on its own (no final killcam) and every Play / Host / Join tears it down first.
+var _menu_match := true
 
 
 func _ready() -> void:
@@ -170,6 +173,8 @@ func _load_map(id: StringName, bake: bool) -> void:
 ## Menu backdrop follows the map picker (not while a session or lobby is open).
 func _on_menu_match_choice(id: StringName, _mode: int) -> void:
 	if Game.is_offline and not Game.in_lobby and not hud.visible:
+		if id != _loaded_map:
+			_reset_match_state() # background bots must not stand on (or fall out of) the old map
 		_load_map(id, false)
 
 
@@ -314,7 +319,7 @@ func _tick_freeze(delta: float) -> void:
 		Game.end_freeze()
 		_match_state = MatchState.PLAYING
 		_state_timer = 0.0
-		_set_status("Round started!")
+		_match_status("Round started!")
 
 
 func _start_round() -> void:
@@ -324,7 +329,7 @@ func _start_round() -> void:
 	_spawn_all_players()
 	_fill_bots()
 	Game.set_round_frozen(true)
-	_set_status("Get ready")
+	_match_status("Get ready")
 
 
 func _spawn_all_players() -> void:
@@ -408,6 +413,8 @@ func _disable_menu_camera() -> void:
 
 
 func _play_locally() -> void:
+	_reset_match_state()
+	_menu_match = false
 	Game.is_offline = true
 	Game.is_dedicated = false
 	Game.player_name = Game.clean_name(menu.player_name())
@@ -427,9 +434,12 @@ func _host_game() -> void:
 
 
 func _start_server(port: int, dedicated: bool, map_id: StringName, mode: int) -> void:
+	_reset_match_state()
+	_menu_match = false
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, 10)
 	if err != OK:
+		_menu_match = true # still in the menu: the background match starts again
 		_set_status("Could not host on port %d (err %d)" % [port, err])
 		print("SERVER: create_server failed with err %d" % err)
 		return
@@ -456,6 +466,8 @@ func _start_server(port: int, dedicated: bool, map_id: StringName, mode: int) ->
 
 
 func _connect_to_server() -> void:
+	_reset_match_state()
+	_menu_match = false
 	Game.player_name = Game.clean_name(menu.player_name())
 	Game.preferred_team = menu.selected_team()
 	var ip: String = menu.host_ip()
@@ -464,6 +476,7 @@ func _connect_to_server() -> void:
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(ip, port)
 	if err != OK:
+		_menu_match = true
 		_set_status("Connect failed to start (err %d)" % err)
 		print("CLIENT: create_client failed with err %d" % err)
 		return
@@ -505,8 +518,9 @@ func _reset_to_offline() -> void:
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
-	Game.reset_session()
+	_reset_match_state()
 	Game.is_offline = true
+	_menu_match = true
 
 
 ## Late join: defer so MultiplayerSpawner can replicate existing pawns first.
@@ -564,28 +578,16 @@ func _resume_game() -> void:
 
 func _leave_to_menu() -> void:
 	_leaving = true
-	if class_select:
-		class_select.close_silently()
 	if pause_ui:
 		pause_ui.close(false)
-	get_tree().paused = false
-	Game.pause_open = false
-	Game.chat_open = false
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.close()
 	# Not null: a null peer makes get_unique_id() 0 (+ an error every frame) and solo would spawn pawn "0".
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
-	for c in players_root.get_children():
-		c.queue_free()
-	Game.reset_session()
+	_reset_match_state()
 	Game.is_offline = true
 	Game.is_dedicated = false
-	_bot_id_counter = -1
-	_spawn_i = [0, 0]
-	_recent_spawns.clear()
-	_match_state = MatchState.WARMUP
-	_state_timer = 0.0
-	hud.reset_session()
+	_menu_match = true
 	hud.visible = false
 	menu.visible = true
 	menu.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -595,6 +597,30 @@ func _leave_to_menu() -> void:
 		$MenuCamera.current = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_leaving = false
+
+
+## Ends whatever match runs here, in any state (menu background match, a session being left):
+## pawns, match clock, final killcam lock, round freeze, scores, grenades, HUD. Play, Host and Join
+## all start from this, so a background round that was in its killcam, round end or intermission
+## can never leave the real game locked (killcam_active) or stuck in an old state.
+func _reset_match_state() -> void:
+	if class_select:
+		class_select.close_silently()
+	get_tree().paused = false
+	Game.pause_open = false
+	Game.chat_open = false
+	for c in players_root.get_children():
+		players_root.remove_child(c) # gone at once: no team counts or names shared with the new pawns
+		c.queue_free()
+	Game.reset_session() # also ends a running killcam replay and clears killcam_active / round_frozen
+	Game.stop_round_sting()
+	_bot_id_counter = -1
+	_spawn_i = [0, 0]
+	_recent_spawns.clear()
+	_match_state = MatchState.WARMUP
+	_state_timer = 0.0
+	_killcam_sent = false
+	hud.reset_session()
 
 
 func _on_peer_disconnected(id: int) -> void:
@@ -923,8 +949,9 @@ func _on_local_player_ready(player: Player) -> void:
 func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
 	_match_state = MatchState.ROUND_END
 	_state_timer = 0.0
-	_set_status("Round ended! %s wins" % winner_name)
-	if Game._is_match_authority() and not Game.final_kill.is_empty():
+	_match_status("Round ended! %s wins" % winner_name)
+	# The menu's background match skips the replay (it would take the camera) and just loops.
+	if Game._is_match_authority() and not Game.final_kill.is_empty() and not _menu_match:
 		_match_state = MatchState.KILLCAM
 		_killcam_sent = false
 		Game.killcam.set_lock(true)
@@ -935,13 +962,19 @@ func _start_intermission() -> void:
 	_state_timer = 0.0
 	hud.show_intermission()
 	Game.notify_intermission()
-	_set_status("Intermission...")
+	_match_status("Intermission...")
 
 
 func _reset_round() -> void:
 	_spawn_i = [0, 0]
 	_fill_bots()
 	_start_round()
+
+
+## Match clock messages. The menu's background match keeps them out of the menu status line.
+func _match_status(t: String) -> void:
+	if not _menu_match:
+		_set_status(t)
 
 
 func _set_status(t: String) -> void:
