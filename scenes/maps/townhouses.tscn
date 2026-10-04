@@ -1164,25 +1164,25 @@ material = SubResource("Mat_cover")
 
 [node name="SurfWestN" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28.000, 0, -1.800)
-polygon = PackedVector2Array(-0.1000, -0.1000, 3.5218, -0.1000, -0.1000, 6.1732)
+polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)
 depth = 22.20
 material = SubResource("Mat_surf")
 
 [node name="SurfWestS" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28.000, 0, 24.000)
-polygon = PackedVector2Array(-0.1000, -0.1000, 3.5218, -0.1000, -0.1000, 6.1732)
+polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)
 depth = 22.20
 material = SubResource("Mat_surf")
 
 [node name="SurfEastN" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 28.000, 0, -24.000)
-polygon = PackedVector2Array(-0.1000, -0.1000, 3.5218, -0.1000, -0.1000, 6.1732)
+polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)
 depth = 22.20
 material = SubResource("Mat_surf")
 
 [node name="SurfEastS" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 28.000, 0, 1.800)
-polygon = PackedVector2Array(-0.1000, -0.1000, 3.5218, -0.1000, -0.1000, 6.1732)
+polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)
 depth = 22.20
 material = SubResource("Mat_surf")
 
