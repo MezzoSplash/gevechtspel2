@@ -74,4 +74,4 @@ Foundry is generated from `tools/gen_foundry.py` (CSG boxes, collision on the `A
 
 ## Credits
 
-Gun, footstep, hurt, melee and grenade sounds are CC0 (Free Firearm Sound Library, Kenney); the radar voice lines are Piper TTS with the public-domain LJ Speech voice. See [CREDITS.md](CREDITS.md).
+Gun, footstep, hurt, melee, grenade and trickshot sounds are CC0 (Free Firearm Sound Library, Kenney); the radar voice lines are Piper TTS with the public-domain LJ Speech voice. See [CREDITS.md](CREDITS.md).

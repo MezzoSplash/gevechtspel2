@@ -13,8 +13,21 @@ const SPRINT_SPEED := 11.4
 const CROUCH_SPEED := 3.5
 const GROUND_ACCEL := 14.0
 const GROUND_FRICTION := 10.0
-const AIR_ACCEL := 3.5
 const JUMP_SPEED := 7.6
+# --- Air control, Source / CS:GO style (humans; bots keep BOT_AIR_ACCEL) ---
+# In the air the wish speed is capped at AIR_WISH_CAP, so holding W adds almost nothing, but strafing
+# (A/D) while turning the mouse the same way keeps bending the velocity and adds a little speed.
+const AIR_ACCEL := 12.0 # sv_airaccelerate: how fast the capped wish speed is reached
+const AIR_WISH_CAP := 1.1 # m/s (Source's 30 u/s, at our 1.6x movement scale)
+const AIR_MAX_SPEED := 13.5 # strafing cannot push horizontal speed past this (sprint is 11.4)
+const BOT_AIR_ACCEL := 3.5 # bots never strafe-jump; they keep the old direct air control
+const JUMP_BUFFER := 0.1 # seconds a jump press is kept, so a hop on landing is not eaten
+# Surfing: a slope steeper than floor_max_angle (45°) is not floor. While touching one, the velocity is
+# clipped along its plane (Source ClipVelocity): gravity turns into speed along the ramp, strafing steers.
+const SURF_MIN_NORMAL_Y := 0.05 # flatter than a wall
+const SURF_MAX_NORMAL_Y := 0.7 # steeper than walkable (cos 45° = 0.707)
+const SURF_MEMORY := 0.1 # seconds a ramp contact is kept between frames
+const SURF_PROBE := 0.12 # m: while surfing, look this far into the ramp so a clean glide keeps contact
 const MOUSE_SENS := 0.00135
 const MAX_PITCH := 1.5359
 const STOP_SPEED := 1.5
@@ -95,6 +108,16 @@ var since_hurt := 0.0 # match authority only: seconds since the last damage (reg
 var _tag_show := false # nametag allowed (teammate, or enemy in line of sight)
 var _tag_check_t := 0.0
 var _obs_speed := 0.0 # smoothed ground speed from position deltas (server's view of remote humans)
+var _jump_buffer := 0.0
+var _surf_normal := Vector3.ZERO # last steep ramp touched (Vector3.ZERO: none)
+var _surf_t := 0.0
+# Style tracking, match authority only (Style / Game.register_kill): turn history and time in the air.
+var air_time := 0.0 # seconds with free space under the feet
+var _style_clock := 0.0
+var _yaw_samples: Array = [] # [[t, signed yaw delta rad], ...] over the last STYLE_KEEP seconds
+var _style_last_yaw := 0.0
+var _style_has_yaw := false
+const STYLE_KEEP := 1.5
 
 
 ## Bots are never "local" (no camera/input), even in offline 5v5.
@@ -480,6 +503,7 @@ func apply_respawn_state() -> void:
 	global_transform = _spawn_xform
 	_yaw = rotation.y
 	_pitch = 0.0
+	_reset_style_track()
 	head.rotation.x = 0.0
 	weapon.visible = true
 	if not loadout.is_empty() and weapon:
@@ -537,6 +561,8 @@ func spread_multiplier() -> float:
 ## Server simulates bots. Remote humans/bots on a client only apply visuals + footsteps.
 func _physics_process(delta: float) -> void:
 	_spawn_protect = maxf(_spawn_protect - delta, 0.0)
+	if Game._is_match_authority():
+		_tick_style_track(delta)
 	if is_bot:
 		if Game.is_networked() and not multiplayer.is_server():
 			_apply_remote_visual()
@@ -555,18 +581,26 @@ func _physics_process(delta: float) -> void:
 	_try_start_slide(on_floor, chatting)
 	_update_stance(delta, on_floor)
 
+	_jump_buffer = maxf(_jump_buffer - delta, 0.0)
+	if (not is_dead) and (not chatting) and Input.is_action_just_pressed("jump"):
+		_jump_buffer = JUMP_BUFFER
+	var jumped := false
 	if not on_floor:
 		velocity.y += float(get_gravity().y) * delta
 		_sliding = false
-	elif (not is_dead) and (not chatting) and Input.is_action_just_pressed("jump"):
+	elif (not is_dead) and (not chatting) and _jump_buffer > 0.0:
 		_sliding = false
 		if crouch > 0.2:
 			if not _ceiling_blocked():
 				crouch = 0.0
 				_apply_stance()
 				velocity.y = JUMP_SPEED
+				jumped = true
 		else:
 			velocity.y = JUMP_SPEED
+			jumped = true
+		if jumped:
+			_jump_buffer = 0.0
 
 	var input_vec := Vector2.ZERO
 	if not is_dead and not chatting:
@@ -593,17 +627,22 @@ func _physics_process(delta: float) -> void:
 	camera.extra_fov = 0.0 if weapon.is_ads() else (SPRINT_FOV if is_sprinting else 0.0)
 
 	var horiz := Vector3(velocity.x, 0.0, velocity.z)
-	if on_floor and _sliding:
+	if jumped or not on_floor:
+		# The jump tick is already air: no ground friction, so sprint speed carries into the jump.
+		horiz = _air_accelerate(horiz, wish, WALK_SPEED * minf(wish.length(), 1.0), delta)
+	elif _sliding:
 		horiz = _friction_amount(horiz, delta, SLIDE_FRICTION)
-	elif on_floor:
+	else:
 		horiz = _friction(horiz, delta)
 		horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL, delta)
-	else:
-		horiz = _accelerate(horiz, wish, WALK_SPEED, AIR_ACCEL, delta)
 
 	velocity.x = horiz.x
 	velocity.z = horiz.z
+	_surf_t = maxf(_surf_t - delta, 0.0)
+	if not on_floor and _surf_t > 0.0:
+		velocity = clip_to_plane(velocity, _surf_normal)
 	move_and_slide()
+	_note_surf_contact()
 	_finish_slide()
 	_tick_feet(delta)
 
@@ -849,6 +888,98 @@ func _friction_amount(vel: Vector3, delta: float, friction: float) -> Vector3:
 	var drop := control * friction * delta
 	var new_speed := maxf(speed - drop, 0.0)
 	return vel * (new_speed / speed)
+
+
+## Source AirAccelerate: the speed we may add along the wish direction is capped at AIR_WISH_CAP, the
+## rate is not. Straight ahead adds nothing once you move; perpendicular (strafe + mouse) bends the
+## velocity and adds a little speed, bounded by AIR_MAX_SPEED (speed you already had is kept).
+func _air_accelerate(vel: Vector3, wish: Vector3, wish_speed: float, delta: float) -> Vector3:
+	if wish.length_squared() < 0.0001 or wish_speed <= 0.0:
+		return vel
+	var dir := wish.normalized()
+	var add := minf(wish_speed, AIR_WISH_CAP) - vel.dot(dir)
+	if add <= 0.0:
+		return vel
+	var before := vel.length()
+	var out := vel + dir * minf(AIR_ACCEL * wish_speed * delta, add)
+	var limit := maxf(before, AIR_MAX_SPEED)
+	var speed := out.length()
+	if speed > limit:
+		out *= limit / speed
+	return out
+
+
+## Source ClipVelocity: drop the part of `vel` that goes into the plane.
+static func clip_to_plane(vel: Vector3, normal: Vector3) -> Vector3:
+	var into := vel.dot(normal)
+	if into >= 0.0:
+		return vel
+	return vel - normal * into
+
+
+## Remember a steep ramp we touched this frame (not floor, not a wall): surfing clips against it.
+func _note_surf_contact() -> void:
+	for i in get_slide_collision_count():
+		var n := get_slide_collision(i).get_normal()
+		if n.y > SURF_MIN_NORMAL_Y and n.y < SURF_MAX_NORMAL_Y:
+			_surf_normal = n
+			_surf_t = SURF_MEMORY
+			return
+	# A clipped glide runs parallel to the ramp, so move_and_slide may not touch it every frame.
+	if _surf_t > 0.0 and not is_on_floor():
+		var hit := KinematicCollision3D.new()
+		if test_move(global_transform, -_surf_normal * SURF_PROBE, hit):
+			var n2 := hit.get_normal()
+			if n2.y > SURF_MIN_NORMAL_Y and n2.y < SURF_MAX_NORMAL_Y:
+				_surf_normal = n2
+				_surf_t = SURF_MEMORY
+
+
+func is_surfing() -> bool:
+	return _surf_t > 0.0 and not is_on_floor()
+
+
+## Match authority, every pawn: turn history (for 360s) and time with free space under the feet
+## (for airshots). Works from the pawn's position/rotation, so remote humans count the same as bots.
+func _tick_style_track(delta: float) -> void:
+	_style_clock += delta
+	var yaw := rotation.y
+	if _style_has_yaw:
+		var d := wrapf(yaw - _style_last_yaw, -PI, PI)
+		if absf(d) > 0.00001:
+			_yaw_samples.append([_style_clock, d])
+	_style_last_yaw = yaw
+	_style_has_yaw = true
+	while not _yaw_samples.is_empty() and float(_yaw_samples[0][0]) < _style_clock - STYLE_KEEP:
+		_yaw_samples.pop_front()
+	if is_dead or not is_inside_tree():
+		air_time = 0.0
+	elif _feet_clear():
+		air_time += delta
+	else:
+		air_time = 0.0
+
+
+func _feet_clear() -> bool:
+	var space := get_world_3d().direct_space_state
+	var from := global_position + Vector3(0.0, 0.05, 0.0)
+	var query := PhysicsRayQueryParameters3D.create(from, global_position - Vector3(0.0, Style.AIR_GAP, 0.0))
+	query.collision_mask = 1
+	query.exclude = [get_rid()]
+	return space.intersect_ray(query).is_empty()
+
+
+## Largest one-way turn in degrees during the last `window` seconds (match authority).
+func spin_degrees(window: float = Style.SPIN_WINDOW) -> float:
+	return Style.spin_degrees(_yaw_samples, _style_clock, window)
+
+
+func _reset_style_track() -> void:
+	_yaw_samples.clear()
+	_style_has_yaw = false
+	air_time = 0.0
+	_surf_t = 0.0
+	_jump_buffer = 0.0
 
 
 func _accelerate(vel: Vector3, wish: Vector3, wish_speed: float, accel: float, delta: float) -> Vector3:

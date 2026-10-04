@@ -562,10 +562,15 @@ func _fire() -> void:
 	if Game.is_networked() and multiplayer.is_server() and shooter:
 		Game.broadcast_shot_fx(muzzle.global_position, tracer_to, shooter.peer_id)
 
+	var scoped := is_ads() # NOSCOPE trick only; the scope never changes damage or spread
 	if Game.is_networked() and not multiplayer.is_server():
-		Game.request_weapon_fire.rpc_id(1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed)
+		Game.request_weapon_fire.rpc_id(
+			1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed, scoped
+		)
 	elif shooter:
-		var best: Dictionary = Game.fire_weapon_locally(shooter, origin, look_dir, def, spread_mult, shot_seed)
+		var best: Dictionary = Game.fire_weapon_locally(
+			shooter, origin, look_dir, def, spread_mult, shot_seed, scoped
+		)
 		if best.get("hit", false) and not shooter.is_bot:
 			Game.hit_confirmed.emit(best.killed, best.headshot)
 			_play_hit_fx(best.killed, best.headshot)

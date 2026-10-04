@@ -85,6 +85,17 @@ const _POPUP_HOLD := 2.4 # streak popup under the clock: hold, then fade
 const _POPUP_FADE := 0.6
 const _POPUP_FRIENDLY := Color(1.0, 0.86, 0.4)
 const _POPUP_HOSTILE := Color(1.0, 0.36, 0.3)
+const TRICK_COLOR := Color(1.0, 0.78, 0.22) # trickshot gold: popup, feed tag, killcam, style king
+const _TRICK_HOLD := 1.5
+const _TRICK_FADE := 0.45
+const _TRICK_SFX := preload("res://assets/sounds/trickshot.wav")
+
+var _trick: VBoxContainer # big centred trickshot word for the shooter
+var _trick_title: Label
+var _trick_sub: Label
+var _trick_tween: Tween
+var _trick_sfx: AudioStreamPlayer
+var _style_king: Label # round end, under the winner
 
 var _popup: VBoxContainer
 var _popup_title: Label
@@ -98,6 +109,7 @@ func _ready() -> void:
 	Game.score_changed.connect(_on_score_changed)
 	Game.round_ended.connect(_on_round_ended)
 	Game.kill_feed.connect(_on_kill_feed)
+	Game.trick_scored.connect(_on_trick_scored)
 	Game.presence.connect(_on_presence)
 	Game.chat_message.connect(_on_chat_message)
 	Game.round_freeze_changed.connect(_on_round_freeze)
@@ -121,6 +133,7 @@ func _ready() -> void:
 	add_child(_announcer)
 	_refresh_streak_ui()
 	_build_popup()
+	_build_trick_popup()
 	if chat_input:
 		chat_input.visible = false
 		chat_input.text_submitted.connect(_on_chat_submit)
@@ -294,6 +307,9 @@ func reset_session() -> void:
 	_radar_left = 0.0
 	_hide_popup()
 	_hide_notice()
+	_hide_trick()
+	if _style_king:
+		_style_king.visible = false
 	_freeze_left = 0.0
 	_round_end_timer = 0.0
 	_round_end_winner = ""
@@ -646,7 +662,10 @@ func _on_presence(player_name: String, joined: bool, team: int) -> void:
 	tw.tween_callback(row.queue_free)
 
 
-func _on_kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int) -> void:
+func _on_kill_feed(
+	killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int,
+	tricks: String = ""
+) -> void:
 	if kill_feed == null:
 		return
 	var row := HBoxContainer.new()
@@ -675,6 +694,15 @@ func _on_kill_feed(killer_name: String, victim_name: String, weapon_id: StringNa
 	row.add_child(k)
 	row.add_child(icon)
 	row.add_child(v)
+	if tricks != "":
+		var tag := Label.new()
+		tag.name = "TrickTag"
+		tag.text = tricks
+		tag.add_theme_font_size_override("font_size", 14)
+		tag.add_theme_color_override("font_color", TRICK_COLOR)
+		tag.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		tag.add_theme_constant_override("outline_size", 4)
+		row.add_child(tag)
 	kill_feed.add_child(row)
 	kill_feed.move_child(row, 0)
 	while kill_feed.get_child_count() > _FEED_MAX:
@@ -726,6 +754,7 @@ func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Diction
 	_round_end_winner = winner_name
 	round_end_label.text = "%s WINS" % winner_name
 	round_end_label.visible = true
+	_show_style_king()
 	_scoreboard_open = true
 	scoreboard_container.visible = true
 	_refresh_scoreboard()
@@ -745,6 +774,114 @@ func show_intermission() -> void:
 	_intermission_timer = 10.0
 	intermission_label.text = "INTERMISSION - NEXT ROUND SOON"
 	intermission_label.visible = true
+
+
+## Trickshot by this machine's pawn: big word in the middle, points and combo under it, a sting.
+func _on_trick_scored(killer_peer_id: int, tricks: String, points: int, multiplier: float, _total: int) -> void:
+	var killer := Game.player_for_peer(killer_peer_id)
+	if killer == null or not killer.is_local():
+		return
+	show_trick(Style.label(Style.unpack(tricks)), points, multiplier)
+
+
+func show_trick(text: String, points: int, multiplier: float) -> void:
+	if _trick == null or text == "":
+		return
+	_trick_title.text = text + "!"
+	var sub := "+%d STYLE" % points
+	if multiplier > 1.001:
+		sub += "   x%s COMBO" % String.num(multiplier, 2).trim_suffix("0").trim_suffix(".")
+	_trick_sub.text = sub
+	if _trick_tween:
+		_trick_tween.kill()
+	_trick.visible = true
+	_trick.modulate.a = 1.0
+	_trick.pivot_offset = _trick.size * 0.5
+	_trick.scale = Vector2(1.35, 1.35)
+	_trick_tween = _trick.create_tween()
+	_trick_tween.tween_property(_trick, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_trick_tween.tween_interval(_TRICK_HOLD)
+	_trick_tween.tween_property(_trick, "modulate:a", 0.0, _TRICK_FADE)
+	_trick_tween.tween_callback(_hide_trick)
+	if _trick_sfx:
+		_trick_sfx.play()
+
+
+func trick_text() -> String:
+	return _trick_title.text if _trick and _trick.visible else ""
+
+
+func _hide_trick() -> void:
+	if _trick_tween:
+		_trick_tween.kill()
+		_trick_tween = null
+	if _trick:
+		_trick.visible = false
+
+
+func _build_trick_popup() -> void:
+	_trick = VBoxContainer.new()
+	_trick.name = "TrickPopup"
+	_trick.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_trick.anchor_left = 0.5
+	_trick.anchor_right = 0.5
+	_trick.anchor_top = 0.5
+	_trick.anchor_bottom = 0.5
+	_trick.offset_left = -480.0
+	_trick.offset_right = 480.0
+	_trick.offset_top = -250.0
+	_trick.offset_bottom = -140.0
+	_trick.alignment = BoxContainer.ALIGNMENT_CENTER
+	_trick.add_theme_constant_override("separation", 0)
+	_trick.visible = false
+	add_child(_trick)
+	_trick_title = Label.new()
+	_trick_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_trick_title.add_theme_font_size_override("font_size", 58)
+	_trick_title.add_theme_color_override("font_color", TRICK_COLOR)
+	_trick_title.add_theme_color_override("font_outline_color", Color(0.12, 0.05, 0.0, 0.95))
+	_trick_title.add_theme_constant_override("outline_size", 12)
+	_trick_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_trick.add_child(_trick_title)
+	_trick_sub = Label.new()
+	_trick_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_trick_sub.add_theme_font_size_override("font_size", 22)
+	_trick_sub.add_theme_color_override("font_color", Color(1, 0.95, 0.82))
+	_trick_sub.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_trick_sub.add_theme_constant_override("outline_size", 6)
+	_trick_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_trick.add_child(_trick_sub)
+	_trick_sfx = AudioStreamPlayer.new()
+	_trick_sfx.stream = _TRICK_SFX
+	_trick_sfx.bus = "SFX"
+	_trick_sfx.volume_db = -3.0
+	add_child(_trick_sfx)
+
+
+## Round end, under "X WINS": who got the most style this round (FFA and TDM alike).
+func _show_style_king() -> void:
+	var king := Game.style_king()
+	if _style_king == null:
+		_style_king = Label.new()
+		_style_king.name = "StyleKing"
+		_style_king.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_style_king.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_style_king.add_theme_font_size_override("font_size", 22)
+		_style_king.add_theme_color_override("font_color", TRICK_COLOR)
+		_style_king.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		_style_king.add_theme_constant_override("outline_size", 6)
+		# Lives in the scoreboard, right under the team totals (moved there on every refresh), so it
+		# never overlaps the winner line or the rows at any window size.
+		scoreboard_container.add_child(_style_king)
+	if king.is_empty():
+		_style_king.visible = false
+		return
+	_style_king.text = "STYLE KING  ·  %s  ·  %d style" % [str(king.name), int(king.style)]
+	_style_king.visible = true
+
+
+func style_king_text() -> String:
+	return _style_king.text if _style_king and _style_king.visible else ""
 
 
 ## FFA only: "2nd · 7 / 20 kills" (leader 9) under the clock. Team mode hides it.
@@ -801,7 +938,8 @@ static func _ordinal(n: int) -> String:
 
 func _refresh_scoreboard() -> void:
 	for c in scoreboard_container.get_children():
-		c.queue_free()
+		if c != _style_king:
+			c.queue_free()
 	_scores = Game.get_scores()
 	_scores.sort_custom(_sort_scores)
 
@@ -813,10 +951,12 @@ func _refresh_scoreboard() -> void:
 	totals.add_theme_font_size_override("font_size", 22)
 	totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	scoreboard_container.add_child(totals)
+	if _style_king:
+		scoreboard_container.move_child(_style_king, totals.get_index() + 1)
 
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 16)
-	for title in ["#" if ffa else "TEAM", "NAME", "KILLS", "PING"]:
+	for title in ["#" if ffa else "TEAM", "NAME", "KILLS", "STYLE", "PING"]:
 		var h := Label.new()
 		h.text = title
 		h.add_theme_font_size_override("font_size", 16)
@@ -852,6 +992,13 @@ func _refresh_scoreboard() -> void:
 		kills_l.text = str(entry.kills)
 		kills_l.custom_minimum_size = Vector2(70, 0)
 		kills_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var style_l := Label.new()
+		var style_pts := int(entry.get("style", 0))
+		style_l.text = str(style_pts) if style_pts > 0 else "—"
+		style_l.custom_minimum_size = Vector2(70, 0)
+		style_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		if style_pts > 0:
+			style_l.add_theme_color_override("font_color", TRICK_COLOR)
 		var ping_l := Label.new()
 		var ping_ms := int(entry.get("ping", -1))
 		ping_l.text = "—" if ping_ms < 0 else str(ping_ms)
@@ -860,6 +1007,7 @@ func _refresh_scoreboard() -> void:
 		row.add_child(team_l)
 		row.add_child(name_l)
 		row.add_child(kills_l)
+		row.add_child(style_l)
 		row.add_child(ping_l)
 		scoreboard_container.add_child(row)
 
@@ -916,6 +1064,8 @@ func _process(delta: float) -> void:
 		_round_end_timer -= delta
 		if _round_end_timer <= 0.0:
 			round_end_label.visible = false
+			if _style_king:
+				_style_king.visible = false
 			if not tab_pressed:
 				_scoreboard_open = false
 				scoreboard_container.visible = false

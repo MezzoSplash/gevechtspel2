@@ -29,6 +29,10 @@ var _events: Array = [] # [t, kind, a, b, c, d]
 var _meta: Dictionary = {} # peer_id -> [name, team]
 var _clips: Dictionary = {} # victim peer_id -> their last death, kept for rounds that end on the clock
 var _pending_clips: Array = [] # [victim peer_id, death time]
+# Best trickshot of the round (Game.best_trick): the server flags each new best; we keep its replay here.
+var _trick_wait: Dictionary = {} # victim peer_id -> trick_id, until that victim's death is recorded
+var _trick_deaths: Array = [] # [trick_id, death time] waiting for POST before they are sliced
+var _trick_clip: Dictionary = {} # the sliced replay of the latest best trick ("trick_id" key)
 
 var _playing := false
 var _clip: Dictionary = {}
@@ -140,6 +144,9 @@ func reset() -> void:
 	_meta.clear()
 	_clips.clear()
 	_pending_clips.clear()
+	_trick_wait.clear()
+	_trick_deaths.clear()
+	_trick_clip = {}
 	_clock = 0.0
 	_snap_t = 0.0
 
@@ -165,7 +172,17 @@ func note_hurt(peer_id: int) -> void:
 func note_death(peer_id: int) -> void:
 	if _should_record():
 		_pending_clips.append([peer_id, _clock])
+		if _trick_wait.has(peer_id):
+			_trick_deaths.append([int(_trick_wait[peer_id]), _clock])
+			_trick_wait.erase(peer_id)
 	_note("death", peer_id)
+
+
+## Game._apply_trick: this kill is the round's new best trickshot. Its victim's death comes right after
+## (same tick on the server, the next reliable message on clients).
+func note_trick(trick_id: int, victim_peer_id: int) -> void:
+	if _should_record():
+		_trick_wait[victim_peer_id] = trick_id
 
 
 func note_boom(pos: Vector3) -> void:
@@ -197,6 +214,10 @@ func _process(delta: float) -> void:
 	while not _pending_clips.is_empty() and _clock >= float(_pending_clips[0][1]) + POST + 0.05:
 		var entry: Array = _pending_clips.pop_front()
 		_clips[int(entry[0])] = _slice(float(entry[1]))
+	while not _trick_deaths.is_empty() and _clock >= float(_trick_deaths[0][1]) + POST + 0.05:
+		var td: Array = _trick_deaths.pop_front()
+		_trick_clip = _slice(float(td[1]))
+		_trick_clip["trick_id"] = int(td[0])
 
 
 func _snapshot() -> void:
@@ -242,6 +263,20 @@ func _find_clip(victim: int) -> Dictionary:
 	return _clips.get(victim, {})
 
 
+## The kept replay of trick `trick_id`, or a fresh slice when it happened less than POST ago.
+func _trick_clip_for(trick_id: int) -> Dictionary:
+	if int(_trick_clip.get("trick_id", -1)) == trick_id:
+		return _trick_clip
+	for td in _trick_deaths:
+		if int(td[0]) == trick_id:
+			return _slice(float(td[1]))
+	return {}
+
+
+func _clip_usable(clip: Dictionary, killer: int) -> bool:
+	return not clip.is_empty() and (clip.frames as Array).size() >= 2 and _clip_has(clip, killer)
+
+
 func _clip_has(clip: Dictionary, peer_id: int) -> bool:
 	for f in clip.frames:
 		if (f[1] as Dictionary).has(peer_id):
@@ -254,10 +289,20 @@ func _clip_has(clip: Dictionary, peer_id: int) -> bool:
 func _start_playback(info: Dictionary) -> void:
 	if Game.is_dedicated or _playing or typeof(info) != TYPE_DICTIONARY:
 		return
+	var clip := {}
+	if info.has("trick_id"):
+		# The round's best trickshot. Not recorded here (joined later): the last kill instead.
+		clip = _trick_clip_for(int(info.trick_id))
+		if not _clip_usable(clip, int(info.get("k", 0))):
+			clip = {}
+			info = info.get("fallback", {})
+			if typeof(info) != TYPE_DICTIONARY or info.is_empty():
+				return
 	var killer := int(info.get("k", 0))
-	var clip := _find_clip(int(info.get("v", 0)))
+	if clip.is_empty():
+		clip = _find_clip(int(info.get("v", 0)))
 	# Joined too late, or the kill fell out of the buffer: no replay. The lock still holds.
-	if clip.is_empty() or (clip.frames as Array).size() < 2 or not _clip_has(clip, killer):
+	if not _clip_usable(clip, killer):
 		return
 	_clip = clip
 	_clip["info"] = info
@@ -651,7 +696,7 @@ func _build_overlay(info: Dictionary) -> void:
 	_draw.draw.connect(_on_draw.bind(_draw))
 	full.add_child(_draw)
 	var top := _bar(full, true)
-	var title := _label("FINAL KILLCAM", 34, Color(1, 1, 1))
+	var title := _label("BEST TRICKSHOT" if info.has("trick_id") else "FINAL KILLCAM", 34, Color(1, 1, 1))
 	title.set_anchors_preset(Control.PRESET_FULL_RECT)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -681,6 +726,9 @@ func _build_overlay(info: Dictionary) -> void:
 	row.add_child(_label(str(info.get("vn", "?")), 26, Player.team_color(vt)))
 	if bool(info.get("hs", false)):
 		row.add_child(_label("HEADSHOT", 20, Color(1.0, 0.86, 0.2)))
+	var tags := str(info.get("tags", ""))
+	if tags != "":
+		row.add_child(_label(tags, 20, Hud.TRICK_COLOR))
 
 
 func _bar(parent: Control, top: bool) -> ColorRect:
