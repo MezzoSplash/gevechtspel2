@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.13** — classes (custom loadouts), melee on E, bullet impacts, punchier shotgun, team radar with announcer.
+**v0.2.14** — new map Foundry, Free For All mode, map/mode choice (incl. `--map`/`--mode` for servers), mouse sensitivity setting, damage direction indicator.
 
 ## Play (Linux)
 
