@@ -122,8 +122,10 @@ var _fall_peak := 0.0 # highest y since the feet left the ground
 var _landed_drop := 0.0 # metres of the last fall, from its peak
 var _landed_t := -100.0
 var _surf_seen_t := -100.0 # last _style_clock with a steep ramp beside or under us
+var _style_last_pos := Vector3.INF # teleports (respawn, admin moves) never count as a fall
 const STYLE_KEEP := 1.5
 const STYLE_RAMP_REACH := 1.0 # m from the body centre (capsule radius ~0.45, plus slack)
+const STYLE_TELEPORT_M := 3.0 # one tick moving further than this is a teleport (snapshots move < 1 m)
 
 
 ## Bots are never "local" (no camera/input), even in offline 5v5.
@@ -962,6 +964,11 @@ func _tick_style_track(delta: float) -> void:
 		air_time = 0.0
 		_style_in_air = false
 		return
+	if global_position.distance_to(_style_last_pos) > STYLE_TELEPORT_M:
+		_style_in_air = false
+		_landed_drop = 0.0
+		air_time = 0.0
+	_style_last_pos = global_position
 	var under := _feet_ray()
 	# Nothing under the feet, or only a ramp too steep to stand on: in the air (surfing counts).
 	var steep := not under.is_empty() and float((under.normal as Vector3).y) < Player.SURF_MAX_NORMAL_Y
@@ -1032,6 +1039,7 @@ func spin_degrees(window: float = Style.SPIN_WINDOW) -> float:
 
 
 func _reset_style_track() -> void:
+	_style_last_pos = Vector3.INF
 	_yaw_samples.clear()
 	_style_has_yaw = false
 	air_time = 0.0
