@@ -293,7 +293,7 @@ func _tick_killcam(delta: float) -> void:
 	_state_timer += delta
 	if not _killcam_sent and _state_timer >= Killcam.POST:
 		_killcam_sent = true
-		Game.killcam.play_final(Game.final_kill)
+		Game.killcam.play_final(Game.killcam_pick()) # best trickshot of the round, else the last kill
 	if _state_timer >= Killcam.total_time():
 		Game.killcam.set_lock(false)
 		_match_state = MatchState.ROUND_END

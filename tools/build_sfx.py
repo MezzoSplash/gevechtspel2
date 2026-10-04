@@ -6,6 +6,7 @@ Usage: python3 tools/build_sfx.py <src_dir>
   Prepared SFX Library/          The Free Firearm Sound Library (OpenGameArt, CC0)
   kenney_impact/Audio/           Kenney Impact Sounds (CC0)
   kenney_scifi/Audio/            Kenney Sci-fi Sounds (CC0)
+  kenney_ui/Audio/               Kenney Interface Sounds (CC0)
   tts/                           raw Piper TTS takes, voice en_US-ljspeech-high (LJ Speech, public domain):
                                    echo "Friendly radar online." | piper -m en_US-ljspeech-high.onnx -f tts/friendly_radar_online.wav
                                    echo "Enemy radar online." | piper -m en_US-ljspeech-high.onnx -f tts/enemy_radar_online.wav
@@ -160,3 +161,23 @@ def radio(src, name):
 
 radio("friendly_radar_online.wav", "radar_friendly.wav")
 radio("enemy_radar_online.wav", "radar_enemy.wav")
+
+def trickshot():
+    # Trickshot sting: Kenney Interface rising sweep, then the two-tone chime plus an octave-up copy for sparkle.
+    sweep = load(K + "kenney_ui/Audio/maximize_005.ogg", hp=120)
+    chime = load(K + "kenney_ui/Audio/confirmation_002.ogg", hp=120)
+    sparkle = load(K + "kenney_ui/Audio/confirmation_002.ogg", hp=400, extra=f"asetrate={SR*2},aresample={SR}")
+    total = int(0.68 * SR)
+    y = np.zeros(total)
+    def put(x, at, gain):
+        a = int(at * SR)
+        n = min(len(x), total - a)
+        y[a:a + n] += x[:n] * gain
+    put(norm(sweep, 0.0), 0.0, 0.55)
+    put(norm(chime, 0.0), 0.07, 1.0)
+    put(norm(sparkle, 0.0), 0.07, 0.35)
+    y = np.tanh(1.6 * y) / np.tanh(1.6)
+    write("trickshot.wav", norm(shape(y, total / SR, 0.7, pre=0.002), -2.0))
+
+if os.path.isdir(K + "kenney_ui/Audio"):
+    trickshot()

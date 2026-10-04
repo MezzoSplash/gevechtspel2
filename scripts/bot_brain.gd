@@ -206,7 +206,9 @@ func _steer_to(dest: Vector3, speed: float, delta: float) -> void:
 		var next := agent.get_next_path_position()
 		dir = next - pawn.global_position
 		dir.y = 0.0
-	if dir.length() < 0.08:
+	# Also when the next path point is (nearly) straight above us (navmesh a bit higher than the feet, e.g.
+	# beside a low ledge): the agent never reaches it and the bot would stand still forever.
+	if dir.length() < 0.12:
 		dir = dest - pawn.global_position
 		dir.y = 0.0
 	var wish := Vector3.ZERO
@@ -226,7 +228,7 @@ func _steer_to(dest: Vector3, speed: float, delta: float) -> void:
 		horiz = pawn._friction(horiz, delta)
 		horiz = pawn._accelerate(horiz, wish, speed, Player.GROUND_ACCEL, delta)
 	else:
-		horiz = pawn._accelerate(horiz, wish, Player.WALK_SPEED, Player.AIR_ACCEL, delta)
+		horiz = pawn._accelerate(horiz, wish, Player.WALK_SPEED, Player.BOT_AIR_ACCEL, delta)
 	pawn.velocity.x = horiz.x
 	pawn.velocity.z = horiz.z
 

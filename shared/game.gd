@@ -6,7 +6,10 @@ signal hit_confirmed(killed: bool, headshot: bool)
 signal local_player_ready(player: Player)
 signal score_changed(peer_id: int, score: int, name: String)
 signal round_ended(winner_peer_id: int, winner_name: String, scores: Dictionary)
-signal kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int)
+## `tricks`: "" or the trickshot label for the feed tag ("360 NOSCOPE + AIRSHOT").
+signal kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int, tricks: String)
+## Every machine: a kill was a trickshot. `tricks` is Style.pack form; `total` the killer's style this round.
+signal trick_scored(killer_peer_id: int, tricks: String, points: int, multiplier: float, total: int)
 signal presence(player_name: String, joined: bool, team: int)
 signal chat_message(player_name: String, team: int, text: String)
 signal lobby_changed
@@ -39,7 +42,7 @@ const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.14"
+const NET_VERSION := "0.2.17"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -60,6 +63,10 @@ var in_lobby := false
 var round_frozen := false # look OK, no walk/shoot; bots idle
 var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
+var best_trick: Dictionary = {} # match authority: this round's highest-scoring trickshot (same keys + tags/pts/trick_id)
+var _shot_ctx: Dictionary = {} # match authority, while a shot resolves: {shooter, origin, scoped}
+var _style_chain: Dictionary = {} # peer_id -> [trick kills in a row, time of the last one]
+var _trick_seq := 0
 var killcam: Killcam
 var melee: Melee
 var impacts: ImpactMarks
@@ -265,7 +272,8 @@ func request_weapon_fire(
 	weapon_id: StringName,
 	muzzle_pos: Vector3 = Vector3.ZERO,
 	spread_mult: float = 1.0,
-	shot_seed: int = 0
+	shot_seed: int = 0,
+	scoped: bool = false
 ) -> void:
 	if not multiplayer.is_server():
 		return
@@ -285,7 +293,7 @@ func request_weapon_fire(
 	if not _take_fire_credit(peer, def):
 		return
 	var mult := clampf(spread_mult, shooter.min_spread_multiplier(), SPREAD_MAX)
-	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed)
+	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped)
 	var from := muzzle_pos
 	if from == Vector3.ZERO or from.distance_to(origin) > 2.0:
 		from = origin
@@ -411,20 +419,32 @@ func fire_weapon_locally(
 	look_dir: Vector3,
 	def: WeaponDef,
 	spread_mult: float = 1.0,
-	shot_seed: int = 0
+	shot_seed: int = 0,
+	scoped: bool = false
 ) -> Dictionary:
-	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult, shot_seed)
+	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult, shot_seed, scoped)
 
 
 ## `shot_seed` drives the pellet spread, so Weapon._simulate_pellets_fx draws the same rays.
 ## Teammates are excluded: shots pass through friends instead of being soaked up by them.
+## `scoped`: the shooter had the sniper scope up (only matters for the NOSCOPE trick, never for damage).
 func _resolve_weapon_fire(
 	shooter: Player,
 	origin: Vector3,
 	look_dir: Vector3,
 	def: WeaponDef,
 	spread_mult: float,
-	shot_seed: int = 0
+	shot_seed: int = 0,
+	scoped: bool = false
+) -> Dictionary:
+	_shot_ctx = {"shooter": shooter, "origin": origin, "scoped": scoped}
+	var best := _resolve_shot_rays(shooter, origin, look_dir, def, spread_mult, shot_seed)
+	_shot_ctx = {}
+	return best
+
+
+func _resolve_shot_rays(
+	shooter: Player, origin: Vector3, look_dir: Vector3, def: WeaponDef, spread_mult: float, shot_seed: int
 ) -> Dictionary:
 	look_dir = look_dir.normalized()
 	var spread := def.spread_deg * spread_mult
@@ -615,7 +635,7 @@ func _display_name_for(peer_id: int) -> String:
 
 func _apply_score(peer_id: int, kills: int, n: String, team: int = 0) -> void:
 	if not scores.has(peer_id):
-		scores[peer_id] = {"name": n, "kills": 0, "team": team}
+		scores[peer_id] = {"name": n, "kills": 0, "team": team, "style": 0}
 	scores[peer_id].kills = kills
 	scores[peer_id].name = n
 	scores[peer_id].team = team
@@ -805,14 +825,19 @@ func register_kill(
 		victim_team = victim.team_id
 	elif scores.has(victim_peer_id):
 		victim_team = int(scores[victim_peer_id].get("team", 0))
-	_emit_kill_feed(killer_name, victim_name, weapon_id, team_id, victim_team)
+	var tricks := _detect_tricks(killer_peer_id, victim_peer_id, weapon_id)
+	var tag := Style.label(tricks)
+	_emit_kill_feed(killer_name, victim_name, weapon_id, team_id, victim_team, tag)
 	if is_networked():
-		sync_kill_feed.rpc(killer_name, victim_name, String(weapon_id), team_id, victim_team)
+		sync_kill_feed.rpc(killer_name, victim_name, String(weapon_id), team_id, victim_team, tag)
+	var kill_info := {
+		"k": killer_peer_id, "v": victim_peer_id, "kn": killer_name, "vn": victim_name,
+		"kt": team_id, "vt": victim_team, "w": String(weapon_id), "hs": headshot, "tags": tag,
+	}
+	if not tricks.is_empty():
+		_award_style(kill_info, tricks)
 	if _round_active:
-		final_kill = {
-			"k": killer_peer_id, "v": victim_peer_id, "kn": killer_name, "vn": victim_name,
-			"kt": team_id, "vt": victim_team, "w": String(weapon_id), "hs": headshot,
-		}
+		final_kill = kill_info
 	if is_ffa():
 		_check_win_player(killer_peer_id)
 	else:
@@ -831,9 +856,9 @@ func _register_suicide(peer_id: int, weapon_id: StringName) -> void:
 		team = p.team_id
 	elif scores.has(peer_id):
 		team = int(scores[peer_id].get("team", 0))
-	_emit_kill_feed(n, n, weapon_id, team, team)
+	_emit_kill_feed(n, n, weapon_id, team, team, "")
 	if is_networked():
-		sync_kill_feed.rpc(n, n, String(weapon_id), team, team)
+		sync_kill_feed.rpc(n, n, String(weapon_id), team, team, "")
 	_bump_streak(0, peer_id)
 
 
@@ -973,20 +998,127 @@ func clear_radar() -> void:
 		hud.clear_radar()
 
 
-func _emit_kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int) -> void:
-	kill_feed.emit(killer_name, victim_name, weapon_id, killer_team, victim_team)
+func _emit_kill_feed(
+	killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int, tricks: String
+) -> void:
+	kill_feed.emit(killer_name, victim_name, weapon_id, killer_team, victim_team, tricks)
 
 
 @rpc("authority", "reliable")
-func sync_kill_feed(killer_name: String, victim_name: String, weapon_id: String, killer_team: int, victim_team: int) -> void:
+func sync_kill_feed(
+	killer_name: String, victim_name: String, weapon_id: String, killer_team: int, victim_team: int, tricks: String = ""
+) -> void:
 	if multiplayer.is_server():
 		return
-	kill_feed.emit(killer_name, victim_name, StringName(weapon_id), killer_team, victim_team)
+	kill_feed.emit(killer_name, victim_name, StringName(weapon_id), killer_team, victim_team, tricks.left(80))
+
+
+# --- Trickshots / style (see Style). Match authority decides, everyone shows it. ---
+
+## The shot that is resolving right now (Game._shot_ctx) made this kill: what tricks was it?
+## Melee, grenades and anything outside a gun shot have no context and no tricks.
+func _detect_tricks(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName) -> Array[StringName]:
+	var none: Array[StringName] = []
+	if _shot_ctx.is_empty():
+		return none
+	var shooter := _shot_ctx.get("shooter") as Player
+	if shooter == null or not is_instance_valid(shooter):
+		return none
+	if shooter.peer_id != killer_peer_id and shooter._owner_peer() != killer_peer_id:
+		return none
+	var victim := player_for_peer(victim_peer_id)
+	var origin: Vector3 = _shot_ctx.get("origin", shooter.global_position)
+	var dist := origin.distance_to(victim.aim_point()) if victim else 0.0
+	var window := Style.SPIN_WINDOW
+	if is_networked() and not shooter.is_bot and not shooter.is_local():
+		window += Style.SPIN_NET_SLACK
+	return Style.detect(
+		weapon_id,
+		bool(_shot_ctx.get("scoped", false)),
+		shooter.is_bot,
+		shooter.spin_degrees(window),
+		shooter.air_time,
+		victim.air_time if victim else 0.0,
+		dist
+	)
+
+
+## Points (with the chain multiplier) onto the killer's style; tell everyone; remember the round's best
+## trick for the final killcam.
+func _award_style(kill_info: Dictionary, tricks: Array[StringName]) -> void:
+	var k := int(kill_info.k)
+	var now := Time.get_ticks_msec() / 1000.0
+	var prev: Array = _style_chain.get(k, [0, -1000.0])
+	var chain := int(prev[0]) + 1 if now - float(prev[1]) <= Style.CHAIN_WINDOW else 1
+	_style_chain[k] = [chain, now]
+	var pts := Style.award(tricks, chain)
+	var mult := Style.chain_multiplier(chain)
+	var total := pts + (int(scores[k].get("style", 0)) if scores.has(k) else 0)
+	_trick_seq += 1
+	var is_best := _round_active and pts > int(best_trick.get("pts", 0))
+	if is_best:
+		best_trick = kill_info.duplicate()
+		best_trick["pts"] = pts
+		best_trick["trick_id"] = _trick_seq
+	var packed := Style.pack(tricks)
+	_apply_trick(k, int(kill_info.v), packed, pts, mult, total, _trick_seq, is_best)
+	if is_networked():
+		sync_trick.rpc(k, int(kill_info.v), packed, pts, mult, total, _trick_seq, is_best)
 
 
 @rpc("authority", "reliable")
-func sync_score(peer_id: int, score: int, n: String, team: int = 0) -> void:
+func sync_trick(
+	killer_peer_id: int, victim_peer_id: int, tricks: String, points: int, multiplier: float, total: int,
+	trick_id: int, is_best: bool
+) -> void:
+	if multiplayer.is_server():
+		return
+	_apply_trick(killer_peer_id, victim_peer_id, tricks, points, multiplier, total, trick_id, is_best)
+
+
+## `is_best`: the round's new best trick, so every machine keeps its replay for the final killcam.
+func _apply_trick(
+	killer_peer_id: int, victim_peer_id: int, tricks: String, points: int, multiplier: float, total: int,
+	trick_id: int, is_best: bool
+) -> void:
+	if scores.has(killer_peer_id):
+		scores[killer_peer_id].style = maxi(total, 0)
+	if is_best and killcam:
+		killcam.note_trick(trick_id, victim_peer_id)
+	trick_scored.emit(killer_peer_id, tricks, points, multiplier, total)
+	if scores.has(killer_peer_id):
+		score_changed.emit(killer_peer_id, int(scores[killer_peer_id].kills), str(scores[killer_peer_id].name))
+
+
+## What the final killcam replays: the round's best trickshot if there was one (with the last kill as
+## fallback for machines that have no replay of it), else the last kill.
+func killcam_pick() -> Dictionary:
+	if best_trick.is_empty():
+		return final_kill
+	var info := best_trick.duplicate()
+	info["fallback"] = final_kill.duplicate()
+	return info
+
+
+## Most style this round (> 0). Ties: the name that sorts first. {} if nobody has style.
+func style_king() -> Dictionary:
+	var best := {}
+	for id in scores:
+		var st := int(scores[id].get("style", 0))
+		if st <= 0:
+			continue
+		var n := str(scores[id].name)
+		if best.is_empty() or st > int(best.style) or (st == int(best.style) and n < str(best.name)):
+			best = {"peer_id": int(id), "name": n, "style": st, "team": int(scores[id].get("team", 0))}
+	return best
+
+
+## `style` -1 keeps the row's style (only the round reset sends 0).
+@rpc("authority", "reliable")
+func sync_score(peer_id: int, score: int, n: String, team: int = 0, style: int = -1) -> void:
 	_apply_score(peer_id, score, n, team)
+	if style >= 0 and scores.has(peer_id):
+		scores[peer_id].style = style
 
 
 @rpc("authority", "reliable")
@@ -1012,6 +1144,7 @@ func sync_all_scores(scores_data: Array) -> void:
 		var kills: int = int(entry.kills)
 		var team: int = int(entry.get("team", 0))
 		_apply_score(pid, kills, n, team)
+		scores[pid].style = maxi(int(entry.get("style", 0)), 0)
 
 
 func _check_win_team(team_id: int) -> void:
@@ -1117,13 +1250,16 @@ func start_round() -> void:
 	_round_timer = 0.0
 	_round_active = false # timer starts after freeze
 	final_kill.clear()
+	best_trick.clear()
+	_style_chain.clear()
 	team_kills = [0, 0]
 	if is_networked() and multiplayer.is_server():
 		sync_team_kills.rpc(0, 0)
 	for id in scores:
+		scores[id].style = 0
 		_apply_score(id, 0, str(scores[id].name), int(scores[id].get("team", 0)))
 		if is_networked() and multiplayer.is_server():
-			sync_score.rpc(id, 0, str(scores[id].name), int(scores[id].team))
+			sync_score.rpc(id, 0, str(scores[id].name), int(scores[id].team), 0)
 
 
 func end_freeze() -> void:
@@ -1167,6 +1303,9 @@ func reset_session() -> void:
 	round_frozen = false
 	killcam_active = false
 	final_kill.clear()
+	best_trick.clear()
+	_style_chain.clear()
+	_shot_ctx = {}
 	if killcam:
 		killcam.reset()
 	if melee:
@@ -1229,6 +1368,7 @@ func get_scores() -> Array[Dictionary]:
 			"name": scores[id].name,
 			"kills": scores[id].kills,
 			"team": int(scores[id].get("team", 0)),
+			"style": int(scores[id].get("style", 0)),
 			"ping": int(pings.get(id, -1)),
 		})
 	out.sort_custom(_sort_scores)
