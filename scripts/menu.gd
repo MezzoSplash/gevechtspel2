@@ -16,6 +16,7 @@ signal match_choice_changed(map_id: StringName, mode: int)
 @onready var ip_edit: LineEdit = $Center/Mp/JoinRow/IpEdit
 @onready var port_edit: LineEdit = $Center/Mp/JoinRow/PortEdit
 @onready var settings_panel = $Center/Settings/SettingsPanel
+@onready var version_label: Label = $VersionLabel
 
 var _team := 0
 var class_editor: ClassEditor
@@ -27,6 +28,9 @@ var _lobby_info: Label
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Top-right corner, part of the menu only: hidden with it in game (HUD, pause, killcam).
+	version_label.text = version_text()
+	version_label.visible = not version_label.text.is_empty()
 	$Center/Home/SoloButton.pressed.connect(func() -> void: show_screen("solo"))
 	$Center/Home/MpButton.pressed.connect(func() -> void: show_screen("mp"))
 	$Center/Home/SettingsButton.pressed.connect(func() -> void: show_screen("settings"))
@@ -174,6 +178,13 @@ func show_screen(id: String) -> void:
 		mp_name.text = solo_name.text
 	elif id == "settings" and settings_panel and settings_panel.has_method("refresh"):
 		settings_panel.refresh()
+
+
+## "v0.2.15" from project.godot application/config/version: the one place the release bump sets
+## the game version (export presets use the same number), so the menu cannot show a stale one.
+static func version_text() -> String:
+	var v := str(ProjectSettings.get_setting("application/config/version", "")).strip_edges()
+	return "" if v.is_empty() else "v" + v
 
 
 func set_status(t: String) -> void:
