@@ -131,7 +131,9 @@ func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float)
 	var killer_id := attacker.peer_id
 	if killer_id <= 0:
 		killer_id = attacker._owner_peer()
+	Game.begin_melee_ctx(attacker, origin) # SURF / DROP KILL work with the bash too
 	var r := best.apply_hit(best_pt, -dir, DAMAGE, false, killer_id, WEAPON_ID, 1.0, attacker.global_position)
+	Game.end_melee_ctx()
 	out.hit = int(r.get("damage", 0)) > 0
 	out.killed = bool(r.get("killed", false))
 	return out

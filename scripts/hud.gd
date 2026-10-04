@@ -788,6 +788,9 @@ func show_trick(text: String, points: int, multiplier: float) -> void:
 	if _trick == null or text == "":
 		return
 	_trick_title.text = text + "!"
+	# Long combos ("HEADSHOT STREAK + SPRAY TRANSFER + AIRSHOT!") shrink to stay inside the popup.
+	var size := clampi(roundi(58.0 * 44.0 / float(maxi(_trick_title.text.length(), 1))), 34, 58)
+	_trick_title.add_theme_font_size_override("font_size", size)
 	var sub := "+%d STYLE" % points
 	if multiplier > 1.001:
 		sub += "   x%s COMBO" % String.num(multiplier, 2).trim_suffix("0").trim_suffix(".")

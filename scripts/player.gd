@@ -117,7 +117,13 @@ var _style_clock := 0.0
 var _yaw_samples: Array = [] # [[t, signed yaw delta rad], ...] over the last STYLE_KEEP seconds
 var _style_last_yaw := 0.0
 var _style_has_yaw := false
+var _style_in_air := false
+var _fall_peak := 0.0 # highest y since the feet left the ground
+var _landed_drop := 0.0 # metres of the last fall, from its peak
+var _landed_t := -100.0
+var _surf_seen_t := -100.0 # last _style_clock with a steep ramp beside or under us
 const STYLE_KEEP := 1.5
+const STYLE_RAMP_REACH := 1.0 # m from the body centre (capsule radius ~0.45, plus slack)
 
 
 ## Bots are never "local" (no camera/input), even in offline 5v5.
@@ -954,19 +960,69 @@ func _tick_style_track(delta: float) -> void:
 		_yaw_samples.pop_front()
 	if is_dead or not is_inside_tree():
 		air_time = 0.0
-	elif _feet_clear():
+		_style_in_air = false
+		return
+	var under := _feet_ray()
+	# Nothing under the feet, or only a ramp too steep to stand on: in the air (surfing counts).
+	var steep := not under.is_empty() and float((under.normal as Vector3).y) < Player.SURF_MAX_NORMAL_Y
+	if under.is_empty() or steep:
 		air_time += delta
+		var y := global_position.y
+		if not _style_in_air:
+			_style_in_air = true
+			_fall_peak = y
+		_fall_peak = maxf(_fall_peak, y)
+		if steep or _ramp_beside():
+			_surf_seen_t = _style_clock
 	else:
+		if _style_in_air:
+			_landed_drop = _fall_peak - global_position.y
+			_landed_t = _style_clock
+		_style_in_air = false
 		air_time = 0.0
 
 
-func _feet_clear() -> bool:
+func _feet_ray() -> Dictionary:
 	var space := get_world_3d().direct_space_state
 	var from := global_position + Vector3(0.0, 0.05, 0.0)
 	var query := PhysicsRayQueryParameters3D.create(from, global_position - Vector3(0.0, Style.AIR_GAP, 0.0))
 	query.collision_mask = 1
 	query.exclude = [get_rid()]
-	return space.intersect_ray(query).is_empty()
+	return space.intersect_ray(query)
+
+
+## In the air: a surf ramp (steeper than walkable, not a wall) touching the capsule's side?
+## Eight rays from the body centre, angled down like the contact normal on a 45-85° ramp.
+func _ramp_beside() -> bool:
+	var space := get_world_3d().direct_space_state
+	var from := global_position + Vector3(0.0, 0.9, 0.0)
+	for i in 8:
+		var a := TAU * float(i) / 8.0
+		var dir := Vector3(cos(a), 0.0, sin(a)) * 0.82 + Vector3(0.0, -0.57, 0.0) # ~35° down
+		var query := PhysicsRayQueryParameters3D.create(from, from + dir * STYLE_RAMP_REACH)
+		query.collision_mask = 1
+		query.exclude = [get_rid()]
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			continue
+		var ny := float((hit.normal as Vector3).y)
+		if ny > SURF_MIN_NORMAL_Y and ny < SURF_MAX_NORMAL_Y:
+			return true
+	return false
+
+
+## Match authority: surfing right now (or within Style.SURF_RECENT).
+func style_surfing() -> bool:
+	return _style_in_air and _style_clock - _surf_seen_t <= Style.SURF_RECENT
+
+
+## Match authority: how far we fell, while falling or just after landing (0 otherwise).
+func style_drop() -> float:
+	if _style_in_air:
+		return maxf(_fall_peak - global_position.y, 0.0)
+	if _style_clock - _landed_t <= Style.DROP_RECENT:
+		return maxf(_landed_drop, 0.0)
+	return 0.0
 
 
 ## Largest one-way turn in degrees during the last `window` seconds (match authority).
@@ -978,6 +1034,9 @@ func _reset_style_track() -> void:
 	_yaw_samples.clear()
 	_style_has_yaw = false
 	air_time = 0.0
+	_style_in_air = false
+	_landed_t = -100.0
+	_surf_seen_t = -100.0
 	_surf_t = 0.0
 	_jump_buffer = 0.0
 

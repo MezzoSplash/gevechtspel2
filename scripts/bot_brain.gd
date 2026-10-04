@@ -303,6 +303,7 @@ func _try_shoot(enemy: Player) -> void:
 	if _burst_left <= 0:
 		if _burst_pause > 0.0:
 			return
+		pawn.weapon.burst_seq += 1 # a new trigger pull (SPRAY TRANSFER)
 		match _gun_id():
 			&"shotgun":
 				_burst_left = 1

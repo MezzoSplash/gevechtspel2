@@ -53,6 +53,10 @@ var _active_index := 0 # index into `slots`
 var slots: Array[WeaponDef] = []
 var _view_models: Dictionary = {} # StringName → Node3D
 var _ads := false
+## Held-trigger counter for automatic guns: +1 on every new press (humans) or new burst (bots).
+## Only for the SPRAY TRANSFER trick; the server also ends a burst after Style.BURST_GAP.
+var burst_seq := 0
+var _trigger_held := false
 var _melee_left := 0.0 # animation time left
 var _melee_cd := 0.0 # local cooldown (the server keeps its own)
 var _melee_swing_sfx: AudioStreamPlayer3D
@@ -123,6 +127,10 @@ func _process(delta: float) -> void:
 				_save_weapon_state()
 		return
 
+	var trigger := Input.is_action_pressed("fire")
+	if trigger and not _trigger_held:
+		burst_seq += 1
+	_trigger_held = trigger
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open and not Game.play_locked():
 		if Input.is_action_just_pressed("melee"):
 			Game.melee.swing(owner_player)
@@ -563,13 +571,14 @@ func _fire() -> void:
 		Game.broadcast_shot_fx(muzzle.global_position, tracer_to, shooter.peer_id)
 
 	var scoped := is_ads() # NOSCOPE trick only; the scope never changes damage or spread
+	var burst := burst_seq if def.automatic else 0 # SPRAY TRANSFER only
 	if Game.is_networked() and not multiplayer.is_server():
 		Game.request_weapon_fire.rpc_id(
-			1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed, scoped
+			1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed, scoped, burst
 		)
 	elif shooter:
 		var best: Dictionary = Game.fire_weapon_locally(
-			shooter, origin, look_dir, def, spread_mult, shot_seed, scoped
+			shooter, origin, look_dir, def, spread_mult, shot_seed, scoped, burst
 		)
 		if best.get("hit", false) and not shooter.is_bot:
 			Game.hit_confirmed.emit(best.killed, best.headshot)
