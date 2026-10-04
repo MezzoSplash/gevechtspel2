@@ -21,6 +21,16 @@ const TEAM_SIZE := 5
 const TEAM_A := 0
 const TEAM_B := 1
 const TEAM_NAMES := ["BLUE", "ORANGE"]
+## Match modes. Team ids stay in FFA (bot fill/balancing), but nobody is a teammate: use is_enemy().
+const MODE_TDM := 0
+const MODE_FFA := 1
+const MODE_IDS := ["tdm", "ffa"]
+const MODE_NAMES := ["Team Deathmatch", "Free For All"]
+const FFA_WIN_KILLS := 20
+const MOUSE_SENS_MIN := 0.1
+const MOUSE_SENS_MAX := 4.0
+const ADS_SENS_MIN := 0.1
+const ADS_SENS_MAX := 1.5
 const ROUND_TIME := 600.0
 const WARMUP_TIME := 5.0
 const ROUND_END_TIME := 5.0
@@ -29,7 +39,7 @@ const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.13"
+const NET_VERSION := "0.2.14"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -56,6 +66,17 @@ var impacts: ImpactMarks
 var loadouts: Loadouts
 var radar_left := 0.0 # this machine: own team's radar time left (enemy markers on)
 var radar_team := -1 # team whose radar is running here; its enemies get markers
+var radar_peer := 0 # FFA: who activated the radar running here (only that machine gets markers)
+var mode := MODE_TDM # server-owned; clients get it with sync_match_config
+var map_id: StringName = Maps.DEFAULT
+var mouse_sens := 1.0 # multiplier on Player.MOUSE_SENS (settings)
+var ads_sens := 0.45 # extra multiplier while aiming down sights / scoped
+var last_map: StringName = Maps.DEFAULT # menu's last pick (settings.cfg [match])
+var last_mode := MODE_TDM
+## main.gd: Callable(Player) -> Transform3D. Every respawn asks it (FFA: spot farthest from enemies).
+var spawn_picker: Callable
+## main.gd: Callable(map_id, mode) -> void. Clients load the server's map before their pawn spawns.
+var match_config_handler: Callable
 var lobby: Dictionary = {} # peer_id → {name, team}
 var master_vol := 1.0
 var sfx_vol := 1.0
@@ -114,6 +135,59 @@ func player_for_peer(peer_id: int) -> Player:
 			p.peer_id = peer_id
 			return p
 	return null
+
+
+func is_ffa() -> bool:
+	return mode == MODE_FFA
+
+
+func mode_name(m: int = -1) -> String:
+	return MODE_NAMES[clampi(mode if m < 0 else m, 0, MODE_NAMES.size() - 1)]
+
+
+## "ffa", "FFA", "free" or "2" → MODE_FFA. Unknown → -1.
+static func parse_mode(raw: String) -> int:
+	var s := raw.strip_edges().to_lower()
+	if s in ["tdm", "team", "teams", "team_deathmatch", "1"]:
+		return MODE_TDM
+	if s in ["ffa", "free", "freeforall", "free_for_all", "dm", "2"]:
+		return MODE_FFA
+	return -1
+
+
+func win_kills() -> int:
+	return FFA_WIN_KILLS if is_ffa() else WIN_KILLS
+
+
+## Hostility for damage, bots, tags, and colours. FFA: everyone but yourself.
+func is_enemy(a: Player, b: Player) -> bool:
+	if a == null or b == null or a == b:
+		return false
+	if is_ffa():
+		return true
+	return a.team_id != b.team_id
+
+
+## Same, by team ids and peers (kill feed, killcam ghosts, scoreboard rows).
+func is_enemy_ids(team_a: int, team_b: int, peer_a: int = 0, peer_b: int = 1) -> bool:
+	if is_ffa():
+		return peer_a != peer_b
+	return team_a != team_b
+
+
+## Server → one client (join) or everyone: which map and mode this server runs.
+@rpc("authority", "reliable")
+func sync_match_config(new_map: String, new_mode: int) -> void:
+	if multiplayer.is_server():
+		return
+	set_match_config(StringName(new_map), new_mode)
+
+
+func set_match_config(new_map: StringName, new_mode: int) -> void:
+	map_id = new_map if Maps.has(new_map) else Maps.DEFAULT
+	mode = clampi(new_mode, MODE_TDM, MODE_FFA)
+	if match_config_handler.is_valid():
+		match_config_handler.call(map_id, mode)
 
 
 ## Team of this machine's own pawn, -1 when there is none (menu, dedicated server).
@@ -381,9 +455,11 @@ func _resolve_weapon_fire(
 	return best
 
 
-## Shooter plus living teammates. Used for shots, tracers, and bot line of sight.
+## Shooter plus living teammates (none in FFA). Used for shots, tracers, and bot line of sight.
 func shot_exclude(shooter: Player) -> Array[RID]:
 	var out: Array[RID] = [shooter.get_rid()]
+	if is_ffa():
+		return out
 	for n in get_tree().get_nodes_in_group("player"):
 		var p := n as Player
 		if p and p != shooter and p.team_id == shooter.team_id and not p.is_dead:
@@ -430,9 +506,11 @@ func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, def: Weapo
 		var victim := collider as Player
 		if victim == shooter or victim.is_dead:
 			return {}
-		if victim.team_id == shooter.team_id:
+		if not is_enemy(victim, shooter):
 			return {}
-		return victim.apply_hit(hit.position, hit.normal, damage, true, killer_id, def.id, def.headshot_multiplier)
+		return victim.apply_hit(
+			hit.position, hit.normal, damage, true, killer_id, def.id, def.headshot_multiplier, shooter.global_position
+		)
 	return {}
 
 
@@ -476,11 +554,13 @@ func apply_display_name(peer_id: int, n: String) -> void:
 	_apply_score(peer_id, kills, n, team)
 
 
+## `from_pos`: where the damage came from (shooter, melee attacker, grenade blast) for the
+## victim's damage direction indicator. Vector3.INF when unknown.
 @rpc("authority", "call_local", "reliable")
-func broadcast_hurt(peer_id: int, new_hp: float, killed: bool) -> void:
+func broadcast_hurt(peer_id: int, new_hp: float, killed: bool, from_pos: Vector3 = Vector3.INF) -> void:
 	var p := player_for_peer(peer_id)
 	if p:
-		p.apply_hurt_state(new_hp, killed)
+		p.apply_hurt_state(new_hp, killed, from_pos)
 
 
 ## Authority: every respawn (death timer, round start) goes through here so a waiting class
@@ -491,18 +571,24 @@ func respawn_pawn(p: Player) -> void:
 	set_hp(p, Player.MAX_HP)
 	if loadouts:
 		loadouts.promote_pending(p)
+	var xf := p._spawn_xform
+	if spawn_picker.is_valid():
+		xf = spawn_picker.call(p)
 	if is_networked():
-		broadcast_respawn.rpc(p.peer_id)
+		broadcast_respawn.rpc(p.peer_id, xf)
 		if not p.is_bot and not p.loadout.is_empty():
 			sync_weapon.rpc(p.peer_id, String(p.loadout.primary))
 	else:
+		p._spawn_xform = xf
 		p.apply_respawn_state()
 
 
+## `xform`: the spawn point the server picked (FFA picks a new one every time).
 @rpc("authority", "call_local", "reliable")
-func broadcast_respawn(peer_id: int) -> void:
+func broadcast_respawn(peer_id: int, xform: Transform3D) -> void:
 	var p := player_for_peer(peer_id)
 	if p:
+		p._spawn_xform = xform
 		p.apply_respawn_state()
 
 
@@ -727,7 +813,10 @@ func register_kill(
 			"k": killer_peer_id, "v": victim_peer_id, "kn": killer_name, "vn": victim_name,
 			"kt": team_id, "vt": victim_team, "w": String(weapon_id), "hs": headshot,
 		}
-	_check_win_team(team_id)
+	if is_ffa():
+		_check_win_player(killer_peer_id)
+	else:
+		_check_win_team(team_id)
 	_bump_streak(killer_peer_id, victim_peer_id)
 
 
@@ -834,7 +923,8 @@ func request_streak(slot: int) -> void:
 
 ## Team radar (UAV): every machine hears about it; the activator's team gets the markers,
 ## the other team only the "enemy radar" cue. Markers follow the pawns (Player._process), so
-## enemies that respawn during the radar show up too.
+## enemies that respawn during the radar show up too. FFA: only the activator gets markers
+## (of everyone else); all others get the "enemy radar" cue.
 func _grant_radar(peer_id: int) -> void:
 	var team := 0
 	var p := player_for_peer(peer_id)
@@ -863,8 +953,11 @@ func _apply_radar(team: int, by_name: String, seconds: float, by_peer: int) -> v
 		return
 	var hud := get_tree().get_first_node_in_group("hud") as Hud
 	var friendly := team == mine
+	if is_ffa():
+		friendly = by_peer == multiplayer.get_unique_id()
 	if friendly:
 		radar_team = team
+		radar_peer = by_peer
 		radar_left = maxf(radar_left, seconds)
 	if hud:
 		hud.show_radar_event(by_name, team, friendly, by_peer == multiplayer.get_unique_id())
@@ -874,6 +967,7 @@ func _apply_radar(team: int, by_name: String, seconds: float, by_peer: int) -> v
 func clear_radar() -> void:
 	radar_left = 0.0
 	radar_team = -1
+	radar_peer = 0
 	var hud := get_tree().get_first_node_in_group("hud") as Hud
 	if hud:
 		hud.clear_radar()
@@ -927,7 +1021,32 @@ func _check_win_team(team_id: int) -> void:
 		_end_round_team(team_id)
 
 
+## FFA: first player to FFA_WIN_KILLS wins the round.
+func _check_win_player(peer_id: int) -> void:
+	if not _round_active or not scores.has(peer_id):
+		return
+	if int(scores[peer_id].kills) >= FFA_WIN_KILLS:
+		_end_round_player(peer_id)
+
+
+## FFA round end: `winner_name` is the player. round_ended carries the peer id (TDM: the team id).
+func _end_round_player(peer_id: int) -> void:
+	_round_active = false
+	clear_radar()
+	var winner_name := _display_name_for(peer_id)
+	if scores.has(peer_id):
+		winner_name = str(scores[peer_id].name)
+	if peer_id == 0:
+		winner_name = "Nobody"
+	round_ended.emit(peer_id, winner_name, scores.duplicate())
+	if is_networked():
+		sync_round_end.rpc(peer_id, winner_name, scores.duplicate())
+
+
 func _end_round(winner_peer_id: int) -> void:
+	if is_ffa():
+		_end_round_player(winner_peer_id)
+		return
 	var team := 0
 	if scores.has(winner_peer_id):
 		team = int(scores[winner_peer_id].get("team", 0))
@@ -1019,6 +1138,7 @@ func end_freeze() -> void:
 func send_match_state(peer_id: int) -> void:
 	if not is_networked() or not multiplayer.is_server():
 		return
+	sync_match_config.rpc_id(peer_id, String(map_id), mode)
 	var scores_arr := get_scores()
 	if scores_arr.size() > 0:
 		sync_all_scores.rpc_id(peer_id, scores_arr)
@@ -1075,7 +1195,10 @@ func update_round_timer(delta: float) -> bool:
 		return false
 	_round_timer += delta
 	if _round_timer >= ROUND_TIME:
-		_end_round_team(_get_leader())
+		if is_ffa():
+			_end_round_player(top_player())
+		else:
+			_end_round_team(_get_leader())
 		return true
 	return false
 
@@ -1084,6 +1207,14 @@ func _get_leader() -> int:
 	if get_team_kills(TEAM_A) >= get_team_kills(TEAM_B):
 		return TEAM_A
 	return TEAM_B
+
+
+## FFA leader: most kills; a tie goes to the name that sorts first (same order as the board).
+func top_player() -> int:
+	var board := get_scores()
+	if board.is_empty() or int(board[0].kills) <= 0:
+		return 0
+	return int(board[0].peer_id)
 
 
 func get_team_kills(team_id: int) -> int:
@@ -1105,7 +1236,7 @@ func get_scores() -> Array[Dictionary]:
 
 
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
-	if int(a.get("team", 0)) != int(b.get("team", 0)):
+	if not is_ffa() and int(a.get("team", 0)) != int(b.get("team", 0)):
 		return int(a.team) < int(b.team)
 	if a.kills == b.kills:
 		return str(a.name) < str(b.name)
@@ -1398,6 +1529,11 @@ func load_settings() -> void:
 	if cfg.load("user://settings.cfg") == OK:
 		master_vol = clampf(float(cfg.get_value("audio", "master", 1.0)), 0.0, 1.0)
 		sfx_vol = clampf(float(cfg.get_value("audio", "sfx", 1.0)), 0.0, 1.0)
+		mouse_sens = clampf(float(cfg.get_value("input", "mouse_sens", 1.0)), MOUSE_SENS_MIN, MOUSE_SENS_MAX)
+		ads_sens = clampf(float(cfg.get_value("input", "ads_sens", 0.45)), ADS_SENS_MIN, ADS_SENS_MAX)
+		var m := StringName(str(cfg.get_value("match", "map", String(Maps.DEFAULT))))
+		last_map = m if Maps.has(m) else Maps.DEFAULT
+		last_mode = clampi(int(cfg.get_value("match", "mode", MODE_TDM)), MODE_TDM, MODE_FFA)
 	apply_audio()
 
 
@@ -1405,7 +1541,28 @@ func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master", master_vol)
 	cfg.set_value("audio", "sfx", sfx_vol)
+	cfg.set_value("input", "mouse_sens", mouse_sens)
+	cfg.set_value("input", "ads_sens", ads_sens)
+	cfg.set_value("match", "map", String(last_map))
+	cfg.set_value("match", "mode", last_mode)
 	cfg.save("user://settings.cfg")
+
+
+func set_mouse_sens(v: float) -> void:
+	mouse_sens = clampf(v, MOUSE_SENS_MIN, MOUSE_SENS_MAX)
+	save_settings()
+
+
+func set_ads_sens(v: float) -> void:
+	ads_sens = clampf(v, ADS_SENS_MIN, ADS_SENS_MAX)
+	save_settings()
+
+
+## Menu choice for solo/host, remembered for next time.
+func remember_match_choice(m: StringName, md: int) -> void:
+	last_map = m
+	last_mode = md
+	save_settings()
 
 
 func set_master_vol(v: float) -> void:

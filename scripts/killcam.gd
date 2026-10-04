@@ -482,7 +482,7 @@ func _build_ghosts(killer: int) -> void:
 		if id == int(info.get("v", 0)):
 			var tag := tag_src.duplicate() as Label3D
 			tag.text = str(info.get("vn", meta[0]))
-			tag.modulate = Player.TEAM_COLORS[clampi(int(info.get("vt", team)), 0, 1)]
+			tag.modulate = Player.team_color(int(info.get("vt", team)))
 			tag.no_depth_test = true
 			tag.visible = true
 			(g.root as Node3D).add_child(tag)
@@ -665,7 +665,11 @@ func _build_overlay(info: Dictionary) -> void:
 	bottom.add_child(row)
 	var kt := clampi(int(info.get("kt", 0)), 0, 1)
 	var vt := clampi(int(info.get("vt", 1)), 0, 1)
-	row.add_child(_label(str(info.get("kn", "?")), 26, Player.TEAM_COLORS[kt]))
+	# FFA: gold when the final killer is also the round winner (top of the board).
+	var k_col: Color = Player.team_color(kt)
+	if Game.is_ffa() and int(info.get("k", 0)) == Game.top_player():
+		k_col = Player.SELF_COLOR
+	row.add_child(_label(str(info.get("kn", "?")), 26, k_col))
 	var icon := TextureRect.new()
 	var wid := StringName(str(info.get("w", "rifle")))
 	icon.texture = Hud._FEED_ICONS.get(wid, Hud._FEED_ICONS[&"rifle"])
@@ -674,7 +678,7 @@ func _build_overlay(info: Dictionary) -> void:
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(icon)
-	row.add_child(_label(str(info.get("vn", "?")), 26, Player.TEAM_COLORS[vt]))
+	row.add_child(_label(str(info.get("vn", "?")), 26, Player.team_color(vt)))
 	if bool(info.get("hs", false)):
 		row.add_child(_label("HEADSHOT", 20, Color(1.0, 0.86, 0.2)))
 

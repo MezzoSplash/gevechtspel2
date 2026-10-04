@@ -118,7 +118,8 @@ func _valid_target(p) -> bool:
 		is_instance_valid(p)
 		and not p.is_queued_for_deletion()
 		and not p.is_dead
-		and p.team_id != pawn.team_id
+		and (p.team_id != pawn.team_id or Game.is_ffa())
+		and p != pawn
 	)
 
 
@@ -340,7 +341,7 @@ func _enemies_by_distance() -> Array[Player]:
 		var p := n as Player
 		if p == null or p == pawn or p.is_dead or p.is_queued_for_deletion():
 			continue
-		if p.team_id == pawn.team_id:
+		if not Game.is_enemy(p, pawn):
 			continue
 		out.append(p)
 	var here := pawn.global_position

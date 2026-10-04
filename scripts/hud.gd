@@ -29,6 +29,14 @@ var _mag := 30
 var _notice: Label
 var _notice_tween: Tween
 var _player: Player # the local pawn from bind_player; crosshair bloom follows it
+var _dmg_dirs: Array[Dictionary] = [] # {pos: Vector3, t: float}: where recent damage came from
+var _standing: Label # FFA: your place and kills under the clock
+var _standing_t := 0.0
+
+const DMG_DIR_LIFE := 1.3 # seconds a damage direction wedge stays (fades out)
+const DMG_DIR_MAX := 6
+const DMG_DIR_RADIUS := 118.0 # px from screen centre to the wedge
+const DMG_DIR_HALF := 0.36 # rad: half the wedge's arc (~20°)
 
 const _SLOT_IDLE := Color(0.08, 0.09, 0.11, 0.82)
 const _SLOT_ON := Color(0.18, 0.16, 0.08, 0.92)
@@ -133,7 +141,48 @@ func bind_player(player: Player) -> void:
 		player.died.connect(_on_died)
 	if not player.respawned.is_connected(_on_respawned):
 		player.respawned.connect(_on_respawned)
+	if not player.damage_from.is_connected(add_damage_dir):
+		player.damage_from.connect(add_damage_dir)
 	_on_health(player.hp, Player.MAX_HP)
+
+
+## Damage direction indicator: a red wedge around the crosshair pointing at `from_pos`. Each hit
+## adds one (they stack); they turn with your view and fade over DMG_DIR_LIFE.
+func add_damage_dir(from_pos: Vector3) -> void:
+	_dmg_dirs.append({"pos": from_pos, "t": DMG_DIR_LIFE})
+	while _dmg_dirs.size() > DMG_DIR_MAX:
+		_dmg_dirs.pop_front()
+	queue_redraw()
+
+
+## Screen angle of a world point around the crosshair: 0 = ahead (up), +PI/2 = right, PI = behind.
+static func dir_angle(view: Transform3D, world_pos: Vector3) -> float:
+	var to := world_pos - view.origin
+	var local := view.basis.inverse() * to
+	return atan2(local.x, -local.z)
+
+
+func _draw_damage_dirs(c: Vector2) -> void:
+	if _dmg_dirs.is_empty() or not is_instance_valid(_player):
+		return
+	var view := Transform3D(Basis(Vector3.UP, _player.rotation.y), _player.global_position)
+	for d in _dmg_dirs:
+		var a := dir_angle(view, d.pos) - PI * 0.5 # draw_* angles: 0 = right, clockwise on screen
+		var alpha := clampf(float(d.t) / DMG_DIR_LIFE, 0.0, 1.0)
+		alpha = alpha * alpha * (3.0 - 2.0 * alpha)
+		var pts := PackedVector2Array()
+		var steps := 10
+		for i in steps + 1:
+			var t := a - DMG_DIR_HALF + DMG_DIR_HALF * 2.0 * float(i) / steps
+			pts.append(c + Vector2(cos(t), sin(t)) * DMG_DIR_RADIUS)
+		for i in range(steps, -1, -1):
+			var t := a - DMG_DIR_HALF * 0.55 + DMG_DIR_HALF * 1.1 * float(i) / steps
+			pts.append(c + Vector2(cos(t), sin(t)) * (DMG_DIR_RADIUS + 26.0))
+		draw_colored_polygon(pts, Color(0.92, 0.1, 0.08, 0.72 * alpha))
+		var tip := c + Vector2(cos(a), sin(a)) * (DMG_DIR_RADIUS + 34.0)
+		var l := c + Vector2(cos(a - 0.1), sin(a - 0.1)) * (DMG_DIR_RADIUS + 25.0)
+		var r := c + Vector2(cos(a + 0.1), sin(a + 0.1)) * (DMG_DIR_RADIUS + 25.0)
+		draw_colored_polygon(PackedVector2Array([l, tip, r]), Color(1.0, 0.2, 0.15, 0.85 * alpha))
 
 
 func _local_player() -> Player:
@@ -219,7 +268,7 @@ func _on_chat_message(n: String, team: int, text: String) -> void:
 	row.scroll_active = false
 	row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var col: Color = Player.TEAM_COLORS[clampi(team, 0, 1)]
+	var col: Color = _name_color(n, team)
 	row.text = "[color=#%s]%s[/color]  %s" % [col.to_html(false), _bb_escape(n), _bb_escape(text)]
 	chat_log.add_child(row)
 	while chat_log.get_child_count() > 8:
@@ -240,6 +289,7 @@ func _bb_escape(s: String) -> String:
 func reset_session() -> void:
 	_player = null
 	_local_peer_id = 0
+	_dmg_dirs.clear()
 	_streak_n = 0
 	_radar_left = 0.0
 	_hide_popup()
@@ -363,7 +413,7 @@ func show_popup(title: String, title_col: Color, by_name: String, team: int) -> 
 		return
 	_popup_title.text = title
 	_popup_title.add_theme_color_override("font_color", title_col)
-	var col: Color = Player.TEAM_COLORS[clampi(team, 0, Player.TEAM_COLORS.size() - 1)]
+	var col: Color = _name_color(by_name, team)
 	_popup_by.text = "[center][color=#d8dade]by[/color] [color=#%s]%s[/color][/center]" % [
 		col.to_html(false), _bb_escape(by_name)
 	]
@@ -563,6 +613,7 @@ func _on_died() -> void:
 func _on_respawned() -> void:
 	death_layer.visible = false
 	_hurt_flash = 0.0
+	_dmg_dirs.clear()
 
 
 ## Newest row on top. Local name gets a white outline (CS-style).
@@ -571,7 +622,10 @@ func _on_presence(player_name: String, joined: bool, team: int) -> void:
 		return
 	var row := Label.new()
 	var team_n: String = Game.TEAM_NAMES[clampi(team, 0, 1)]
-	if joined:
+	if joined and Game.is_ffa():
+		row.text = "%s joined" % player_name
+		row.add_theme_color_override("font_color", Color(0.55, 0.92, 0.62, 0.95))
+	elif joined:
 		row.text = "%s joined  (%s)" % [player_name, team_n]
 		row.add_theme_color_override("font_color", Color(0.55, 0.92, 0.62, 0.95))
 	else:
@@ -601,7 +655,7 @@ func _on_kill_feed(killer_name: String, victim_name: String, weapon_id: StringNa
 	var k := Label.new()
 	k.text = killer_name
 	k.add_theme_font_size_override("font_size", 16)
-	k.add_theme_color_override("font_color", Player.TEAM_COLORS[clampi(killer_team, 0, 1)])
+	k.add_theme_color_override("font_color", _name_color(killer_name, killer_team))
 	if killer_name == _local_name():
 		k.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.8))
 		k.add_theme_constant_override("outline_size", 4)
@@ -614,7 +668,7 @@ func _on_kill_feed(killer_name: String, victim_name: String, weapon_id: StringNa
 	var v := Label.new()
 	v.text = victim_name
 	v.add_theme_font_size_override("font_size", 16)
-	v.add_theme_color_override("font_color", Player.TEAM_COLORS[clampi(victim_team, 0, 1)])
+	v.add_theme_color_override("font_color", _name_color(victim_name, victim_team))
 	if victim_name == _local_name():
 		v.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.8))
 		v.add_theme_constant_override("outline_size", 4)
@@ -631,6 +685,13 @@ func _on_kill_feed(killer_name: String, victim_name: String, weapon_id: StringNa
 	tw.tween_interval(_FEED_LIFE)
 	tw.tween_property(row, "modulate:a", 0.0, 0.45)
 	tw.tween_callback(row.queue_free)
+
+
+## Team colour; FFA: your own name gold, everyone else the enemy colour.
+func _name_color(n: String, team: int) -> Color:
+	if Game.is_ffa():
+		return Player.SELF_COLOR if n == _local_name() else Player.FFA_COLOR
+	return Player.team_color(team)
 
 
 func _local_name() -> String:
@@ -653,7 +714,7 @@ func _on_score_changed(_peer_id: int, _score: int, _n: String) -> void:
 
 
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
-	if int(a.get("team", 0)) != int(b.get("team", 0)):
+	if not Game.is_ffa() and int(a.get("team", 0)) != int(b.get("team", 0)):
 		return int(a.team) < int(b.team)
 	if a.kills == b.kills:
 		return str(a.name) < str(b.name)
@@ -686,27 +747,82 @@ func show_intermission() -> void:
 	intermission_label.visible = true
 
 
+## FFA only: "2nd · 7 / 20 kills" (leader 9) under the clock. Team mode hides it.
+func _refresh_standing() -> void:
+	if _standing == null:
+		_standing = Label.new()
+		_standing.name = "FfaStanding"
+		_standing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_standing.anchor_left = 0.5
+		_standing.anchor_right = 0.5
+		_standing.offset_left = -220.0
+		_standing.offset_right = 220.0
+		_standing.offset_top = 46.0
+		_standing.offset_bottom = 68.0
+		_standing.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_standing.add_theme_font_size_override("font_size", 16)
+		_standing.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_standing.add_theme_constant_override("outline_size", 5)
+		add_child(_standing)
+	_standing.visible = Game.is_ffa() and _local_peer_id != 0
+	if not _standing.visible:
+		return
+	var board := Game.get_scores()
+	var place := 0
+	var mine := 0
+	var best := 0
+	for i in board.size():
+		best = maxi(best, int(board[i].kills))
+		if int(board[i].peer_id) == _local_peer_id:
+			place = i + 1
+			mine = int(board[i].kills)
+	if place == 0:
+		_standing.text = "FREE FOR ALL"
+		return
+	var lead := "  ·  leader %d" % best if place > 1 else ("  ·  leading" if mine > 0 else "")
+	_standing.text = "%s  ·  %d / %d kills%s" % [_ordinal(place), mine, Game.FFA_WIN_KILLS, lead]
+	_standing.add_theme_color_override(
+		"font_color", Player.SELF_COLOR if place == 1 and mine > 0 else Color(0.92, 0.93, 0.95)
+	)
+
+
+static func _ordinal(n: int) -> String:
+	var suffix := "th"
+	if n % 100 < 11 or n % 100 > 13:
+		match n % 10:
+			1:
+				suffix = "st"
+			2:
+				suffix = "nd"
+			3:
+				suffix = "rd"
+	return "%d%s" % [n, suffix]
+
+
 func _refresh_scoreboard() -> void:
 	for c in scoreboard_container.get_children():
 		c.queue_free()
 	_scores = Game.get_scores()
 	_scores.sort_custom(_sort_scores)
 
+	var ffa := Game.is_ffa()
 	var totals := Label.new()
 	totals.text = "BLUE %d    ORANGE %d" % [Game.get_team_kills(Game.TEAM_A), Game.get_team_kills(Game.TEAM_B)]
+	if ffa:
+		totals.text = "FREE FOR ALL  ·  first to %d" % Game.FFA_WIN_KILLS
 	totals.add_theme_font_size_override("font_size", 22)
 	totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	scoreboard_container.add_child(totals)
 
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 16)
-	for title in ["TEAM", "NAME", "KILLS", "PING"]:
+	for title in ["#" if ffa else "TEAM", "NAME", "KILLS", "PING"]:
 		var h := Label.new()
 		h.text = title
 		h.add_theme_font_size_override("font_size", 16)
 		if title == "NAME":
 			h.custom_minimum_size = Vector2(180, 0)
-		elif title == "TEAM":
+		elif title == "TEAM" or title == "#":
 			h.custom_minimum_size = Vector2(90, 0)
 		else:
 			h.custom_minimum_size = Vector2(70, 0)
@@ -714,20 +830,22 @@ func _refresh_scoreboard() -> void:
 		header.add_child(h)
 	scoreboard_container.add_child(header)
 
+	var place := 0
 	for entry in _scores:
+		place += 1
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 16)
-		var team_id := int(entry.get("team", 0))
-		var team_col: Color = Player.TEAM_COLORS[team_id]
+		var team_id := clampi(int(entry.get("team", 0)), 0, 1)
+		var team_col: Color = Player.team_color(team_id)
 		var team_l := Label.new()
-		team_l.text = Game.TEAM_NAMES[team_id]
+		team_l.text = ("%d." % place) if ffa else Game.TEAM_NAMES[team_id]
 		team_l.custom_minimum_size = Vector2(90, 0)
 		team_l.add_theme_color_override("font_color", team_col)
 		var name_l := Label.new()
 		name_l.text = entry.name
 		name_l.custom_minimum_size = Vector2(180, 0)
 		if entry.peer_id == _local_peer_id:
-			name_l.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+			name_l.add_theme_color_override("font_color", Player.SELF_COLOR if ffa else Color(0.3, 1.0, 0.3))
 		else:
 			name_l.add_theme_color_override("font_color", team_col)
 		var kills_l := Label.new()
@@ -753,6 +871,14 @@ func _process(delta: float) -> void:
 		_hint_timer -= delta
 		hint_label.modulate.a = clampf(_hint_timer, 0.0, 1.0)
 	_hurt_flash = maxf(_hurt_flash - delta, 0.0)
+	for i in range(_dmg_dirs.size() - 1, -1, -1):
+		_dmg_dirs[i].t = float(_dmg_dirs[i].t) - delta
+		if float(_dmg_dirs[i].t) <= 0.0:
+			_dmg_dirs.remove_at(i)
+	_standing_t -= delta
+	if _standing_t <= 0.0:
+		_standing_t = 0.25
+		_refresh_standing()
 	fps_label.text = "%d fps" % roundi(Engine.get_frames_per_second())
 	
 	var time_left: float = Game.get_round_time_left()
@@ -829,6 +955,8 @@ func _draw() -> void:
 		draw_rect(Rect2(0, size.y - t, size.x, t), red)
 		draw_rect(Rect2(0, 0, t, size.y), red)
 		draw_rect(Rect2(size.x - t, 0, t, size.y), red)
+
+	_draw_damage_dirs(c)
 
 	if _hit_timer > 0.0:
 		var hit_a := clampf(_hit_timer / 0.08, 0.0, 1.0)

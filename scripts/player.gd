@@ -6,6 +6,7 @@ extends CharacterBody3D
 signal health_changed(hp: float, max_hp: float)
 signal died
 signal respawned
+signal damage_from(pos: Vector3) # local pawn took damage from there (HUD direction indicator)
 
 const WALK_SPEED := 7.6
 const SPRINT_SPEED := 11.4
@@ -48,6 +49,8 @@ const TAG_CHECK := 0.1 # seconds between nametag line-of-sight rays
 @onready var nametag: Label3D = $Nametag
 
 const TEAM_COLORS := [Color(0.25, 0.55, 0.95), Color(0.92, 0.38, 0.22)]
+const FFA_COLOR := Color(0.86, 0.24, 0.32) # FFA: everyone is an enemy, so one colour for all
+const SELF_COLOR := Color(1.0, 0.82, 0.3) # FFA: your own name in feed/board
 const Brain := preload("res://scripts/bot_brain.gd")
 ## Concrete footsteps (Kenney, CC0). A different one each step, never the same twice in a row.
 const STEP_SOUNDS: Array[AudioStream] = [
@@ -189,17 +192,19 @@ func _make_radar_mark() -> MeshInstance3D:
 
 
 ## Team radar: on this machine, while Game.radar_left runs, every living pawn not on
-## Game.radar_team shows its marker. Machines without a running radar keep them hidden.
+## Game.radar_team shows its marker (FFA: every other pawn; only the activator's machine has
+## radar_left). Machines without a running radar keep them hidden.
 func _update_radar_mark() -> void:
 	if _radar_mark == null:
 		return
-	var on := Game.radar_left > 0.0 and not is_dead and team_id != Game.radar_team and not is_local()
+	var hostile := team_id != Game.radar_team or Game.is_ffa()
+	var on := Game.radar_left > 0.0 and not is_dead and hostile and not is_local()
 	if on == _radar_mark.visible:
 		return
 	if on:
 		var mat := _radar_mark.material_override as StandardMaterial3D
 		if mat:
-			var col: Color = TEAM_COLORS[clampi(team_id, 0, 1)]
+			var col: Color = team_color(team_id)
 			mat.albedo_color = col
 			mat.emission = col
 	_radar_mark.visible = on
@@ -299,9 +304,9 @@ func _input(event: InputEvent) -> void:
 	if Game.chat_open or Game.pause_open or Game.killcam_active:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var sens := MOUSE_SENS
+		var sens := MOUSE_SENS * Game.mouse_sens
 		if weapon and weapon.is_ads():
-			sens *= 0.45 # match Scout-style zoom so flicks stay controllable
+			sens *= Game.ads_sens # default 0.45: Scout-style zoom so flicks stay controllable
 		_yaw -= event.relative.x * sens
 		_pitch -= event.relative.y * sens
 		_pitch = clampf(_pitch, -MAX_PITCH, MAX_PITCH)
@@ -330,7 +335,7 @@ func set_display_name(n: String) -> void:
 	display_name = n
 	if nametag:
 		nametag.text = n
-		nametag.modulate = TEAM_COLORS[clampi(team_id, 0, TEAM_COLORS.size() - 1)]
+		nametag.modulate = team_color(team_id)
 
 
 func _dup_body_mat() -> void:
@@ -350,16 +355,23 @@ func _dup_body_mat() -> void:
 
 
 func _apply_team_visual() -> void:
-	var col: Color = TEAM_COLORS[clampi(team_id, 0, TEAM_COLORS.size() - 1)]
+	var col: Color = team_color(team_id)
 	if _body_mat:
 		paint_body(_body_mat, team_id)
 	if nametag:
 		nametag.modulate = col
 
 
+## Body/tag/feed colour of a team. FFA has no teams: everyone gets FFA_COLOR.
+static func team_color(team: int) -> Color:
+	if Game.is_ffa():
+		return FFA_COLOR
+	return TEAM_COLORS[clampi(team, 0, TEAM_COLORS.size() - 1)]
+
+
 ## Team colour on a body material. Also used for the killcam ghosts.
 static func paint_body(mat: StandardMaterial3D, team: int) -> void:
-	var col: Color = TEAM_COLORS[clampi(team, 0, TEAM_COLORS.size() - 1)]
+	var col: Color = team_color(team)
 	mat.albedo_color = col
 	mat.emission_enabled = true
 	mat.emission = col * 0.45
@@ -376,7 +388,8 @@ func apply_hit(
 	allow_headshot: bool = true,
 	killer_peer_id: int = 0,
 	weapon_id: StringName = &"rifle",
-	headshot_mult: float = 1.6
+	headshot_mult: float = 1.6,
+	source_pos: Vector3 = Vector3.INF
 ) -> Dictionary:
 	if is_dead or _spawn_protect > 0.0 or Game.killcam_active:
 		return {"killed": false, "headshot": false, "damage": 0}
@@ -391,10 +404,16 @@ func apply_hit(
 	var killed := new_hp <= 0.0
 	if killed:
 		Game.register_kill(killer_peer_id, peer_id, weapon_id, headshot)
+	if dmg <= 0:
+		source_pos = Vector3.INF
+	elif not source_pos.is_finite():
+		var attacker := Game.player_for_peer(killer_peer_id)
+		if attacker and attacker != self:
+			source_pos = attacker.global_position
 	if Game.is_networked():
-		Game.broadcast_hurt.rpc(peer_id, new_hp, killed)
+		Game.broadcast_hurt.rpc(peer_id, new_hp, killed, source_pos)
 	else:
-		apply_hurt_state(new_hp, killed)
+		apply_hurt_state(new_hp, killed, source_pos)
 	return {"killed": killed, "headshot": headshot, "damage": dmg}
 
 
@@ -407,10 +426,13 @@ func _point_hits_head(point: Vector3) -> bool:
 	return point.distance_to(center) <= HEAD_HIT_R
 
 
-func apply_hurt_state(new_hp: float, killed: bool) -> void:
+## `from_pos`: damage source for the HUD direction indicator (Vector3.INF = unknown).
+func apply_hurt_state(new_hp: float, killed: bool, from_pos: Vector3 = Vector3.INF) -> void:
 	hp = new_hp
 	if not killed:
 		Game.killcam.note_hurt(peer_id)
+	if is_local() and from_pos.is_finite():
+		damage_from.emit(from_pos)
 	if is_local():
 		camera.add_kick(0.85, randf_range(-0.35, 0.35), 2.2)
 		if hurt_sfx.stream:
@@ -683,7 +705,8 @@ func _update_nametag(delta: float, force: bool = false) -> void:
 	_tag_check_t -= delta
 	if force or _tag_check_t <= 0.0:
 		_tag_check_t = TAG_CHECK + randf() * 0.03 # spread the rays over frames
-		var mate := team_id == Game.local_team()
+		var me := Game.player_for_peer(multiplayer.get_unique_id())
+		var mate := me != null and not Game.is_enemy(self, me)
 		nametag.no_depth_test = mate
 		_tag_show = mate or _enemy_in_sight()
 	nametag.visible = _tag_show and not is_dead
