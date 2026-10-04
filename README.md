@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.14** — new map Foundry, Free For All mode, map/mode choice (incl. `--map`/`--mode` for servers), mouse sensitivity setting, damage direction indicator.
+**v0.2.15** — fix: no more freeze when starting a game after idling in the main menu; the menu background match now loops on its own. Still compatible with 0.2.14 (same NET_VERSION).
 
 ## Play (Linux)
 
