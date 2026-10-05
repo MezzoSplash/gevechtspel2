@@ -27,7 +27,7 @@ const INFO := {
 	},
 	&"foundry": {
 		"name": "Foundry",
-		"blurb": "Warehouse hall with a mezzanine, container yard, sheds and a long alley.",
+		"blurb": "Warehouse hall with roof ramps, west surf, a container yard and sheds.",
 		"scene": "res://scenes/maps/foundry.tscn",
 		"menu_cam": [Vector3(34, 30, 46), Vector3(0, 0, 2)],
 		"team_spawns": [

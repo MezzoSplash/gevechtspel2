@@ -8,9 +8,12 @@ navmesh from it the same way. Re-run after editing:  python3 tools/gen_foundry.p
 Layout (top view, Blue half; Orange is the mirror):
   - Hall (x -11..11, z -10..10): roofed warehouse with a skylight, big doors north/south,
     two doors east, a west mezzanine (3 m) with windows onto the container yard, presses,
-    a conveyor and a 5.2 m wide crate block that kills the door-to-door sightline.
+    a conveyor and a 5.2 m crate block that kills the door-to-door sightline.
+    Walk ramps outside the big doors (west of each opening) reach the 7.3 m roof.
+    A bridge crosses the skylight so the east roof is the same roof.
   - West yard: container "hill" in the middle (ramps from both sides, roof 2.6 m),
-    a container against the hall wall, a double stack and loose crates. Staggered so no lane
+    a container against the hall wall, a double stack and loose crates. Two surf wedges
+    sit on the hall's west wall, one each side of that container. Staggered so no lane
     runs spawn to spawn.
   - East: alley along the hall with offset gates and a pipe stack (breaks the long sniper line),
     two sheds (doors on three sides, small rooms) and a courtyard around a water tank.
@@ -42,7 +45,12 @@ MATS = {
     "cab": ((0.62, 0.62, 0.60), 0.7),
 }
 
-nodes = []
+# ~57° face (55–65). Same triangle as Rooftops. Buried 0.1 m into the wall and the floor.
+SURF_POLY = (-0.1, -0.1, 3.30, -0.1, -0.1, 5.15)
+# Yaw 180, det +1. Local +X becomes world -X (face opens west), local -Z runs toward +Z.
+YAW180 = ((-1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, -1.0))
+
+nodes = []  # (name, type, transform, extra, mat, parent)
 lights = []
 
 
@@ -61,11 +69,18 @@ def xform(basis_cols, origin):
 IDENT = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
 
 
-def box(name, x0, x1, y0, y1, z0, z1, mat):
-    """Axis-aligned box from min/max corners."""
+def box(name, x0, x1, y0, y1, z0, z1, mat, op=None, parent="Arena"):
+    """Axis-aligned box from min/max corners. op=2 subtracts from unions earlier in the file."""
     c = ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
     s = (abs(x1 - x0), abs(y1 - y0), abs(z1 - z0))
-    nodes.append((name, "CSGBox3D", xform(IDENT, c), "size = Vector3(%s, %s, %s)" % tuple(fmt(v) for v in s), mat))
+    extra = "size = Vector3(%s, %s, %s)" % tuple(fmt(v) for v in s)
+    if op is not None:
+        extra = "operation = %d\n%s" % (op, extra)
+    nodes.append((name, "CSGBox3D", xform(IDENT, c), extra, mat, parent))
+
+
+def sub(name, x0, x1, y0, y1, z0, z1):
+    box(name, x0, x1, y0, y1, z0, z1, "concrete", op=2)
 
 
 def box_m(name, x0, x1, y0, y1, z0, z1, mat, mat_o=None):
@@ -86,7 +101,7 @@ def ramp_z(name, x0, x1, z_low, z_high, h, mat, t=0.3):
     mid = ((x0 + x1) / 2, h / 2, (z_low + z_high) / 2)
     c = tuple(mid[i] - Y[i] * t / 2 for i in range(3))
     nodes.append((name, "CSGBox3D", xform((X, Y, Z), c),
-                  "size = Vector3(%s, %s, %s)" % (fmt(abs(x1 - x0)), fmt(t), fmt(length)), mat))
+                  "size = Vector3(%s, %s, %s)" % (fmt(abs(x1 - x0)), fmt(t), fmt(length)), mat, "Arena"))
 
 
 def ramp_x(name, z0, z1, x_low, x_high, h, mat, t=0.3):
@@ -99,7 +114,7 @@ def ramp_x(name, z0, z1, x_low, x_high, h, mat, t=0.3):
     mid = ((x_low + x_high) / 2, h / 2, (z0 + z1) / 2)
     c = tuple(mid[i] - Y[i] * t / 2 for i in range(3))
     nodes.append((name, "CSGBox3D", xform((X, Y, Z), c),
-                  "size = Vector3(%s, %s, %s)" % (fmt(length), fmt(t), fmt(abs(z1 - z0))), mat))
+                  "size = Vector3(%s, %s, %s)" % (fmt(length), fmt(t), fmt(abs(z1 - z0))), mat, "Arena"))
 
 
 def ramp_z_m(name, x0, x1, z_low, z_high, h, mat):
@@ -110,6 +125,42 @@ def ramp_z_m(name, x0, x1, z_low, z_high, h, mat):
 def ramp_x_m(name, z0, z1, x_low, x_high, h, mat):
     ramp_x(name + "_B", z0, z1, x_low, x_high, h, mat)
     ramp_x(name + "_O", -z1, -z0, x_low, x_high, h, mat)
+
+
+def _kick_basis(deg, sign):
+    """Tilt around local X. sign +1 cuts the origin end, -1 cuts the far end."""
+    a = math.radians(deg)
+    c, s = math.cos(a), math.sin(a) * sign
+    return ((1, 0, 0), (0, c, s), (0, -s, c))
+
+
+def surf(name, origin, basis, depth, kicks, mat="steel", kick_start=40.0, kick_end=40.0):
+    """57° wall-surf. Extrusion runs along local -Z. Basis must be det +1 or collision is dropped.
+
+    kicks: "both", "start" (origin), "end" (far), or "none". Bevels are child subtracts.
+    """
+    poly = "polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in SURF_POLY)
+    nodes.append((name, "CSGPolygon3D", xform(basis, origin),
+                  "%s\ndepth = %s" % (poly, fmt(depth)), mat, "Arena"))
+    if kicks in ("both", "start"):
+        a = math.radians(kick_start)
+        half = 10.0
+        nodes.append((name + "KickA", "CSGBox3D",
+                      xform(_kick_basis(kick_start, 1), (1.3, half * math.cos(a), half * math.sin(a))),
+                      "operation = 2\nsize = Vector3(8, 20, 30)", mat, "Arena/" + name))
+    if kicks in ("both", "end"):
+        a = math.radians(kick_end)
+        half = 10.0
+        nodes.append((name + "KickB", "CSGBox3D",
+                      xform(_kick_basis(kick_end, -1), (1.3, half * math.cos(a), -depth - half * math.sin(a))),
+                      "operation = 2\nsize = Vector3(8, 20, 30)", mat, "Arena/" + name))
+
+
+def basis_det(b):
+    (X, Y, Z) = b
+    return (X[0] * (Y[1] * Z[2] - Y[2] * Z[1])
+            - X[1] * (Y[0] * Z[2] - Y[2] * Z[0])
+            + X[2] * (Y[0] * Z[1] - Y[1] * Z[0]))
 
 
 def light(name, pos, col, energy, rng):
@@ -170,10 +221,12 @@ ramp_z_m("HillRamp", -20.2, -17.8, 9.05, 3.05, 2.6, "hazard")
 box("WallContainer", -13.69, -11.25, 0, 2.6, -3.05, 3.05, "c_blue")
 # containers along the outer wall and a double stack toward each spawn
 box_m("YardContainer", -25.75, -19.65, 0, 2.6, 12.28, 14.72, "c_green", "c_yellow")
-box_m("Stack", -18.0, -11.9, 0, 2.6, 17.0, 19.44, "c_blue", "c_red")
-box_m("StackTop", -18.0, -11.9, 2.6, 5.2, 17.0, 19.44, "c_yellow", "c_green")
+# Shifted south, clear of the hall surf (ends ~z 19) and of the roof-ramp toe.
+box_m("Stack", -18.8, -12.7, 0, 2.6, 21.2, 23.64, "c_blue", "c_red")
+box_m("StackTop", -18.8, -12.7, 2.6, 5.2, 21.2, 23.64, "c_yellow", "c_green")
 box_m("YardCrate1", -24.2, -22.8, 0, 1.1, 6.3, 7.7, "crate")
-box_m("YardCrate2", -14.6, -13.4, 0, 1.1, 5.5, 7.5, "crate")
+# Was against the hall wall, inside the surf toe. Sits in the gap west of the face.
+box_m("YardCrate2", -16.9, -15.5, 0, 1.1, 4.4, 5.8, "crate")
 
 # ---------------------------------------------------------------- east: alley, sheds, courtyard
 # pipe stack against the hall in the alley center + offset gates near the spawn yards
@@ -211,9 +264,40 @@ ramp_x_m("DockRampW", 30.75, 34.25, -18.0, -14.0, 1.2, "concrete")
 box_m("TruckBody", 3.0, 10.0, 0.5, 2.8, 14.6, 17.2, "truck")
 box_m("TruckChassis", 3.2, 11.8, 0, 0.5, 14.8, 17.0, "hall_trim")
 box_m("TruckCab", 10.0, 11.8, 0.5, 2.0, 14.6, 17.2, "cab")
-box_m("YardCrateA", -6.1, -3.9, 0, 1.1, 14.3, 15.7, "crate")
-box_m("YardCrateStack", -9.3, -7.7, 0, 2.2, 18.2, 19.8, "crate")
+# Was on the roof-ramp footprint (x -10.9..-6.5). Now beside the big-door approach.
+box_m("YardCrateA", -4.6, -3.2, 0, 1.1, 15.2, 16.6, "crate")
+box_m("YardCrateStack", -23.6, -22.0, 0, 2.2, 17.6, 19.2, "crate")
 box_m("YardCrateB", -2.7, -1.3, 0, 1.1, 19.9, 21.1, "crate")
+
+# ---------------------------------------------------------------- roof access
+# Walk surface of the hall roof is HH + 0.3. ~31° so bots (max slope 46°) and players both climb.
+# West of each big door, so the 5 m opening stays clear. High end meets the roof; the notch
+# removes the lip that would stop the capsule. North is the z-mirror, same det +1 ramp basis.
+ROOF_TOP = HH + 0.3
+RAMP_X0, RAMP_X1 = -10.9, -6.5
+RAMP_Z_LOW, RAMP_Z_HIGH = 22.2, 10.05
+# Notch before the ramp unions. A later subtract would slice the ramp itself.
+sub("RoofNotch_B", RAMP_X0 - 0.15, RAMP_X1 + 0.15, HH, ROOF_TOP + 0.25, RAMP_Z_HIGH, 10.5)
+sub("RoofNotch_O", RAMP_X0 - 0.15, RAMP_X1 + 0.15, HH, ROOF_TOP + 0.25, -10.5, -RAMP_Z_HIGH)
+ramp_z_m("RoofRamp", RAMP_X0, RAMP_X1, RAMP_Z_LOW, RAMP_Z_HIGH, ROOF_TOP, "concrete")
+ramp_z_m("RoofRampEdge", RAMP_X1 - 0.42, RAMP_X1, RAMP_Z_LOW, RAMP_Z_HIGH, ROOF_TOP, "hazard")
+# Skylight is x -4..4. This slab is the only walk between the west and east roofs.
+box("RoofBridge", -4.4, 4.4, HH, ROOF_TOP, -1.6, 1.6, "hall_trim")
+box("RoofCrateW", -9.6, -7.4, ROOF_TOP, ROOF_TOP + 1.1, 4.6, 6.6, "crate")
+box("RoofCrateE", 5.2, 7.4, ROOF_TOP, ROOF_TOP + 1.1, -6.8, -4.8, "crate")
+box("RoofVent", -8.4, -6.8, ROOF_TOP, ROOF_TOP + 0.7, -6.2, -4.6, "steel")
+
+# Surf wedges on the hall's west face, split by the wall container (z -3..3).
+# Origin is the end nearer the container; extrusion runs toward the spawn yards.
+# Flat (no pitch): a sprint holds. The walk ramps, not these, are the way onto the roof.
+SURF_X = -11.15
+SURF_Z = 3.9
+SURF_DEPTH = 15.0
+surf("SurfWestS", (SURF_X, 0.1, SURF_Z), YAW180, SURF_DEPTH, "both")
+surf("SurfWestN", (SURF_X, 0.1, -(SURF_Z + SURF_DEPTH)), YAW180, SURF_DEPTH, "both")
+# Flush with the floor. A proud curb stops the capsule.
+box("SurfEdgeS", -14.62, -14.22, -0.06, 0.0, 5.2, 17.6, "hazard")
+box("SurfEdgeN", -14.62, -14.22, -0.06, 0.0, -17.6, -5.2, "hazard")
 
 # ---------------------------------------------------------------- lights (no shadows: cheap on a Pi)
 WARM = (1.0, 0.82, 0.62)
@@ -221,6 +305,7 @@ COOL = (0.75, 0.86, 1.0)
 light_m("HallLight", (6.0, 5.6, 5.0), WARM, 1.2, 12.0)
 light_m("HallLightW", (-7.0, 5.6, 6.0), WARM, 1.0, 11.0)
 light("MezzLight", (-9.0, 5.8, 0.0), WARM, 0.6, 7.0)
+light("RoofLight", (-8.0, 10.2, 0.0), WARM, 0.45, 14.0)
 light_m("ShedLight", (21.0, 2.9, 18.0), COOL, 0.7, 7.5)
 light_m("YardLight", (0.0, 4.0, 29.0), WARM, 0.6, 12.0)
 
@@ -260,9 +345,9 @@ def main():
     out += ['[node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]', ""]
     out += ['[node name="Arena" type="CSGCombiner3D" parent="."]',
             "use_collision = true", "collision_layer = 1", "collision_mask = 0", ""]
-    for name, typ, xf, size, mat in nodes:
-        out += ['[node name="%s" type="%s" parent="Arena"]' % (name, typ),
-                "transform = %s" % xf, size, 'material = SubResource("Mat_%s")' % mat, ""]
+    for name, typ, xf, extra, mat, parent in nodes:
+        out += ['[node name="%s" type="%s" parent="%s"]' % (name, typ, parent),
+                "transform = %s" % xf, extra, 'material = SubResource("Mat_%s")' % mat, ""]
     out += ['[node name="Tank" type="CSGCylinder3D" parent="Arena"]',
             "transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.5, 2.5, 0)",
             "radius = 2.2", "height = 5.0", "sides = 20",
@@ -277,7 +362,11 @@ def main():
                 "light_color = Color(%s, %s, %s, 1)" % tuple(fmt(v) for v in col),
                 "light_energy = %s" % fmt(energy), "omni_range = %s" % fmt(rng), "shadow_enabled = false", ""]
     open(OUT, "w").write("\n".join(out).rstrip("\n") + "\n")
-    print("wrote %s: %d boxes, %d lights" % (os.path.normpath(OUT), len(nodes), len(lights)))
+    rise = ROOF_TOP
+    run = abs(RAMP_Z_LOW - RAMP_Z_HIGH)
+    print("wrote %s: %d csg, %d lights, roof ramp %.1f deg, surf det %.3f" % (
+        os.path.normpath(OUT), len(nodes), len(lights),
+        math.degrees(math.atan(rise / run)), basis_det(YAW180)))
 
 
 main()

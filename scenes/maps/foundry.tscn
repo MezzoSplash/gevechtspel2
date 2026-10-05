@@ -346,22 +346,22 @@ size = Vector3(6.1, 2.6, 2.44)
 material = SubResource("Mat_c_yellow")
 
 [node name="Stack_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.95, 1.3, 18.22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.75, 1.3, 22.42)
 size = Vector3(6.1, 2.6, 2.44)
 material = SubResource("Mat_c_blue")
 
 [node name="Stack_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.95, 1.3, -18.22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.75, 1.3, -22.42)
 size = Vector3(6.1, 2.6, 2.44)
 material = SubResource("Mat_c_red")
 
 [node name="StackTop_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.95, 3.9, 18.22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.75, 3.9, 22.42)
 size = Vector3(6.1, 2.6, 2.44)
 material = SubResource("Mat_c_yellow")
 
 [node name="StackTop_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.95, 3.9, -18.22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.75, 3.9, -22.42)
 size = Vector3(6.1, 2.6, 2.44)
 material = SubResource("Mat_c_green")
 
@@ -376,13 +376,13 @@ size = Vector3(1.4, 1.1, 1.4)
 material = SubResource("Mat_crate")
 
 [node name="YardCrate2_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0.55, 6.5)
-size = Vector3(1.2, 1.1, 2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.2, 0.55, 5.1)
+size = Vector3(1.4, 1.1, 1.4)
 material = SubResource("Mat_crate")
 
 [node name="YardCrate2_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0.55, -6.5)
-size = Vector3(1.2, 1.1, 2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.2, 0.55, -5.1)
+size = Vector3(1.4, 1.1, 1.4)
 material = SubResource("Mat_crate")
 
 [node name="AlleyPipes" type="CSGBox3D" parent="Arena"]
@@ -656,22 +656,22 @@ size = Vector3(1.8, 1.5, 2.6)
 material = SubResource("Mat_cab")
 
 [node name="YardCrateA_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.55, 15)
-size = Vector3(2.2, 1.1, 1.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.9, 0.55, 15.9)
+size = Vector3(1.4, 1.1, 1.4)
 material = SubResource("Mat_crate")
 
 [node name="YardCrateA_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0.55, -15)
-size = Vector3(2.2, 1.1, 1.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.9, 0.55, -15.9)
+size = Vector3(1.4, 1.1, 1.4)
 material = SubResource("Mat_crate")
 
 [node name="YardCrateStack_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 1.1, 19)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22.8, 1.1, 18.4)
 size = Vector3(1.6, 2.2, 1.6)
 material = SubResource("Mat_crate")
 
 [node name="YardCrateStack_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 1.1, -19)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22.8, 1.1, -18.4)
 size = Vector3(1.6, 2.2, 1.6)
 material = SubResource("Mat_crate")
 
@@ -684,6 +684,104 @@ material = SubResource("Mat_crate")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.55, -20.5)
 size = Vector3(1.4, 1.1, 1.2)
 material = SubResource("Mat_crate")
+
+[node name="RoofNotch_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.7, 7.275, 10.275)
+operation = 2
+size = Vector3(4.7, 0.55, 0.45)
+material = SubResource("Mat_concrete")
+
+[node name="RoofNotch_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.7, 7.275, -10.275)
+operation = 2
+size = Vector3(4.7, 0.55, 0.45)
+material = SubResource("Mat_concrete")
+
+[node name="RoofRamp_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 0.8572, 0.515, 0, 0.515, -0.8572, -8.7, 3.5214, 16.0477)
+size = Vector3(4.4, 0.3, 14.1744)
+material = SubResource("Mat_concrete")
+
+[node name="RoofRamp_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.8572, 0.515, 0, -0.515, 0.8572, -8.7, 3.5214, -16.0477)
+size = Vector3(4.4, 0.3, 14.1744)
+material = SubResource("Mat_concrete")
+
+[node name="RoofRampEdge_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 0.8572, 0.515, 0, 0.515, -0.8572, -6.71, 3.5214, 16.0477)
+size = Vector3(0.42, 0.3, 14.1744)
+material = SubResource("Mat_hazard")
+
+[node name="RoofRampEdge_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.8572, 0.515, 0, -0.515, 0.8572, -6.71, 3.5214, -16.0477)
+size = Vector3(0.42, 0.3, 14.1744)
+material = SubResource("Mat_hazard")
+
+[node name="RoofBridge" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.15, 0)
+size = Vector3(8.8, 0.3, 3.2)
+material = SubResource("Mat_hall_trim")
+
+[node name="RoofCrateW" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 7.85, 5.6)
+size = Vector3(2.2, 1.1, 2)
+material = SubResource("Mat_crate")
+
+[node name="RoofCrateE" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.3, 7.85, -5.8)
+size = Vector3(2.2, 1.1, 2)
+material = SubResource("Mat_crate")
+
+[node name="RoofVent" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.6, 7.65, -5.4)
+size = Vector3(1.6, 0.7, 1.6)
+material = SubResource("Mat_steel")
+
+[node name="SurfWestS" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -11.15, 0.1, 3.9)
+polygon = PackedVector2Array(-0.1, -0.1, 3.3, -0.1, -0.1, 5.15)
+depth = 15
+material = SubResource("Mat_steel")
+
+[node name="SurfWestSKickA" type="CSGBox3D" parent="Arena/SurfWestS"]
+transform = Transform3D(1, 0, 0, 0, 0.766, -0.6428, 0, 0.6428, 0.766, 1.3, 7.6604, 6.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_steel")
+
+[node name="SurfWestSKickB" type="CSGBox3D" parent="Arena/SurfWestS"]
+transform = Transform3D(1, 0, 0, 0, 0.766, 0.6428, 0, -0.6428, 0.766, 1.3, 7.6604, -21.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_steel")
+
+[node name="SurfWestN" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -11.15, 0.1, -18.9)
+polygon = PackedVector2Array(-0.1, -0.1, 3.3, -0.1, -0.1, 5.15)
+depth = 15
+material = SubResource("Mat_steel")
+
+[node name="SurfWestNKickA" type="CSGBox3D" parent="Arena/SurfWestN"]
+transform = Transform3D(1, 0, 0, 0, 0.766, -0.6428, 0, 0.6428, 0.766, 1.3, 7.6604, 6.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_steel")
+
+[node name="SurfWestNKickB" type="CSGBox3D" parent="Arena/SurfWestN"]
+transform = Transform3D(1, 0, 0, 0, 0.766, 0.6428, 0, -0.6428, 0.766, 1.3, 7.6604, -21.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_steel")
+
+[node name="SurfEdgeS" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.42, -0.03, 11.4)
+size = Vector3(0.4, 0.06, 12.4)
+material = SubResource("Mat_hazard")
+
+[node name="SurfEdgeN" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.42, -0.03, -11.4)
+size = Vector3(0.4, 0.06, 12.4)
+material = SubResource("Mat_hazard")
 
 [node name="Tank" type="CSGCylinder3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.5, 2.5, 0)
@@ -732,6 +830,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 5.8, 0)
 light_color = Color(1, 0.82, 0.62, 1)
 light_energy = 0.6
 omni_range = 7
+shadow_enabled = false
+
+[node name="RoofLight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 10.2, 0)
+light_color = Color(1, 0.82, 0.62, 1)
+light_energy = 0.45
+omni_range = 14
 shadow_enabled = false
 
 [node name="ShedLight_B" type="OmniLight3D" parent="."]

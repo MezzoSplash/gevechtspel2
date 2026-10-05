@@ -164,8 +164,9 @@ func _separation() -> Vector3:
 
 func _hunt(enemy: Player, delta: float) -> void:
 	_repath_t -= delta
+	# Keep the enemy's height. Snapping to our own y picks the floor under a roof, so the
+	# path never takes the ramp when someone is standing up there. Steering still ignores y.
 	var dest := enemy.global_position
-	dest.y = pawn.global_position.y
 	if _repath_t <= 0.0 and agent:
 		agent.target_position = dest
 		_repath_t = 0.22
