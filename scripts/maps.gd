@@ -5,7 +5,7 @@ extends RefCounted
 ## Blue (team 0) spawns at +Z and faces -Z; Orange at -Z faces +Z. FFA spawns face the map centre.
 
 const DEFAULT := &"townhouses"
-const ORDER: Array[StringName] = [&"townhouses", &"foundry"]
+const ORDER: Array[StringName] = [&"townhouses", &"foundry", &"rooftops"]
 
 const INFO := {
 	&"townhouses": {
@@ -40,6 +40,27 @@ const INFO := {
 			Vector3(-23, 0, 9.5), Vector3(-23, 0, -9.5), Vector3(-16, 0, 9), Vector3(-16, 0, -9),
 			Vector3(21, 0, 17), Vector3(21, 0, -17), Vector3(23.5, 0, 10.5), Vector3(23.5, 0, -10.5),
 			Vector3(-9, 3.05, 0), Vector3(9.6, 0, 1.6), Vector3(9.6, 0, -1.6),
+		],
+	},
+	&"rooftops": {
+		"name": "Rooftops",
+		"blurb": "Two roofed blocks, a court, flank surfs, and a ramp across the middle.",
+		"scene": "res://scenes/maps/rooftops.tscn",
+		"menu_cam": [Vector3(34, 26, 54), Vector3(0, 2, 0)],
+		# Yards behind the spawn walls. Flanks sit behind the baffles; the truck breaks the centre line.
+		# Not on the surf, not on a drop lip, not inside the truck (x=0, z≈35).
+		"team_spawns": [
+			[Vector3(-25.2, 0, 37.2), Vector3(-10.2, 0, 35.4), Vector3(-4.6, 0, 38.4), Vector3(8.4, 0, 36.2), Vector3(24.6, 0, 37.4)],
+			[Vector3(-25.2, 0, -37.2), Vector3(-10.2, 0, -35.4), Vector3(-4.6, 0, -38.4), Vector3(8.4, 0, -36.2), Vector3(24.6, 0, -37.4)],
+		],
+		"ffa_spawns": [
+			Vector3(-25.2, 0, 37.2), Vector3(-4.6, 0, 38.4), Vector3(24.6, 0, 37.4),
+			Vector3(25.2, 0, -37.2), Vector3(4.6, 0, -38.4), Vector3(-24.6, 0, -37.4),
+			Vector3(-16.2, 0, -11.2), Vector3(16.4, 0, 11.5),
+			Vector3(-7.4, 0, 7.8), Vector3(12.2, 0, -1.5),
+			Vector3(-1.2, 6.0, 22.0), Vector3(1.4, 6.0, -22.4),
+			# Was (8.8, 16.8), which the east stair now covers. Floor of the south room, clear of both stairs.
+			Vector3(3.2, 0, 17.8), Vector3(-2.5, 0, -16.2),
 		],
 	},
 }
