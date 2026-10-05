@@ -47,7 +47,7 @@ Bots fill empty slots to 10 players (5v5 in Team Deathmatch). Same guns as you. 
 
 - **Townhouses**: two rows of houses with upstairs rooms, a street with a bus, backyards and side flanks.
 - **Foundry**: a compact industrial yard. Roofed warehouse hall in the middle (skylight, big doors north and south, side doors east) with a 3 m mezzanine that looks out over the container yard; a container hill and stacks on the west side; an alley with offset gates, two sheds with three doors each, and a water-tank courtyard on the east side; loading docks behind both spawns. No spawn sees the other spawn, and the long alley is broken up so the sniper has lanes but no lane covers the whole map.
-- **Rooftops**: two flat-roof blocks around a court. Surf ramps run the long flanks (low end on the ground, high end on a deck that joins the roof). Walk off a parapet gap for the drop into the court; stairs inside each block are the way up without surfing. The ground floor is one room with doors on four sides. The flank lanes are long, with crates beside them. Spawn yards sit behind a wall and two baffles.
+- **Rooftops**: two blocks around a court, roofs at 6 m. Surf ramps run the long flanks onto a 4 m deck, then a walk-ramp up to the roof. A short surf triangle crosses the court. Walk off a parapet gap for the drop; stairs inside each block are the way up without surfing, and they stay clear of the side doors. The ground floor is one room with doors on four sides. The flank lanes are long, with crates beside them. Spawn yards sit behind a wall and two baffles.
 
 ## Modes
 

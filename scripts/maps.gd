@@ -44,7 +44,7 @@ const INFO := {
 	},
 	&"rooftops": {
 		"name": "Rooftops",
-		"blurb": "Two roofed blocks, a court, and surf ramps down both flanks.",
+		"blurb": "Two roofed blocks, a court, flank surfs, and a ramp across the middle.",
 		"scene": "res://scenes/maps/rooftops.tscn",
 		"menu_cam": [Vector3(34, 26, 54), Vector3(0, 2, 0)],
 		# Yards behind the spawn walls. Flanks sit behind the baffles; the truck breaks the centre line.
@@ -58,8 +58,9 @@ const INFO := {
 			Vector3(25.2, 0, -37.2), Vector3(4.6, 0, -38.4), Vector3(-24.6, 0, -37.4),
 			Vector3(-16.2, 0, -11.2), Vector3(16.4, 0, 11.5),
 			Vector3(-7.4, 0, 7.8), Vector3(12.2, 0, -1.5),
-			Vector3(-1.2, 4.0, 22.0), Vector3(1.4, 4.0, -22.4),
-			Vector3(8.8, 0, 16.8), Vector3(-2.5, 0, -16.2),
+			Vector3(-1.2, 6.0, 22.0), Vector3(1.4, 6.0, -22.4),
+			# Was (8.8, 16.8), which the east stair now covers. Floor of the south room, clear of both stairs.
+			Vector3(3.2, 0, 17.8), Vector3(-2.5, 0, -16.2),
 		],
 	},
 }

@@ -6,14 +6,17 @@ bot navmesh from it. Re-run after editing:  python3 tools/gen_rooftops.py
 
 Mirrored by a half-turn (Blue spawns at +Z, Orange at -Z). Flat colours, no PBR.
 
-Layout (metres, Y up, Blue at +Z). Rotated 180°, not mirrored, so both surf bases stay det +1:
-  - Court in the middle (about 30 x 26) with chest-high cover. Roof-to-roof across it is the knife lane.
-  - South and north blocks: roof deck at 4.0 m (a walk off a parapet gap is a 4 m drop into the
-    court). Ground floor is one CQB floor: doors on four sides, a jogged corridor, two ~25° stairs.
-  - Both flanks: a 60° surf along the outer wall, pitched ~5° so the toe climbs ~4.15 m onto a deck
-    that bridges to the roof. 40° kickers (world angle) at both ends. West runs low-north to
-    high-south; east runs low-south to high-north. Fill under the toe stops short of the face.
-    The outer wall is taller than the ridge and the face opens inward, so the ramp stays in the map.
+Layout (metres, Y up, Blue at +Z). Rotated 180°, not mirrored, so surf bases stay det +1:
+  - Court in the middle (about 30 x 26) with chest-high cover. A small surf triangle across the
+    court (east-west) is the crossing. Roof-to-roof over it is the knife lane.
+  - South and north blocks: roof at 6.0 m, room ceiling at 3.2 m so the ground floor stays CQB.
+    Doors on four sides. Stairs sit inboard of the flank doors (the door needs a clear corridor;
+    a ramp against that wall seals it). Two ~28° stairs per block, low end on the floor.
+  - Both flanks: a 60° surf along the outer wall, pitched ~5° so the toe climbs ~4.15 m onto a
+    deck. A separate ~14° walk-ramp joins that deck to the 6 m roof, clear of the side door.
+    40° kickers (world angle) at both ends of the surf. West runs low-north to high-south; east
+    runs low-south to high-north. Fill under the toe stops short of the face. The outer wall is
+    taller than the ridge and the face opens inward, so the ramp stays in the map.
   - Walkway beside each surf stays open. Eye-height sightline down it is about 42 m, crates beside
     it so the lane is not one sniper tunnel. Baffles keep the spawn yards out of that lane.
 """
@@ -87,14 +90,14 @@ def sub(name, x0, x1, y0, y1, z0, z1):
     box(name, x0, x1, y0, y1, z0, z1, "concrete", op=2)
 
 
-def ramp_z(name, x0, x1, z_low, z_high, h, mat, t=0.35):
-    """Thin ramp along Z: top surface meets the ground at z_low and height h at z_high."""
+def ramp_z(name, x0, x1, z_low, z_high, h, mat, t=0.35, y0=0.0):
+    """Thin ramp along Z. The top meets y0 at z_low and y0 + h at z_high. Basis det is +1."""
     dz = z_high - z_low
     length = math.hypot(dz, h)
     Z = (0.0, h / length, dz / length)
     Y = (0.0, abs(dz) / length, -h / length * (1 if dz > 0 else -1))
     X = (Y[1] * Z[2] - Y[2] * Z[1], Y[2] * Z[0] - Y[0] * Z[2], Y[0] * Z[1] - Y[1] * Z[0])
-    mid = ((x0 + x1) / 2, h / 2, (z_low + z_high) / 2)
+    mid = ((x0 + x1) / 2, y0 + h / 2, (z_low + z_high) / 2)
     c = tuple(mid[i] - Y[i] * t / 2 for i in range(3))
     add(name, "CSGBox3D", xform((X, Y, Z), c),
         ["size = Vector3(%s, %s, %s)" % (fmt(abs(x1 - x0)), fmt(t), fmt(length))], mat)
@@ -169,14 +172,16 @@ box("WallEast", 28.4, 29.2, 0, WALL_H, -41.2, 41.2, "outer")
 box("WallSouth", -29.2, 29.2, 0, WALL_H, 40.4, 41.2, "team_blue")
 box("WallNorth", -29.2, 29.2, 0, WALL_H, -41.2, -40.4, "team_orange")
 
-# ---------------------------------------------------------------- roofs (4.0 m). Ground floor is carved out below.
+# ---------------------------------------------------------------- roofs. Ground floor is carved out below.
 # South block x -15.2..15.2, z 13..28. North is the mirror, built explicitly so stairs can differ.
-ROOF_Y = 4.0
+# Roof is 6 m (the drop). The room stops at 3.2 m so the ground floor stays a CQB box, not a hall.
+ROOF_Y = 6.0
+CEIL_Y = 3.2
 box("SouthShell", -15.2, 15.2, 0, ROOF_Y, 13.0, 28.2, "brick")
 box("NorthShell", -15.2, 15.2, 0, ROOF_Y, -28.2, -13.0, "brick")
-# Interior void. Ceiling stays ~0.85 m thick. Subtract starts at y=0 so the floor slab is not nicked.
-sub("SouthVoid", -13.6, 13.6, 0.0, 3.15, 14.6, 26.6)
-sub("NorthVoid", -13.6, 13.6, 0.0, 3.15, -26.6, -14.6)
+# Interior void. Subtract starts at y=0 so the floor slab is not nicked.
+sub("SouthVoid", -13.6, 13.6, 0.0, CEIL_Y, 14.6, 26.6)
+sub("NorthVoid", -13.6, 13.6, 0.0, CEIL_Y, -26.6, -14.6)
 # Doors: 3.0 m wide, 2.6 m tall, so the nav agent (radius 0.5, height 1.75) fits.
 # South block doors: court (north), spawn (south), both flanks.
 sub("SouthDoorCourt", -1.6, 1.6, 0.0, 2.6, 12.7, 14.7)
@@ -187,38 +192,47 @@ sub("NorthDoorCourt", -1.6, 1.6, 0.0, 2.6, -14.7, -12.7)
 sub("NorthDoorSpawn", -1.6, 1.6, 0.0, 2.6, -28.5, -26.5)
 sub("NorthDoorWest", -15.5, -13.5, 0.0, 2.6, -21.6, -18.6)
 sub("NorthDoorEast", 13.5, 15.5, 0.0, 2.6, -21.6, -18.6)
-# Jogged interior wall: the court door and the spawn door do not share a line.
-box("SouthJog", -13.4, 2.2, 0, 3.15, 20.15, 20.65, "brick")
-box("NorthJog", -2.2, 13.4, 0, 3.15, -20.65, -20.15, "brick")
-# Crates inside, hip height.
-# Clear of both stair slots (west x -13..-8, east x 8..13).
-box("SouthCrateA", -6.6, -4.6, 0, 1.1, 16.4, 18.4, "cover")
-box("SouthCrateB", 4.2, 6.2, 0, 1.1, 22.6, 24.6, "cover")
-box("NorthCrateA", 4.6, 6.6, 0, 1.1, -18.4, -16.4, "cover")
-box("NorthCrateB", -6.2, -4.2, 0, 1.1, -24.6, -22.6, "cover")
+# Jog breaks the court-door to spawn-door line. It stops at |x|=4.6 so it does not cross a flank door.
+box("SouthJog", -4.6, 4.6, 0, CEIL_Y, 20.15, 20.7, "brick")
+box("NorthJog", -4.6, 4.6, 0, CEIL_Y, -20.7, -20.15, "brick")
+# Crates inside, hip height. Clear of both stairs (|x| 5.8..9.6) and the jog.
+box("SouthCrateA", -4.2, -2.2, 0, 1.1, 16.2, 18.2, "cover")
+box("SouthCrateB", 2.2, 4.2, 0, 1.1, 22.6, 24.6, "cover")
+box("NorthCrateA", 2.2, 4.2, 0, 1.1, -18.2, -16.2, "cover")
+box("NorthCrateB", -4.2, -2.2, 0, 1.1, -24.6, -22.6, "cover")
 
-# Stair slots through the roof, then the ramp. ~25° (4 m up over 8.6 m), 4.2 m wide.
-# Two per block, from opposite sides, so one stair is never the only way up.
-sub("SouthStairWSlot", -13.3, -8.3, 3.05, 4.15, 14.8, 23.2)
-sub("SouthStairESlot", 8.3, 13.3, 3.05, 4.15, 17.6, 26.6)
-sub("NorthStairWSlot", -13.3, -8.3, 3.05, 4.15, -23.2, -14.8)
-sub("NorthStairESlot", 8.3, 13.3, 3.05, 4.15, -26.6, -17.6)
-# West stair climbs toward the spawn (+Z on the south block). Low end opens on the court.
-# Overlap the roof past the slot (slot ends at |z|=23.2 / 26.6) so the top is not a lip.
-ramp_z("SouthStairW", -12.9, -8.7, 15.2, 23.8, ROOF_Y, "concrete")
-ramp_z("SouthStairE", 8.7, 12.9, 26.8, 18.2, ROOF_Y, "concrete")
-ramp_z("NorthStairW", -12.9, -8.7, -15.2, -23.8, ROOF_Y, "concrete")
-ramp_z("NorthStairE", 8.7, 12.9, -26.8, -18.2, ROOF_Y, "concrete")
+# Stairs: 6 m over 10 m is ~31°, under the 45° walk limit and the 46° nav limit.
+# Inboard of the flank doors. A ramp against that jamb left a 0.6 m gap; the capsule is 0.8 m.
+# The low end sits 1.6 m inside the room so you can stand on the tread (wall inner face is
+# 0.4 m of capsule away from a foot that starts on the wall).
+# Slot is the shaft through the roof mass. The ramp is wider than the slot and runs past the
+# high end, so the opening has no lip and no gap beside the tread.
+# Opens early: the capsule is 1.8 m, so the head meets a 3.2 m ceiling when the tread is only
+# at 1.4 m. From there the shaft is open, or the climb wedges.
+sub("SouthStairWSlot", -9.45, -5.95, CEIL_Y - 0.15, ROOF_Y + 0.2, 17.4, 25.9)
+sub("SouthStairESlot", 5.95, 9.45, CEIL_Y - 0.15, ROOF_Y + 0.2, 15.3, 23.6)
+sub("NorthStairESlot", 5.95, 9.45, CEIL_Y - 0.15, ROOF_Y + 0.2, -25.9, -17.4)
+sub("NorthStairWSlot", -9.45, -5.95, CEIL_Y - 0.15, ROOF_Y + 0.2, -23.6, -15.3)
+# South-west climbs toward the spawn (+Z). South-east climbs toward the court. North is the half-turn.
+ramp_z("SouthStairW", -9.6, -5.8, 16.2, 26.2, ROOF_Y, "concrete")
+ramp_z("SouthStairE", 5.8, 9.6, 25.0, 15.0, ROOF_Y, "concrete")
+ramp_z("NorthStairE", 5.8, 9.6, -16.2, -26.2, ROOF_Y, "concrete")
+ramp_z("NorthStairW", -9.6, -5.8, -25.0, -15.0, ROOF_Y, "concrete")
 # Yellow only on the ramp edge, not as a stripe across the fight.
-box("SouthStairWEdge", -12.9, -8.7, 0.02, 0.14, 14.85, 15.15, "hazard")
-box("SouthStairEEdge", 8.7, 12.9, 0.02, 0.14, 26.05, 26.35, "hazard")
-box("NorthStairWEdge", -12.9, -8.7, 0.02, 0.14, -15.15, -14.85, "hazard")
-box("NorthStairEEdge", 8.7, 12.9, 0.02, 0.14, -26.35, -26.05, "hazard")
-# Rails so the stair slot is not a drop into the room.
-box("SouthRailW", -8.55, -8.3, 0, 3.15, 15.2, 22.6, "trim")
-box("SouthRailE", 8.3, 8.55, 0, 3.15, 18.2, 26.0, "trim")
-box("NorthRailW", -8.55, -8.3, 0, 3.15, -22.6, -15.2, "trim")
-box("NorthRailE", 8.3, 8.55, 0, 3.15, -26.0, -18.2, "trim")
+# Flush with the floor. A proud curb stops the capsule; the yellow is only the edge mark.
+box("SouthStairWEdge", -9.6, -5.8, -0.06, 0.0, 16.05, 16.35, "hazard")
+box("SouthStairEEdge", 5.8, 9.6, -0.06, 0.0, 24.85, 25.15, "hazard")
+box("NorthStairEEdge", 5.8, 9.6, -0.06, 0.0, -16.35, -16.05, "hazard")
+box("NorthStairWEdge", -9.6, -5.8, -0.06, 0.0, -25.15, -24.85, "hazard")
+# Rails in the room, both sides, so the tread is not a drop. They stop at the ceiling.
+box("SouthRailWO", -9.85, -9.6, 0, CEIL_Y, 16.2, 24.8, "trim")
+box("SouthRailWI", -5.8, -5.55, 0, CEIL_Y, 16.2, 24.8, "trim")
+box("SouthRailEO", 9.6, 9.85, 0, CEIL_Y, 15.6, 25.0, "trim")
+box("SouthRailEI", 5.55, 5.8, 0, CEIL_Y, 15.6, 25.0, "trim")
+box("NorthRailEO", 9.6, 9.85, 0, CEIL_Y, -24.8, -16.2, "trim")
+box("NorthRailEI", 5.55, 5.8, 0, CEIL_Y, -24.8, -16.2, "trim")
+box("NorthRailWO", -9.85, -9.6, 0, CEIL_Y, -25.0, -15.6, "trim")
+box("NorthRailWI", -5.8, -5.55, 0, CEIL_Y, -25.0, -15.6, "trim")
 
 # Parapet 1.15 m on the court edge, with three gaps wide enough to walk off (the drop).
 def parapet_court(prefix, z0, z1, gaps):
@@ -234,39 +248,45 @@ def parapet_court(prefix, z0, z1, gaps):
 # Gaps at -8..-4.6, -1.5..1.5, 4.6..8. Landing in the court under them is kept clear.
 parapet_court("South", 13.0, 13.5, [(-8.0, -4.6), (-1.5, 1.5), (4.6, 8.0)])
 parapet_court("North", -13.5, -13.0, [(-8.0, -4.6), (-1.5, 1.5), (4.6, 8.0)])
-# Side and spawn-side parapets, with a gap at each stair so the roof connects to the ramp.
+# Side parapets. The gap on the south-west (and the north-east mirror) is where the deck step
+# meets the roof. Stairs come up through the roof, so the other edges stay closed.
 box("SouthParSpawnL", -15.2, -13.6, ROOF_Y, ROOF_Y + 1.15, 27.7, 28.2, "concrete")
 box("SouthParSpawnR", 13.6, 15.2, ROOF_Y, ROOF_Y + 1.15, 27.7, 28.2, "concrete")
-box("SouthParWest", -15.2, -14.7, ROOF_Y, ROOF_Y + 1.15, 13.0, 14.6, "concrete")
-box("SouthParWestB", -15.2, -14.7, ROOF_Y, ROOF_Y + 1.15, 23.4, 28.2, "concrete")
-box("SouthParEast", 14.7, 15.2, ROOF_Y, ROOF_Y + 1.15, 13.0, 17.4, "concrete")
-box("SouthParEastB", 14.7, 15.2, ROOF_Y, ROOF_Y + 1.15, 26.2, 28.2, "concrete")
+box("SouthParWestA", -15.2, -14.7, ROOF_Y, ROOF_Y + 1.15, 13.0, 16.2, "concrete")
+box("SouthParWestB", -15.2, -14.7, ROOF_Y, ROOF_Y + 1.15, 18.6, 28.2, "concrete")
+box("SouthParEast", 14.7, 15.2, ROOF_Y, ROOF_Y + 1.15, 13.0, 28.2, "concrete")
 box("NorthParSpawnL", -15.2, -13.6, ROOF_Y, ROOF_Y + 1.15, -28.2, -27.7, "concrete")
 box("NorthParSpawnR", 13.6, 15.2, ROOF_Y, ROOF_Y + 1.15, -28.2, -27.7, "concrete")
-box("NorthParWest", -15.2, -14.7, ROOF_Y, ROOF_Y + 1.15, -14.6, -13.0, "concrete")
-box("NorthParWestB", -15.2, -14.7, ROOF_Y, ROOF_Y + 1.15, -28.2, -23.4, "concrete")
-box("NorthParEast", 14.7, 15.2, ROOF_Y, ROOF_Y + 1.15, -17.4, -13.0, "concrete")
-box("NorthParEastB", 14.7, 15.2, ROOF_Y, ROOF_Y + 1.15, -28.2, -26.2, "concrete")
+box("NorthParWest", -15.2, -14.7, ROOF_Y, ROOF_Y + 1.15, -28.2, -13.0, "concrete")
+box("NorthParEastA", 14.7, 15.2, ROOF_Y, ROOF_Y + 1.15, -16.2, -13.0, "concrete")
+box("NorthParEastB", 14.7, 15.2, ROOF_Y, ROOF_Y + 1.15, -28.2, -18.8, "concrete")
 
-# AC boxes on the roof: head-glitch cover for the mid-range roof fight. Not on the drop gaps.
-box("SouthAC1", -6.2, -4.0, ROOF_Y, ROOF_Y + 1.1, 18.5, 21.2, "ac")
-box("SouthAC2", 3.2, 5.6, ROOF_Y, ROOF_Y + 1.1, 22.0, 24.4, "ac")
-box("NorthAC1", 4.0, 6.2, ROOF_Y, ROOF_Y + 1.1, -21.2, -18.5, "ac")
-box("NorthAC2", -5.6, -3.2, ROOF_Y, ROOF_Y + 1.1, -24.4, -22.0, "ac")
+# AC boxes on the roof: head-glitch cover for the mid-range roof fight. Not on the drop gaps or the shafts.
+box("SouthAC1", -4.0, -1.6, ROOF_Y, ROOF_Y + 1.1, 17.6, 20.2, "ac")
+box("SouthAC2", 1.6, 4.2, ROOF_Y, ROOF_Y + 1.1, 21.4, 24.0, "ac")
+box("NorthAC1", 1.6, 4.0, ROOF_Y, ROOF_Y + 1.1, -20.2, -17.6, "ac")
+box("NorthAC2", -4.2, -1.6, ROOF_Y, ROOF_Y + 1.1, -24.0, -21.4, "ac")
+
+# Notch the wall top where the deck step lands, then union the step. Subtract before the step
+# or the step is cut too. Stays above the room ceiling, so it is not a hole into the floor.
+sub("SouthStepNotch", -15.55, -13.45, ROOF_Y - 0.5, ROOF_Y + 0.25, 16.15, 18.85)
+sub("NorthStepNotch", 13.45, 15.55, ROOF_Y - 0.5, ROOF_Y + 0.25, -18.85, -16.15)
 
 # ---------------------------------------------------------------- surf landings
-# The deck is the flat the toe runs onto at the high end. It stays on the walkway side of the
-# toe, and it starts only once the toe is already at deck height, so the slab does not cut the face.
-# A bridge joins each deck to the block roof. Posts sit under the deck, clear of the surf.
-# x reaches past the toe (about -24.9 / +24.9) so the climb, which arrives near the toe, has a floor.
-box("WestDeck", -26.6, -16.2, 3.85, ROOF_Y, 21.2, 26.8, "roof")
-box("EastDeck", 16.2, 26.6, 3.85, ROOF_Y, -26.8, -21.2, "roof")
-box("WestBridge", -16.6, -14.6, 3.85, ROOF_Y, 19.6, 23.4, "roof")
-box("EastBridge", 14.6, 16.6, 3.85, ROOF_Y, -23.4, -19.6, "roof")
-box("WestPostA", -22.6, -21.6, 0, 3.85, 22.6, 23.6, "concrete")
-box("WestPostB", -18.6, -17.6, 0, 3.85, 24.4, 25.4, "concrete")
-box("EastPostA", 21.6, 22.6, 0, 3.85, -23.6, -22.6, "concrete")
-box("EastPostB", 17.6, 18.6, 0, 3.85, -25.4, -24.4, "concrete")
+# The deck is the flat the flank surf runs onto. It stays at 4 m: the surf climb is tuned for
+# that, and a sprint cannot pay for a 6 m rise. A ~14° ramp walks the rest of the way up.
+# The ramp and the step stay clear of the flank door (door z 18.6..21.6, step ends at 18.6).
+DECK_Y = 4.0
+box("WestDeck", -26.6, -16.2, DECK_Y - 0.15, DECK_Y, 21.2, 27.0, "roof")
+box("EastDeck", 16.2, 26.6, DECK_Y - 0.15, DECK_Y, -27.0, -21.2, "roof")
+ramp_z("WestRoofRamp", -20.8, -16.4, 25.2, 17.2, ROOF_Y - DECK_Y, "concrete", y0=DECK_Y)
+ramp_z("EastRoofRamp", 16.4, 20.8, -25.2, -17.2, ROOF_Y - DECK_Y, "concrete", y0=DECK_Y)
+box("WestRoofStep", -20.8, -13.3, ROOF_Y - 0.32, ROOF_Y, 16.4, 18.6, "roof")
+box("EastRoofStep", 13.3, 20.8, ROOF_Y - 0.32, ROOF_Y, -18.6, -16.4, "roof")
+box("WestPostA", -22.6, -21.6, 0, DECK_Y - 0.15, 22.6, 23.6, "concrete")
+box("WestPostB", -18.6, -17.6, 0, DECK_Y - 0.15, 24.4, 25.4, "concrete")
+box("EastPostA", 21.6, 22.6, 0, DECK_Y - 0.15, -23.6, -22.6, "concrete")
+box("EastPostB", 17.6, 18.6, 0, DECK_Y - 0.15, -25.4, -24.4, "concrete")
 
 # ---------------------------------------------------------------- surfs
 # 60° face, pitched so the toe climbs CLIMB_RISE over the extrusion.
@@ -325,18 +345,32 @@ def fill_climb(name, x_wall, x_toe, z_low, z_high, h):
 fill_climb("FillWest", -28.55, -25.05, 22.5 - CLIMB_DEPTH * math.cos(CLIMB_PITCH), 22.5, CLIMB_RISE)
 fill_climb("FillEast", 28.55, 25.05, -22.5 + CLIMB_DEPTH * math.cos(CLIMB_PITCH), -22.5, CLIMB_RISE)
 
+# ---------------------------------------------------------------- cross surf
+# Short copy of the flank wedge, turned east-west, so you can surf from one side to the other.
+# Same 60° triangle, 40° kickers, no pitch (either direction holds). Origin is the east end;
+# local -Z runs west. Face opens toward -Z. Ends 17 m inside the outer wall.
+# local +X → world -Z, local +Z → world +X. det +1.
+CROSS_BASIS = ((0.0, 0.0, -1.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0))
+CROSS_DEPTH = 22.0
+surf("SurfCross", (CROSS_DEPTH / 2.0, 0.1, 1.6), CROSS_BASIS, CROSS_DEPTH, "both",
+     kick_start=40.0, kick_end=40.0)
+box("CrossEdgeE", 10.7, 11.15, -0.06, 0.0, -1.4, 1.5, "hazard")
+box("CrossEdgeW", -11.15, -10.7, -0.06, 0.0, -1.4, 1.5, "hazard")
+
 # ---------------------------------------------------------------- court (mid-range)
 # Chest cover. The three drop-landing strips (x -8..-4.6, -1.5..1.5, 4.6..8 at |z| 9..13) stay empty.
-box("CourtWall", -3.2, 3.2, 0, 1.1, -0.35, 0.35, "concrete")
+# The centre wall moved off the surf triangle (|z| < 1.9, |x| < 10).
+box("CourtWall_B", -3.6, 3.6, 0, 1.1, 3.55, 4.2, "concrete")
+box("CourtWall_O", -3.6, 3.6, 0, 1.1, -4.2, -3.55, "concrete")
 box("CourtCrateA", -10.5, -8.6, 0, 1.1, 4.2, 6.2, "cover")
 box("CourtCrateB", 8.4, 10.4, 0, 1.1, -6.4, -4.2, "cover")
 box("CourtCrateC", -11.2, -9.4, 0, 1.1, -5.2, -3.2, "cover")
 box("CourtCrateD", 5.6, 7.6, 0, 2.2, 3.4, 5.4, "cover")  # double, breaks a head-glitch
 box("VanBody", -2.4, 2.6, 0.35, 1.4, -7.6, -4.6, "van")
 box("VanCab", 2.6, 3.6, 0.35, 1.35, -7.3, -4.9, "steel")
-# Low planters down the long axis, not in a line that seals the court.
-box("PlantA", -6.4, -5.2, 0, 1.1, -2.2, 0.6, "brick")
-box("PlantB", 4.8, 6.0, 0, 1.1, 1.2, 3.8, "brick")
+# Planters off the triangle. Still a half-turn pair.
+box("PlantA", -8.4, -7.0, 0, 1.1, 3.2, 6.0, "brick")
+box("PlantB", 7.0, 8.4, 0, 1.1, -6.0, -3.2, "brick")
 
 # ---------------------------------------------------------------- flanks: walkway cover, not in the 42 m line (that line is x=±21.5)
 # West lane line x=-21.5 from z=-21 to 21 must stay clear. Crates sit at x=-18.
@@ -368,8 +402,9 @@ light("SouthInside", (0.0, 2.4, 20.5), WARM, 0.8, 12.0)
 light("NorthInside", (0.0, 2.4, -20.5), WARM, 0.8, 12.0)
 light("CourtA", (-6.0, 4.5, 6.0), COOL, 0.45, 14.0)
 light("CourtB", (6.0, 4.5, -6.0), COOL, 0.45, 14.0)
-light("WestDeckLight", (-23.5, 5.4, 20.0), WARM, 0.4, 9.0)
-light("EastDeckLight", (23.5, 5.4, -20.0), WARM, 0.4, 9.0)
+light("WestDeckLight", (-23.5, 7.8, 22.0), WARM, 0.45, 11.0)
+light("EastDeckLight", (23.5, 7.8, -22.0), WARM, 0.45, 11.0)
+light("CrossLight", (0.0, 6.2, 0.0), COOL, 0.35, 12.0)
 
 
 def main():
@@ -421,8 +456,10 @@ def main():
     text = "\n".join(out).rstrip("\n") + "\n"
     with open(OUT, "w") as f:
         f.write(text)
-    print("wrote %s (%d csg nodes, climb pitch %.2f deg)" % (
-        os.path.normpath(OUT), len(nodes), math.degrees(CLIMB_PITCH)))
+    stair_deg = math.degrees(math.atan(ROOF_Y / 10.0))
+    print("wrote %s (%d csg nodes, climb pitch %.2f deg, stair %.1f deg, roof %.1f)" % (
+        os.path.normpath(OUT), len(nodes), math.degrees(CLIMB_PITCH), stair_deg, ROOF_Y))
+    print("  cross det=%.3f" % basis_det(CROSS_BASIS))
     for label, basis, origin in (
         ("west", WEST_BASIS, (-28.15, SURF_ORIGIN_Y, 22.5)),
         ("east", EAST_BASIS, (28.15, SURF_ORIGIN_Y, -22.5)),
