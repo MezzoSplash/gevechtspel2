@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.19** — new map Rooftops: two roofed blocks around a court, flank surf ramps onto a 4 m deck then a walk-ramp to the 6 m roof, a short surf across the court, and a drop off a parapet gap. Stairs are the way up without surfing and stay clear of the side doors. Menu and `--map rooftops`. **Not compatible with 0.2.18 or older** (NET_VERSION 0.2.19): everyone must update, including the dedicated server.
+**v0.2.20** — Foundry: walk ramps west of the big doors up to the 7.3 m hall roof, a bridge across the skylight, and surf ramps along the west wall. Bots take the ramp when someone is on the roof. **Not compatible with 0.2.19 or older** (NET_VERSION 0.2.20): everyone must update, including the dedicated server.
 
 ## Play (Linux)
 
