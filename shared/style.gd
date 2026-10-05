@@ -81,7 +81,8 @@ const SURF_RECENT := 0.3 # seconds since the last ramp contact that still count 
 const DROP_M := 3.5 # metres from the highest point of the fall: a jump off an upper floor (3 m) clears it, a jump on flat ground (~1.3 m) does not
 const DROP_RECENT := 1.0 # seconds after landing
 const RUN_GUN_SPEED := 9.0 # m/s: SMG walk is 8.2, SMG sprint 12.3; bunny hops and slides stay above it
-const RUN_GUN_TIME := 0.5 # s at that speed without dropping below it (a stop-and-shoot never counts)
+const RUN_GUN_TIME := 0.5 # s at that speed without stopping (a stop-and-shoot never counts)
+const RUN_GUN_GRACE := 0.12 # s below the speed that still count as running (snapshot jitter, a strafe flick)
 const HOSE_KILLS := 2
 const QUICKDRAW_TIME := 0.4 # s from the switch to the kill
 const QUICKDRAW_NET_SLACK := 0.1 # remote humans: the switch and the shot reach the server with some jitter
@@ -89,7 +90,8 @@ const SIX_KILLS := 3
 const CHAIN_WINDOW := 8.0 # seconds between trick kills that still chain
 const CHAIN_STEP := 0.25
 const CHAIN_MAX := 2.0
-const GUNS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver"] # grenade kills: no tricks
+# Grenade kills: no tricks. The throwing knife has its own (YEET) and is in neither list.
+const GUNS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver"]
 const MOVE_WEAPONS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"melee"]
 
 

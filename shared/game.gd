@@ -476,19 +476,22 @@ func sync_knife_spawn(net_id: int, pos: Vector3, vel: Vector3) -> void:
 	_knife_visuals[net_id] = k
 
 
-## `stuck`: hit the world (stays a moment at `pos`); otherwise it hit a body or flew off (gone).
+## `end`: ThrowingKnife.END_* (stuck in the world at `pos` for a moment, hit a body, or flew off).
 @rpc("authority", "reliable")
-func sync_knife_done(net_id: int, pos: Vector3, normal: Vector3, stuck: bool) -> void:
+func sync_knife_done(net_id: int, pos: Vector3, normal: Vector3, end: int) -> void:
 	if multiplayer.is_server():
 		return
 	var k := _knife_visuals.get(net_id) as ThrowingKnife
 	_knife_visuals.erase(net_id)
 	if k == null or not is_instance_valid(k):
 		return
-	if stuck:
+	if end == ThrowingKnife.END_STUCK:
 		k.stick(pos, normal)
-	else:
-		k.queue_free()
+		return
+	k.global_position = pos
+	if end == ThrowingKnife.END_BODY:
+		k.play_flesh()
+	k.queue_free()
 
 
 ## Server knife hit a body: one-hit kill, the throw is the "shot" for tricks (YEET).

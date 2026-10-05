@@ -14,9 +14,9 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 
 - **WASD** move, **Space** jump, **mouse** look
 - **Shift** sprint (less accurate), **Ctrl** or **C** crouch (hides behind cover); crouch while sprinting slides
-- **LMB** fire (rifle holds; pistol, shotgun and sniper fire once per click), **R** reload, **Q** or **1/2** switch between your class's primary and secondary
-- **RMB** zoom (sniper only)
-- **G** grenade (as many as your class carries, max 3 per life)
+- **LMB** fire (rifle and SMG hold; pistol, revolver, shotgun and sniper fire once per click), **R** reload, **Q** or **1/2** switch between your class's primary and secondary
+- **RMB** sniper scope, or SMG iron sights (small zoom, tighter spread)
+- **G** frag grenade, **F** throwing knife (whatever your class's grenade slot holds, 3 per life)
 - **E** melee: weapon bash, 2 m reach, 50 damage (two hits kill), once per 0.8 s
 - **Up/Down** pick a streak slot, **Enter** activates it (radar after 3 kills: your whole team sees the enemies for 4 seconds, and the other team hears "Enemy radar online"; in Free For All only you see everyone else)
 - **T** chat (Enter sends, Esc cancels)
@@ -58,11 +58,33 @@ Main menu or **Esc → Settings**: master and SFX volume, **mouse sensitivity** 
 
 When you get hit, a red wedge around the crosshair points at where the damage came from (shooter, melee attacker or grenade blast); it turns with your view and fades after about 1.3 seconds.
 
+## Weapons
+
+| Gun | Damage | Rate | Mag | Reload | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Rifle | 24 (falls to 55% from 16 to 42 m) | 600 rpm, auto | 30 | 1.55 s | all-rounder |
+| SMG | 12 (falls to 40% from 15 to 30 m) | 1200 rpm, auto | 35 | 1.7 s | moves 8% faster, half the running spread penalty, iron sights on RMB |
+| Shotgun | 24 × 8 pellets (falls off from 7 m) | 93 rpm | 6 | 2.1 s | close range |
+| Sniper | 50, head ×2 | 69 rpm | 10 | 1.75 s | scope on RMB |
+| Pistol | 34 | 360 rpm | 18 | 1.15 s | secondary |
+| Revolver | 55, head ×2 (2 body or 1 head) | 132 rpm | 6 | 2.8 s | secondary, heavy kick |
+| Throwing knife | one hit kills | — | grenade slot | — | F; a fast, slightly dropping throw; sticks in walls |
+
 ## Classes
 
-Main menu → **Classes**: create, rename, edit and delete up to 8 classes. A class is a primary (rifle, shotgun or sniper), a secondary (pistol) and up to 3 grenades. Defaults: **Rifleman** (rifle, pistol, 2 frags), **Breacher** (shotgun, pistol, 3 frags), **Sniper** (sniper, pistol, 1 frag). Saved in `user://classes.cfg` (Linux: `~/.local/share/godot/app_userdata/Gevechtspel/classes.cfg`).
+Main menu → **Classes**: create, rename, edit and delete up to 8 classes. A class is a primary (rifle, SMG, shotgun or sniper), a secondary (pistol or revolver) and a **grenade slot** of 3 throwables in any mix of frag grenades (G) and throwing knives (F): pick a preset (3 frags, 2 + 1, 1 + 2, 3 knives) or set the two counts. Defaults: **Rifleman** (rifle, pistol, 2 frags), **Breacher** (shotgun, pistol, 3 frags), **Sniper** (sniper, pistol, 1 frag), **Runner** (SMG, revolver, 1 frag + 2 knives). Saved in `user://classes.cfg` (Linux: `~/.local/share/godot/app_userdata/Gevechtspel/classes.cfg`).
 
-When you first spawn into a match you pick a class (keys 1–8 or click); after 10 seconds your last used class is picked for you. **Esc → Change class** during a match: the new class applies at your next spawn. The server checks every loadout (known guns, at most 3 grenades) and only lets you switch to and fire the guns in your class. Bots keep their fixed guns.
+When you first spawn into a match you pick a class (keys 1–8 or click); after 10 seconds your last used class is picked for you. **Esc → Change class** during a match: the new class applies at your next spawn. The server checks every loadout (known guns, at most 3 throwables) and only lets you switch to and fire the guns in your class. Bots keep their fixed guns (all six, the SMG and revolver included).
+
+## Trickshots
+
+Style points only, never extra damage. Besides NOSCOPE, 360 NOSCOPE, AIRSHOT, LONGSHOT, POINT BLANK, DOUBLE, SPRAY TRANSFER, HEADSHOT STREAK, SURF KILL and DROP KILL:
+
+- **RUN & GUN** (125): SMG kill while sprinting or air-strafing, above 9 m/s for half a second without stopping
+- **HOSE** (150): a second (or later) SMG kill from the same magazine, no reload in between
+- **QUICKDRAW** (150): revolver kill within 0.4 s of switching to it
+- **SIX SHOOTER** (200): a third revolver kill from one cylinder
+- **YEET** (250): throwing-knife kill; **YEET ×2** (500) when you threw it in the air or while surfing
 
 ## Editor
 
@@ -74,4 +96,4 @@ Foundry is generated from `tools/gen_foundry.py` (CSG boxes, collision on the `A
 
 ## Credits
 
-Gun, footstep, hurt, melee, grenade and trickshot sounds are CC0 (Free Firearm Sound Library, Kenney); the radar voice lines are Piper TTS with the public-domain LJ Speech voice. See [CREDITS.md](CREDITS.md).
+Gun, footstep, hurt, melee, grenade, knife and trickshot sounds are CC0 (Free Firearm Sound Library, Kenney); the radar voice lines are Piper TTS with the public-domain LJ Speech voice. See [CREDITS.md](CREDITS.md).

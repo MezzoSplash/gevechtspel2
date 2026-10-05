@@ -124,7 +124,8 @@ var _landed_drop := 0.0 # metres of the last fall, from its peak
 var _landed_t := -100.0
 var _surf_seen_t := -100.0 # last _style_clock with a steep ramp beside or under us
 var _style_last_pos := Vector3.INF # teleports (respawn, admin moves) never count as a fall
-var _run_t := 0.0 # s above Style.RUN_GUN_SPEED without a dip (RUN & GUN)
+var _run_t := 0.0 # s above Style.RUN_GUN_SPEED without stopping (RUN & GUN)
+var _run_low_t := 0.0 # s below it since the last fast tick: past RUN_GUN_GRACE the run is over
 const STYLE_KEEP := 1.5
 const STYLE_RAMP_REACH := 1.0 # m from the body centre (capsule radius ~0.45, plus slack)
 const STYLE_TELEPORT_M := 3.0 # one tick moving further than this is a teleport (snapshots move < 1 m)
@@ -1012,7 +1013,14 @@ func _tick_style_track(delta: float) -> void:
 		_landed_drop = 0.0
 		air_time = 0.0
 	_style_last_pos = global_position
-	_run_t = _run_t + delta if _obs_speed >= Style.RUN_GUN_SPEED else 0.0
+	# A remote human's speed comes from snapshots, so one slow tick is not a stop; a real stop is longer.
+	if _obs_speed >= Style.RUN_GUN_SPEED:
+		_run_t += delta
+		_run_low_t = 0.0
+	else:
+		_run_low_t += delta
+		if _run_low_t > Style.RUN_GUN_GRACE:
+			_run_t = 0.0
 	var under := _feet_ray()
 	# Nothing under the feet, or only a ramp too steep to stand on: in the air (surfing counts).
 	var steep := not under.is_empty() and float((under.normal as Vector3).y) < Player.SURF_MAX_NORMAL_Y
@@ -1088,6 +1096,7 @@ func _reset_style_track() -> void:
 	_style_has_yaw = false
 	air_time = 0.0
 	_run_t = 0.0
+	_run_low_t = 0.0
 	_style_in_air = false
 	_landed_t = -100.0
 	_surf_seen_t = -100.0

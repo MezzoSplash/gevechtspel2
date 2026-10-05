@@ -13,6 +13,12 @@ const MAX_FLIGHT := 1.6 # s before a miss into the sky is dropped (~48 m)
 const STICK_TIME := 2.0
 const SPIN := 22.0 # rad/s end over end (visual only)
 const HURT_MASK := 1 | 2 | 4
+const END_GONE := 0 # flew off (MAX_FLIGHT)
+const END_STUCK := 1
+const END_BODY := 2
+const KNIFE_THROW := preload("res://assets/sounds/knife_throw.wav")
+const KNIFE_STICK := preload("res://assets/sounds/knife_hit.wav")
+const KNIFE_FLESH := preload("res://assets/sounds/melee_hit.wav")
 
 var thrower_id := 0
 var thrower_team := 0
@@ -65,8 +71,8 @@ func _ready() -> void:
 	# Modeled along +X; turn the tip down -Z (the flight direction). ~40 cm so it reads in flight.
 	model.rotation_degrees = Vector3(0.0, 90.0, 0.0)
 	model.scale = Vector3.ONE * 1.25
-	if not Game.is_dedicated and not is_visual:
-		_play(preload("res://assets/sounds/knife_throw.wav"), -3.0)
+	if not Game.is_dedicated:
+		_play(KNIFE_THROW, -3.0) # clients' visual copies too: everyone hears the throw
 
 
 func net_id() -> int:
@@ -91,7 +97,7 @@ func _physics_process(delta: float) -> void:
 		_server_step(motion)
 	if _flight >= MAX_FLIGHT and _stuck_left < 0.0 and not is_queued_for_deletion():
 		if not is_visual and Game.is_networked():
-			Game.sync_knife_done.rpc(_net_id, global_position, Vector3.ZERO, false)
+			Game.sync_knife_done.rpc(_net_id, global_position, Vector3.ZERO, END_GONE)
 		queue_free()
 
 
@@ -108,15 +114,16 @@ func _server_step(motion: Vector3) -> void:
 		return
 	var victim := hit.collider as Player
 	if victim:
-		var enemy := victim.peer_id != thrower_id and Game.is_enemy_ids(thrower_team, victim.team_id, thrower_id, victim.peer_id)
+		var enemy := victim.peer_id != thrower_id \
+			and Game.is_enemy_ids(thrower_team, victim.team_id, thrower_id, victim.peer_id)
 		if victim.is_dead or not enemy:
 			_exclude.append(victim.get_rid()) # dead or friendly body: fly on
 			global_position = from + motion
 			return
 		Game.knife_hit(self, victim, hit.position, hit.normal)
-		_finish(hit.position, Vector3.ZERO, false)
+		_finish(hit.position, hit.normal, END_BODY)
 		return
-	_finish(hit.position, hit.normal, true)
+	_finish(hit.position, hit.normal, END_STUCK)
 
 
 ## Clients: world only (players are where the server says). The done RPC has the last word.
@@ -134,14 +141,14 @@ func _visual_step(motion: Vector3) -> void:
 
 
 ## Server: show it, tell clients, then stick or vanish.
-func _finish(pos: Vector3, normal: Vector3, stuck: bool) -> void:
+func _finish(pos: Vector3, normal: Vector3, end: int) -> void:
 	if Game.is_networked():
-		Game.sync_knife_done.rpc(_net_id, pos, normal, stuck)
-	if stuck:
+		Game.sync_knife_done.rpc(_net_id, pos, normal, end)
+	if end == END_STUCK:
 		stick(pos, normal)
 	else:
 		if not Game.is_dedicated:
-			_play(preload("res://assets/sounds/melee_hit.wav"), -4.0)
+			play_flesh()
 		queue_free()
 
 
@@ -155,7 +162,12 @@ func stick(pos: Vector3, normal: Vector3) -> void:
 	if _spin_pivot:
 		_spin_pivot.rotation.x = 0.0
 	if not Game.is_dedicated and normal != Vector3.ZERO:
-		_play(preload("res://assets/sounds/knife_hit.wav"), -2.0)
+		_play(KNIFE_STICK, -2.0)
+
+
+## Body hit: a short thud where the knife ended (it is gone right after).
+func play_flesh() -> void:
+	_play(KNIFE_FLESH, -4.0)
 
 
 func _face(v: Vector3) -> void:
