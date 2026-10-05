@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.16** — version number shown top-right in the main menu. Still compatible with 0.2.14/0.2.15 (same NET_VERSION).
+**v0.2.17** — trickshots with style points (NOSCOPE, 360 NOSCOPE, AIRSHOT, LONGSHOT, POINT BLANK, DOUBLE, SPRAY TRANSFER, HEADSHOT STREAK, SURF KILL, DROP KILL), combo, STYLE column, Style King and a best-trickshot killcam; Source-style air strafing, sprint momentum and surfing, with surf ramps on Townhouses; bot fixes. **Not compatible with 0.2.14–0.2.16** (NET_VERSION 0.2.17): everyone must update.
 
 ## Play (Linux)
 
