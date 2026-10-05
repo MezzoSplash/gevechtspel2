@@ -35,10 +35,11 @@ Dedicated server (optional):
 ```bash
 ./run-server.sh 7777                              # Townhouses, Team Deathmatch
 ./run-server.sh 7777 --map foundry --mode ffa     # Foundry, Free For All
+./run-server.sh 7777 --map rooftops --mode tdm   # Rooftops, Team Deathmatch
 ./run.sh -- --connect 127.0.0.1:7777 --name Friend
 ```
 
-`--map` takes `townhouses` or `foundry` (or `1`/`2`), `--mode` takes `tdm` or `ffa`.
+`--map` takes `townhouses`, `foundry` or `rooftops` (or `1`/`2`/`3`), `--mode` takes `tdm` or `ffa`.
 
 Bots fill empty slots to 10 players (5v5 in Team Deathmatch). Same guns as you. Use cover. Health comes back after 4.5 seconds without damage. Die and you respawn after 2 seconds. Tab shows the scoreboard. When a round ends, everyone watches the final killcam: the last kill of the round through the killer's eyes, slowed down at the kill, before the scoreboard.
 
@@ -46,6 +47,7 @@ Bots fill empty slots to 10 players (5v5 in Team Deathmatch). Same guns as you. 
 
 - **Townhouses**: two rows of houses with upstairs rooms, a street with a bus, backyards and side flanks.
 - **Foundry**: a compact industrial yard. Roofed warehouse hall in the middle (skylight, big doors north and south, side doors east) with a 3 m mezzanine that looks out over the container yard; a container hill and stacks on the west side; an alley with offset gates, two sheds with three doors each, and a water-tank courtyard on the east side; loading docks behind both spawns. No spawn sees the other spawn, and the long alley is broken up so the sniper has lanes but no lane covers the whole map.
+- **Rooftops**: two flat-roof blocks around a court. Surf ramps run the long flanks (low end on the ground, high end on a deck that joins the roof). Walk off a parapet gap for the drop into the court; stairs inside each block are the way up without surfing. The ground floor is one room with doors on four sides. The flank lanes are long, with crates beside them. Spawn yards sit behind a wall and two baffles.
 
 ## Modes
 
@@ -92,7 +94,7 @@ Style points only, never extra damage. Besides NOSCOPE, 360 NOSCOPE, AIRSHOT, LO
 ./run.sh --editor
 ```
 
-Foundry is generated from `tools/gen_foundry.py` (CSG boxes, collision on the `Arena` combiner). Edit the script and run `python3 tools/gen_foundry.py` to rebuild `scenes/maps/foundry.tscn`. Spawn points per map live in `scripts/maps.gd`.
+Foundry is generated from `tools/gen_foundry.py`, Rooftops from `tools/gen_rooftops.py` (CSG boxes, collision on the `Arena` combiner). Edit the script and run it to rebuild the `.tscn`. Spawn points per map live in `scripts/maps.gd`.
 
 ## Credits
 
