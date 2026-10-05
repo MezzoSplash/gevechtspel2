@@ -43,6 +43,7 @@ var _frame_i := 0
 var _ev_i := 0
 var _ghosts: Dictionary = {} # peer_id -> ghost parts (see _make_ghost)
 var _nades: Array[MeshInstance3D] = []
+var _knives: Array[Node3D] = [] # replay copies of throwing knives (frame slot 3: Transform3D each)
 var _hidden: Array[Node3D] = []
 var _hud: CanvasItem
 var _hud_was_visible := false
@@ -236,7 +237,12 @@ func _snapshot() -> void:
 		var n3 := g as Node3D
 		if n3 and n3.is_inside_tree() and not n3.is_queued_for_deletion():
 			nades.append(n3.global_position)
-	_frames.append([_clock, pawns, nades])
+	var knives: Array[Transform3D] = []
+	for k in get_tree().get_nodes_in_group("knife"):
+		var k3 := k as Node3D
+		if k3 and k3.is_inside_tree() and not k3.is_queued_for_deletion():
+			knives.append(k3.global_transform)
+	_frames.append([_clock, pawns, nades, knives])
 
 
 ## PRE before to POST after the kill, plus a little margin for blending.
@@ -378,6 +384,12 @@ func _apply_frames(t: float) -> void:
 		_nades[i].visible = i < nades.size()
 		if i < nades.size():
 			_nades[i].global_position = nades[i]
+	var fk: Array = a if w < 0.5 else b
+	var knives: Array = fk[3] if fk.size() > 3 else []
+	for i in _knives.size():
+		_knives[i].visible = i < knives.size()
+		if i < knives.size():
+			_knives[i].global_transform = knives[i]
 
 
 func _pose_ghost(g: Dictionary, sa: Variant, sb: Variant, w: float, is_killer: bool) -> void:
@@ -548,6 +560,16 @@ func _build_ghosts(killer: int) -> void:
 		nade.visible = false
 		scene.add_child(nade)
 		_nades.append(nade)
+	for i in 4:
+		var knife := Node3D.new()
+		var model := Weapon.KNIFE_SCENE.instantiate() as Node3D
+		model.rotation_degrees = Vector3(0.0, 90.0, 0.0) # same as ThrowingKnife: tip down -Z
+		model.scale = Vector3.ONE * 1.25
+		Weapon.no_shadows(model)
+		knife.add_child(model)
+		knife.visible = false
+		scene.add_child(knife)
+		_knives.append(knife)
 
 
 func _make_ghost(
@@ -635,6 +657,10 @@ func _free_ghosts() -> void:
 		if is_instance_valid(n):
 			n.queue_free()
 	_nades.clear()
+	for k in _knives:
+		if is_instance_valid(k):
+			k.queue_free()
+	_knives.clear()
 	_cam = null
 
 
@@ -674,7 +700,7 @@ func _hide_live_world() -> void:
 
 ## Also catches pawns that spawn during the replay (a join, a replacement bot).
 func _hide_new_pawns() -> void:
-	for group in ["player", "grenade"]:
+	for group in ["player", "grenade", "knife"]:
 		for n in get_tree().get_nodes_in_group(group):
 			var n3 := n as Node3D
 			if n3 and n3.visible:

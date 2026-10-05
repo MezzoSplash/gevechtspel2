@@ -9,6 +9,8 @@ const SHOTGUN_FIGHT := 6.0
 const RIFLE_FIGHT := 13.0
 const PISTOL_FIGHT := 9.0
 const SNIPER_FIGHT := 18.0 # keep range; one shot then a long pause
+const SMG_FIGHT := 8.0 # SMG: falls off after 15 m, so it closes in like a light shotgun
+const REVOLVER_FIGHT := 12.0
 const STRAFE_SPEED := 6.2
 const SHOT_MASK := 1 | 2
 const MELEE_R := 1.8 # enemy this close (feet to feet) gets bashed instead of shot
@@ -229,7 +231,7 @@ func _steer_to(dest: Vector3, speed: float, delta: float) -> void:
 	var horiz := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
 	if on_floor:
 		horiz = pawn._friction(horiz, delta)
-		horiz = pawn._accelerate(horiz, wish, speed, Player.GROUND_ACCEL, delta)
+		horiz = pawn._accelerate(horiz, wish, speed * pawn.gun_speed_mult(), Player.GROUND_ACCEL, delta)
 	else:
 		horiz = pawn._accelerate(horiz, wish, Player.WALK_SPEED, Player.BOT_AIR_ACCEL, delta)
 	pawn.velocity.x = horiz.x
@@ -296,6 +298,10 @@ func _fight_range() -> float:
 			return PISTOL_FIGHT
 		&"sniper":
 			return SNIPER_FIGHT
+		&"smg":
+			return SMG_FIGHT
+		&"revolver":
+			return REVOLVER_FIGHT
 		_:
 			return RIFLE_FIGHT
 
@@ -317,6 +323,12 @@ func _try_shoot(enemy: Player) -> void:
 			&"pistol":
 				_burst_left = randi_range(3, 6)
 				_burst_pause = randf_range(0.28, 0.6)
+			&"smg":
+				_burst_left = randi_range(6, 12) # hose it, short breath, again
+				_burst_pause = randf_range(0.2, 0.45)
+			&"revolver":
+				_burst_left = 1 # deliberate single shots, a beat between them
+				_burst_pause = randf_range(0.5, 0.85)
 			_:
 				_burst_left = randi_range(2, 5)
 				_burst_pause = randf_range(0.35, 0.85)
