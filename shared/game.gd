@@ -66,6 +66,9 @@ var final_kill: Dictionary = {} # match authority: last real kill of this round,
 var best_trick: Dictionary = {} # match authority: this round's highest-scoring trickshot (same keys + tags/pts/trick_id)
 var _shot_ctx: Dictionary = {} # match authority, while a shot resolves: {shooter, origin, scoped}
 var _style_chain: Dictionary = {} # peer_id -> [trick kills in a row, time of the last one]
+var _bursts: Dictionary = {} # peer_id -> {seq, t, victims}: the rifle burst (held trigger) in progress
+var _shotgun_kill_t: Dictionary = {} # peer_id -> time of their last shotgun kill (DOUBLE)
+var _hs_streak: Dictionary = {} # peer_id -> rifle headshot kills in a row (HEADSHOT STREAK)
 var _trick_seq := 0
 var killcam: Killcam
 var melee: Melee
@@ -273,7 +276,8 @@ func request_weapon_fire(
 	muzzle_pos: Vector3 = Vector3.ZERO,
 	spread_mult: float = 1.0,
 	shot_seed: int = 0,
-	scoped: bool = false
+	scoped: bool = false,
+	burst: int = 0
 ) -> void:
 	if not multiplayer.is_server():
 		return
@@ -293,7 +297,7 @@ func request_weapon_fire(
 	if not _take_fire_credit(peer, def):
 		return
 	var mult := clampf(spread_mult, shooter.min_spread_multiplier(), SPREAD_MAX)
-	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped)
+	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped, burst)
 	var from := muzzle_pos
 	if from == Vector3.ZERO or from.distance_to(origin) > 2.0:
 		from = origin
@@ -420,14 +424,16 @@ func fire_weapon_locally(
 	def: WeaponDef,
 	spread_mult: float = 1.0,
 	shot_seed: int = 0,
-	scoped: bool = false
+	scoped: bool = false,
+	burst: int = 0
 ) -> Dictionary:
-	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult, shot_seed, scoped)
+	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult, shot_seed, scoped, burst)
 
 
 ## `shot_seed` drives the pellet spread, so Weapon._simulate_pellets_fx draws the same rays.
 ## Teammates are excluded: shots pass through friends instead of being soaked up by them.
 ## `scoped`: the shooter had the sniper scope up (only matters for the NOSCOPE trick, never for damage).
+## `burst`: the shooter's held-trigger counter for automatic guns (SPRAY TRANSFER only; 0 = unknown).
 func _resolve_weapon_fire(
 	shooter: Player,
 	origin: Vector3,
@@ -435,9 +441,10 @@ func _resolve_weapon_fire(
 	def: WeaponDef,
 	spread_mult: float,
 	shot_seed: int = 0,
-	scoped: bool = false
+	scoped: bool = false,
+	burst: int = 0
 ) -> Dictionary:
-	_shot_ctx = {"shooter": shooter, "origin": origin, "scoped": scoped}
+	_shot_ctx = {"shooter": shooter, "origin": origin, "scoped": scoped, "burst": _burst_for(shooter, def, burst)}
 	var best := _resolve_shot_rays(shooter, origin, look_dir, def, spread_mult, shot_seed)
 	_shot_ctx = {}
 	return best
@@ -473,6 +480,29 @@ func _resolve_shot_rays(
 		best = _merge_hit_result(best, result)
 		best.end = end
 	return best
+
+
+## The rifle burst this shot belongs to: same trigger hold (client counter) and no pause over
+## Style.BURST_GAP. Kills append their victim (register_kill). {} for other guns.
+func _burst_for(shooter: Player, def: WeaponDef, seq: int) -> Dictionary:
+	if not def.automatic or seq == 0:
+		return {}
+	var now := Time.get_ticks_msec() / 1000.0
+	var b: Dictionary = _bursts.get(shooter.peer_id, {})
+	if b.is_empty() or int(b.seq) != seq or now - float(b.t) > Style.BURST_GAP:
+		b = {"seq": seq, "t": now, "victims": []}
+		_bursts[shooter.peer_id] = b
+	b.t = now
+	return b
+
+
+## Melee: the swing is the "shot" for the movement tricks (SURF / DROP KILL).
+func begin_melee_ctx(attacker: Player, origin: Vector3) -> void:
+	_shot_ctx = {"shooter": attacker, "origin": origin, "scoped": false, "burst": {}}
+
+
+func end_melee_ctx() -> void:
+	_shot_ctx = {}
 
 
 ## Shooter plus living teammates (none in FFA). Used for shots, tracers, and bot line of sight.
@@ -825,7 +855,8 @@ func register_kill(
 		victim_team = victim.team_id
 	elif scores.has(victim_peer_id):
 		victim_team = int(scores[victim_peer_id].get("team", 0))
-	var tricks := _detect_tricks(killer_peer_id, victim_peer_id, weapon_id)
+	var tricks := _detect_tricks(killer_peer_id, victim_peer_id, weapon_id, headshot)
+	_note_trick_history(killer_peer_id, victim_peer_id, weapon_id, headshot)
 	var tag := Style.label(tricks)
 	_emit_kill_feed(killer_name, victim_name, weapon_id, team_id, victim_team, tag)
 	if is_networked():
@@ -847,6 +878,7 @@ func register_kill(
 
 ## Own grenade: kill feed shows it, the streak resets, but no kill for you or your team.
 func _register_suicide(peer_id: int, weapon_id: StringName) -> void:
+	_hs_streak.erase(peer_id)
 	var n := _display_name_for(peer_id)
 	if scores.has(peer_id):
 		n = str(scores[peer_id].name)
@@ -1015,9 +1047,11 @@ func sync_kill_feed(
 
 # --- Trickshots / style (see Style). Match authority decides, everyone shows it. ---
 
-## The shot that is resolving right now (Game._shot_ctx) made this kill: what tricks was it?
-## Melee, grenades and anything outside a gun shot have no context and no tricks.
-func _detect_tricks(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName) -> Array[StringName]:
+## The shot (or melee swing) resolving right now (Game._shot_ctx) made this kill: what tricks was it?
+## Grenades and anything outside a shot or swing have no context and no tricks.
+func _detect_tricks(
+	killer_peer_id: int, victim_peer_id: int, weapon_id: StringName, headshot: bool = false
+) -> Array[StringName]:
 	var none: Array[StringName] = []
 	if _shot_ctx.is_empty():
 		return none
@@ -1032,15 +1066,46 @@ func _detect_tricks(killer_peer_id: int, victim_peer_id: int, weapon_id: StringN
 	var window := Style.SPIN_WINDOW
 	if is_networked() and not shooter.is_bot and not shooter.is_local():
 		window += Style.SPIN_NET_SLACK
-	return Style.detect(
-		weapon_id,
-		bool(_shot_ctx.get("scoped", false)),
-		shooter.is_bot,
-		shooter.spin_degrees(window),
-		shooter.air_time,
-		victim.air_time if victim else 0.0,
-		dist
-	)
+	var now := Time.get_ticks_msec() / 1000.0
+	var burst: Dictionary = _shot_ctx.get("burst", {})
+	var others := 0
+	for v in burst.get("victims", []):
+		if int(v) != victim_peer_id:
+			others += 1
+	var streak := int(_hs_streak.get(killer_peer_id, 0))
+	if weapon_id == &"rifle" and headshot:
+		streak += 1
+	return Style.detect({
+		"weapon": weapon_id,
+		"scoped": bool(_shot_ctx.get("scoped", false)),
+		"bot": shooter.is_bot,
+		"headshot": headshot,
+		"spin": shooter.spin_degrees(window),
+		"shooter_air": shooter.air_time,
+		"victim_air": victim.air_time if victim else 0.0,
+		"dist": dist,
+		"speed": shooter._obs_speed,
+		"surf": shooter.style_surfing(),
+		"drop": shooter.style_drop(),
+		"burst_victims": others,
+		"double": weapon_id == &"shotgun" and now - float(_shotgun_kill_t.get(killer_peer_id, -100.0)) <= Style.DOUBLE_WINDOW,
+		"hs_streak": streak,
+	})
+
+
+## Per-killer history behind DOUBLE, SPRAY TRANSFER and HEADSHOT STREAK (after _detect_tricks).
+func _note_trick_history(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName, headshot: bool) -> void:
+	_hs_streak.erase(victim_peer_id) # dying ends your streak
+	if weapon_id == &"rifle" and headshot:
+		_hs_streak[killer_peer_id] = int(_hs_streak.get(killer_peer_id, 0)) + 1
+	else:
+		_hs_streak.erase(killer_peer_id) # any other kill breaks the run
+	if weapon_id == &"shotgun":
+		_shotgun_kill_t[killer_peer_id] = Time.get_ticks_msec() / 1000.0
+	if not _shot_ctx.is_empty():
+		var burst: Dictionary = _shot_ctx.get("burst", {})
+		if not burst.is_empty():
+			(burst.victims as Array).append(victim_peer_id)
 
 
 ## Points (with the chain multiplier) onto the killer's style; tell everyone; remember the round's best
@@ -1252,6 +1317,9 @@ func start_round() -> void:
 	final_kill.clear()
 	best_trick.clear()
 	_style_chain.clear()
+	_bursts.clear()
+	_shotgun_kill_t.clear()
+	_hs_streak.clear()
 	team_kills = [0, 0]
 	if is_networked() and multiplayer.is_server():
 		sync_team_kills.rpc(0, 0)
@@ -1305,6 +1373,9 @@ func reset_session() -> void:
 	final_kill.clear()
 	best_trick.clear()
 	_style_chain.clear()
+	_bursts.clear()
+	_shotgun_kill_t.clear()
+	_hs_streak.clear()
 	_shot_ctx = {}
 	if killcam:
 		killcam.reset()
