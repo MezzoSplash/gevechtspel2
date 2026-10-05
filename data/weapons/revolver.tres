@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/weapon_def.gd" id="1_weapon"]
+[ext_resource type="AudioStream" path="res://assets/sounds/revolver_fire.wav" id="2_fire"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"revolver"
+display_name = "Revolver"
+fire_rate = 2.2
+damage = 55.0
+headshot_multiplier = 2.0
+spread_deg = 0.25
+kick_pitch_deg = 2.1
+kick_yaw_deg = 0.45
+kick_fov = 1.8
+range_m = 150.0
+mag_size = 6
+reload_time = 2.8
+tracer_width = 0.02
+fire_sound = ExtResource("2_fire")
+pellet_count = 1
+automatic = false
+falloff_start_m = 22.0
+falloff_end_m = 45.0
+falloff_min_mult = 0.8

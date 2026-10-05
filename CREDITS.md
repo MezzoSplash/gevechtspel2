@@ -11,6 +11,10 @@ They were trimmed, mixed to mono, faded and normalized with `tools/build_sfx.py`
 | `pistol_fire.wav` | The Free Firearm Sound Library, *Walther PPQ* `X_39P.wav` (near) | same | CC0 |
 | `shotgun_fire.wav` | The Free Firearm Sound Library, *Benelli Nova* `O_21P.wav` (near), with a bass shelf, plus Kenney *Sci-fi Sounds* `lowFrequency_explosion_000.ogg` as tail rumble, a synthesized sub thump and noise crack (own work), saturated together | same + Kenney | CC0 |
 | `sniper_fire.wav` | The Free Firearm Sound Library, *Tikka T3* `W_29P.wav` (near) | same | CC0 |
+| `smg_fire.wav` | The Free Firearm Sound Library, *PPSh-41* `P_22P.wav` (near), short cut for the 1200 rpm loop | same | CC0 |
+| `revolver_fire.wav` | The Free Firearm Sound Library, *Ruger Single Six* `S_11P.wav` (near) | same | CC0 |
+| `knife_hit.wav` | Kenney *Impact Sounds* `impactMetal_light_002.ogg` + `impactWood_light_001.ogg` | Kenney | CC0 |
+| `knife_throw.wav` | Synthesized in `tools/build_sfx.py` (band-passed noise whoosh with a spin flutter) | this project | CC0 |
 | `step.wav`, `step_1.wav` … `step_4.wav` | Kenney *Impact Sounds* `footstep_concrete_000…004.ogg` | Kenney (kenney.nl) | CC0 |
 | `hurt.wav` | Kenney *Impact Sounds* `impactPunch_medium_000.ogg` | Kenney | CC0 |
 | `grenade_boom.wav` | Kenney *Sci-fi Sounds* `explosionCrunch_001.ogg` + `lowFrequency_explosion_000.ogg` | Kenney | CC0 |
@@ -26,8 +30,10 @@ They were trimmed, mixed to mono, faded and normalized with `tools/build_sfx.py`
 - Piper voice `en_US-ljspeech-high`: <https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/ljspeech/high> (repository license MIT; model card: dataset license public domain)
 - LJ Speech dataset: <https://keithito.com/LJ-Speech-Dataset/> (public domain)
 
-## Icons
+## Icons and models
 
-`assets/ui/icon_melee.svg` (kill feed) is drawn for this project, like the other `icon_*.svg` files.
+`assets/ui/icon_melee.svg`, `icon_smg.svg`, `icon_revolver.svg` and `icon_knife.svg` (kill feed) are drawn for this project, like the other `icon_*.svg` files.
+
+The SMG, revolver and throwing-knife models (`assets/weapons/smg.tscn`, `revolver.tscn`, `knife.tscn`) are low-poly boxes and cylinders built for this project by `tools/build_lowpoly_weapons.py` (CC0).
 
 The other files in `assets/sounds/` (hit, headshot, kill, empty click, land, slide, reload, the older announcer lines `radar_online` / `radar_standby` / `round_starting`, round music) are not from these packs; the gun clicks and ticks come from `tools/gen_sounds.py`.

@@ -78,6 +78,7 @@ const GRENADE_MAX := 2 # bots; humans get their class's count
 
 var hp := MAX_HP
 var grenades := GRENADE_MAX
+var knives := 0 # throwing knives (grenade slot, F); bots carry none
 @export var peer_id := 0
 @export var is_dead := false
 @export var is_bot := false
@@ -123,6 +124,8 @@ var _landed_drop := 0.0 # metres of the last fall, from its peak
 var _landed_t := -100.0
 var _surf_seen_t := -100.0 # last _style_clock with a steep ramp beside or under us
 var _style_last_pos := Vector3.INF # teleports (respawn, admin moves) never count as a fall
+var _run_t := 0.0 # s above Style.RUN_GUN_SPEED without stopping (RUN & GUN)
+var _run_low_t := 0.0 # s below it since the last fast tick: past RUN_GUN_GRACE the run is over
 const STYLE_KEEP := 1.5
 const STYLE_RAMP_REACH := 1.0 # m from the body centre (capsule radius ~0.45, plus slack)
 const STYLE_TELEPORT_M := 3.0 # one tick moving further than this is a teleport (snapshots move < 1 m)
@@ -276,12 +279,19 @@ func has_weapon(id: StringName) -> bool:
 	return weapon_ids().has(id)
 
 
-## Per type in the class; only frags exist, so that is the throwable count.
+## Per type in the class (frags on G, knives on F); the class shares PlayerClasses.MAX_GRENADES slots.
 func grenade_max() -> int:
 	if loadout.is_empty():
 		return GRENADE_MAX
 	var g: Dictionary = loadout.get("grenades", {})
 	return clampi(int(g.get("frag", 0)), 0, PlayerClasses.MAX_GRENADES)
+
+
+func knife_max() -> int:
+	if loadout.is_empty():
+		return 0
+	var g: Dictionary = loadout.get("grenades", {})
+	return clampi(int(g.get("knife", 0)), 0, PlayerClasses.MAX_GRENADES)
 
 
 ## Carry the class's guns (holding the primary), full ammo, class grenades.
@@ -290,6 +300,7 @@ func apply_loadout() -> void:
 		weapon.set_slots(weapon_ids())
 		weapon.refill()
 	grenades = grenade_max()
+	knives = knife_max()
 	_notify_grenades()
 
 
@@ -337,7 +348,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var sens := MOUSE_SENS * Game.mouse_sens
 		if weapon and weapon.is_ads():
-			sens *= Game.ads_sens # default 0.45: Scout-style zoom so flicks stay controllable
+			sens *= weapon.ads_sens_mult() # scope: Game.ads_sens (0.45); SMG iron sights: the zoom ratio
 		_yaw -= event.relative.x * sens
 		_pitch -= event.relative.y * sens
 		_pitch = clampf(_pitch, -MAX_PITCH, MAX_PITCH)
@@ -354,6 +365,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("grenade") and not is_dead and not Game.play_locked():
 		_try_throw_grenade()
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("throw_knife") and not is_dead and not Game.play_locked():
+		_try_throw_knife()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -517,6 +532,7 @@ func apply_respawn_state() -> void:
 	if not loadout.is_empty() and weapon:
 		weapon.set_slots(weapon_ids()) # spawn holding the primary
 	grenades = grenade_max()
+	knives = knife_max()
 	_notify_grenades()
 	if weapon:
 		weapon.refill()
@@ -541,12 +557,38 @@ func _try_throw_grenade() -> void:
 		Game.throw_grenade(self, origin, dir)
 
 
+## F. The knife leaves from the right hand, a little lower than the eye, along the crosshair.
+func _try_throw_knife() -> void:
+	if knives <= 0 or camera == null or (weapon and weapon.is_throwing()):
+		return
+	var origin := camera.global_position + (-camera.global_basis.z) * 0.5 + camera.global_basis.x * 0.12
+	var dir := -camera.global_basis.z
+	if weapon:
+		weapon.play_throw()
+	if Game.is_networked() and not multiplayer.is_server():
+		Game.request_knife.rpc_id(1, origin, dir)
+	else:
+		Game.throw_knife(self, origin, dir)
+
+
 func _notify_grenades() -> void:
 	if not is_local():
 		return
 	var hud := get_tree().get_first_node_in_group("hud") as Hud
 	if hud:
-		hud.set_grenades(grenades)
+		hud.set_grenades(grenades, knives)
+
+
+## Held gun's movement speed factor (SMG 1.08). Bots use it too.
+func gun_speed_mult() -> float:
+	if weapon == null or weapon.def == null:
+		return 1.0
+	return weapon.def.move_speed_mult
+
+
+## Match authority: seconds this pawn has stayed above Style.RUN_GUN_SPEED (0 after any dip).
+func run_time() -> float:
+	return _run_t
 
 
 ## Server floor for a remote human's claimed spread: half the walk penalty at the speed we see them move.
@@ -631,6 +673,8 @@ func _physics_process(delta: float) -> void:
 		is_sprinting = true
 	elif crouch > 0.5:
 		wish_speed = CROUCH_SPEED
+	if not _sliding:
+		wish_speed *= gun_speed_mult()
 
 	camera.extra_fov = 0.0 if weapon.is_ads() else (SPRINT_FOV if is_sprinting else 0.0)
 
@@ -969,6 +1013,14 @@ func _tick_style_track(delta: float) -> void:
 		_landed_drop = 0.0
 		air_time = 0.0
 	_style_last_pos = global_position
+	# A remote human's speed comes from snapshots, so one slow tick is not a stop; a real stop is longer.
+	if _obs_speed >= Style.RUN_GUN_SPEED:
+		_run_t += delta
+		_run_low_t = 0.0
+	else:
+		_run_low_t += delta
+		if _run_low_t > Style.RUN_GUN_GRACE:
+			_run_t = 0.0
 	var under := _feet_ray()
 	# Nothing under the feet, or only a ramp too steep to stand on: in the air (surfing counts).
 	var steep := not under.is_empty() and float((under.normal as Vector3).y) < Player.SURF_MAX_NORMAL_Y
@@ -1043,6 +1095,8 @@ func _reset_style_track() -> void:
 	_yaw_samples.clear()
 	_style_has_yaw = false
 	air_time = 0.0
+	_run_t = 0.0
+	_run_low_t = 0.0
 	_style_in_air = false
 	_landed_t = -100.0
 	_surf_seen_t = -100.0

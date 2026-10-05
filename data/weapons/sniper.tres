@@ -24,3 +24,5 @@ automatic = false
 falloff_start_m = 50.0
 falloff_end_m = 90.0
 falloff_min_mult = 0.92
+ads_fov = 38.0
+ads_hides_model = true

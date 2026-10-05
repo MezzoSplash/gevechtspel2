@@ -64,7 +64,12 @@ def filt(y, af):
                           "-f", "f32le", "-"], input=y.astype(np.float32).tobytes(), capture_output=True, check=True).stdout
     return np.frombuffer(raw, np.float32).astype(np.float64)[:len(y)]
 
+ONLY = set(filter(None, os.environ.get("SFX_ONLY", "").split(",")))  # e.g. SFX_ONLY=smg_fire.wav,knife_hit.wav
+
+
 def write(name, y):
+    if ONLY and name not in ONLY:
+        return
     y = np.clip(y, -1, 1)
     with wave.open(OUT + name, "w") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
@@ -140,6 +145,8 @@ hit = np.tanh(2.0 * norm(hit, 0)) / np.tanh(2.0)
 write("melee_hit.wav", norm(shape(hit, 0.40, 0.4, pre=0.0), -1.0))
 
 def radio(src, name):
+    if ONLY and name not in ONLY:
+        return
     # Radio announcer: band-limited voice, saturation, a squelch burst before and a short tail after.
     v = load(K + "tts/" + src, hp=0, extra="highpass=f=320,lowpass=f=3300,highpass=f=320,lowpass=f=3300")
     v = norm(v, 0.0)
@@ -181,3 +188,37 @@ def trickshot():
 
 if os.path.isdir(K + "kenney_ui/Audio"):
     trickshot()
+
+
+# --- v0.2.18: SMG, revolver, throwing knife ---------------------------------------------------------------
+gun("PPSh/P_22P.wav", "smg_fire.wav", 0.32, 0.22, 2.6, peak_db=-2.0)
+gun("Ruger Single Six/S_11P.wav", "revolver_fire.wav", 1.10, 0.30, 2.8)
+
+
+def knife_throw():
+    # Own synthesis (CC0): a short, high whoosh with a little flutter (the blade spinning).
+    rng = np.random.default_rng(23)
+    n = int(0.22 * SR)
+    t = np.arange(n) / n
+    noise = rng.standard_normal(n)
+    y = np.zeros(n)
+    for lo, hi, w in ((700, 1800, 0.7), (1800, 4200, 1.0), (4200, 8000, 0.4)):
+        y += filt(noise, f"highpass=f={lo},lowpass=f={hi}") * w
+    flutter = 0.65 + 0.35 * np.sin(2 * np.pi * 38 * t * 0.22 * (1 + t))
+    env = np.sin(np.pi * np.clip(t / 0.85, 0, 1)) ** 1.5
+    write("knife_throw.wav", norm(y * env * flutter, -5.0))
+
+
+def knife_hit():
+    # Kenney Impact: a light metal clink on top of a short wood thud (the blade sticking in).
+    clink = load(K + "kenney_impact/Audio/impactMetal_light_002.ogg", hp=300)
+    thud = load(K + "kenney_impact/Audio/impactWood_light_001.ogg", hp=80)
+    n = int(0.35 * SR)
+    y = np.zeros(n)
+    y[:min(n, len(thud))] += norm(thud, 0)[:n]
+    y[:min(n, len(clink))] += norm(clink, 0)[:n] * 0.6
+    write("knife_hit.wav", norm(shape(y, 0.35, 0.35, pre=0.0), -2.0))
+
+
+knife_throw()
+knife_hit()

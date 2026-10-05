@@ -42,7 +42,7 @@ const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.17"
+const NET_VERSION := "0.2.18"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -53,6 +53,8 @@ const WEAPON_DEFS := {
 	&"pistol": preload("res://data/weapons/pistol.tres"),
 	&"shotgun": preload("res://data/weapons/shotgun.tres"),
 	&"sniper": preload("res://data/weapons/sniper.tres"),
+	&"smg": preload("res://data/weapons/smg.tres"),
+	&"revolver": preload("res://data/weapons/revolver.tres"),
 }
 
 var is_offline := true
@@ -69,6 +71,8 @@ var _style_chain: Dictionary = {} # peer_id -> [trick kills in a row, time of th
 var _bursts: Dictionary = {} # peer_id -> {seq, t, victims}: the rifle burst (held trigger) in progress
 var _shotgun_kill_t: Dictionary = {} # peer_id -> time of their last shotgun kill (DOUBLE)
 var _hs_streak: Dictionary = {} # peer_id -> rifle headshot kills in a row (HEADSHOT STREAK)
+var _mags: Dictionary = {} # peer_id -> {weapon_id: {seq, shots, kills}}: the magazine in use (HOSE, SIX SHOOTER)
+var _knife_visuals: Dictionary = {} # net_id -> client copy of a flying knife
 var _trick_seq := 0
 var killcam: Killcam
 var melee: Melee
@@ -277,7 +281,8 @@ func request_weapon_fire(
 	spread_mult: float = 1.0,
 	shot_seed: int = 0,
 	scoped: bool = false,
-	burst: int = 0
+	burst: int = 0,
+	mag: int = 0
 ) -> void:
 	if not multiplayer.is_server():
 		return
@@ -296,8 +301,9 @@ func request_weapon_fire(
 		return
 	if not _take_fire_credit(peer, def):
 		return
-	var mult := clampf(spread_mult, shooter.min_spread_multiplier(), SPREAD_MAX)
-	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped, burst)
+	var floor_mult := def.spread_mult_for(shooter.min_spread_multiplier(), scoped)
+	var mult := clampf(spread_mult, floor_mult, SPREAD_MAX)
+	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped, burst, mag)
 	var from := muzzle_pos
 	if from == Vector3.ZERO or from.distance_to(origin) > 2.0:
 		from = origin
@@ -416,6 +422,98 @@ func _grenade_visual(net_id: int, pos: Vector3) -> Node3D:
 	return g
 
 
+# --- Throwing knives (grenade slot, F). Same flow as grenades: authority decides, clients get copies. ---
+
+## Authority only. Clients ask via request_knife.
+func throw_knife(thrower: Player, origin: Vector3, dir: Vector3) -> void:
+	if thrower == null or thrower.is_dead or thrower.knives <= 0 or play_locked():
+		return
+	if is_networked() and not multiplayer.is_server():
+		return
+	thrower.knives -= 1
+	thrower._notify_grenades()
+	if is_networked():
+		sync_knife_count.rpc(thrower.peer_id, thrower.knives)
+	ThrowingKnife.launch(thrower, origin, dir)
+
+
+@rpc("any_peer", "reliable")
+func request_knife(origin: Vector3, dir: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	if peer == 0:
+		peer = multiplayer.get_unique_id()
+	var thrower := player_for_peer(peer)
+	if thrower == null or thrower.is_bot or dir.length_squared() < 0.0001 or not origin_plausible(thrower, origin):
+		return
+	throw_knife(thrower, origin, dir)
+
+
+@rpc("authority", "call_local", "reliable")
+func sync_knife_count(peer_id: int, n: int) -> void:
+	var p := player_for_peer(peer_id)
+	if p == null:
+		return
+	p.knives = n
+	p._notify_grenades()
+
+
+## Clients fly a visual copy from the release; sync_knife_done ends it where the server says.
+@rpc("authority", "reliable")
+func sync_knife_spawn(net_id: int, pos: Vector3, vel: Vector3) -> void:
+	if multiplayer.is_server():
+		return
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var k := ThrowingKnife.new()
+	k.is_visual = true
+	k.velocity = vel
+	k.origin = pos
+	scene.add_child(k)
+	k.global_position = pos
+	_knife_visuals[net_id] = k
+
+
+## `end`: ThrowingKnife.END_* (stuck in the world at `pos` for a moment, hit a body, or flew off).
+@rpc("authority", "reliable")
+func sync_knife_done(net_id: int, pos: Vector3, normal: Vector3, end: int) -> void:
+	if multiplayer.is_server():
+		return
+	var k := _knife_visuals.get(net_id) as ThrowingKnife
+	_knife_visuals.erase(net_id)
+	if k == null or not is_instance_valid(k):
+		return
+	if end == ThrowingKnife.END_STUCK:
+		k.stick(pos, normal)
+		return
+	k.global_position = pos
+	if end == ThrowingKnife.END_BODY:
+		k.play_flesh()
+	k.queue_free()
+
+
+## Server knife hit a body: one-hit kill, the throw is the "shot" for tricks (YEET).
+func knife_hit(knife: ThrowingKnife, victim: Player, point: Vector3, normal: Vector3) -> void:
+	var thrower := player_for_peer(knife.thrower_id)
+	if thrower:
+		_shot_ctx = {"shooter": thrower, "origin": knife.origin, "scoped": false, "burst": {}, "knife_air": knife.airborne}
+	var killer_id := knife.thrower_id
+	if killer_id <= 0 and thrower:
+		killer_id = thrower._owner_peer()
+	var res := victim.apply_hit(point, normal, ThrowingKnife.DAMAGE, false, killer_id, &"knife", 1.0, knife.origin)
+	_shot_ctx = {}
+	if res.get("damage", 0) <= 0 or thrower == null:
+		return
+	if thrower.is_local():
+		hit_confirmed.emit(bool(res.killed), false)
+		if thrower.weapon:
+			thrower.weapon.play_hit_feedback(bool(res.killed), false)
+	elif is_networked() and not thrower.is_bot and thrower.peer_id > 0:
+		notify_hit.rpc_id(thrower.peer_id, bool(res.killed), false)
+
+
 ## Host / offline / bots: resolve hits on this machine (must be match authority).
 func fire_weapon_locally(
 	shooter: Player,
@@ -425,15 +523,17 @@ func fire_weapon_locally(
 	spread_mult: float = 1.0,
 	shot_seed: int = 0,
 	scoped: bool = false,
-	burst: int = 0
+	burst: int = 0,
+	mag: int = 0
 ) -> Dictionary:
-	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult, shot_seed, scoped, burst)
+	return _resolve_weapon_fire(shooter, origin, look_dir, def, spread_mult, shot_seed, scoped, burst, mag)
 
 
 ## `shot_seed` drives the pellet spread, so Weapon._simulate_pellets_fx draws the same rays.
 ## Teammates are excluded: shots pass through friends instead of being soaked up by them.
 ## `scoped`: the shooter had the sniper scope up (only matters for the NOSCOPE trick, never for damage).
 ## `burst`: the shooter's held-trigger counter for automatic guns (SPRAY TRANSFER only; 0 = unknown).
+## `mag`: the shooter's magazine counter for this gun (Weapon.mag_seq; HOSE / SIX SHOOTER only).
 func _resolve_weapon_fire(
 	shooter: Player,
 	origin: Vector3,
@@ -442,9 +542,13 @@ func _resolve_weapon_fire(
 	spread_mult: float,
 	shot_seed: int = 0,
 	scoped: bool = false,
-	burst: int = 0
+	burst: int = 0,
+	mag: int = 0
 ) -> Dictionary:
-	_shot_ctx = {"shooter": shooter, "origin": origin, "scoped": scoped, "burst": _burst_for(shooter, def, burst)}
+	_shot_ctx = {
+		"shooter": shooter, "origin": origin, "scoped": scoped, "burst": _burst_for(shooter, def, burst),
+		"mag": _mag_for(shooter, def, mag),
+	}
 	var best := _resolve_shot_rays(shooter, origin, look_dir, def, spread_mult, shot_seed)
 	_shot_ctx = {}
 	return best
@@ -494,6 +598,20 @@ func _burst_for(shooter: Player, def: WeaponDef, seq: int) -> Dictionary:
 		_bursts[shooter.peer_id] = b
 	b.t = now
 	return b
+
+
+## The magazine this shot comes from: same client counter and no more shots than the gun holds
+## (a client that never bumps its counter still gets a fresh magazine every mag_size shots).
+## Kills add to it (register_kill). Every gun is tracked; only the SMG and revolver tricks read it.
+func _mag_for(shooter: Player, def: WeaponDef, seq: int) -> Dictionary:
+	var per: Dictionary = _mags.get(shooter.peer_id, {})
+	_mags[shooter.peer_id] = per
+	var m: Dictionary = per.get(def.id, {})
+	if m.is_empty() or int(m.seq) != seq or int(m.shots) >= def.mag_size:
+		m = {"seq": seq, "shots": 0, "kills": 0, "weapon": def.id}
+		per[def.id] = m
+	m.shots = int(m.shots) + 1
+	return m
 
 
 ## Melee: the swing is the "shot" for the movement tricks (SURF / DROP KILL).
@@ -1075,6 +1193,12 @@ func _detect_tricks(
 	var streak := int(_hs_streak.get(killer_peer_id, 0))
 	if weapon_id == &"rifle" and headshot:
 		streak += 1
+	var mag: Dictionary = _shot_ctx.get("mag", {})
+	var mag_kills := int(mag.get("kills", 0)) + 1 if StringName(mag.get("weapon", &"")) == weapon_id else 0
+	var since_draw := INF
+	if shooter.weapon and shooter.weapon.def and shooter.weapon.def.id == weapon_id:
+		since_draw = shooter.weapon.since_draw()
+	var remote := is_networked() and not shooter.is_bot and not shooter.is_local()
 	return Style.detect({
 		"weapon": weapon_id,
 		"scoped": bool(_shot_ctx.get("scoped", false)),
@@ -1090,6 +1214,11 @@ func _detect_tricks(
 		"burst_victims": others,
 		"double": weapon_id == &"shotgun" and now - float(_shotgun_kill_t.get(killer_peer_id, -100.0)) <= Style.DOUBLE_WINDOW,
 		"hs_streak": streak,
+		"run_t": shooter.run_time(),
+		"mag_kills": mag_kills,
+		"since_draw": since_draw,
+		"quickdraw_slack": Style.QUICKDRAW_NET_SLACK if remote else 0.0,
+		"knife_air": bool(_shot_ctx.get("knife_air", false)),
 	})
 
 
@@ -1106,6 +1235,9 @@ func _note_trick_history(killer_peer_id: int, victim_peer_id: int, weapon_id: St
 		var burst: Dictionary = _shot_ctx.get("burst", {})
 		if not burst.is_empty():
 			(burst.victims as Array).append(victim_peer_id)
+		var mag: Dictionary = _shot_ctx.get("mag", {})
+		if not mag.is_empty() and StringName(mag.get("weapon", &"")) == weapon_id:
+			mag.kills = int(mag.kills) + 1
 
 
 ## Points (with the chain multiplier) onto the killer's style; tell everyone; remember the round's best
@@ -1320,6 +1452,7 @@ func start_round() -> void:
 	_bursts.clear()
 	_shotgun_kill_t.clear()
 	_hs_streak.clear()
+	_mags.clear()
 	team_kills = [0, 0]
 	if is_networked() and multiplayer.is_server():
 		sync_team_kills.rpc(0, 0)
@@ -1376,6 +1509,7 @@ func reset_session() -> void:
 	_bursts.clear()
 	_shotgun_kill_t.clear()
 	_hs_streak.clear()
+	_mags.clear()
 	_shot_ctx = {}
 	if killcam:
 		killcam.reset()
@@ -1398,6 +1532,9 @@ func reset_session() -> void:
 	_grenade_done.clear()
 	for g in get_tree().get_nodes_in_group("grenade"):
 		g.queue_free()
+	_knife_visuals.clear()
+	for k in get_tree().get_nodes_in_group("knife"):
+		k.queue_free()
 
 
 func update_round_timer(delta: float) -> bool:
@@ -1823,6 +1960,7 @@ func _bind_inputs() -> void:
 	_key("toggle_mouse", KEY_ESCAPE)
 	_key("chat", KEY_T)
 	_key("grenade", KEY_G)
+	_key("throw_knife", KEY_F)
 	_key("melee", KEY_E)
 	_key("sprint", KEY_SHIFT)
 	_key("crouch", KEY_CTRL)

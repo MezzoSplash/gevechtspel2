@@ -77,6 +77,9 @@ const _FEED_ICONS := {
 	&"shotgun": preload("res://assets/ui/icon_shotgun.svg"),
 	&"sniper": preload("res://assets/ui/icon_sniper.svg"),
 	&"grenade": preload("res://assets/ui/icon_grenade.svg"),
+	&"smg": preload("res://assets/ui/icon_smg.svg"),
+	&"revolver": preload("res://assets/ui/icon_revolver.svg"),
+	&"knife": preload("res://assets/ui/icon_knife.svg"),
 	&"melee": preload("res://assets/ui/icon_melee.svg"),
 }
 const _FEED_MAX := 6
@@ -600,9 +603,10 @@ func _play_announcer(path: String) -> void:
 	_announcer.play()
 
 
-func set_grenades(n: int) -> void:
+## Grenade slot: frags on G, throwing knives on F (only shown when the class carries knives).
+func set_grenades(n: int, knives: int = 0) -> void:
 	if grenade_label:
-		grenade_label.text = "G  %d" % n
+		grenade_label.text = "G  %d" % n if knives <= 0 else "G  %d    F  %d" % [n, knives]
 
 
 func set_reloading(on: bool) -> void:

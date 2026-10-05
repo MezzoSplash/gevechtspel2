@@ -2,12 +2,16 @@ class_name PlayerClasses
 extends RefCounted
 ## Classes (custom loadouts): data model, validation, and the local save file.
 ## A class is {name, primary, secondary, grenades}; `grenades` is per-type counts, total <= MAX_GRENADES.
+## The grenade slot holds MAX_GRENADES throwables in any mix: frag grenades (G) and throwing knives (F).
 ## The wire loadout is the same dict without the name. The server checks it with `parse_loadout`.
 
-const PRIMARIES: Array[StringName] = [&"rifle", &"shotgun", &"sniper"]
-const SECONDARIES: Array[StringName] = [&"pistol"]
-const GRENADE_TYPES: Array[StringName] = [&"frag"]
-const GRENADE_NAMES := {&"frag": "Frag"}
+const PRIMARIES: Array[StringName] = [&"rifle", &"shotgun", &"sniper", &"smg"]
+## The revolver is a sidearm option next to the pistol: slow and heavy-hitting against fast and forgiving.
+const SECONDARIES: Array[StringName] = [&"pistol", &"revolver"]
+const GRENADE_TYPES: Array[StringName] = [&"frag", &"knife"]
+const GRENADE_NAMES := {&"frag": "Frag", &"knife": "Knife"}
+## Class editor rows: what the item is and which key throws it.
+const GRENADE_LABELS := {&"frag": "Frag grenades  [G]", &"knife": "Throwing knives  [F]"}
 const MAX_GRENADES := 3
 const MAX_CLASSES := 8
 const NAME_MAX := 16
@@ -17,6 +21,7 @@ const DEFAULTS := [
 	{"name": "Rifleman", "primary": "rifle", "secondary": "pistol", "grenades": {"frag": 2}},
 	{"name": "Breacher", "primary": "shotgun", "secondary": "pistol", "grenades": {"frag": 3}},
 	{"name": "Sniper", "primary": "sniper", "secondary": "pistol", "grenades": {"frag": 1}},
+	{"name": "Runner", "primary": "smg", "secondary": "revolver", "grenades": {"frag": 1, "knife": 2}},
 ]
 
 
@@ -37,7 +42,10 @@ static func summary(c: Dictionary) -> String:
 	for t in GRENADE_TYPES:
 		var n := int(g.get(String(t), 0))
 		if n > 0:
-			parts.append("%d %s" % [n, GRENADE_NAMES.get(t, String(t).capitalize())])
+			var item: String = GRENADE_NAMES.get(t, String(t).capitalize())
+			if n > 1 and t == &"knife":
+				item = "Knives"
+			parts.append("%d %s" % [n, item])
 	if grenade_total(g) == 0:
 		parts.append("no grenades")
 	return " · ".join(parts)

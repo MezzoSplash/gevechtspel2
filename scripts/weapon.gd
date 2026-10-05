@@ -10,6 +10,8 @@ const LOADOUT: Array[WeaponDef] = [
 	preload("res://data/weapons/pistol.tres"),
 	preload("res://data/weapons/shotgun.tres"),
 	preload("res://data/weapons/sniper.tres"),
+	preload("res://data/weapons/smg.tres"), # v0.2.18: append only, killcam frames store the index
+	preload("res://data/weapons/revolver.tres"),
 ]
 
 @export var def: WeaponDef
@@ -21,7 +23,11 @@ const MODEL_SCENES := {
 	&"pistol": preload("res://assets/weapons/pistol.glb"),
 	&"shotgun": preload("res://assets/weapons/shotgun.glb"),
 	&"sniper": preload("res://assets/weapons/sniper.glb"), # slot 4; two body / one head
+	&"smg": preload("res://assets/weapons/smg.tscn"), # hand-built low-poly (tools/build_lowpoly_weapons.py)
+	&"revolver": preload("res://assets/weapons/revolver.tscn"),
 }
+## Throwing knife: in hand for the F throw, and the flying/stuck projectile.
+const KNIFE_SCENE := preload("res://assets/weapons/knife.tscn")
 
 @onready var camera: CameraFeel = get_parent() as CameraFeel
 @onready var gun_body: MeshInstance3D = $GunBody
@@ -65,7 +71,17 @@ const CLICK_BUFFER := 0.12
 const MELEE_ANIM := 0.36 # seconds: thrust out, hold, pull back
 const MELEE_SWING := preload("res://assets/sounds/melee_swing.wav")
 const MELEE_HIT := preload("res://assets/sounds/melee_hit.wav")
-const SNIPER_ADS_FOV := 38.0 # hip is 90; hold RMB on sniper only
+const ADS_TIME := 0.09 # s to slide the SMG to the centre (fast ADS)
+const THROW_ANIM := 0.34 # knife in hand: wind up, release, gun comes back
+## Per weapon id: +1 on every fresh magazine (reload done, spawn refill). Sent with each shot so the
+## server can tell "one magazine" apart for HOSE and SIX SHOOTER.
+var mag_seq: Dictionary = {}
+## Time.get_ticks_msec() of the last real switch to the held gun (QUICKDRAW). Spawn/class set: no draw.
+var drawn_ms := -100000
+var _ads_k := 0.0
+var _throw_left := 0.0
+var _knife_view: Node3D
+var _knife_root := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -124,6 +140,7 @@ func _process(delta: float) -> void:
 			_reload_left = maxf(_reload_left - delta, 0.0)
 			if _reload_left <= 0.0:
 				ammo = def.mag_size
+				_new_mag(def.id)
 				_save_weapon_state()
 		return
 
@@ -156,6 +173,7 @@ func _process(delta: float) -> void:
 		rotation.x = sin(t * PI) * 0.55
 		if _reload_left <= 0.0:
 			ammo = def.mag_size
+			_new_mag(def.id)
 			_save_weapon_state()
 			rotation.x = 0.0
 			_refresh_hud()
@@ -166,8 +184,11 @@ func _process(delta: float) -> void:
 	if speed_factor > 0.08:
 		bob.x = sin(_bob_t) * 0.012 * speed_factor
 		bob.y = absf(sin(_bob_t * 2.0)) * 0.01 * speed_factor
-	position = _view_rest + _kick_offset + bob
+	_ads_k = move_toward(_ads_k, 1.0 if (_ads and not def.ads_hides_model) else 0.0, delta / ADS_TIME)
+	var rest := _view_rest.lerp(_ads_pose(), smoothstep(0.0, 1.0, _ads_k))
+	position = rest + _kick_offset + bob * (1.0 - _ads_k * 0.7)
 	_tick_melee_pose(delta, _kick_offset + bob)
+	_tick_throw_pose(delta)
 
 
 func melee_ready() -> bool:
@@ -248,12 +269,14 @@ func is_ads() -> bool:
 	return _ads
 
 
-## Sniper only. Hold RMB: FOV 38, hide viewmodel. Other guns never ADS.
+## Hold RMB on a gun with `ads_fov`: sniper scope (FOV 38, viewmodel hidden) or SMG iron sights
+## (FOV 72, gun slides to the centre, tighter spread). Other guns never ADS.
 func _update_ads() -> void:
 	var want := (
 		_is_local()
 		and def != null
-		and def.id == &"sniper"
+		and def.ads_fov > 0.0
+		and _throw_left <= 0.0
 		and _owner_alive()
 		and not Game.chat_open
 		and not Game.pause_open
@@ -264,13 +287,28 @@ func _update_ads() -> void:
 	)
 	_ads = want
 	if camera:
-		camera.ads_fov = SNIPER_ADS_FOV if _ads else 0.0
+		camera.ads_fov = def.ads_fov if _ads else 0.0
+	var scope := _ads and def.ads_hides_model
 	var hud := _hud_node()
 	if hud:
-		hud.set_sniper_ads(_ads)
+		hud.set_sniper_ads(scope)
 	for id in _view_models:
 		var n: Node3D = _view_models[id]
-		n.visible = (not _ads) and def != null and id == def.id
+		n.visible = (not scope) and _throw_left <= 0.0 and def != null and id == def.id
+
+
+## Mouse sensitivity factor while aiming: the sniper scope uses the player's ADS setting,
+## iron sights just follow the zoom (72/90) so the feel stays the same.
+func ads_sens_mult() -> float:
+	if def == null or not _ads:
+		return 1.0
+	if def.ads_hides_model:
+		return Game.ads_sens
+	return clampf(def.ads_fov / 90.0, 0.2, 1.0)
+
+
+func _ads_pose() -> Vector3:
+	return Vector3(0.0, -0.092, _view_rest.z - 0.02)
 
 
 func _cycle_weapon() -> void:
@@ -324,6 +362,7 @@ func equip_remote(id: StringName) -> void:
 	if w == null or (def != null and w.id == def.id):
 		return
 	_equip_def(w, false)
+	drawn_ms = Time.get_ticks_msec() # the server's view of a client's real switch (QUICKDRAW)
 
 
 ## Number keys / Q. Out of range (key 3 with two guns) does nothing.
@@ -353,8 +392,23 @@ func _equip_def(weapon_def: WeaponDef, save_current: bool = true) -> void:
 		fire_sfx.stream = def.fire_sound
 	_apply_view_for_def()
 	_refresh_hud()
+	drawn_ms = Time.get_ticks_msec() if save_current else -100000
+	_ads_k = 0.0
 	if save_current and _is_local():
 		Game.announce_weapon(owner as Player, def.id)
+
+
+## Server copy following a client's switch, or the shooter itself: seconds since the held gun was drawn.
+func since_draw() -> float:
+	return float(Time.get_ticks_msec() - drawn_ms) / 1000.0
+
+
+func _new_mag(id: StringName) -> void:
+	mag_seq[id] = int(mag_seq.get(id, 0)) + 1
+
+
+func mag_of(id: StringName) -> int:
+	return int(mag_seq.get(id, 0))
 
 
 func _cancel_reload() -> void:
@@ -461,6 +515,15 @@ static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dicti
 		&"sniper":
 			root = Vector3(0.22, -0.17, -0.28)
 			length = 0.58
+		&"smg":
+			root = Vector3(0.21, -0.17, -0.27)
+			length = 0.40
+		&"revolver":
+			root = Vector3(0.19, -0.15, -0.30)
+			length = 0.30
+		&"knife":
+			root = Vector3(0.19, -0.15, -0.30)
+			length = 0.25
 	var aabb := _aabb_in_parent(model)
 	var long := maxf(aabb.size.z, 0.05)
 	var s := length / long
@@ -562,6 +625,10 @@ func _fire() -> void:
 			spread_mult *= 1.9
 		elif def.id == &"sniper":
 			spread_mult *= 1.35
+		elif def.id == &"smg":
+			spread_mult *= 2.0
+		elif def.id == &"revolver":
+			spread_mult *= 1.7
 		else:
 			spread_mult *= 2.4
 	# One seed for the tracers here and the hit rays on the server, so they line up.
@@ -570,15 +637,17 @@ func _fire() -> void:
 	if Game.is_networked() and multiplayer.is_server() and shooter:
 		Game.broadcast_shot_fx(muzzle.global_position, tracer_to, shooter.peer_id)
 
-	var scoped := is_ads() # NOSCOPE trick only; the scope never changes damage or spread
+	# NOSCOPE trick; the sniper scope never changes damage or spread (SMG iron sights do, via spread_mult).
+	var scoped := is_ads()
 	var burst := burst_seq if def.automatic else 0 # SPRAY TRANSFER only
+	var mag_id := mag_of(def.id) # HOSE / SIX SHOOTER only
 	if Game.is_networked() and not multiplayer.is_server():
 		Game.request_weapon_fire.rpc_id(
-			1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed, scoped, burst
+			1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed, scoped, burst, mag_id
 		)
 	elif shooter:
 		var best: Dictionary = Game.fire_weapon_locally(
-			shooter, origin, look_dir, def, spread_mult, shot_seed, scoped, burst
+			shooter, origin, look_dir, def, spread_mult, shot_seed, scoped, burst, mag_id
 		)
 		if best.get("hit", false) and not shooter.is_bot:
 			Game.hit_confirmed.emit(best.killed, best.headshot)
@@ -645,17 +714,63 @@ func _current_spread() -> float:
 	var spread := def.spread_deg
 	var p := owner as Player
 	if p:
-		spread *= p.spread_multiplier()
+		spread *= def.spread_mult_for(p.spread_multiplier(), is_ads())
 	return spread
 
 
 func _crosshair_punch() -> float:
 	var p := owner as Player
 	if p and p.is_sprinting:
-		return 1.6
+		return 1.6 if def.move_spread_scale >= 1.0 else 1.2
 	if def.id == &"shotgun":
 		return 2.2
+	if def.id == &"revolver":
+		return 1.8
 	return 1.0
+
+
+## Throwing knife (F): the knife shows in the right hand for a quick overhand flick, the gun dips out.
+## Local view only; the server spawns the real projectile.
+func play_throw() -> void:
+	if _knife_view == null:
+		_knife_view = Node3D.new() # pivot; fit_model owns the model's own transform
+		_knife_view.name = "KnifeView"
+		var model := KNIFE_SCENE.instantiate() as Node3D
+		no_shadows(model)
+		_knife_view.add_child(model)
+		get_parent().add_child(_knife_view)
+		var fit := fit_model(model, &"knife", _rest_pos)
+		_knife_root = fit.root
+	if _reload_left > 0.0:
+		_cancel_reload()
+		_save_weapon_state()
+	_throw_left = THROW_ANIM
+	_cooldown = maxf(_cooldown, THROW_ANIM * 0.8)
+	_tick_throw_pose(0.0)
+
+
+func is_throwing() -> bool:
+	return _throw_left > 0.0
+
+
+func _tick_throw_pose(delta: float) -> void:
+	if _knife_view == null:
+		return
+	if _throw_left <= 0.0:
+		_knife_view.visible = false
+		return
+	_throw_left = maxf(_throw_left - delta, 0.0)
+	var t := 1.0 - _throw_left / THROW_ANIM
+	# 0-0.45: raise behind the shoulder; 0.45-0.6: snap forward; then the hand is empty.
+	var wind := smoothstep(0.0, 0.45, t)
+	var snap := smoothstep(0.45, 0.6, t)
+	_knife_view.visible = _throw_left > 0.0 and t < 0.62
+	_knife_view.position = _knife_root + Vector3(0.02, 0.08 * wind - 0.02 * snap, 0.10 * wind - 0.30 * snap)
+	_knife_view.rotation = Vector3(0.9 * wind - 1.5 * snap, 0.0, -0.25 * wind)
+	for id in _view_models:
+		(_view_models[id] as Node3D).visible = def != null and id == def.id and _throw_left <= 0.0
+	if _throw_left <= 0.0:
+		_apply_view_for_def()
 
 
 func refill() -> void:
@@ -664,6 +779,7 @@ func refill() -> void:
 			"ammo": weapon_def.mag_size,
 			"reload_left": 0.0,
 		}
+		_new_mag(weapon_def.id)
 	ammo = def.mag_size
 	_reload_left = 0.0
 	rotation.x = 0.0

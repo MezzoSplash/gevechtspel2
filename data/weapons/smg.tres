@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/weapon_def.gd" id="1_weapon"]
+[ext_resource type="AudioStream" path="res://assets/sounds/smg_fire.wav" id="2_fire"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"smg"
+display_name = "SMG"
+fire_rate = 20.0
+damage = 12.0
+headshot_multiplier = 1.5
+spread_deg = 0.6
+kick_pitch_deg = 0.36
+kick_yaw_deg = 0.3
+kick_fov = 0.8
+range_m = 120.0
+mag_size = 35
+reload_time = 1.7
+tracer_width = 0.016
+fire_sound = ExtResource("2_fire")
+pellet_count = 1
+automatic = true
+falloff_start_m = 15.0
+falloff_end_m = 30.0
+falloff_min_mult = 0.4
+move_speed_mult = 1.08
+move_spread_scale = 0.45
+ads_fov = 72.0
+ads_spread_mult = 0.6

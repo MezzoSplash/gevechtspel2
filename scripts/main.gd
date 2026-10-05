@@ -882,7 +882,7 @@ func _smaller_team() -> int:
 	return Game.TEAM_B
 
 
-## loadout = abs(id) % 4 → rifle / pistol / shotgun / sniper.
+## loadout = abs(id) % 6 → armory index: rifle / pistol / shotgun / sniper / smg / revolver.
 func _spawn_bot(team: int) -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
@@ -896,7 +896,7 @@ func _spawn_bot(team: int) -> void:
 		"n": "Bot %d" % abs(id),
 		"bot": true,
 		"team": team,
-		"loadout": abs(id) % 4,
+		"loadout": abs(id) % Weapon.LOADOUT.size(),
 	})
 
 

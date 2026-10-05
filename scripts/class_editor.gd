@@ -13,6 +13,10 @@ var _primary: OptionButton
 var _secondary: OptionButton
 var _spins: Dictionary = {} # grenade type → SpinBox
 var _total: Label
+var _info: Label
+var _presets: Array[Button] = []
+## Grenade-slot presets: [frags, knives] (always the full slot).
+const PRESETS := [[3, 0], [2, 1], [1, 2], [0, 3]]
 var _sel := 0
 var _loading := false
 
@@ -59,6 +63,7 @@ func _load_fields() -> void:
 		(_spins[t] as SpinBox).value = int((c.grenades as Dictionary).get(String(t), 0))
 	_loading = false
 	_update_total()
+	_update_info()
 
 
 ## Reads the widgets into a class and saves it. Grenade totals above the cap are trimmed by sanitize.
@@ -78,6 +83,7 @@ func _commit() -> void:
 	var saved: Dictionary = Game.loadouts.classes[_sel]
 	_list.set_item_text(_sel, _item_text(saved))
 	_update_total()
+	_update_info()
 
 
 ## Typing: list follows live; the field itself is cleaned when you leave it (so spaces can be typed).
@@ -110,11 +116,62 @@ func _item_text(c: Dictionary) -> String:
 	return "%s  —  %s" % [c.name, PlayerClasses.summary(c)]
 
 
+## "FRAG  FRAG  KNIFE   3 / 3": one word per slot, empty slots as dashes.
 func _update_total() -> void:
 	var total := 0
-	for t in _spins:
-		total += int((_spins[t] as SpinBox).value)
-	_total.text = "Grenades %d / %d" % [total, PlayerClasses.MAX_GRENADES]
+	var cells: PackedStringArray = []
+	for t in PlayerClasses.GRENADE_TYPES:
+		var n := int((_spins[t] as SpinBox).value) if _spins.has(t) else 0
+		total += n
+		for i in n:
+			cells.append(String(PlayerClasses.GRENADE_NAMES.get(t, t)).to_upper())
+	while cells.size() < PlayerClasses.MAX_GRENADES:
+		cells.append("—")
+	_total.text = "%s     %d / %d" % ["  ·  ".join(cells), total, PlayerClasses.MAX_GRENADES]
+	var frags := int((_spins[&"frag"] as SpinBox).value) if _spins.has(&"frag") else 0
+	var knives := int((_spins[&"knife"] as SpinBox).value) if _spins.has(&"knife") else 0
+	for i in _presets.size():
+		var p: Array = PRESETS[i]
+		_presets[i].button_pressed = frags == int(p[0]) and knives == int(p[1])
+
+
+func _apply_preset(i: int) -> void:
+	var p: Array = PRESETS[i]
+	_loading = true
+	(_spins[&"frag"] as SpinBox).value = int(p[0])
+	(_spins[&"knife"] as SpinBox).value = int(p[1])
+	_loading = false
+	_commit()
+
+
+## Short stat line for the two guns, so a pick is not blind.
+func _update_info() -> void:
+	if _info == null:
+		return
+	var lines: PackedStringArray = []
+	for id in [
+		PlayerClasses.PRIMARIES[maxi(_primary.selected, 0)], PlayerClasses.SECONDARIES[maxi(_secondary.selected, 0)]
+	]:
+		lines.append(weapon_blurb(id))
+	_info.text = "\n".join(lines)
+
+
+static func weapon_blurb(id: StringName) -> String:
+	var d := Game.weapon_def(id)
+	if d == null:
+		return ""
+	var dmg := "%d×%d" % [roundi(d.damage), d.pellet_count] if d.pellet_count > 1 else "%d" % roundi(d.damage)
+	var extra := ""
+	match id:
+		&"smg":
+			extra = " · moves 8% faster · iron sights (RMB)"
+		&"revolver":
+			extra = " · 2 body / 1 head"
+		&"sniper":
+			extra = " · scope (RMB)"
+	return "%s: %s dmg · %d rpm · %d rounds · %.1fs reload%s" % [
+		d.display_name, dmg, roundi(d.fire_rate * 60.0), d.mag_size, d.reload_time, extra
+	]
 
 
 func _on_new() -> void:
@@ -197,6 +254,32 @@ func _build() -> void:
 		_secondary.add_item(PlayerClasses.weapon_label(id))
 	_secondary.item_selected.connect(func(_i: int) -> void: _commit())
 	right.add_child(_field("Secondary", _secondary))
+	_info = Label.new()
+	_info.add_theme_color_override("font_color", Color(0.66, 0.70, 0.76))
+	_info.add_theme_font_size_override("font_size", 13)
+	right.add_child(_info)
+	var slot_title := Label.new()
+	slot_title.text = "GRENADE SLOT  ·  %d throwables, any mix" % PlayerClasses.MAX_GRENADES
+	slot_title.add_theme_font_size_override("font_size", 15)
+	slot_title.add_theme_color_override("font_color", Color(0.55, 0.95, 0.6))
+	right.add_child(slot_title)
+	var presets := HBoxContainer.new()
+	presets.add_theme_constant_override("separation", 6)
+	var group := ButtonGroup.new()
+	group.allow_unpress = true
+	for i in PRESETS.size():
+		var p: Array = PRESETS[i]
+		var b := Button.new()
+		b.toggle_mode = true
+		b.button_group = group
+		b.focus_mode = Control.FOCUS_NONE
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.text = _preset_text(int(p[0]), int(p[1]))
+		var idx := i
+		b.pressed.connect(func() -> void: _apply_preset(idx))
+		presets.add_child(b)
+		_presets.append(b)
+	right.add_child(presets)
 	for t in PlayerClasses.GRENADE_TYPES:
 		var spin := SpinBox.new()
 		spin.min_value = 0
@@ -207,13 +290,13 @@ func _build() -> void:
 		var gt: StringName = t
 		spin.value_changed.connect(func(v: float) -> void: _on_grenade_changed(v, gt))
 		_spins[t] = spin
-		right.add_child(_field("%s grenades" % PlayerClasses.GRENADE_NAMES.get(t, String(t).capitalize()), spin))
+		right.add_child(_field(str(PlayerClasses.GRENADE_LABELS.get(t, String(t).capitalize())), spin, 170))
 	_total = Label.new()
 	_total.add_theme_color_override("font_color", Color(0.85, 0.88, 0.92))
 	_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	right.add_child(_total)
 	var note := Label.new()
-	note.text = "Max %d classes · %d grenades in total" % [PlayerClasses.MAX_CLASSES, PlayerClasses.MAX_GRENADES]
+	note.text = "Max %d classes · G throws a frag, F a knife (one hit kills)" % PlayerClasses.MAX_CLASSES
 	note.add_theme_color_override("font_color", Color(0.6, 0.63, 0.68))
 	note.add_theme_font_size_override("font_size", 13)
 	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -226,12 +309,20 @@ func _build() -> void:
 	add_child(back)
 
 
-func _field(label_text: String, control: Control) -> HBoxContainer:
+static func _preset_text(frags: int, knives: int) -> String:
+	if knives == 0:
+		return "%d Frags" % frags
+	if frags == 0:
+		return "%d Knives" % knives
+	return "%d Frag%s + %d %s" % [frags, "s" if frags > 1 else "", knives, "Knives" if knives > 1 else "Knife"]
+
+
+func _field(label_text: String, control: Control, label_w: float = 130.0) -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
 	var l := Label.new()
 	l.text = label_text
-	l.custom_minimum_size = Vector2(130, 0)
+	l.custom_minimum_size = Vector2(label_w, 0)
 	h.add_child(l)
 	h.add_child(control)
 	return h
