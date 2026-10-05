@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.18** — new weapons: SMG, revolver (secondary option next to the pistol) and throwing knives in the grenade slot (mix frags and knives, 3 throwables, presets in the class editor; G = frag, F = knife), new Runner class, bots use SMG/revolver, and five new tricks (RUN & GUN, HOSE, QUICKDRAW, SIX SHOOTER, YEET). **Not compatible with 0.2.17 or older** (NET_VERSION 0.2.18): everyone must update.
+**v0.2.19** — new map Rooftops: two roofed blocks around a court, flank surf ramps onto a 4 m deck then a walk-ramp to the 6 m roof, a short surf across the court, and a drop off a parapet gap. Stairs are the way up without surfing and stay clear of the side doors. Menu and `--map rooftops`. **Not compatible with 0.2.18 or older** (NET_VERSION 0.2.19): everyone must update, including the dedicated server.
 
 ## Play (Linux)
 

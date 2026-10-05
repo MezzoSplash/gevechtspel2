@@ -41,8 +41,9 @@ const INTERMISSION_TIME := 10.0
 const FREEZE_TIME := 3.0
 const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
-## so old clients get a clear "version mismatch" instead of silently broken RPCs.
-const NET_VERSION := "0.2.18"
+## and when a new map id ships: a client without that id passes auth and then falls back to
+## the default map. Old clients get a clear "version mismatch" instead of a silent wrong map.
+const NET_VERSION := "0.2.19"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
