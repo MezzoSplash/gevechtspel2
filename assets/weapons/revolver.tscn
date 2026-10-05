@@ -63,11 +63,11 @@ size = Vector3(0.022, 0.03, 0.012)
 
 [sub_resource type="BoxMesh" id="mesh_6"]
 material = SubResource("mat_wood")
-size = Vector3(0.046, 0.115, 0.036)
+size = Vector3(0.04, 0.1, 0.03)
 
 [sub_resource type="BoxMesh" id="mesh_7"]
 material = SubResource("mat_metal")
-size = Vector3(0.05, 0.012, 0.038)
+size = Vector3(0.044, 0.012, 0.032)
 
 [sub_resource type="BoxMesh" id="mesh_8"]
 material = SubResource("mat_metal")
@@ -108,11 +108,11 @@ transform = Transform3D(0.90631, 0.42262, 0, -0.42262, 0.90631, 0, 0, 0, 1, -0.0
 mesh = SubResource("mesh_5")
 
 [node name="Grip" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.92718, -0.37461, 0, 0.37461, 0.92718, 0, 0, 0, 1, -0.08, -0.05, 0)
+transform = Transform3D(0.92718, -0.37461, 0, 0.37461, 0.92718, 0, 0, 0, 1, -0.078, -0.045, 0)
 mesh = SubResource("mesh_6")
 
 [node name="GripCap" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.92718, -0.37461, 0, 0.37461, 0.92718, 0, 0, 0, 1, -0.1, -0.105, 0)
+transform = Transform3D(0.92718, -0.37461, 0, 0.37461, 0.92718, 0, 0, 0, 1, -0.097, -0.093, 0)
 mesh = SubResource("mesh_7")
 
 [node name="TriggerGuard" type="MeshInstance3D" parent="."]

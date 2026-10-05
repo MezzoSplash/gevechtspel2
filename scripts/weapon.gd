@@ -308,7 +308,7 @@ func ads_sens_mult() -> float:
 
 
 func _ads_pose() -> Vector3:
-	return Vector3(0.0, -0.118, _view_rest.z + 0.03)
+	return Vector3(0.0, -0.092, _view_rest.z - 0.02)
 
 
 func _cycle_weapon() -> void:
@@ -519,8 +519,8 @@ static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dicti
 			root = Vector3(0.21, -0.17, -0.27)
 			length = 0.40
 		&"revolver":
-			root = Vector3(0.20, -0.16, -0.26)
-			length = 0.31
+			root = Vector3(0.19, -0.15, -0.30)
+			length = 0.30
 		&"knife":
 			root = Vector3(0.19, -0.15, -0.30)
 			length = 0.25

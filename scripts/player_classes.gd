@@ -43,7 +43,9 @@ static func summary(c: Dictionary) -> String:
 		var n := int(g.get(String(t), 0))
 		if n > 0:
 			var item: String = GRENADE_NAMES.get(t, String(t).capitalize())
-			parts.append("%d %s" % [n, item + ("s" if n > 1 and t == &"knife" else "")])
+			if n > 1 and t == &"knife":
+				item = "Knives"
+			parts.append("%d %s" % [n, item])
 	if grenade_total(g) == 0:
 		parts.append("no grenades")
 	return " · ".join(parts)

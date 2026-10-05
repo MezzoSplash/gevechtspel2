@@ -27,29 +27,29 @@ roughness = 0.9
 
 [sub_resource type="BoxMesh" id="mesh_0"]
 material = SubResource("mat_steel")
-size = Vector3(0.15, 0.032, 0.005)
+size = Vector3(0.15, 0.008, 0.036)
 
 [sub_resource type="PrismMesh" id="mesh_1"]
 material = SubResource("mat_steel")
-size = Vector3(0.032, 0.06, 0.005)
+size = Vector3(0.036, 0.06, 0.008)
 
 [sub_resource type="BoxMesh" id="mesh_2"]
 material = SubResource("mat_metal")
-size = Vector3(0.2, 0.006, 0.006)
+size = Vector3(0.15, 0.01, 0.006)
 
 [sub_resource type="BoxMesh" id="mesh_3"]
 material = SubResource("mat_dark")
-size = Vector3(0.012, 0.05, 0.016)
+size = Vector3(0.012, 0.018, 0.056)
 
 [sub_resource type="BoxMesh" id="mesh_4"]
 material = SubResource("mat_wrap")
-size = Vector3(0.1, 0.024, 0.013)
+size = Vector3(0.1, 0.016, 0.026)
 
 [sub_resource type="CylinderMesh" id="mesh_5"]
 material = SubResource("mat_accent")
-top_radius = 0.014
-bottom_radius = 0.014
-height = 0.012
+top_radius = 0.016
+bottom_radius = 0.016
+height = 0.014
 radial_segments = 8
 rings = 1
 
@@ -60,11 +60,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.055, 0, 0)
 mesh = SubResource("mesh_0")
 
 [node name="Tip" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.16, 0, 0)
+transform = Transform3D(0, 0, 1, 1, 0, 0, 0, 1, 0, 0.16, 0, 0)
 mesh = SubResource("mesh_1")
 
 [node name="Edge" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.075, -0.016, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.055, 0, 0.018)
 mesh = SubResource("mesh_2")
 
 [node name="Guard" type="MeshInstance3D" parent="."]

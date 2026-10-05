@@ -58,11 +58,15 @@ def scene(name, parts):
         elif kind == "prism":  # apex toward +X: width (y), length (x), thickness (z)
             body = f"size = Vector3({size[0]}, {size[1]}, {size[2]})"
             r = (r[0], r[1], r[2] - 90.0)
-        mesh_type = {"box": "BoxMesh", "cyl": "CylinderMesh", "prism": "PrismMesh"}[kind]
+        elif kind == "prismflat":  # apex toward +X, lying flat: width (z), length (x), thickness (y)
+            body = f"size = Vector3({size[0]}, {size[1]}, {size[2]})"
+        mesh_type = {"box": "BoxMesh", "cyl": "CylinderMesh", "prism": "PrismMesh", "prismflat": "PrismMesh"}[kind]
         subs.append(f'[sub_resource type="{mesh_type}" id="{mid}"]\nmaterial = SubResource("{mat_ids[mat]}")\n{body}\n')
+        # prismflat: local X (width) -> Z, local Y (apex) -> +X, local Z (thickness) -> Y
+        basis = [[0, 1, 0], [0, 0, 1], [1, 0, 0]] if kind == "prismflat" else rot(*r)
         nodes.append(
             f'[node name="{pname}" type="MeshInstance3D" parent="."]\n'
-            f"transform = {xf(pos, rot(*r))}\nmesh = SubResource(\"{mid}\")\n"
+            f"transform = {xf(pos, basis)}\nmesh = SubResource(\"{mid}\")\n"
         )
     out = f"[gd_scene load_steps={len(subs) + 1} format=3]\n\n" + "\n".join(subs)
     out += f'\n[node name="{name}" type="Node3D"]\n\n' + "\n".join(nodes)
@@ -93,17 +97,18 @@ scene("revolver", [
     ("Cylinder", "cyl", "steel", (0.034, 0.06, 6), (0.01, 0.024, 0.0), (0, 30, 0)),
     ("CylinderPin", "cyl", "dark", (0.008, 0.07, 6), (0.01, 0.024, 0.0), Z),
     ("Hammer", "box", "dark", (0.022, 0.03, 0.012), (-0.065, 0.06, 0.0), (0, 0, 25)),
-    ("Grip", "box", "wood", (0.046, 0.115, 0.036), (-0.08, -0.05, 0.0), (0, 0, -22)),
-    ("GripCap", "box", "metal", (0.05, 0.012, 0.038), (-0.10, -0.105, 0.0), (0, 0, -22)),
+    ("Grip", "box", "wood", (0.04, 0.10, 0.03), (-0.078, -0.045, 0.0), (0, 0, -22)),
+    ("GripCap", "box", "metal", (0.044, 0.012, 0.032), (-0.097, -0.093, 0.0), (0, 0, -22)),
     ("TriggerGuard", "box", "metal", (0.04, 0.008, 0.01), (-0.015, -0.03, 0.0), Z),
     ("Trigger", "box", "dark", (0.008, 0.025, 0.006), (-0.02, -0.015, 0.0), (0, 0, -10)),
     ("FrontSight", "box", "accent", (0.012, 0.022, 0.006), (0.205, 0.055, 0.0), Z),
 ])
+# Lies flat (thin in Y), so the blade face shows from above in the hand and while it tumbles.
 scene("knife", [
-    ("Blade", "box", "steel", (0.15, 0.032, 0.005), (0.055, 0.0, 0.0), Z),
-    ("Tip", "prism", "steel", (0.032, 0.06, 0.005), (0.16, 0.0, 0.0), Z),
-    ("Edge", "box", "metal", (0.20, 0.006, 0.006), (0.075, -0.016, 0.0), Z),
-    ("Guard", "box", "dark", (0.012, 0.05, 0.016), (-0.026, 0.0, 0.0), Z),
-    ("Handle", "box", "wrap", (0.10, 0.024, 0.013), (-0.085, 0.0, 0.0), Z),
-    ("Pommel", "cyl", "accent", (0.014, 0.012, 8), (-0.14, 0.0, 0.0), Z),
+    ("Blade", "box", "steel", (0.15, 0.008, 0.036), (0.055, 0.0, 0.0), Z),
+    ("Tip", "prismflat", "steel", (0.036, 0.06, 0.008), (0.16, 0.0, 0.0), Z),
+    ("Edge", "box", "metal", (0.15, 0.01, 0.006), (0.055, 0.0, 0.018), Z),
+    ("Guard", "box", "dark", (0.012, 0.018, 0.056), (-0.026, 0.0, 0.0), Z),
+    ("Handle", "box", "wrap", (0.10, 0.016, 0.026), (-0.085, 0.0, 0.0), Z),
+    ("Pommel", "cyl", "accent", (0.016, 0.014, 8), (-0.14, 0.0, 0.0), Z),
 ])
