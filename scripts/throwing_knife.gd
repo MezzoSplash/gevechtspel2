@@ -112,6 +112,11 @@ func _server_step(motion: Vector3) -> void:
 		global_position = from + motion
 		_face(velocity)
 		return
+	var rc := hit.collider as RcXd
+	if rc:
+		rc.damage(DAMAGE)
+		_finish(hit.position, hit.normal, END_STUCK)
+		return
 	var victim := hit.collider as Player
 	if victim:
 		var enemy := victim.peer_id != thrower_id \

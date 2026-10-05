@@ -80,6 +80,7 @@ func _ready() -> void:
 	class_select.picked.connect(_on_class_picked)
 	class_select.back_pressed.connect(_open_pause)
 	Game.loadouts.loadout_applied.connect(_on_loadout_applied)
+	# --name overrides this launch only. Game.set_player_name would write settings.cfg.
 	if args.get("name", "") != "":
 		Game.player_name = Game.clean_name(str(args["name"]))
 		menu.set_player_name(Game.player_name)

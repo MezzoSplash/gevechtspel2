@@ -4,7 +4,7 @@ extends Camera3D
 
 const RECOVER := 15.0
 const FOV_RECOVER := 18.0
-const BASE_FOV := 90.0
+const BASE_FOV := 90.0 # fallback and the shipped default; the live hip FOV is Game.fov
 
 var _kick := Vector2.ZERO
 var extra_fov := 0.0
@@ -12,7 +12,12 @@ var ads_fov := 0.0 # 0 = hip fire; sniper sets ~38
 
 
 func _ready() -> void:
-	fov = BASE_FOV
+	fov = hip_fov()
+
+
+## Hip FOV from settings. ADS writes an absolute fov and must not scale with this.
+func hip_fov() -> float:
+	return Game.fov
 
 
 func add_kick(pitch_deg: float, yaw_deg: float, fov_amt: float) -> void:
@@ -29,6 +34,6 @@ func _process(delta: float) -> void:
 	fov = lerpf(fov, _base_fov() + extra_fov, 1.0 - exp(-FOV_RECOVER * delta))
 
 
-## Hip = 90. Sniper zoom writes ads_fov (~38) while RMB is held.
+## Hip = Game.fov (default 90). Sniper zoom writes ads_fov (~38) while RMB is held.
 func _base_fov() -> float:
-	return ads_fov if ads_fov > 1.0 else BASE_FOV
+	return ads_fov if ads_fov > 1.0 else hip_fov()

@@ -16,6 +16,8 @@ signal lobby_changed
 signal match_starting
 signal round_freeze_changed(frozen: bool)
 signal intermission_started
+## Fired when the saved profile name changes, so the menu fields stay in sync.
+signal local_name_changed(n: String)
 
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4 # world | players | leftover dummy layer
@@ -34,6 +36,24 @@ const MOUSE_SENS_MIN := 0.1
 const MOUSE_SENS_MAX := 4.0
 const ADS_SENS_MIN := 0.1
 const ADS_SENS_MAX := 1.5
+const WINDOW_WINDOWED := 0
+const WINDOW_BORDERLESS := 1 # DisplayServer borderless fullscreen (the monitor's own resolution)
+const WINDOW_FULLSCREEN := 2 # exclusive fullscreen; the chosen resolution is the mode
+const FOV_MIN := 70.0
+const FOV_MAX := 110.0
+const FPS_CAP_MAX := 360
+## Presets the video menu offers, plus the monitor's own size when that is not in this list.
+const RESOLUTIONS := [
+	Vector2i(1280, 720),
+	Vector2i(1366, 768),
+	Vector2i(1600, 900),
+	Vector2i(1920, 1080),
+	Vector2i(1920, 1200),
+	Vector2i(2560, 1080),
+	Vector2i(2560, 1440),
+	Vector2i(3440, 1440),
+	Vector2i(3840, 2160),
+]
 const ROUND_TIME := 600.0
 const WARMUP_TIME := 5.0
 const ROUND_END_TIME := 5.0
@@ -43,7 +63,7 @@ const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## when a new map id ships, and when map collision changes: each machine moves on its own mesh.
 ## Old clients get a clear "version mismatch" instead of a silent wrong map.
-const NET_VERSION := "0.2.20"
+const NET_VERSION := "0.2.21"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -65,6 +85,7 @@ var pause_open := false
 var in_lobby := false
 var round_frozen := false # look OK, no walk/shoot; bots idle
 var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
+var rc_view := false # this machine is looking out of an RC-XD; the pawn stays put and cannot shoot
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
 var best_trick: Dictionary = {} # match authority: this round's highest-scoring trickshot (same keys + tags/pts/trick_id)
 var _shot_ctx: Dictionary = {} # match authority, while a shot resolves: {shooter, origin, scoped}
@@ -95,7 +116,17 @@ var match_config_handler: Callable
 var lobby: Dictionary = {} # peer_id → {name, team}
 var master_vol := 1.0
 var sfx_vol := 1.0
-var player_name := "Player"
+var player_name := "Player" # this launch. --name replaces it and must not be written back.
+var profile_name := "Player" # the name settings.cfg keeps across launches
+var window_mode := WINDOW_WINDOWED
+var window_size := Vector2i(1600, 900) # project.godot's window override; the first-run default
+var vsync := true
+var max_fps := 0 # 0 = no Engine cap. VSync, when on, still follows the monitor.
+var fov := 90.0 # hip fire. Weapon ADS fov stays absolute so a scope does not scale with this.
+var render_scale := 1.0 # 3D buffer only (Viewport.scaling_3d_scale). HUD stays at the window size.
+var msaa := 2 # Viewport.MSAA: 0 off, 1 = 2x, 2 = 4x, 3 = 8x. Matches project.godot msaa_3d=2 (4x).
+var show_fps := true
+var invert_y := false
 var preferred_team := 0 # 0 Blue, 1 Orange — chosen in the menu
 var pending_names: Dictionary = {} # peer_id → name, filled before spawn if the client RPCs first
 var pending_teams: Dictionary = {} # peer_id → team, from join RPC
@@ -107,6 +138,8 @@ var _round_music: AudioStreamPlayer
 var _grenade_seq := 0
 var _grenade_visuals: Dictionary = {}
 var _grenade_done: Dictionary = {} # net_id → true once it exploded; late unreliable poses are ignored
+var _rc_seq := 0
+var _rc_done: Dictionary = {} # net_id → true once the car is gone; late poses must not move a ghost
 var _fire_credit: Dictionary = {} # peer_id → {weapon_id: [credit_s, last_s]}
 
 var scores: Dictionary = {}
@@ -233,7 +266,10 @@ func clear_peer_hp(peer_id: int) -> void:
 	net_hp.erase(peer_id)
 	pending_names.erase(peer_id)
 	pending_teams.erase(peer_id)
-	streaks.erase(peer_id)
+	streak_progress.erase(peer_id)
+	streak_charges.erase(peer_id)
+	streak_earned.erase(peer_id)
+	RcXd.abort_for(peer_id)
 	pings.erase(peer_id)
 	_fire_credit.erase(peer_id)
 	if melee:
@@ -680,6 +716,11 @@ func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, def: Weapo
 		return victim.apply_hit(
 			hit.position, hit.normal, damage, true, killer_id, def.id, def.headshot_multiplier, shooter.global_position
 		)
+	# RC-XD sits on layer 4 (inside SHOT_MASK). Destroying it does not splash.
+	var rc := collider as RcXd
+	if rc:
+		rc.damage(damage)
+		return {"killed": false, "headshot": false, "hit": true}
 	return {}
 
 
@@ -995,7 +1036,7 @@ func register_kill(
 	_bump_streak(killer_peer_id, victim_peer_id)
 
 
-## Own grenade: kill feed shows it, the streak resets, but no kill for you or your team.
+## Own grenade or own RC: kill feed shows it, this life's kill count resets, banked streaks stay.
 func _register_suicide(peer_id: int, weapon_id: StringName) -> void:
 	_hs_streak.erase(peer_id)
 	var n := _display_name_for(peer_id)
@@ -1025,57 +1066,94 @@ func sync_team_kills(blue: int, orange: int) -> void:
 	team_kills = [blue, orange]
 
 
-const STREAK_AT := 3
+const STREAK_AT := 3 # radar
+const RCXD_AT := 5
 const RADAR_TIME := 4.0
+const CHARGE_RADAR := 1
+const CHARGE_RCXD := 2
 
-var streaks: Dictionary = {}
+var streak_progress: Dictionary = {} # peer -> kills this life (death clears this)
+var streak_charges: Dictionary = {} # peer -> bitmask of streaks earned and not yet used
+var streak_earned: Dictionary = {} # peer -> bitmask already passed this life (stops a second copy)
 
 
-## Humans only. Death clears the victim. At 3 the radar is armed; Enter turns it on for the whole team.
+## Humans only. Death clears this life's count, not a streak already earned.
+## 3 banks the radar, 5 banks the RC-XD. Each stays until Enter uses it.
 func _bump_streak(killer_peer_id: int, victim_peer_id: int) -> void:
 	if victim_peer_id > 0:
-		streaks[victim_peer_id] = 0
-		_push_streak(victim_peer_id, 0)
+		streak_progress[victim_peer_id] = 0
+		streak_earned[victim_peer_id] = 0
+		_push_streak(victim_peer_id)
 	if killer_peer_id <= 0:
 		return
-	var n := int(streaks.get(killer_peer_id, 0))
-	if n < STREAK_AT:
+	var n := int(streak_progress.get(killer_peer_id, 0))
+	if n < RCXD_AT:
 		n += 1
-	streaks[killer_peer_id] = n
-	_push_streak(killer_peer_id, n)
+	streak_progress[killer_peer_id] = n
+	var charges := int(streak_charges.get(killer_peer_id, 0))
+	var earned := int(streak_earned.get(killer_peer_id, 0))
+	if n >= STREAK_AT and (earned & CHARGE_RADAR) == 0:
+		earned |= CHARGE_RADAR
+		charges |= CHARGE_RADAR
+	if n >= RCXD_AT and (earned & CHARGE_RCXD) == 0:
+		earned |= CHARGE_RCXD
+		charges |= CHARGE_RCXD
+	streak_earned[killer_peer_id] = earned
+	streak_charges[killer_peer_id] = charges
+	_push_streak(killer_peer_id)
 
 
-func _push_streak(peer_id: int, n: int) -> void:
+func _push_streak(peer_id: int) -> void:
+	var n := int(streak_progress.get(peer_id, 0))
+	var charges := int(streak_charges.get(peer_id, 0))
+	var earned := int(streak_earned.get(peer_id, 0))
 	if not is_networked() or peer_id == multiplayer.get_unique_id():
-		_apply_streak_local(n)
+		_apply_streak_local(n, charges, earned)
 		return
-	sync_streak.rpc_id(peer_id, n)
+	sync_streak.rpc_id(peer_id, n, charges, earned)
 
 
 @rpc("authority", "reliable")
-func sync_streak(n: int) -> void:
-	_apply_streak_local(n)
+func sync_streak(n: int, charges: int, earned: int) -> void:
+	_apply_streak_local(n, charges, earned)
 
 
-func _apply_streak_local(n: int) -> void:
+func _apply_streak_local(n: int, charges: int, earned: int) -> void:
 	var hud := get_tree().get_first_node_in_group("hud") as Hud
 	if hud:
-		hud.set_streak(n)
+		hud.set_streak(n, charges, earned)
 
 
-## Slot 0 is the radar. Other slots are reserved until more streaks exist.
-## Only slot 0 is wired. A charge is spent even if the radar is already running (time is not stacked).
-## Not during the round-start freeze or the killcam: the charge is kept.
+## Slot 0 is the radar (3), slot 1 is the RC-XD (5). Using one spends only that charge.
+## Radar still spends if one is already running (time is not stacked).
+## Freeze, killcam, death, or a car already out: the charge is kept.
 func try_activate_streak(peer_id: int, slot: int) -> void:
 	if not _is_match_authority():
 		return
-	if slot != 0 or play_locked():
+	if play_locked() or peer_id <= 0:
 		return
-	if int(streaks.get(peer_id, 0)) < STREAK_AT:
+	var p := player_for_peer(peer_id)
+	if p == null or p.is_dead or p.is_bot:
 		return
-	streaks[peer_id] = 0
-	_push_streak(peer_id, 0)
-	_grant_radar(peer_id)
+	if RcXd.for_owner(peer_id) != null:
+		return
+	var bit := 0
+	if slot == 0:
+		bit = CHARGE_RADAR
+	elif slot == 1:
+		bit = CHARGE_RCXD
+	else:
+		return
+	var charges := int(streak_charges.get(peer_id, 0))
+	if (charges & bit) == 0:
+		return
+	if bit == CHARGE_RCXD and not RcXd.launch(p):
+		return
+	charges &= ~bit
+	streak_charges[peer_id] = charges
+	_push_streak(peer_id)
+	if bit == CHARGE_RADAR:
+		_grant_radar(peer_id)
 
 
 ## HUD calls this. Clients cannot grant their own radar.
@@ -1095,6 +1173,106 @@ func request_streak(slot: int) -> void:
 	if peer == 0:
 		peer = multiplayer.get_unique_id()
 	try_activate_streak(peer, slot)
+
+
+func next_rc_id() -> int:
+	_rc_seq += 1
+	return _rc_seq
+
+
+func mark_rc_done(net_id: int) -> void:
+	_rc_done[net_id] = true
+
+
+## Driver's yaw and throttle. The server car is the one that explodes.
+@rpc("any_peer", "unreliable")
+func rc_drive(net_id: int, yaw_in: float, throttle_in: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var car := RcXd.authority_by_id(net_id)
+	if car == null or car.owner_peer != peer:
+		return
+	car.apply_remote_input(yaw_in, throttle_in)
+
+
+@rpc("any_peer", "reliable")
+func rc_detonate(net_id: int) -> void:
+	if not multiplayer.is_server() or play_locked():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var car := RcXd.authority_by_id(net_id)
+	if car == null or car.owner_peer != peer:
+		return
+	car.shutdown(true)
+
+
+## Visual copy on clients. The driver's copy simulates; the rest follow poses.
+@rpc("authority", "reliable")
+func sync_rc_spawn(net_id: int, peer: int, team: int, pos: Vector3, yaw_in: float) -> void:
+	if multiplayer.is_server() or _rc_done.has(net_id):
+		return
+	RcXd.spawn_visual(net_id, peer, team, pos, yaw_in)
+
+
+@rpc("authority", "unreliable")
+func sync_rc_pose(net_id: int, pos: Vector3, yaw_in: float, life_in: float) -> void:
+	if multiplayer.is_server() or _rc_done.has(net_id):
+		return
+	var car := RcXd.by_id(net_id)
+	if car:
+		car.apply_net_pose(pos, yaw_in, life_in)
+
+
+@rpc("authority", "reliable")
+func sync_rc_end(net_id: int, pos: Vector3, exploded: bool) -> void:
+	if multiplayer.is_server():
+		return
+	_rc_done[net_id] = true
+	var car := RcXd.by_id(net_id)
+	if car:
+		car.client_end(exploded, pos)
+	elif exploded and not is_dedicated:
+		Grenade.play_boom(pos)
+
+
+@rpc("authority", "reliable")
+func sync_rc_hp(net_id: int, value: float) -> void:
+	if multiplayer.is_server():
+		return
+	var car := RcXd.by_id(net_id)
+	if car:
+		car.apply_hp(value)
+
+
+## Same popup split as the radar: your team sees RC-XD, the other team sees ENEMY RC-XD.
+func announce_rc(peer_id: int, team: int) -> void:
+	var by := _display_name_for(peer_id)
+	if scores.has(peer_id):
+		by = str(scores[peer_id].name)
+	if is_networked():
+		sync_rc_announce.rpc(team, by, peer_id)
+	_apply_rc_announce(team, by, peer_id)
+
+
+@rpc("authority", "reliable")
+func sync_rc_announce(team: int, by_name: String, by_peer: int) -> void:
+	if multiplayer.is_server():
+		return
+	_apply_rc_announce(team, by_name, by_peer)
+
+
+func _apply_rc_announce(team: int, by_name: String, by_peer: int) -> void:
+	var mine := local_team()
+	if mine < 0:
+		return
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	if hud == null:
+		return
+	var friendly := team == mine
+	if is_ffa():
+		friendly = by_peer == multiplayer.get_unique_id()
+	hud.show_rc_event(by_name, team, friendly)
 
 
 ## Team radar (UAV): every machine hears about it; the activator's team gets the markers,
@@ -1139,7 +1317,7 @@ func _apply_radar(team: int, by_name: String, seconds: float, by_peer: int) -> v
 		hud.show_radar_event(by_name, team, friendly, by_peer == multiplayer.get_unique_id())
 
 
-## Round end, round start, killcam, and leaving: no markers carry over.
+## Round end, round start, killcam, and leaving: no markers carry over, and no RC stays out.
 func clear_radar() -> void:
 	radar_left = 0.0
 	radar_team = -1
@@ -1147,6 +1325,7 @@ func clear_radar() -> void:
 	var hud := get_tree().get_first_node_in_group("hud") as Hud
 	if hud:
 		hud.clear_radar()
+	RcXd.abort_all()
 
 
 func _emit_kill_feed(
@@ -1496,7 +1675,11 @@ func reset_session() -> void:
 	net_hp.clear()
 	_regen_dirty.clear()
 	lobby.clear()
-	streaks.clear()
+	streak_progress.clear()
+	streak_charges.clear()
+	streak_earned.clear()
+	rc_view = false
+	_rc_done.clear()
 	pending_names.clear()
 	pending_teams.clear()
 	_fire_credit.clear()
@@ -1873,6 +2056,8 @@ func _ensure_sfx_bus() -> void:
 	AudioServer.add_bus_effect(AudioServer.get_bus_index("Master"), limiter)
 
 
+## Reads user://settings.cfg. Missing keys keep the defaults, so an older file (audio + mouse
+## only) still loads. Applies audio and, unless this process is headless, the video settings.
 func load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load("user://settings.cfg") == OK:
@@ -1880,21 +2065,103 @@ func load_settings() -> void:
 		sfx_vol = clampf(float(cfg.get_value("audio", "sfx", 1.0)), 0.0, 1.0)
 		mouse_sens = clampf(float(cfg.get_value("input", "mouse_sens", 1.0)), MOUSE_SENS_MIN, MOUSE_SENS_MAX)
 		ads_sens = clampf(float(cfg.get_value("input", "ads_sens", 0.45)), ADS_SENS_MIN, ADS_SENS_MAX)
+		invert_y = bool(cfg.get_value("input", "invert_y", false))
 		var m := StringName(str(cfg.get_value("match", "map", String(Maps.DEFAULT))))
 		last_map = m if Maps.has(m) else Maps.DEFAULT
 		last_mode = clampi(int(cfg.get_value("match", "mode", MODE_TDM)), MODE_TDM, MODE_FFA)
+		profile_name = clean_name(str(cfg.get_value("profile", "name", profile_name)))
+		player_name = profile_name
+		window_mode = clampi(int(cfg.get_value("video", "window_mode", WINDOW_WINDOWED)), WINDOW_WINDOWED, WINDOW_FULLSCREEN)
+		var w := int(cfg.get_value("video", "width", window_size.x))
+		var h := int(cfg.get_value("video", "height", window_size.y))
+		if w < 640 or h < 480:
+			w = 1600
+			h = 900
+		window_size = Vector2i(w, h)
+		vsync = bool(cfg.get_value("video", "vsync", true))
+		max_fps = _snap_fps(int(cfg.get_value("video", "max_fps", 0)))
+		fov = clampf(roundf(float(cfg.get_value("video", "fov", 90.0))), FOV_MIN, FOV_MAX)
+		render_scale = _snap_scale(float(cfg.get_value("video", "render_scale", 1.0)))
+		msaa = clampi(int(cfg.get_value("video", "msaa", 2)), 0, 3)
+		show_fps = bool(cfg.get_value("hud", "show_fps", true))
 	apply_audio()
+	var size_before := window_size
+	apply_display()
+	# A size that does not fit this monitor is replaced; remember the one we actually used.
+	if window_size != size_before:
+		save_settings()
 
 
+## Rewrites the whole file from memory. Every key load_settings reads has to be written here.
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master", master_vol)
 	cfg.set_value("audio", "sfx", sfx_vol)
 	cfg.set_value("input", "mouse_sens", mouse_sens)
 	cfg.set_value("input", "ads_sens", ads_sens)
+	cfg.set_value("input", "invert_y", invert_y)
 	cfg.set_value("match", "map", String(last_map))
 	cfg.set_value("match", "mode", last_mode)
+	cfg.set_value("profile", "name", profile_name)
+	cfg.set_value("video", "window_mode", window_mode)
+	cfg.set_value("video", "width", window_size.x)
+	cfg.set_value("video", "height", window_size.y)
+	cfg.set_value("video", "vsync", vsync)
+	cfg.set_value("video", "max_fps", max_fps)
+	cfg.set_value("video", "fov", fov)
+	cfg.set_value("video", "render_scale", render_scale)
+	cfg.set_value("video", "msaa", msaa)
+	cfg.set_value("hud", "show_fps", show_fps)
 	cfg.save("user://settings.cfg")
+
+
+## Profile name. Saves, tells the other name fields, and pushes a live pawn / lobby row when one exists.
+## A trailing space is stripped here but the focused field keeps it until blur, so "Bob Smith" can be typed.
+## `--name` must assign `player_name` directly so a one-off launch does not overwrite the file.
+func set_player_name(n: String) -> void:
+	var cleaned := clean_name(n)
+	if cleaned == player_name:
+		return
+	player_name = cleaned
+	profile_name = cleaned
+	save_settings()
+	_push_live_name()
+	local_name_changed.emit(player_name)
+
+
+## Scoreboard and lobby follow the profile name. Clients ask the server; the host writes it.
+func _push_live_name() -> void:
+	if not is_inside_tree() or is_dedicated:
+		return
+	var peer := 1
+	if is_networked():
+		peer = multiplayer.get_unique_id()
+		if not multiplayer.is_server():
+			var peer_obj := multiplayer.multiplayer_peer
+			if peer_obj != null and peer_obj.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+				submit_display_name.rpc_id(1, player_name)
+				_retitle()
+			return
+	if in_lobby:
+		pending_names[peer] = player_name
+		var team := preferred_team
+		if lobby.has(peer):
+			team = int(lobby[peer].get("team", team))
+		set_lobby_member(peer, player_name, team)
+		_retitle()
+		return
+	if player_for_peer(peer) != null or scores.has(peer):
+		if is_networked():
+			apply_display_name.rpc(peer, player_name)
+		else:
+			apply_display_name(peer, player_name)
+		_retitle()
+
+
+func _retitle() -> void:
+	if display_headless():
+		return
+	DisplayServer.window_set_title("Gevechtspel — %s" % player_name)
 
 
 func set_mouse_sens(v: float) -> void:
@@ -1904,6 +2171,11 @@ func set_mouse_sens(v: float) -> void:
 
 func set_ads_sens(v: float) -> void:
 	ads_sens = clampf(v, ADS_SENS_MIN, ADS_SENS_MAX)
+	save_settings()
+
+
+func set_invert_y(on: bool) -> void:
+	invert_y = on
 	save_settings()
 
 
@@ -1929,6 +2201,180 @@ func set_sfx_vol(v: float) -> void:
 func apply_audio() -> void:
 	_set_bus_linear("Master", master_vol)
 	_set_bus_linear("SFX", sfx_vol)
+
+
+func set_show_fps(on: bool) -> void:
+	show_fps = on
+	save_settings()
+	if not is_inside_tree():
+		return
+	var label := get_tree().root.get_node_or_null("Main/CanvasLayer/Hud/Fps") as Label
+	if label:
+		label.visible = show_fps
+
+
+func set_fov(v: float) -> void:
+	fov = clampf(roundf(v), FOV_MIN, FOV_MAX)
+	save_settings()
+	_apply_fov_now()
+
+
+## The live camera picks the new hip FOV immediately. ADS (absolute, ~38 for the sniper) is left alone.
+## The menu camera has no ads_fov and is not a CameraFeel, so it stays on its own fov.
+func _apply_fov_now() -> void:
+	if not is_inside_tree() or display_headless():
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var ads = cam.get("ads_fov")
+	if ads == null or float(ads) > 1.0:
+		return
+	var extra = cam.get("extra_fov")
+	cam.fov = fov + (float(extra) if extra != null else 0.0)
+
+
+func set_window_mode(mode: int) -> void:
+	window_mode = clampi(mode, WINDOW_WINDOWED, WINDOW_FULLSCREEN)
+	apply_display()
+	save_settings()
+
+
+func set_resolution(size: Vector2i) -> void:
+	window_size = size
+	apply_display()
+	save_settings()
+
+
+func set_vsync(on: bool) -> void:
+	vsync = on
+	_apply_vsync_and_fps()
+	save_settings()
+
+
+func set_max_fps(v: int) -> void:
+	max_fps = _snap_fps(v)
+	_apply_vsync_and_fps()
+	save_settings()
+
+
+func set_render_scale(v: float) -> void:
+	render_scale = _snap_scale(v)
+	apply_render()
+	save_settings()
+
+
+func set_msaa(v: int) -> void:
+	msaa = clampi(v, 0, 3)
+	apply_render()
+	save_settings()
+
+
+## True for `./run.sh --headless` and the dedicated server. Video settings must not touch the window.
+func display_headless() -> bool:
+	return DisplayServer.get_name() == "headless"
+
+
+## Presets that fit the current monitor, plus that monitor's own size when it is not already listed.
+func resolution_choices() -> Array:
+	var screen := Vector2i(1920, 1080)
+	if not display_headless():
+		screen = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
+	return _resolutions_fitting(screen)
+
+
+func _resolutions_fitting(screen: Vector2i) -> Array:
+	var out: Array[Vector2i] = []
+	for r in RESOLUTIONS:
+		var size := r as Vector2i
+		if size.x <= screen.x and size.y <= screen.y:
+			out.append(size)
+	var listed := false
+	for size in out:
+		if size == screen:
+			listed = true
+			break
+	if not listed and screen.x >= 640 and screen.y >= 480:
+		out.append(screen)
+	out.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x * a.y < b.x * b.y)
+	if out.is_empty():
+		out.append(Vector2i(mini(maxi(screen.x, 640), 1280), mini(maxi(screen.y, 480), 720)))
+	return out
+
+
+## Window, VSync, the FPS cap, 3D scale and MSAA. Headless returns immediately; main.gd then
+## pins a dedicated server to 60 fps. A saved size bigger than this monitor is replaced with
+## the largest preset that fits, and load_settings writes that back.
+func apply_display() -> void:
+	if display_headless():
+		return
+	_apply_vsync_and_fps()
+	_apply_window()
+	apply_render()
+
+
+func _apply_vsync_and_fps() -> void:
+	if display_headless():
+		return
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = max_fps
+
+
+func _apply_window() -> void:
+	var screen_id := DisplayServer.window_get_current_screen()
+	var screen := DisplayServer.screen_get_size(screen_id)
+	var fit := _clamp_window_size(window_size, screen)
+	if fit != window_size:
+		window_size = fit
+	if window_mode == WINDOW_BORDERLESS:
+		# Borderless follows the monitor. The stored size is for windowed / exclusive only.
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		return
+	if window_mode == WINDOW_FULLSCREEN:
+		# Leave exclusive before changing size, or the mode switch keeps the old resolution.
+		if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		DisplayServer.window_set_size(window_size)
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+		return
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+	DisplayServer.window_set_size(window_size)
+	var origin := DisplayServer.screen_get_position(screen_id)
+	DisplayServer.window_set_position(origin + (screen - window_size) / 2)
+
+
+func _clamp_window_size(size: Vector2i, screen: Vector2i) -> Vector2i:
+	if size.x >= 640 and size.y >= 480 and size.x <= screen.x and size.y <= screen.y:
+		return size
+	var choices := _resolutions_fitting(screen)
+	var best: Vector2i = choices[0]
+	var best_area := -1
+	for choice in choices:
+		var area: int = int(choice.x) * int(choice.y)
+		if area > best_area:
+			best = choice
+			best_area = area
+	return best
+
+
+## 3D render scale and MSAA on the root viewport. 2D (HUD, menus) stays at the window resolution.
+func apply_render() -> void:
+	if not is_inside_tree() or display_headless():
+		return
+	var root := get_tree().root
+	root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	root.scaling_3d_scale = render_scale
+	root.msaa_3d = msaa as Viewport.MSAA
+
+
+func _snap_fps(v: int) -> int:
+	v = clampi(v, 0, FPS_CAP_MAX)
+	return int(round(float(v) / 10.0)) * 10
+
+
+func _snap_scale(v: float) -> float:
+	return clampf(round(clampf(v, 0.5, 1.0) * 20.0) / 20.0, 0.5, 1.0)
 
 
 func _set_bus_linear(bus_name: String, linear: float) -> void:

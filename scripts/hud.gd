@@ -20,7 +20,11 @@ var _board_refresh := 0.0
 var _freeze_left := 0.0
 var _radar_left := 0.0
 var _streak_n := 0
+var _streak_charges := 0
+var _streak_earned := 0
 var _streak_sel := 0
+var _rc_on := false
+var _rc_hint: Label
 var _announcer: AudioStreamPlayer
 var _sniper_ads := false
 var _weapon_index := 0
@@ -81,6 +85,7 @@ const _FEED_ICONS := {
 	&"revolver": preload("res://assets/ui/icon_revolver.svg"),
 	&"knife": preload("res://assets/ui/icon_knife.svg"),
 	&"melee": preload("res://assets/ui/icon_melee.svg"),
+	&"rcxd": preload("res://assets/ui/icon_rcxd.svg"),
 }
 const _FEED_MAX := 6
 const _FEED_LIFE := 5.0
@@ -119,6 +124,7 @@ func _ready() -> void:
 	Game.intermission_started.connect(show_intermission)
 	Game.killcam.finished.connect(_on_killcam_finished)
 	reload_label.visible = false
+	fps_label.visible = Game.show_fps
 	death_layer.visible = false
 	scoreboard_container.visible = false
 	scoreboard_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -215,6 +221,16 @@ func _input(event: InputEvent) -> void:
 		return
 	if Game.pause_open:
 		return
+	# Driving: the car has the mouse and LMB. Streak keys and chat wait until it is gone.
+	if Game.rc_view:
+		if (
+			event.is_action_pressed("ui_up")
+			or event.is_action_pressed("ui_down")
+			or event.is_action_pressed("use_streak")
+			or event.is_action_pressed("chat")
+		):
+			get_viewport().set_input_as_handled()
+		return
 	# Arrows pick a streak box. Enter asks the server to fire it. Chat keeps Enter.
 	if not Game.chat_open and not event.is_echo():
 		if event.is_action_pressed("ui_up"):
@@ -307,7 +323,10 @@ func reset_session() -> void:
 	_local_peer_id = 0
 	_dmg_dirs.clear()
 	_streak_n = 0
+	_streak_charges = 0
+	_streak_earned = 0
 	_radar_left = 0.0
+	set_rc_drive(false, 0.0, 0.0)
 	_hide_popup()
 	_hide_notice()
 	_hide_trick()
@@ -392,12 +411,14 @@ func _refresh_weapon_slots() -> void:
 			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
 
 
-## Crossing 3 plays "Radar on standby". The slot stays armed until Enter.
-func set_streak(n: int) -> void:
-	var unlocked := _streak_n < Game.STREAK_AT and n >= Game.STREAK_AT
+## A new radar charge plays "Radar on standby". The slot stays armed until Enter, including after death.
+func set_streak(n: int, charges: int, earned: int) -> void:
+	var radar_new := (_streak_charges & Game.CHARGE_RADAR) == 0 and (charges & Game.CHARGE_RADAR) != 0
 	_streak_n = n
+	_streak_charges = charges
+	_streak_earned = earned
 	_refresh_streak_ui()
-	if unlocked:
+	if radar_new:
 		_play_announcer("res://assets/sounds/radar_standby.wav")
 
 
@@ -406,8 +427,6 @@ func set_streak(n: int) -> void:
 func show_radar_event(by_name: String, team: int, friendly: bool, own: bool) -> void:
 	if friendly:
 		_radar_left = maxf(_radar_left, Game.radar_left)
-		if own:
-			_streak_n = 0
 		_refresh_streak_ui()
 		if own:
 			_play_announcer("res://assets/sounds/radar_online.wav")
@@ -417,6 +436,45 @@ func show_radar_event(by_name: String, team: int, friendly: bool, own: bool) -> 
 	else:
 		_play_announcer("res://assets/sounds/radar_enemy.wav")
 		show_popup("ENEMY RADAR", _POPUP_HOSTILE, by_name, team)
+
+
+## RC-XD switched on. Own team gets the plain title. The other team gets the enemy title. No voice line.
+func show_rc_event(by_name: String, team: int, friendly: bool) -> void:
+	if friendly:
+		show_popup("RC-XD", _POPUP_FRIENDLY, by_name, team)
+	else:
+		show_popup("ENEMY RC-XD", _POPUP_HOSTILE, by_name, team)
+
+
+## While the local camera is in the car. `on` false hides the line.
+func set_rc_drive(on: bool, hp: float, life: float) -> void:
+	_rc_on = on
+	if not on:
+		if _rc_hint:
+			_rc_hint.visible = false
+		_refresh_streak_ui()
+		return
+	if _rc_hint == null:
+		_rc_hint = Label.new()
+		_rc_hint.name = "RcHint"
+		_rc_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_rc_hint.anchor_left = 0.5
+		_rc_hint.anchor_right = 0.5
+		_rc_hint.anchor_top = 0.5
+		_rc_hint.anchor_bottom = 0.5
+		_rc_hint.offset_left = -220.0
+		_rc_hint.offset_right = 220.0
+		_rc_hint.offset_top = 48.0
+		_rc_hint.offset_bottom = 80.0
+		_rc_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_rc_hint.add_theme_font_size_override("font_size", 20)
+		_rc_hint.add_theme_color_override("font_color", Color(1, 0.86, 0.35))
+		_rc_hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_rc_hint.add_theme_constant_override("outline_size", 6)
+		add_child(_rc_hint)
+	_rc_hint.text = "LMB DETONATE    %d HP    %ds" % [ceili(maxf(hp, 0.0)), ceili(maxf(life, 0.0))]
+	_rc_hint.visible = true
+	_refresh_streak_ui()
 
 
 func clear_radar() -> void:
@@ -534,21 +592,32 @@ func _build_popup() -> void:
 	_popup.add_child(_popup_by)
 
 
-## Left column: slot 0 is radar, 1 and 2 are empty until more streaks exist.
-## The white frame is the arrow-key selection, not "ready".
+## Left column: slot 0 radar (3), slot 1 RC-XD (5), slot 2 empty.
+## The white frame is the arrow-key selection, not "ready". A gold box is a charge you still hold.
 func _refresh_streak_ui() -> void:
 	if streak_label:
-		if _radar_left > 0.0:
+		if _rc_on:
+			streak_label.text = "RC-XD"
+		elif _radar_left > 0.0:
 			streak_label.text = "RADAR"
 		else:
-			streak_label.text = "STREAK %d/%d" % [_streak_n, Game.STREAK_AT]
+			var goal := Game.RCXD_AT if (_streak_earned & Game.CHARGE_RADAR) != 0 else Game.STREAK_AT
+			streak_label.text = "STREAK %d/%d" % [_streak_n, goal]
 		streak_label.visible = true
 	for i in _streak_slots.size():
 		var slot := _streak_slots[i]
 		if slot == null:
 			continue
 		var selected := i == _streak_sel
-		var ready := i == 0 and _streak_n >= Game.STREAK_AT
+		var ready := false
+		if i == 0:
+			ready = (_streak_charges & Game.CHARGE_RADAR) != 0
+		elif i == 1:
+			ready = (_streak_charges & Game.CHARGE_RCXD) != 0
+		var name_l := slot.get_node_or_null("Name") as Label
+		if name_l and i == 1:
+			var col := Color(1, 0.92, 0.55) if ready else Color(0.55, 0.58, 0.62)
+			name_l.add_theme_color_override("font_color", col)
 		if ready:
 			slot.color = Color(0.35, 0.28, 0.08, 0.95) if selected else Color(0.22, 0.18, 0.06, 0.9)
 		elif selected:
@@ -1034,6 +1103,7 @@ func _process(delta: float) -> void:
 	if _standing_t <= 0.0:
 		_standing_t = 0.25
 		_refresh_standing()
+	fps_label.visible = Game.show_fps
 	fps_label.text = "%d fps" % roundi(Engine.get_frames_per_second())
 	
 	var time_left: float = Game.get_round_time_left()

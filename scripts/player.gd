@@ -343,14 +343,19 @@ func make_active_camera() -> void:
 func _input(event: InputEvent) -> void:
 	if not is_local():
 		return
-	if Game.chat_open or Game.pause_open or Game.killcam_active:
+	if Game.chat_open or Game.pause_open or Game.killcam_active or Game.rc_view:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var sens := MOUSE_SENS * Game.mouse_sens
 		if weapon and weapon.is_ads():
 			sens *= weapon.ads_sens_mult() # scope: Game.ads_sens (0.45); SMG iron sights: the zoom ratio
-		_yaw -= event.relative.x * sens
-		_pitch -= event.relative.y * sens
+		# Invert Y flips the raw axis. No smoothing either way.
+		var motion := event as InputEventMouseMotion
+		var look_y := motion.relative.y
+		if Game.invert_y:
+			look_y = -look_y
+		_yaw -= motion.relative.x * sens
+		_pitch -= look_y * sens
 		_pitch = clampf(_pitch, -MAX_PITCH, MAX_PITCH)
 		rotation.y = _yaw
 		head.rotation.x = _pitch
@@ -363,11 +368,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if Game.chat_open or Game.pause_open:
 		return
-	if event.is_action_pressed("grenade") and not is_dead and not Game.play_locked():
+	if event.is_action_pressed("grenade") and not is_dead and not Game.play_locked() and not Game.rc_view:
 		_try_throw_grenade()
 		get_viewport().set_input_as_handled()
 		return
-	if event.is_action_pressed("throw_knife") and not is_dead and not Game.play_locked():
+	if event.is_action_pressed("throw_knife") and not is_dead and not Game.play_locked() and not Game.rc_view:
 		_try_throw_knife()
 		get_viewport().set_input_as_handled()
 		return
@@ -493,6 +498,11 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	# The RC is gone with you, and it does not explode on the way out.
+	if is_local() and Game.rc_view:
+		RcXd.release_view()
+	if Game._is_match_authority():
+		RcXd.abort_for(peer_id)
 	Game.killcam.note_death(peer_id)
 	velocity = Vector3.ZERO
 	collision_layer = 0
@@ -626,7 +636,11 @@ func _physics_process(delta: float) -> void:
 		_apply_remote_visual()
 		_tick_feet(delta)
 		return
-	var chatting := Game.chat_open or Game.play_locked()
+	var chatting := Game.chat_open or Game.play_locked() or Game.rc_view
+	if Game.rc_view:
+		_sliding = false
+		velocity.x = 0.0
+		velocity.z = 0.0
 	var on_floor := is_on_floor()
 	_try_start_slide(on_floor, chatting)
 	_update_stance(delta, on_floor)
@@ -871,7 +885,7 @@ func _finish_slide() -> void:
 
 
 func _update_stance(delta: float, _on_floor: bool) -> void:
-	var want := _sliding or ((not is_dead) and (not Game.chat_open) and Input.is_action_pressed("crouch"))
+	var want := _sliding or ((not is_dead) and (not Game.chat_open) and (not Game.rc_view) and Input.is_action_pressed("crouch"))
 	if (not want) and crouch > 0.05 and _ceiling_blocked():
 		want = true
 	var target := 1.0 if want else 0.0

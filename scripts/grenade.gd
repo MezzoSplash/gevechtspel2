@@ -8,7 +8,7 @@ const THROW_SPEED := 18.0
 const RADIUS := 5.5
 const MAX_DAMAGE := 165.0
 const BOUNCE := 0.42
-const MASK := 1 | 2
+const MASK := 1 | 2 | 4 # world, pawns, RC-XD (layer 4)
 
 var thrower_id := 0
 var thrower_team := 0

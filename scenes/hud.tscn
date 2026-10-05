@@ -66,7 +66,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(0.45, 0.48, 0.52, 1)
 theme_override_font_sizes/font_size = 16
-text = "—"
+text = "RC-XD"
 horizontal_alignment = 1
 vertical_alignment = 1
 

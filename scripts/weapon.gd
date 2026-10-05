@@ -148,7 +148,7 @@ func _process(delta: float) -> void:
 	if trigger and not _trigger_held:
 		burst_seq += 1
 	_trigger_held = trigger
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open and not Game.play_locked():
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open and not Game.play_locked() and not Game.rc_view:
 		if Input.is_action_just_pressed("melee"):
 			Game.melee.swing(owner_player)
 		elif Input.is_action_just_pressed("switch_weapon"):
@@ -281,6 +281,7 @@ func _update_ads() -> void:
 		and not Game.chat_open
 		and not Game.pause_open
 		and not Game.play_locked()
+		and not Game.rc_view
 		and not _owner_sliding()
 		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 		and Input.is_action_pressed("zoom")

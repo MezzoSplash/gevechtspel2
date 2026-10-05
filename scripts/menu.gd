@@ -19,6 +19,7 @@ signal match_choice_changed(map_id: StringName, mode: int)
 @onready var version_label: Label = $VersionLabel
 
 var _team := 0
+var _applying_name := false
 var class_editor: ClassEditor
 var _map_opts: Array[OptionButton] = [] # Solo + Mp (host) pickers, kept in sync
 var _mode_opts: Array[OptionButton] = []
@@ -64,6 +65,21 @@ func _ready() -> void:
 	$Center/Lobby.move_child(_lobby_info, $Center/Lobby/Title.get_index() + 1)
 	set_match_choice(Game.last_map, Game.last_mode)
 	set_team(0)
+	if solo_name:
+		solo_name.max_length = Game.NAME_MAX
+	if mp_name:
+		mp_name.max_length = Game.NAME_MAX
+	set_player_name(Game.player_name)
+	if solo_name and not solo_name.text_changed.is_connected(_on_name_edited):
+		solo_name.text_changed.connect(_on_name_edited)
+		solo_name.focus_exited.connect(_commit_name_fields)
+		solo_name.text_submitted.connect(func(_t: String) -> void: _commit_name_fields())
+	if mp_name and not mp_name.text_changed.is_connected(_on_name_edited):
+		mp_name.text_changed.connect(_on_name_edited)
+		mp_name.focus_exited.connect(_commit_name_fields)
+		mp_name.text_submitted.connect(func(_t: String) -> void: _commit_name_fields())
+	if not Game.local_name_changed.is_connected(set_player_name):
+		Game.local_name_changed.connect(set_player_name)
 	show_screen("home")
 
 
@@ -195,9 +211,12 @@ func set_status(t: String) -> void:
 		mp_status.text = t
 
 
+## The saved profile name. The line edits write it on each change, so Play uses that, not a stale box.
 func player_name() -> String:
-	if $Center/Solo.visible:
-		return solo_name.text.strip_edges() if solo_name else "Player"
+	if Game.player_name.strip_edges() != "":
+		return Game.player_name
+	if $Center/Solo.visible and solo_name:
+		return solo_name.text.strip_edges()
 	return mp_name.text.strip_edges() if mp_name else "Player"
 
 
@@ -209,11 +228,35 @@ func host_port() -> int:
 	return int(port_edit.text) if port_edit else Game.DEFAULT_PORT
 
 
+## Fills both name boxes. A box that is being typed in keeps a trailing space until it loses focus.
 func set_player_name(n: String) -> void:
+	_apply_name_field(solo_name, n)
+	_apply_name_field(mp_name, n)
+
+
+func _apply_name_field(edit: LineEdit, n: String) -> void:
+	if edit == null or edit.text == n:
+		return
+	if edit.has_focus() and Game.clean_name(edit.text) == n:
+		return
+	_applying_name = true
+	edit.text = n
+	_applying_name = false
+
+
+func _on_name_edited(t: String) -> void:
+	if _applying_name:
+		return
+	Game.set_player_name(t)
+
+
+func _commit_name_fields() -> void:
+	_applying_name = true
 	if solo_name:
-		solo_name.text = n
+		solo_name.text = Game.player_name
 	if mp_name:
-		mp_name.text = n
+		mp_name.text = Game.player_name
+	_applying_name = false
 
 
 func set_host_ip(ip: String) -> void:

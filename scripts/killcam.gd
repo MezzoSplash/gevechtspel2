@@ -592,7 +592,7 @@ func _make_ghost(
 	var pivot: Node3D
 	if is_killer:
 		var cam := Camera3D.new()
-		cam.fov = CameraFeel.BASE_FOV
+		cam.fov = Game.fov # hip FOV from settings; this replay camera does not zoom
 		cam.near = 0.03
 		pivot = cam
 	else:

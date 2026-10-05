@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.20** — Foundry: walk ramps west of the big doors up to the 7.3 m hall roof, a bridge across the skylight, and surf ramps along the west wall. Bots take the ramp when someone is on the roof. **Not compatible with 0.2.19 or older** (NET_VERSION 0.2.20): everyone must update, including the dedicated server.
+**v0.2.21** — Earned killstreaks stay until you use them. Radar unlocks at 3 kills in one life; RC-XD at 5 (drive the car from its own camera and detonate it). Bots commit to one strafe and flank instead of shimmying; SMG bots burst shorter. Settings save the window, resolution, VSync, FPS cap, FOV, render scale, antialiasing, invert Y and an FPS counter. **Not compatible with 0.2.20 or older** (NET_VERSION 0.2.21): everyone must update, including the dedicated server.
 
 ## Play (Linux)
 
@@ -18,7 +18,7 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 - **RMB** sniper scope, or SMG iron sights (small zoom, tighter spread)
 - **G** frag grenade, **F** throwing knife (whatever your class's grenade slot holds, 3 per life)
 - **E** melee: weapon bash, 2 m reach, 50 damage (two hits kill), once per 0.8 s
-- **Up/Down** pick a streak slot, **Enter** activates it (radar after 3 kills: your whole team sees the enemies for 4 seconds, and the other team hears "Enemy radar online"; in Free For All only you see everyone else)
+- **Up/Down** pick a streak slot, **Enter** uses it. A streak you earned stays until you use it (leaving to the menu clears it). Dying resets only the counter toward the next one. Radar is the first slot, after 3 kills in one life: your whole team sees the enemies for 4 seconds, and the other team hears "Enemy radar online"; in Free For All only you see everyone else. RC-XD is the second slot, after 5 kills in one life: you drive a small explosive car from its camera (WASD and mouse; **LMB** detonates). Your body stays where you left it.
 - **T** chat (Enter sends, Esc cancels)
 - **Esc** pause menu (resume, change class, settings, leave, quit)
 - **Tab** scoreboard
@@ -56,7 +56,15 @@ Bots fill empty slots to 10 players (5v5 in Team Deathmatch). Same guns as you. 
 
 ## Settings
 
-Main menu or **Esc → Settings**: master and SFX volume, **mouse sensitivity** (0.1–4.0, 1.0 = default) and **aim / scope** sensitivity (multiplier while aiming down sights or scoped, default 0.45). Slider or type the number. Saved in `user://settings.cfg`.
+Main menu or **Esc → Settings**. Saved in `user://settings.cfg` (Linux: `~/.local/share/godot/app_userdata/Gevechtspel/settings.cfg`) and applied again on the next launch.
+
+- **Name**: the name you play under. The Singleplayer and Multiplayer name boxes use the same one, and editing any of them saves it. `--name` on the command line overrides it for that launch only.
+- **Video**: windowed, borderless or fullscreen; resolution (windowed and fullscreen); VSync; max FPS (0 on the slider is unlimited; VSync still follows the monitor); field of view (70–110, default 90; scopes keep their own zoom); render scale (50–100%, the 3D image only); antialiasing off / 2× / 4× / 8× (default 4×). On Wayland, fullscreen may behave as borderless.
+- **Mouse**: sensitivity (0.1–4.0, 1.0 = default), aim / scope multiplier (default 0.45), invert Y. Slider or type the number.
+- **Audio**: master and SFX volume.
+- **FPS counter**: the number at the top left of the HUD. On by default.
+
+A dedicated server ignores the video settings and stays at 60 fps.
 
 When you get hit, a red wedge around the crosshair points at where the damage came from (shooter, melee attacker or grenade blast); it turns with your view and fades after about 1.3 seconds.
 
