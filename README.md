@@ -74,12 +74,12 @@ When you get hit, a red wedge around the crosshair points at where the damage ca
 
 | Gun | Damage | Rate | Mag | Reload | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Rifle | 24 (falls to 55% from 16 to 42 m) | 600 rpm, auto | 30 | 1.55 s | all-rounder |
-| SMG | 12 (falls to 40% from 15 to 30 m) | 1200 rpm, auto | 35 | 1.7 s | moves 8% faster, half the running spread penalty, iron sights on RMB |
-| Shotgun | 24 × 8 pellets (falls off from 7 m) | 93 rpm | 6 | 2.1 s | close range |
+| Rifle | 34, head ×3.6 (falls to 50% from 16 to 48 m) | 390 rpm, auto | 30 | 1.55 s | one headshot out to about 27 m |
+| SMG | 10 (falls to 40% from 12 to 26 m) | 1200 rpm, auto | 35 | 1.7 s | moves 8% faster, half the running spread penalty, iron sights on RMB |
+| Shotgun | 32 × 12 pellets (falls off from 7 m) | 93 rpm | 6 | 2.1 s | close range |
 | Sniper | 50, head ×2 | 69 rpm | 10 | 1.75 s | scope on RMB |
 | Pistol | 34 | 360 rpm | 18 | 1.15 s | secondary |
-| Revolver | 55, head ×2 (2 body or 1 head) | 132 rpm | 6 | 2.8 s | secondary, heavy kick |
+| Revolver | 55, head ×1.6 (2 body or 2 head) | 132 rpm | 6 | 2.8 s | secondary, heavy kick |
 | Throwing knife | one hit kills | — | grenade slot | — | F; a fast, slightly dropping throw; sticks in walls |
 
 ## Classes

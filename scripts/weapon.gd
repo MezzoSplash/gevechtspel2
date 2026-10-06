@@ -289,10 +289,13 @@ func _update_ads() -> void:
 	_ads = want
 	if camera:
 		camera.ads_fov = def.ads_fov if _ads else 0.0
-	var scope := _ads and def.ads_hides_model
+	var scope := _ads and def != null and def.ads_hides_model
 	var hud := _hud_node()
-	if hud:
+	# Bots share this function and must not write the local HUD.
+	if hud and _is_local():
 		hud.set_sniper_ads(scope)
+		# Sniper hip has no crosshair. Scoped, and every other gun, keeps one.
+		hud.set_sniper_hip(def != null and def.id == &"sniper" and not scope)
 	for id in _view_models:
 		var n: Node3D = _view_models[id]
 		n.visible = (not scope) and _throw_left <= 0.0 and def != null and id == def.id

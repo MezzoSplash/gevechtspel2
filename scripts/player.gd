@@ -430,7 +430,7 @@ static func paint_body(mat: StandardMaterial3D, team: int) -> void:
 
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
-## `headshot_mult` comes from the gun's WeaponDef (sniper 2.0, others 1.6).
+## `headshot_mult` comes from the gun's WeaponDef (rifle 3.6, sniper 2.0, SMG 1.5, other guns 1.6).
 ## Grenades pass allow_headshot false. The test uses the drawn head, not a height band.
 func apply_hit(
 	point: Vector3,

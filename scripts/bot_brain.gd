@@ -9,7 +9,7 @@ const SHOTGUN_FIGHT := 6.0
 const RIFLE_FIGHT := 13.0
 const PISTOL_FIGHT := 9.0
 const SNIPER_FIGHT := 18.0 # keep range; one shot then a long pause
-const SMG_FIGHT := 8.0 # SMG: falls off after 15 m, so it closes in like a light shotgun
+const SMG_FIGHT := 8.0 # SMG: falls off after 12 m, so it closes in like a light shotgun
 const REVOLVER_FIGHT := 12.0
 const STRAFE_SPEED := 6.2
 ## One committed sidestep, then a short pause. Re-picking every half second is what made them shimmy.

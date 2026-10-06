@@ -27,6 +27,7 @@ var _rc_on := false
 var _rc_hint: Label
 var _announcer: AudioStreamPlayer
 var _sniper_ads := false
+var _sniper_hip := false # sniper in hand and RMB zoom off: draw no crosshair
 var _weapon_index := 0
 var _ammo := 30
 var _mag := 30
@@ -381,6 +382,14 @@ func set_sniper_ads(on: bool) -> void:
 	if _sniper_ads == on:
 		return
 	_sniper_ads = on
+	queue_redraw()
+
+
+## The sniper has no hip crosshair. Bars and the centre dot return while zoomed.
+func set_sniper_hip(on: bool) -> void:
+	if _sniper_hip == on:
+		return
+	_sniper_hip = on
 	queue_redraw()
 
 
@@ -1157,7 +1166,8 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-## Crosshair gap grows with spread/punch. Hurt vignette + hit/kill markers.
+## Crosshair gap grows with spread/punch. The sniper draws none until RMB zoom.
+## Hurt vignette, damage wedges, and hit markers stay up either way.
 func _draw() -> void:
 	var c := size * 0.5
 	var stance := 0.0
@@ -1168,13 +1178,15 @@ func _draw() -> void:
 	var length := 8.0
 	var col := Color(0.95, 0.95, 0.95, 0.92)
 	var thick := 2.0
-	_bar(c + Vector2(gap, 0), Vector2(length, 0), col, thick)
-	_bar(c + Vector2(-gap, 0), Vector2(-length, 0), col, thick)
-	_bar(c + Vector2(0, gap), Vector2(0, length), col, thick)
-	_bar(c + Vector2(0, -gap), Vector2(0, -length), col, thick)
-	draw_circle(c, 1.4, col)
-	if _sniper_ads:
-		draw_arc(c, 22.0, 0.0, TAU, 48, Color(0.05, 0.05, 0.05, 0.45), 2.0, true)
+	# Hip-firing the sniper is unguided. Zoom (and every other gun) keeps the bars.
+	if not _sniper_hip:
+		_bar(c + Vector2(gap, 0), Vector2(length, 0), col, thick)
+		_bar(c + Vector2(-gap, 0), Vector2(-length, 0), col, thick)
+		_bar(c + Vector2(0, gap), Vector2(0, length), col, thick)
+		_bar(c + Vector2(0, -gap), Vector2(0, -length), col, thick)
+		draw_circle(c, 1.4, col)
+		if _sniper_ads:
+			draw_arc(c, 22.0, 0.0, TAU, 48, Color(0.05, 0.05, 0.05, 0.45), 2.0, true)
 
 	if _hurt_flash > 0.0:
 		var a := _hurt_flash * 0.55
