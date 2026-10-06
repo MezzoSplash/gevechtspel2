@@ -2,7 +2,9 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.21** — Earned killstreaks stay until you use them. Radar unlocks at 3 kills in one life; RC-XD at 5 (drive the car from its own camera and detonate it). Bots commit to one strafe and flank instead of shimmying; SMG bots burst shorter. Settings save the window, resolution, VSync, FPS cap, FOV, render scale, antialiasing, invert Y and an FPS counter. **Not compatible with 0.2.20 or older** (NET_VERSION 0.2.21): everyone must update, including the dedicated server.
+**v0.2.22** — Solo and host pick the kill limit, round length and bot count next to map and mode. **Not compatible with 0.2.21 or older** (NET_VERSION 0.2.22): everyone must update, including the dedicated server.
+
+**v0.2.21** — Earned killstreaks stay until you use them. Radar unlocks at 3 kills in one life; RC-XD at 5 (drive the car from its own camera and detonate it). Bots commit to one strafe and flank instead of shimmying; SMG bots burst shorter. Settings save the window, resolution, VSync, FPS cap, FOV, render scale, antialiasing, invert Y and an FPS counter.
 
 ## Play (Linux)
 
@@ -23,7 +25,7 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 - **Esc** pause menu (resume, change class, settings, leave, quit)
 - **Tab** scoreboard
 
-Boot menu: **Singleplayer** (with bots), **Multiplayer** (host or connect), **Classes**, **Settings**. In Singleplayer and under Multiplayer (for hosting) you pick the **map** and the **mode**; the menu remembers your last pick. Clients always get the server's map and mode when they join, also mid-match.
+Boot menu: **Singleplayer** (with bots), **Multiplayer** (host or connect), **Classes**, **Settings**. In Singleplayer and under Multiplayer (for hosting) you pick the **map**, **mode**, **kills**, **time** and **bots**; the menu remembers your last pick. Clients always get the server's map, mode, kill limit and round length when they join, also mid-match.
 
 Two windows on this PC:
 
@@ -35,13 +37,13 @@ Dedicated server (optional):
 ```bash
 ./run-server.sh 7777                              # Townhouses, Team Deathmatch
 ./run-server.sh 7777 --map foundry --mode ffa     # Foundry, Free For All
-./run-server.sh 7777 --map rooftops --mode tdm   # Rooftops, Team Deathmatch
+./run-server.sh 7777 --map rooftops --mode tdm --kills 15 --time 8 --bots 6
 ./run.sh -- --connect 127.0.0.1:7777 --name Friend
 ```
 
-`--map` takes `townhouses`, `foundry` or `rooftops` (or `1`/`2`/`3`), `--mode` takes `tdm` or `ffa`.
+`--map` takes `townhouses`, `foundry` or `rooftops` (or `1`/`2`/`3`), `--mode` takes `tdm` or `ffa`, `--kills` 5–50, `--time` minutes 1–20, `--bots` 0–16.
 
-Bots fill empty slots to 10 players (5v5 in Team Deathmatch). Same guns as you. Use cover. Health comes back after 4.5 seconds without damage. Die and you respawn after 2 seconds. Tab shows the scoreboard. When a round ends, everyone watches the final killcam: the last kill of the round through the killer's eyes, slowed down at the kill, before the scoreboard.
+Bots: you pick how many (default 9, so one human is a 10-player match; 5v5 in Team Deathmatch when teams stay even). Same guns as you. Use cover. Health comes back after 4.5 seconds without damage. Die and you respawn after 2 seconds. Tab shows the scoreboard. When a round ends, everyone watches the final killcam: the last kill of the round through the killer's eyes, slowed down at the kill, before the scoreboard.
 
 ## Maps
 
@@ -51,8 +53,8 @@ Bots fill empty slots to 10 players (5v5 in Team Deathmatch). Same guns as you. 
 
 ## Modes
 
-- **Team Deathmatch**: 5v5, first team to 25 kills or the most kills after 10 minutes.
-- **Free For All**: everyone against everyone (bots fill to 10 players). First to 20 kills, or the top player after 10 minutes. You respawn at the spawn point farthest from everyone else. All other players have enemy name tags (only visible in line of sight); the scoreboard and the line under the clock show your place.
+- **Team Deathmatch**: first team to the kill limit (default 25) or the most kills when the clock hits (default 10 minutes). Default fill is 9 bots + you.
+- **Free For All**: everyone against everyone. First to the kill limit (default 20) or the top player when the clock hits. You respawn at the spawn point farthest from everyone else. All other players have enemy name tags (only visible in line of sight); the scoreboard and the line under the clock show your place.
 
 ## Settings
 

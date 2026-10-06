@@ -22,7 +22,7 @@ signal local_name_changed(n: String)
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4 # world | players | leftover dummy layer
 const WIN_KILLS := 25
-const TEAM_SIZE := 5
+const TEAM_SIZE := 5 # shipped 5v5 size; live fill uses bot_count (default 9 bots + you)
 const TEAM_A := 0
 const TEAM_B := 1
 const TEAM_NAMES := ["BLUE", "ORANGE"]
@@ -32,6 +32,12 @@ const MODE_FFA := 1
 const MODE_IDS := ["tdm", "ffa"]
 const MODE_NAMES := ["Team Deathmatch", "Free For All"]
 const FFA_WIN_KILLS := 20
+const KILLS_MIN := 5
+const KILLS_MAX := 50
+const TIME_MIN_MINUTES := 1
+const TIME_MAX_MINUTES := 20
+const BOT_COUNT_DEFAULT := 9
+const BOT_COUNT_MAX := 16
 const MOUSE_SENS_MIN := 0.1
 const MOUSE_SENS_MAX := 4.0
 const ADS_SENS_MIN := 0.1
@@ -63,7 +69,7 @@ const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## when a new map id ships, and when map collision changes: each machine moves on its own mesh.
 ## Old clients get a clear "version mismatch" instead of a silent wrong map.
-const NET_VERSION := "0.2.21"
+const NET_VERSION := "0.2.22"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -109,6 +115,12 @@ var mouse_sens := 1.0 # multiplier on Player.MOUSE_SENS (settings)
 var ads_sens := 0.45 # extra multiplier while aiming down sights / scoped
 var last_map: StringName = Maps.DEFAULT # menu's last pick (settings.cfg [match])
 var last_mode := MODE_TDM
+var last_kills := WIN_KILLS
+var last_time_min := 10
+var last_bots := BOT_COUNT_DEFAULT
+var kill_limit := WIN_KILLS # this match: TDM team total, FFA personal
+var round_time := ROUND_TIME # this match, seconds
+var bot_count := BOT_COUNT_DEFAULT # this match: how many bot pawns to keep
 ## main.gd: Callable(Player) -> Transform3D. Every respawn asks it (FFA: spot farthest from enemies).
 var spawn_picker: Callable
 ## main.gd: Callable(map_id, mode) -> void. Clients load the server's map before their pawn spawns.
@@ -204,7 +216,11 @@ static func parse_mode(raw: String) -> int:
 
 
 func win_kills() -> int:
-	return FFA_WIN_KILLS if is_ffa() else WIN_KILLS
+	return kill_limit
+
+
+func default_kills_for(m: int = -1) -> int:
+	return FFA_WIN_KILLS if (mode if m < 0 else m) == MODE_FFA else WIN_KILLS
 
 
 ## Hostility for damage, bots, tags, and colours. FFA: everyone but yourself.
@@ -223,17 +239,21 @@ func is_enemy_ids(team_a: int, team_b: int, peer_a: int = 0, peer_b: int = 1) ->
 	return team_a != team_b
 
 
-## Server → one client (join) or everyone: which map and mode this server runs.
+## Server → one client (join) or everyone: which map, mode, kill limit and round length this server runs.
 @rpc("authority", "reliable")
-func sync_match_config(new_map: String, new_mode: int) -> void:
+func sync_match_config(new_map: String, new_mode: int, kills: int = 0, time_sec: float = 0.0) -> void:
 	if multiplayer.is_server():
 		return
-	set_match_config(StringName(new_map), new_mode)
+	set_match_config(StringName(new_map), new_mode, kills, time_sec)
 
 
-func set_match_config(new_map: StringName, new_mode: int) -> void:
+func set_match_config(new_map: StringName, new_mode: int, kills: int = -1, time_sec: float = -1.0, bots: int = -1) -> void:
 	map_id = new_map if Maps.has(new_map) else Maps.DEFAULT
 	mode = clampi(new_mode, MODE_TDM, MODE_FFA)
+	kill_limit = clampi(kills if kills >= KILLS_MIN else last_kills, KILLS_MIN, KILLS_MAX)
+	round_time = time_sec if time_sec >= 60.0 else float(last_time_min * 60)
+	round_time = clampf(round_time, float(TIME_MIN_MINUTES * 60), float(TIME_MAX_MINUTES * 60))
+	bot_count = clampi(bots if bots >= 0 else last_bots, 0, BOT_COUNT_MAX)
 	if match_config_handler.is_valid():
 		match_config_handler.call(map_id, mode)
 
@@ -1507,7 +1527,7 @@ func sync_round_end(winner_peer_id: int, winner_name: String, round_scores: Dict
 
 @rpc("authority", "reliable")
 func sync_round_time(time_left: float) -> void:
-	_round_timer = ROUND_TIME - time_left
+	_round_timer = round_time - time_left
 	_round_active = time_left > 0.0
 
 
@@ -1527,15 +1547,15 @@ func sync_all_scores(scores_data: Array) -> void:
 func _check_win_team(team_id: int) -> void:
 	if not _round_active:
 		return
-	if get_team_kills(team_id) >= WIN_KILLS:
+	if get_team_kills(team_id) >= win_kills():
 		_end_round_team(team_id)
 
 
-## FFA: first player to FFA_WIN_KILLS wins the round.
+## FFA: first player to kill_limit wins the round.
 func _check_win_player(peer_id: int) -> void:
 	if not _round_active or not scores.has(peer_id):
 		return
-	if int(scores[peer_id].kills) >= FFA_WIN_KILLS:
+	if int(scores[peer_id].kills) >= win_kills():
 		_end_round_player(peer_id)
 
 
@@ -1648,14 +1668,14 @@ func end_freeze() -> void:
 	_round_timer = 0.0
 	set_round_frozen(false)
 	if is_networked() and multiplayer.is_server():
-		sync_round_time.rpc(ROUND_TIME)
+		sync_round_time.rpc(round_time)
 
 
 ## Late joiner: scores, team totals, freeze, and clock, so the HUD is right from the first frame.
 func send_match_state(peer_id: int) -> void:
 	if not is_networked() or not multiplayer.is_server():
 		return
-	sync_match_config.rpc_id(peer_id, String(map_id), mode)
+	sync_match_config.rpc_id(peer_id, String(map_id), mode, kill_limit, round_time)
 	var scores_arr := get_scores()
 	if scores_arr.size() > 0:
 		sync_all_scores.rpc_id(peer_id, scores_arr)
@@ -1725,7 +1745,7 @@ func update_round_timer(delta: float) -> bool:
 	if not _round_active:
 		return false
 	_round_timer += delta
-	if _round_timer >= ROUND_TIME:
+	if _round_timer >= round_time:
 		if is_ffa():
 			_end_round_player(top_player())
 		else:
@@ -1776,7 +1796,7 @@ func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
 
 
 func get_round_time_left() -> float:
-	return maxf(ROUND_TIME - _round_timer, 0.0)
+	return maxf(round_time - _round_timer, 0.0)
 
 
 ## Host already played local FX. Remote humans need a tracer/sfx on the listen-server too.
@@ -2069,6 +2089,12 @@ func load_settings() -> void:
 		var m := StringName(str(cfg.get_value("match", "map", String(Maps.DEFAULT))))
 		last_map = m if Maps.has(m) else Maps.DEFAULT
 		last_mode = clampi(int(cfg.get_value("match", "mode", MODE_TDM)), MODE_TDM, MODE_FFA)
+		last_kills = clampi(int(cfg.get_value("match", "kills", default_kills_for(last_mode))), KILLS_MIN, KILLS_MAX)
+		last_time_min = clampi(int(cfg.get_value("match", "time_min", 10)), TIME_MIN_MINUTES, TIME_MAX_MINUTES)
+		last_bots = clampi(int(cfg.get_value("match", "bots", BOT_COUNT_DEFAULT)), 0, BOT_COUNT_MAX)
+		kill_limit = last_kills
+		round_time = float(last_time_min * 60)
+		bot_count = last_bots
 		profile_name = clean_name(str(cfg.get_value("profile", "name", profile_name)))
 		player_name = profile_name
 		window_mode = clampi(int(cfg.get_value("video", "window_mode", WINDOW_WINDOWED)), WINDOW_WINDOWED, WINDOW_FULLSCREEN)
@@ -2102,6 +2128,9 @@ func save_settings() -> void:
 	cfg.set_value("input", "invert_y", invert_y)
 	cfg.set_value("match", "map", String(last_map))
 	cfg.set_value("match", "mode", last_mode)
+	cfg.set_value("match", "kills", last_kills)
+	cfg.set_value("match", "time_min", last_time_min)
+	cfg.set_value("match", "bots", last_bots)
 	cfg.set_value("profile", "name", profile_name)
 	cfg.set_value("video", "window_mode", window_mode)
 	cfg.set_value("video", "width", window_size.x)
@@ -2180,9 +2209,15 @@ func set_invert_y(on: bool) -> void:
 
 
 ## Menu choice for solo/host, remembered for next time.
-func remember_match_choice(m: StringName, md: int) -> void:
+func remember_match_choice(m: StringName, md: int, kills: int = -1, time_min: int = -1, bots: int = -1) -> void:
 	last_map = m
 	last_mode = md
+	if kills >= 0:
+		last_kills = clampi(kills, KILLS_MIN, KILLS_MAX)
+	if time_min >= 0:
+		last_time_min = clampi(time_min, TIME_MIN_MINUTES, TIME_MAX_MINUTES)
+	if bots >= 0:
+		last_bots = clampi(bots, 0, BOT_COUNT_MAX)
 	save_settings()
 
 

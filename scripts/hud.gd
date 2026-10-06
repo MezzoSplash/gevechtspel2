@@ -993,7 +993,7 @@ func _refresh_standing() -> void:
 		_standing.text = "FREE FOR ALL"
 		return
 	var lead := "  ·  leader %d" % best if place > 1 else ("  ·  leading" if mine > 0 else "")
-	_standing.text = "%s  ·  %d / %d kills%s" % [_ordinal(place), mine, Game.FFA_WIN_KILLS, lead]
+	_standing.text = "%s  ·  %d / %d kills%s" % [_ordinal(place), mine, Game.win_kills(), lead]
 	_standing.add_theme_color_override(
 		"font_color", Player.SELF_COLOR if place == 1 and mine > 0 else Color(0.92, 0.93, 0.95)
 	)
@@ -1021,9 +1021,11 @@ func _refresh_scoreboard() -> void:
 
 	var ffa := Game.is_ffa()
 	var totals := Label.new()
-	totals.text = "BLUE %d    ORANGE %d" % [Game.get_team_kills(Game.TEAM_A), Game.get_team_kills(Game.TEAM_B)]
+	totals.text = "BLUE %d    ORANGE %d  ·  first to %d" % [
+		Game.get_team_kills(Game.TEAM_A), Game.get_team_kills(Game.TEAM_B), Game.win_kills()
+	]
 	if ffa:
-		totals.text = "FREE FOR ALL  ·  first to %d" % Game.FFA_WIN_KILLS
+		totals.text = "FREE FOR ALL  ·  first to %d" % Game.win_kills()
 	totals.add_theme_font_size_override("font_size", 22)
 	totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	scoreboard_container.add_child(totals)

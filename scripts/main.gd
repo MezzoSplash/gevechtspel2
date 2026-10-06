@@ -43,6 +43,15 @@ func _ready() -> void:
 	# Menu backdrop: the map you played last (or the one the server CLI asks for).
 	Game.map_id = args.map if args.map != &"" else Game.last_map
 	Game.mode = int(args.mode) if int(args.mode) >= 0 else Game.last_mode
+	if int(args.kills) >= 0:
+		Game.last_kills = clampi(int(args.kills), Game.KILLS_MIN, Game.KILLS_MAX)
+	if int(args.time_min) >= 0:
+		Game.last_time_min = clampi(int(args.time_min), Game.TIME_MIN_MINUTES, Game.TIME_MAX_MINUTES)
+	if int(args.bots) >= 0:
+		Game.last_bots = clampi(int(args.bots), 0, Game.BOT_COUNT_MAX)
+	Game.kill_limit = Game.last_kills
+	Game.round_time = float(Game.last_time_min * 60)
+	Game.bot_count = Game.last_bots
 	_load_map(Game.map_id, false)
 	if has_node("MenuCamera"):
 		$MenuCamera.current = true
@@ -210,7 +219,7 @@ func _bake_nav() -> void:
 
 
 func _parse_args() -> Dictionary:
-	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1}
+	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "time_min": -1, "bots": -1}
 	var args := OS.get_cmdline_user_args()
 	var i := 0
 	while i < args.size():
@@ -248,6 +257,18 @@ func _parse_args() -> Dictionary:
 					out.mode = Game.parse_mode(args[i])
 					if out.mode < 0:
 						printerr("Unknown --mode '%s'. Use tdm or ffa." % args[i])
+			"--kills":
+				i += 1
+				if i < args.size():
+					out.kills = int(args[i])
+			"--time":
+				i += 1
+				if i < args.size():
+					out.time_min = int(args[i])
+			"--bots":
+				i += 1
+				if i < args.size():
+					out.bots = int(args[i])
 		i += 1
 	return out
 
@@ -420,7 +441,10 @@ func _play_locally() -> void:
 	Game.is_dedicated = false
 	Game.player_name = Game.clean_name(menu.player_name())
 	Game.preferred_team = menu.selected_team()
-	Game.set_match_config(menu.selected_map(), menu.selected_mode())
+	Game.set_match_config(
+		menu.selected_map(), menu.selected_mode(),
+		menu.selected_kills(), float(menu.selected_time_min() * 60), menu.selected_bots()
+	)
 	_enter_play()
 	_match_state = MatchState.WARMUP
 	_state_timer = 0.0
@@ -431,6 +455,10 @@ func _play_locally() -> void:
 func _host_game() -> void:
 	Game.player_name = Game.clean_name(menu.player_name(), "Host")
 	Game.preferred_team = menu.selected_team()
+	Game.set_match_config(
+		menu.selected_map(), menu.selected_mode(),
+		menu.selected_kills(), float(menu.selected_time_min() * 60), menu.selected_bots()
+	)
 	_start_server(menu.host_port(), false, menu.selected_map(), menu.selected_mode())
 
 
@@ -447,7 +475,7 @@ func _start_server(port: int, dedicated: bool, map_id: StringName, mode: int) ->
 	multiplayer.multiplayer_peer = peer
 	Game.is_offline = false
 	Game.is_dedicated = dedicated
-	Game.set_match_config(map_id, mode)
+	Game.set_match_config(map_id, mode, Game.last_kills, float(Game.last_time_min * 60), Game.last_bots)
 	print("SERVER: Server started on port %d, dedicated=%s, %s on %s" % [
 		port, dedicated, Game.mode_name(), Maps.display_name(Game.map_id)
 	])
@@ -532,7 +560,7 @@ func _on_peer_connected(id: int) -> void:
 	if id == 1:
 		return
 	# Map + mode first, so the client loads the right arena before its pawn and the bots arrive.
-	Game.sync_match_config.rpc_id(id, String(Game.map_id), Game.mode)
+	Game.sync_match_config.rpc_id(id, String(Game.map_id), Game.mode, Game.kill_limit, Game.round_time)
 	if Game.in_lobby:
 		return
 	call_deferred("_finish_peer_join", id)
@@ -646,7 +674,6 @@ func _on_peer_disconnected(id: int) -> void:
 		team = int(Game.scores[id].get("team", 0))
 	Game.announce_presence(leave_name, false, team)
 	Game.clear_peer_hp(id)
-	_spawn_bot(team)
 	# Bots are not in the spawner's replication (Sync visibility off): send the new roster.
 	broadcast_pawns.call_deferred()
 
@@ -671,7 +698,7 @@ func _spawn_player(peer_id: int, team: int = -1) -> void:
 	_add_pawn({"id": peer_id, "pos": pos, "yaw": Maps.spawn_yaw(pos, team, Game.is_ffa()), "n": n, "bot": false, "team": team})
 
 
-## Spawn the human, then trim extra bots so each team stays at TEAM_SIZE.
+## Spawn the human, then trim extra bots so the match stays at bot_count.
 func _finish_peer_join(id: int) -> void:
 	if not multiplayer.is_server():
 		return
@@ -883,6 +910,21 @@ func _smaller_team() -> int:
 	return Game.TEAM_B
 
 
+func _larger_team() -> int:
+	if _team_count(Game.TEAM_A) >= _team_count(Game.TEAM_B):
+		return Game.TEAM_A
+	return Game.TEAM_B
+
+
+func _bot_pawn_count() -> int:
+	var n := 0
+	for child in players_root.get_children():
+		var p := child as Player
+		if p and p.is_bot and not p.is_queued_for_deletion():
+			n += 1
+	return n
+
+
 ## loadout = abs(id) % 6 → armory index: rifle / pistol / shotgun / sniper / smg / revolver.
 func _spawn_bot(team: int) -> void:
 	if Game.is_networked() and not multiplayer.is_server():
@@ -904,9 +946,8 @@ func _spawn_bot(team: int) -> void:
 func _fill_bots() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
-	for team in [Game.TEAM_A, Game.TEAM_B]:
-		while _team_count(team) < Game.TEAM_SIZE:
-			_spawn_bot(team)
+	while _bot_pawn_count() < Game.bot_count:
+		_spawn_bot(_smaller_team())
 
 
 func _first_bot_on(team: int) -> Player:
@@ -917,18 +958,21 @@ func _first_bot_on(team: int) -> Player:
 	return null
 
 
-## Drop bots until each team is at most TEAM_SIZE (after a human joins).
+## Drop extra bots after a human joins so the match stays at bot_count bots.
 func _trim_bots() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
-	for team in [Game.TEAM_A, Game.TEAM_B]:
-		while _team_count(team) > Game.TEAM_SIZE:
-			var bot := _first_bot_on(team)
-			if bot == null:
-				break
-			Game.net_hp.erase(bot.peer_id)
-			Game.drop_score(bot.peer_id)
-			bot.queue_free()
+	while _bot_pawn_count() > Game.bot_count:
+		var bot := _first_bot_on(_larger_team())
+		if bot == null:
+			bot = _first_bot_on(Game.TEAM_A)
+		if bot == null:
+			bot = _first_bot_on(Game.TEAM_B)
+		if bot == null:
+			break
+		Game.net_hp.erase(bot.peer_id)
+		Game.drop_score(bot.peer_id)
+		bot.queue_free()
 
 
 func _on_local_player_ready(player: Player) -> void:

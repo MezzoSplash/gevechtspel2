@@ -23,8 +23,12 @@ var _applying_name := false
 var class_editor: ClassEditor
 var _map_opts: Array[OptionButton] = [] # Solo + Mp (host) pickers, kept in sync
 var _mode_opts: Array[OptionButton] = []
+var _kill_boxes: Array[SpinBox] = []
+var _time_boxes: Array[SpinBox] = []
+var _bot_boxes: Array[SpinBox] = []
 var _map_blurbs: Array[Label] = []
 var _lobby_info: Label
+var _filling_match := false
 
 
 func _ready() -> void:
@@ -54,8 +58,10 @@ func _ready() -> void:
 	$Center/Settings/BackButton.pressed.connect(func() -> void: show_screen("home"))
 	$Center/Solo/TeamRow/BlueButton.pressed.connect(func() -> void: set_team(0))
 	$Center/Solo/TeamRow/OrangeButton.pressed.connect(func() -> void: set_team(1))
+	_filling_match = true
 	_build_match_rows($Center/Solo, $Center/Solo/TeamRow.get_index())
 	_build_match_rows($Center/Mp, $Center/Mp/HostButton.get_index())
+	_filling_match = false
 	_lobby_info = Label.new()
 	_lobby_info.name = "MatchInfo"
 	_lobby_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -83,72 +89,136 @@ func _ready() -> void:
 	show_screen("home")
 
 
-## Map + mode pickers (singleplayer, and host settings under Multiplayer). Built here so both
-## screens share one list (Maps.ORDER) and stay in sync.
+## Map, mode, kills, time and bots (singleplayer, and host settings under Multiplayer).
+## Built here so both screens share one list (Maps.ORDER) and stay in sync.
 func _build_match_rows(screen: VBoxContainer, at: int) -> void:
-	var map_row := HBoxContainer.new()
-	map_row.name = "MapRow"
-	var map_l := Label.new()
-	map_l.text = "Map"
-	map_l.custom_minimum_size = Vector2(70, 0)
-	map_row.add_child(map_l)
 	var map_opt := OptionButton.new()
 	map_opt.name = "MapOption"
 	map_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for id in Maps.ORDER:
 		map_opt.add_item(Maps.display_name(id))
-	map_row.add_child(map_opt)
-	var mode_row := HBoxContainer.new()
-	mode_row.name = "ModeRow"
-	var mode_l := Label.new()
-	mode_l.text = "Mode"
-	mode_l.custom_minimum_size = Vector2(70, 0)
-	mode_row.add_child(mode_l)
 	var mode_opt := OptionButton.new()
 	mode_opt.name = "ModeOption"
 	mode_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for m in Game.MODE_NAMES.size():
 		mode_opt.add_item(Game.mode_name(m))
-	mode_row.add_child(mode_opt)
+	var kill_box := _make_spin(Game.KILLS_MIN, Game.KILLS_MAX, 1, "")
+	var time_box := _make_spin(Game.TIME_MIN_MINUTES, Game.TIME_MAX_MINUTES, 1, "min")
+	var bot_box := _make_spin(0, Game.BOT_COUNT_MAX, 1, "")
 	var blurb := Label.new()
 	blurb.name = "MapBlurb"
 	blurb.add_theme_font_size_override("font_size", 14)
 	blurb.add_theme_color_override("font_color", Color(0.72, 0.76, 0.82))
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	screen.add_child(map_row)
-	screen.move_child(map_row, at)
-	screen.add_child(mode_row)
-	screen.move_child(mode_row, at + 1)
-	screen.add_child(blurb)
-	screen.move_child(blurb, at + 2)
+	var rows: Array = [
+		_labeled_row("MapRow", "Map", map_opt),
+		_labeled_row("ModeRow", "Mode", mode_opt),
+		_labeled_row("KillsRow", "Kills", kill_box),
+		_labeled_row("TimeRow", "Time", time_box),
+		_labeled_row("BotsRow", "Bots", bot_box),
+		blurb,
+	]
+	for i in rows.size():
+		screen.add_child(rows[i])
+		screen.move_child(rows[i], at + i)
 	_map_opts.append(map_opt)
 	_mode_opts.append(mode_opt)
+	_kill_boxes.append(kill_box)
+	_time_boxes.append(time_box)
+	_bot_boxes.append(bot_box)
 	_map_blurbs.append(blurb)
-	map_opt.item_selected.connect(func(_i: int) -> void: _on_choice_changed(map_opt, mode_opt))
-	mode_opt.item_selected.connect(func(_i: int) -> void: _on_choice_changed(map_opt, mode_opt))
+	map_opt.item_selected.connect(func(_i: int) -> void: _on_choice_changed())
+	mode_opt.item_selected.connect(func(_i: int) -> void: _on_mode_changed())
+	kill_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_kill_boxes, v))
+	time_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_time_boxes, v))
+	bot_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_bot_boxes, v))
 
 
-func _on_choice_changed(map_opt: OptionButton, mode_opt: OptionButton) -> void:
-	var m: StringName = Maps.ORDER[clampi(map_opt.selected, 0, Maps.ORDER.size() - 1)]
-	set_match_choice(m, mode_opt.selected)
-	Game.remember_match_choice(selected_map(), selected_mode())
+func _labeled_row(row_name: String, label_text: String, field: Control) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = row_name
+	row.add_theme_constant_override("separation", 10)
+	var l := Label.new()
+	l.text = label_text
+	l.custom_minimum_size = Vector2(70, 0)
+	row.add_child(l)
+	row.add_child(field)
+	return row
+
+
+func _make_spin(lo: float, hi: float, step: float, suffix: String) -> SpinBox:
+	var box := SpinBox.new()
+	box.min_value = lo
+	box.max_value = hi
+	box.step = step
+	box.rounded = true
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.select_all_on_focus = true
+	if suffix != "":
+		box.suffix = suffix
+	return box
+
+
+func _on_mode_changed() -> void:
+	if _filling_match:
+		return
+	var mo := selected_mode()
+	var old := Game.last_mode
+	if mo != old and selected_kills() == Game.default_kills_for(old):
+		_on_spin_changed(_kill_boxes, Game.default_kills_for(mo))
+		return
+	_on_choice_changed()
+
+
+func _on_spin_changed(boxes: Array[SpinBox], v: float) -> void:
+	if _filling_match:
+		return
+	_filling_match = true
+	for b in boxes:
+		b.set_value_no_signal(v)
+	_filling_match = false
+	_on_choice_changed()
+
+
+func _on_choice_changed() -> void:
+	if _filling_match:
+		return
+	Game.remember_match_choice(selected_map(), selected_mode(), selected_kills(), selected_time_min(), selected_bots())
+	set_match_choice(selected_map(), selected_mode())
 	match_choice_changed.emit(selected_map(), selected_mode())
 
 
 func set_match_choice(map_id: StringName, mode: int) -> void:
 	var mi := maxi(Maps.ORDER.find(map_id), 0)
 	var mo := clampi(mode, Game.MODE_TDM, Game.MODE_FFA)
+	_filling_match = true
 	for o in _map_opts:
 		o.select(mi)
 	for o in _mode_opts:
 		o.select(mo)
-	var info := Maps.info(Maps.ORDER[mi])
-	var rule := "first to %d kills" % (Game.FFA_WIN_KILLS if mo == Game.MODE_FFA else Game.WIN_KILLS)
-	for b in _map_blurbs:
-		b.text = "%s\n%s · %s or %d min" % [info.blurb, Game.mode_name(mo), rule, int(Game.ROUND_TIME / 60.0)]
-	# Solo team pick means nothing in FFA.
+	for b in _kill_boxes:
+		b.set_value_no_signal(Game.last_kills)
+	for b in _time_boxes:
+		b.set_value_no_signal(Game.last_time_min)
+	for b in _bot_boxes:
+		b.set_value_no_signal(Game.last_bots)
+	_filling_match = false
+	_refresh_match_blurb(mi, mo)
 	$Center/Solo/TeamRow.visible = mo != Game.MODE_FFA
+
+
+func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
+	if mi < 0:
+		mi = maxi(Maps.ORDER.find(selected_map()), 0)
+	if mo < 0:
+		mo = selected_mode()
+	var info := Maps.info(Maps.ORDER[mi])
+	var rule := "first to %d kills" % selected_kills()
+	for b in _map_blurbs:
+		b.text = "%s\n%s · %s or %d min · %d bots" % [
+			info.blurb, Game.mode_name(mo), rule, selected_time_min(), selected_bots()
+		]
 
 
 func selected_map() -> StringName:
@@ -163,10 +233,30 @@ func selected_mode() -> int:
 	return clampi(_mode_opts[0].selected, Game.MODE_TDM, Game.MODE_FFA)
 
 
+func selected_kills() -> int:
+	if _kill_boxes.is_empty():
+		return Game.last_kills
+	return clampi(int(_kill_boxes[0].value), Game.KILLS_MIN, Game.KILLS_MAX)
+
+
+func selected_time_min() -> int:
+	if _time_boxes.is_empty():
+		return Game.last_time_min
+	return clampi(int(_time_boxes[0].value), Game.TIME_MIN_MINUTES, Game.TIME_MAX_MINUTES)
+
+
+func selected_bots() -> int:
+	if _bot_boxes.is_empty():
+		return Game.last_bots
+	return clampi(int(_bot_boxes[0].value), 0, Game.BOT_COUNT_MAX)
+
+
 ## Lobby header: what the server runs. FFA: one player list, no team buttons.
 func set_lobby_match_info(map_id: StringName, mode: int) -> void:
 	if _lobby_info:
-		_lobby_info.text = "%s  ·  %s" % [Maps.display_name(map_id), Game.mode_name(mode)]
+		_lobby_info.text = "%s  ·  %s  ·  first to %d  ·  %d min" % [
+			Maps.display_name(map_id), Game.mode_name(mode), Game.win_kills(), int(Game.round_time / 60.0)
+		]
 	var ffa := mode == Game.MODE_FFA
 	$Center/Lobby/TeamRow.visible = not ffa
 	$Center/Lobby/Teams/OrangeCol.visible = not ffa
