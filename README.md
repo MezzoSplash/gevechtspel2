@@ -2,7 +2,7 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
-**v0.2.22** — Solo and host pick the kill limit, round length and bot count next to map and mode. **Not compatible with 0.2.21 or older** (NET_VERSION 0.2.22): everyone must update, including the dedicated server.
+**v0.2.22** — Solo and host pick the kill limit, round length and bot count next to map and mode. Esc → Settings no longer crashes mid-match. SMG damage is 10 and falls off from 12 m; the rifle is 34 damage at 390 rpm with a headshot kill out to about 27 m; the revolver needs two headshots; the shotgun is 32 × 12 pellets; the sniper draws no crosshair until you zoom. **Not compatible with 0.2.21 or older** (NET_VERSION 0.2.22): everyone must update, including the dedicated server.
 
 **v0.2.21** — Earned killstreaks stay until you use them. Radar unlocks at 3 kills in one life; RC-XD at 5 (drive the car from its own camera and detonate it). Bots commit to one strafe and flank instead of shimmying; SMG bots burst shorter. Settings save the window, resolution, VSync, FPS cap, FOV, render scale, antialiasing, invert Y and an FPS counter.
 
