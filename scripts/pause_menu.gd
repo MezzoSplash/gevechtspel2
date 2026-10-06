@@ -6,8 +6,8 @@ signal leave_pressed
 signal change_class_pressed
 
 @onready var buttons: VBoxContainer = $Center/Buttons
-@onready var settings_wrap: VBoxContainer = $Center/SettingsWrap
-@onready var settings_panel = $Center/SettingsWrap/SettingsPanel
+@onready var settings_wrap: VBoxContainer = $SettingsWrap
+@onready var settings_panel = $SettingsWrap/SettingsPanel
 
 
 func _ready() -> void:
@@ -18,7 +18,7 @@ func _ready() -> void:
 	$Center/Buttons/SettingsButton.pressed.connect(_show_settings)
 	$Center/Buttons/LeaveButton.pressed.connect(func() -> void: leave_pressed.emit())
 	$Center/Buttons/QuitButton.pressed.connect(func() -> void: get_tree().quit())
-	$Center/SettingsWrap/BackButton.pressed.connect(_show_buttons)
+	$SettingsWrap/BackButton.pressed.connect(_show_buttons)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -67,5 +67,6 @@ func _show_buttons() -> void:
 func _show_settings() -> void:
 	buttons.visible = false
 	settings_wrap.visible = true
+	# Next frame: OptionButton.clear during the show/layout pass SIGSEGVs Godot 4.7.
 	if settings_panel and settings_panel.has_method("refresh"):
-		settings_panel.refresh()
+		settings_panel.refresh.call_deferred()

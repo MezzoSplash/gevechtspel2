@@ -70,16 +70,24 @@ custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Quit"
 
-[node name="SettingsWrap" type="VBoxContainer" parent="Center"]
+[node name="SettingsWrap" type="VBoxContainer" parent="."]
 visible = false
-custom_minimum_size = Vector2(520, 0)
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_right = 260.0
+grow_horizontal = 2
+grow_vertical = 2
 theme_override_constants/separation = 14
 
-[node name="SettingsPanel" parent="Center/SettingsWrap" instance=ExtResource("2")]
+[node name="SettingsPanel" parent="SettingsWrap" instance=ExtResource("2")]
 layout_mode = 2
 
-[node name="BackButton" type="Button" parent="Center/SettingsWrap"]
+[node name="BackButton" type="Button" parent="SettingsWrap"]
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 text = "Back"

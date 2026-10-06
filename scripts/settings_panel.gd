@@ -47,6 +47,13 @@ func _ready() -> void:
 		Game.local_name_changed.connect(_on_saved_name)
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_EXIT_TREE:
+		var vp := get_viewport()
+		if vp and vp.size_changed.is_connected(_fit_height):
+			vp.size_changed.disconnect(_fit_height)
+
+
 ## Tall enough to scroll on a 720p window, short enough that Back stays on screen.
 func _fit_height() -> void:
 	if not is_inside_tree():
@@ -56,7 +63,9 @@ func _fit_height() -> void:
 	if want < 40.0:
 		want = 480.0
 	var avail := get_viewport().get_visible_rect().size.y - 150.0
-	custom_minimum_size.y = minf(want, maxf(avail, 280.0))
+	var h := minf(want, maxf(avail, 280.0))
+	custom_minimum_size.y = h
+	custom_maximum_size = Vector2(520.0, h)
 
 
 func refresh() -> void:
@@ -65,7 +74,7 @@ func refresh() -> void:
 	_filling = true
 	if not _name_edit.has_focus():
 		_name_edit.text = Game.player_name
-	_window_opt.select(clampi(Game.window_mode, 0, 2))
+	_select_quiet(_window_opt, clampi(Game.window_mode, 0, 2))
 	_fill_resolutions()
 	_vsync.set_pressed_no_signal(Game.vsync)
 	_fps.set_value_no_signal(Game.max_fps)
@@ -74,7 +83,7 @@ func refresh() -> void:
 	_fov_val.text = "%d" % roundi(Game.fov)
 	_scale.set_value_no_signal(Game.render_scale * 100.0)
 	_scale_val.text = "%d%%" % roundi(Game.render_scale * 100.0)
-	_msaa.select(clampi(Game.msaa, 0, 3))
+	_select_quiet(_msaa, clampi(Game.msaa, 0, 3))
 	_set_pair(_sens, Game.mouse_sens)
 	_set_pair(_ads, Game.ads_sens)
 	_invert.set_pressed_no_signal(Game.invert_y)
@@ -240,22 +249,43 @@ func _on_show_fps(on: bool) -> void:
 
 
 func _fill_resolutions() -> void:
-	_res_sizes.clear()
+	var choices: Array[Vector2i] = []
 	for choice in Game.resolution_choices():
-		_res_sizes.append(choice as Vector2i)
-	_res_opt.clear()
+		choices.append(choice as Vector2i)
+	if not _same_sizes(choices, _res_sizes):
+		_res_sizes = choices
+		_res_opt.set_block_signals(true)
+		_res_opt.clear()
+		for s in _res_sizes:
+			_res_opt.add_item("%d×%d" % [s.x, s.y])
+		_res_opt.set_block_signals(false)
 	var pick := 0
 	var best_d := 1 << 30
 	for i in _res_sizes.size():
 		var s := _res_sizes[i]
-		_res_opt.add_item("%d×%d" % [s.x, s.y])
 		var d := absi(s.x - Game.window_size.x) + absi(s.y - Game.window_size.y)
 		if d < best_d:
 			best_d = d
 			pick = i
-	if _res_opt.item_count > 0:
-		_res_opt.select(pick)
+	_select_quiet(_res_opt, pick)
 	_res_opt.disabled = Game.window_mode == Game.WINDOW_BORDERLESS
+
+
+func _same_sizes(a: Array[Vector2i], b: Array[Vector2i]) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		if a[i] != b[i]:
+			return false
+	return true
+
+
+func _select_quiet(opt: OptionButton, index: int) -> void:
+	if opt == null or opt.item_count <= 0:
+		return
+	opt.set_block_signals(true)
+	opt.select(clampi(index, 0, opt.item_count - 1))
+	opt.set_block_signals(false)
 
 
 func _refresh_audio_labels() -> void:
@@ -299,6 +329,8 @@ func _hint(body: Node, text: String) -> void:
 	hint.text = text
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.custom_minimum_size = Vector2(500, 0)
+	hint.custom_maximum_size = Vector2(500, -1) # width cap only; -1 = no max on that axis
+	hint.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	hint.add_theme_font_size_override("font_size", 13)
 	hint.add_theme_color_override("font_color", _HINT)
 	body.add_child(hint)

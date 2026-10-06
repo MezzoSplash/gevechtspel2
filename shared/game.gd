@@ -2316,8 +2316,11 @@ func apply_display() -> void:
 func _apply_vsync_and_fps() -> void:
 	if display_headless():
 		return
-	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
-	Engine.max_fps = max_fps
+	var want_vsync := DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED
+	if DisplayServer.window_get_vsync_mode() != want_vsync:
+		DisplayServer.window_set_vsync_mode(want_vsync)
+	if Engine.max_fps != max_fps:
+		Engine.max_fps = max_fps
 
 
 func _apply_window() -> void:
@@ -2326,22 +2329,30 @@ func _apply_window() -> void:
 	var fit := _clamp_window_size(window_size, screen)
 	if fit != window_size:
 		window_size = fit
+	var mode_now := DisplayServer.window_get_mode()
 	if window_mode == WINDOW_BORDERLESS:
 		# Borderless follows the monitor. The stored size is for windowed / exclusive only.
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		if mode_now != DisplayServer.WINDOW_MODE_FULLSCREEN:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 		return
 	if window_mode == WINDOW_FULLSCREEN:
+		if mode_now == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN and DisplayServer.window_get_size() == window_size:
+			return
 		# Leave exclusive before changing size, or the mode switch keeps the old resolution.
-		if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		if mode_now != DisplayServer.WINDOW_MODE_WINDOWED:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 		DisplayServer.window_set_size(window_size)
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 		return
-	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-	DisplayServer.window_set_size(window_size)
-	var origin := DisplayServer.screen_get_position(screen_id)
-	DisplayServer.window_set_position(origin + (screen - window_size) / 2)
+	var size_now := DisplayServer.window_get_size()
+	if mode_now != DisplayServer.WINDOW_MODE_WINDOWED:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	if DisplayServer.window_get_flag(DisplayServer.WINDOW_FLAG_BORDERLESS):
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+	if size_now != window_size:
+		DisplayServer.window_set_size(window_size)
+		var origin := DisplayServer.screen_get_position(screen_id)
+		DisplayServer.window_set_position(origin + (screen - window_size) / 2)
 
 
 func _clamp_window_size(size: Vector2i, screen: Vector2i) -> Vector2i:
@@ -2359,13 +2370,18 @@ func _clamp_window_size(size: Vector2i, screen: Vector2i) -> Vector2i:
 
 
 ## 3D render scale and MSAA on the root viewport. 2D (HUD, menus) stays at the window resolution.
+## Skip writes that already match: assigning msaa_3d on a live Vulkan viewport can SIGSEGV.
 func apply_render() -> void:
 	if not is_inside_tree() or display_headless():
 		return
 	var root := get_tree().root
-	root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
-	root.scaling_3d_scale = render_scale
-	root.msaa_3d = msaa as Viewport.MSAA
+	if root.scaling_3d_mode != Viewport.SCALING_3D_MODE_BILINEAR:
+		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	if not is_equal_approx(root.scaling_3d_scale, render_scale):
+		root.scaling_3d_scale = render_scale
+	var want_msaa := msaa as Viewport.MSAA
+	if root.msaa_3d != want_msaa:
+		root.msaa_3d = want_msaa
 
 
 func _snap_fps(v: int) -> int:

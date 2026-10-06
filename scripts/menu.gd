@@ -193,7 +193,7 @@ func show_screen(id: String) -> void:
 	elif id == "mp":
 		mp_name.text = solo_name.text
 	elif id == "settings" and settings_panel and settings_panel.has_method("refresh"):
-		settings_panel.refresh()
+		settings_panel.refresh.call_deferred()
 
 
 ## "v0.2.15" from project.godot application/config/version: the one place the release bump sets
