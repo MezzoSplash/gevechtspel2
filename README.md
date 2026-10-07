@@ -2,6 +2,8 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
+**v0.3.0** — New map Quay: a dry dock with downhill surfs, a curved corner into the dock, and a steel walk from the quay up to the roof so you can take that corner again. **Not compatible with 0.2.22 or older** (NET_VERSION 0.3.0): everyone must update, including the dedicated server. Release builds are Windows x86_64 and Linux x86_64 only.
+
 **v0.2.22** — Solo and host pick the kill limit, round length and bot count next to map and mode. Esc → Settings no longer crashes mid-match. SMG damage is 10 and falls off from 12 m; the rifle is 34 damage at 390 rpm with a headshot kill out to about 27 m; the revolver needs two headshots; the shotgun is 32 × 12 pellets; the sniper draws no crosshair until you zoom. **Not compatible with 0.2.21 or older** (NET_VERSION 0.2.22): everyone must update, including the dedicated server.
 
 **v0.2.21** — Earned killstreaks stay until you use them. Radar unlocks at 3 kills in one life; RC-XD at 5 (drive the car from its own camera and detonate it). Bots commit to one strafe and flank instead of shimmying; SMG bots burst shorter. Settings save the window, resolution, VSync, FPS cap, FOV, render scale, antialiasing, invert Y and an FPS counter.
@@ -41,7 +43,7 @@ Dedicated server (optional):
 ./run.sh -- --connect 127.0.0.1:7777 --name Friend
 ```
 
-`--map` takes `townhouses`, `foundry` or `rooftops` (or `1`/`2`/`3`), `--mode` takes `tdm` or `ffa`, `--kills` 5–50, `--time` minutes 1–20, `--bots` 0–16.
+`--map` takes `townhouses`, `foundry`, `rooftops` or `quay` (or `1`/`2`/`3`/`4`), `--mode` takes `tdm` or `ffa`, `--kills` 5–50, `--time` minutes 1–20, `--bots` 0–16.
 
 Bots: you pick how many (default 9, so one human is a 10-player match; 5v5 in Team Deathmatch when teams stay even). Same guns as you. Use cover. Health comes back after 4.5 seconds without damage. Die and you respawn after 2 seconds. Tab shows the scoreboard. When a round ends, everyone watches the final killcam: the last kill of the round through the killer's eyes, slowed down at the kill, before the scoreboard.
 
@@ -50,6 +52,7 @@ Bots: you pick how many (default 9, so one human is a 10-player match; 5v5 in Te
 - **Townhouses**: two rows of houses with upstairs rooms, a street with a bus, backyards and side flanks.
 - **Foundry**: a compact industrial yard. Roofed warehouse hall in the middle (skylight, big doors north and south, side doors east) with a 3 m mezzanine that looks out over the container yard. Walk ramps just west of the big doors reach the 7.3 m roof; a bridge crosses the skylight to the east half. Surf ramps run along the hall's west wall, one each side of the container. Container hill and stacks on the west side; an alley with offset gates, two sheds with three doors each, and a water-tank courtyard on the east side; loading docks behind both spawns. No spawn sees the other spawn, and the long alley is broken up so the sniper has lanes but no lane covers the whole map.
 - **Rooftops**: two blocks around a court, roofs at 6 m. Surf ramps run the long flanks onto a 4 m deck, then a walk-ramp up to the roof. A short surf triangle crosses the court. Walk off a parapet gap for the drop; stairs inside each block are the way up without surfing, and they stay clear of the side doors. The ground floor is one room with doors on four sides. The flank lanes are long, with crates beside them. Spawn yards sit behind a wall and two baffles.
+- **Quay**: a dry dock, about 90 × 120 m. The dock floor is at 0 m, the side quays at 4 m, and the loods roofs at 10 m. A surf along each outer wall runs from a roof down to a quay, through the middle of the map. A shorter surf on each quay wall drops into the dock, and a flat surf crosses the dock. On the east roof a balcony feeds a quarter-circle surf (14 m radius, short straight segments, with a straight run-in and run-out) that turns west into the dock, toward the middle of the map. The orange corner turns east into the dock. A steel walk at the north-east corner of each loods climbs from the quay to the roof, about 24°, so you can reach that corner again. Stairs inside each loods and a narrow street ramp up to the roof are the other ways up, with the foot on open floor. Bots take those, not the surf.
 
 ## Modes
 
@@ -104,7 +107,7 @@ Style points only, never extra damage. Besides NOSCOPE, 360 NOSCOPE, AIRSHOT, LO
 ./run.sh --editor
 ```
 
-Foundry is generated from `tools/gen_foundry.py`, Rooftops from `tools/gen_rooftops.py` (CSG boxes, collision on the `Arena` combiner). Edit the script and run it to rebuild the `.tscn`. Spawn points per map live in `scripts/maps.gd`.
+Foundry is generated from `tools/gen_foundry.py`, Rooftops from `tools/gen_rooftops.py`, Quay from `tools/gen_quay.py` (CSG boxes, collision on the `Arena` combiner). Edit the script and run it to rebuild the `.tscn`. Spawn points per map live in `scripts/maps.gd`.
 
 ## Credits
 

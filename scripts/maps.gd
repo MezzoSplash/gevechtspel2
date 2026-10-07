@@ -5,7 +5,7 @@ extends RefCounted
 ## Blue (team 0) spawns at +Z and faces -Z; Orange at -Z faces +Z. FFA spawns face the map centre.
 
 const DEFAULT := &"townhouses"
-const ORDER: Array[StringName] = [&"townhouses", &"foundry", &"rooftops"]
+const ORDER: Array[StringName] = [&"townhouses", &"foundry", &"rooftops", &"quay"]
 
 const INFO := {
 	&"townhouses": {
@@ -61,6 +61,25 @@ const INFO := {
 			Vector3(-1.2, 6.0, 22.0), Vector3(1.4, 6.0, -22.4),
 			# Was (8.8, 16.8), which the east stair now covers. Floor of the south room, clear of both stairs.
 			Vector3(3.2, 0, 17.8), Vector3(-2.5, 0, -16.2),
+		],
+	},
+	&"quay": {
+		"name": "Quay",
+		"blurb": "Dry dock with a high quay, downhill surfs, and a curved corner.",
+		"scene": "res://scenes/maps/quay.tscn",
+		"menu_cam": [Vector3(48, 42, 86), Vector3(0, 4, 0)],
+		# Yards behind the spawn wall (z ≈ 55). Not on a stair slot, a surf toe, or a lip.
+		"team_spawns": [
+			[Vector3(-33, 0, 57.6), Vector3(-12, 0, 58.4), Vector3(0, 0, 56.6), Vector3(12, 0, 58.2), Vector3(33, 0, 57.4)],
+			[Vector3(33, 0, -57.6), Vector3(12, 0, -58.4), Vector3(0, 0, -56.6), Vector3(-12, 0, -58.2), Vector3(-33, 0, -57.4)],
+		],
+		"ffa_spawns": [
+			Vector3(-33, 0, 57.6), Vector3(0, 0, 56.6), Vector3(33, 0, 57.4),
+			Vector3(33, 0, -57.6), Vector3(0, 0, -56.6), Vector3(-33, 0, -57.4),
+			Vector3(-26, 4, 0), Vector3(26, 4, 0),
+			Vector3(0, 0, 10), Vector3(0, 0, -12),
+			Vector3(-24, 10, 38), Vector3(24, 10, -38),
+			Vector3(24, 10, 26), Vector3(-8, 0, 6),
 		],
 	},
 }

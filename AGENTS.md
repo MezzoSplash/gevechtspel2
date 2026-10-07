@@ -1,6 +1,6 @@
 # Gevechtspel
 
-Feel-first 5v5 arena FPS. Art is later. If a change does not make shooting or moving more satisfying, it is out of scope.
+Feel-first 5v5 arena FPS. If a change does not make shooting or moving more satisfying, it is out of scope. When making maps, props or weapons, follow [docs/art/index.html](docs/art/index.html).
 
 ## Stack
 

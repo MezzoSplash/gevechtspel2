@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gevechtspel — art direction</title>
+<style>
+  :root {
+    --ink: #1b1d20;
+    --muted: #3a4048;
+    --paper: #e8e3d8;
+    --card: #f6f3ec;
+    --line: #d3cdc0;
+    --blue: #408CF2;
+    --orange: #EB6138;
+    --red: #DB3D52;
+    --gold: #FFD14C;
+    --sans: "Liberation Sans", "DejaVu Sans", "Segoe UI", sans-serif;
+    --serif: "Liberation Serif", "DejaVu Serif", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.5;
+  }
+  a { color: inherit; }
+  .layout {
+    display: grid;
+    grid-template-columns: 196px minmax(0, 1fr);
+    max-width: 1180px;
+    margin: 0 auto;
+    gap: 28px;
+    padding: 28px 22px 80px;
+  }
+  nav {
+    position: sticky;
+    top: 18px;
+    align-self: start;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  nav .mark {
+    font-size: 14px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin: 0 0 12px;
+  }
+  nav a {
+    display: block;
+    text-decoration: none;
+    color: var(--muted);
+    padding: 4px 0;
+  }
+  nav a:hover { color: var(--ink); }
+  header.top h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 42px;
+    line-height: 1.05;
+    margin: 0 0 8px;
+  }
+  .kicker {
+    letter-spacing: 0.01em;
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 18px;
+  }
+  .lede {
+    font-family: var(--serif);
+    font-size: 23px;
+    line-height: 1.35;
+    margin: 0 0 18px;
+    max-width: 38em;
+  }
+  p { margin: 0 0 12px; max-width: 42em; }
+  h2 {
+    font-size: 26px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    margin: 42px 0 12px;
+    scroll-margin-top: 16px;
+  }
+  h3 { font-size: 18px; margin: 22px 0 8px; }
+  section { padding-bottom: 8px; }
+  .rules {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 18px 0 8px;
+  }
+  .rule {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 12px 14px 13px;
+  }
+  .rule b {
+    display: block;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .rule span { display: block; font-size: 15px; line-height: 1.4; }
+  figure { margin: 14px 0 22px; }
+  figure img { width: 100%; display: block; background: #cfc8ba; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; max-width: 48em; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+    margin: 8px 0 16px;
+    background: var(--card);
+  }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+  code, .id { font-family: "DejaVu Sans Mono", ui-monospace, monospace; font-size: 1em; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; margin: 8px 0 16px; }
+  .swatch { background: var(--card); border: 1px solid var(--line); }
+  .swatch i { display: block; height: 52px; }
+  .swatch div { padding: 6px 8px 8px; }
+  .swatch strong { display: block; font-size: 14px; }
+  .swatch em { display: block; font-style: normal; color: var(--muted); font-size: 14px; }
+  .note {
+    background: var(--card);
+    border-left: 3px solid var(--ink);
+    padding: 10px 14px;
+    margin: 12px 0 16px;
+    max-width: 46em;
+  }
+  .note p:last-child { margin-bottom: 0; }
+  ul { margin: 6px 0 14px; padding-left: 1.15em; max-width: 44em; }
+  li { margin: 4px 0; }
+  .silhouettes {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 10px 0 16px;
+  }
+  .sil {
+    background: #242629;
+    color: white;
+    padding: 10px 8px 8px;
+  }
+  .sil svg { width: 100%; height: 46px; display: block; }
+  .sil span { display: block; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 6px; }
+  .scale { width: 100%; height: auto; background: var(--card); border: 1px solid var(--line); }
+  .lanes {
+    display: grid;
+    grid-template-columns: 92px 1fr 92px;
+    gap: 8px;
+    align-items: stretch;
+    margin: 12px 0 16px;
+    max-width: 640px;
+  }
+  .lanes .spawn, .lanes .mid {
+    min-height: 148px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .pill {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 650;
+    padding: 8px 6px;
+    color: var(--ink);
+  }
+  .heights { display: grid; gap: 8px; margin: 12px 0 16px; max-width: 640px; }
+  .hrow { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: end; }
+  .hrow b { font-size: 14px; font-weight: 650; padding-bottom: 4px; }
+  .hbar { background: #7A6652; border: 1px solid var(--ink); min-height: 28px; }
+  .hbar.pawn { background: var(--blue); }
+  .hbar.jump { background: transparent; border: none; border-top: 2px dashed var(--ink); min-height: 0; }
+  .mid span {
+    display: block;
+    background: var(--card);
+    border: 1px solid var(--line);
+    text-align: center;
+    font-size: 14px;
+    padding: 10px 6px;
+  }
+  .check { list-style: none; padding: 0; max-width: 44em; }
+  .check li {
+    background: var(--card);
+    border: 1px solid var(--line);
+    margin: 6px 0;
+    padding: 8px 10px;
+  }
+  .check label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+  .check input { margin-top: 4px; }
+  .src { color: var(--muted); font-size: 14px; margin-top: 28px; }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; padding: 16px 14px 48px; }
+    nav { position: static; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+    nav .mark { width: 100%; }
+    header.top h1 { font-size: 34px; }
+    .rules, .grid2, .silhouettes { grid-template-columns: 1fr; }
+    .lanes { grid-template-columns: 1fr; }
+  }
+  @media print {
+    nav { display: none; }
+    .layout { display: block; max-width: none; }
+    body { background: white; }
+    .rule, table, .swatch, .check li { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <p class="mark">Gevechtspel</p>
+  <a href="#kern">Kern</a>
+  <a href="#stijl">Stijl</a>
+  <a href="#bord">Moodboard</a>
+  <a href="#kleur">Kleur</a>
+  <a href="#maat">Maat</a>
+  <a href="#maps">Maps</a>
+  <a href="#objecten">Objecten</a>
+  <a href="#wapens">Wapens</a>
+  <a href="#licht">Licht</a>
+  <a href="#leveren">Aanleveren</a>
+  <a href="#updates">Updates</a>
+  <a href="#buiten">Buiten de kern</a>
+  <a href="#af">Afvinken</a>
+</nav>
+<main>
+<header class="top">
+  <p class="kicker">Art direction · 0.2.20 · objecten, maps, wapens</p>
+  <h1>Blijf bij het gevecht.</h1>
+  <p class="lede">Een snelle cartoony arena op mensenmaat. Het beeld maakt een gevecht leesbaar. Het begint geen tweede spel.</p>
+</header>
+
+<section id="kern">
+  <p>Vijf tegen vijf, of iedereen voor zich. Bewegen is vlot, schieten is hitscan, een lichaam gaat in ongeveer een halve seconde neer. Trickshots geven punten, geen extra schade. Er zijn drie plekken: Townhouses, Foundry en Rooftops. De geweren zijn pistool, revolver, geweer, SMG, shotgun en sniper, plus een frag, een werpmes en een kolfslag.</p>
+  <p>Maten hieronder komen uit de code. Een model volgt die maten. De maten volgen het model niet. Decimaal met een punt, in meters, zoals in Godot.</p>
+  <div class="rules">
+    <div class="rule"><b>01 · Pion</b><span>Blauw, oranje en vijand-rood zijn van de speler. De wereld blijft stoffiger dan de pion.</span></div>
+    <div class="rule"><b>02 · Eén taak</b><span>Elk object is dekking, herkenningspunt, aankleding of wegwijzer. De hoogte staat er in centimeters bij.</span></div>
+    <div class="rule"><b>03 · Opening</b><span>Een gat dat je ziet, is een gat voor de kogel. Glas en gaas komen er niet in.</span></div>
+    <div class="rule"><b>04 · Zes wapens</b><span>Pistool, revolver, geweer, SMG, shotgun, sniper. Eén model per stuk. Frag en werpmes zijn geen geweer.</span></div>
+    <div class="rule"><b>05 · Afstand</b><span>Gevechten zitten op 10–30 m. Een lane dekt nooit de hele map. Spawns zien elkaar niet.</span></div>
+    <div class="rule"><b>06 · Vloeren</b><span>De sprong haalt 1.31 m. De entresol ligt op 3.00 m. Daken liggen hoger, met een loopweg: Rooftops op 6.00 m, het loodsdak van Foundry op 7.30 m.</span></div>
+    <div class="rule"><b>07 · Deze wereld</b><span>Bewoond, in gebruik, buiten, mat. Nederland, deze eeuw. Slijtage is groot en rustig, geschilderd.</span></div>
+    <div class="rule"><b>08 · Cartoon</b><span>Vlakke kleur, harde leesbare vormen, eenvoudig materiaal. Cel-shading mag. De pion blijft 1.80 m.</span></div>
+  </div>
+</section>
+
+<section id="stijl">
+  <h2>Stijl</h2>
+  <p>De stijl is cartoony. Vlakke kleur, harde randen, vormen die je op 20 m nog uit elkaar houdt. Cel-shading mag. Een donkere rand mag als die het silhouet duidelijker maakt. Materiaal blijft eenvoudig: één albedo uit de swatch, ruwheid in de band, slijtage in grote vlakken.</p>
+  <p>De verhoudingen blijven menselijk. De pion is een capsule van 1.80 m, en een mesh blijft daarbinnen. Enorme handen en speelgoedverhoudingen horen er niet in. Fotorealisme ook niet: geen poreuze huid, geen fotografische modder, geen filter waar de pion in verdwijnt.</p>
+</section>
+
+<section id="bord">
+  <h2>Moodboard</h2>
+  <p>Zes platen, één licht. Ze leggen materiaal, slijtage en maat vast. Ze zijn geen plattegrond: de layouts blijven <span class="id">scenes/maps/townhouses.tscn</span>, <span class="id">scenes/maps/foundry.tscn</span> en <span class="id">scenes/maps/rooftops.tscn</span>.</p>
+  <div class="note">
+    <p>Drie dingen op de platen volg je niet. Gele strepen liggen daar soms als wegmarkering; geel hoort alleen op de rand van een ramp, een railing of de kop van een machine. De containers mogen niet feller dan de swatches hieronder. Op de wapenplaat raken de lopen elkaar; elk wapen wordt apart geleverd.</p>
+  </div>
+  <figure>
+    <img src="board/01-hoek.jpg" alt="Materiaalhoek: stofgroene muur, roestige container, betonnen ramp.">
+    <figcaption>01 · Materiaal. Matte verf, baksteen, asfalt, roest, één gele rand op de ramp. Leeg, zonder letters.</figcaption>
+  </figure>
+  <div class="grid2">
+    <figure>
+      <img src="board/02-townhouses.jpg" alt="Townhouses: twee rijen huizen en een groene bus in de straat.">
+      <figcaption>02 · Townhouses. Stofblauw en oker, bakstenen kopse kanten, groene bus dwars in de straat, lege ramen.</figcaption>
+    </figure>
+    <figure>
+      <img src="board/03-foundry.jpg" alt="Foundry: loods, containers, schuurtjes en een tank.">
+      <figcaption>03 · Foundry. Roestige loods, containers, schuurtjes, tank. Warm licht alleen onder het dak.</figcaption>
+    </figure>
+  </div>
+  <figure>
+    <img src="board/04-wapens.jpg" alt="Vier geweren op een stalen tafel: pistool, geweer, shotgun, sniper.">
+    <figcaption>04 · Wapens. De plaat toont pistool, geweer, shotgun en sniper. SMG, revolver en werpmes horen in dezelfde familie en staan nog niet op de plaat. Donker staal, één warm accent op magazijn, cilinder of pomp. Geen merk, geen camouflage.</figcaption>
+  </figure>
+  <div class="grid2">
+    <figure>
+      <img src="board/05-objecten.jpg" alt="Rij arena-objecten voor een deuropening: krat, barrier, vat, pallet, container.">
+      <figcaption>05 · Objecten. Krat, barrier, vat, pallet, bak, muurtje, container. De deuropening is de maat van een mens.</figcaption>
+    </figure>
+    <figure>
+      <img src="board/06-dekking.jpg" alt="Blauwe pion tussen een krat, een borsthoge barrier en een hoge muur.">
+      <figcaption>06 · Dekking. Krat op heup, barrier op borst met het hoofd erover, muur boven de pion. Het blauw is feller dan de muur, met opzet.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="kleur">
+  <h2>Kleur</h2>
+  <p>De swatches zijn de albedo’s uit de maps en de speler, als hex van de Godot-kleur. De wereld blijft in het midden: ruwweg tussen <span class="id">#33363B</span> en <span class="id">#8C5C38</span>. Verzadigd blauw, oranje, rood en goud zijn bezet.</p>
+  <h3>Alleen de speler</h3>
+  <div class="swatches">
+    <div class="swatch"><i style="background:#408CF2"></i><div><strong>Team blauw</strong><em>#408CF2 · 0.25 0.55 0.95</em></div></div>
+    <div class="swatch"><i style="background:#EB6138"></i><div><strong>Team oranje</strong><em>#EB6138 · 0.92 0.38 0.22</em></div></div>
+    <div class="swatch"><i style="background:#DB3D52"></i><div><strong>FFA-vijand</strong><em>#DB3D52 · 0.86 0.24 0.32</em></div></div>
+    <div class="swatch"><i style="background:#FFD14C"></i><div><strong>Eigen naam / trick</strong><em>#FFD14C · 1.00 0.82 0.30</em></div></div>
+  </div>
+  <p>De pion is een capsule met deze kleur over de hele romp, plus een beetje emission. Een toekomstige mesh blijft binnen de capsule en houdt een groot vlak in de teamkleur. Een armband is te klein op 20 m. Geen operators, geen rugzakken met een verhaal, geen tweede silhouette per team.</p>
+  <h3>Townhouses</h3>
+  <div class="swatches">
+    <div class="swatch"><i style="background:#383D45"></i><div><strong>Asfalt</strong><em>#383D45 · ruw 0.90</em></div></div>
+    <div class="swatch"><i style="background:#575E6B"></i><div><strong>Buitenmuur</strong><em>#575E6B · ruw 0.85</em></div></div>
+    <div class="swatch"><i style="background:#8C5C38"></i><div><strong>Baksteen warm</strong><em>#8C5C38 · ruw 0.85</em></div></div>
+    <div class="swatch"><i style="background:#386B7A"></i><div><strong>Baksteen koel</strong><em>#386B7A · ruw 0.85</em></div></div>
+    <div class="swatch"><i style="background:#7A6652"></i><div><strong>Dekking, hout</strong><em>#7A6652 · ruw 0.80</em></div></div>
+    <div class="swatch"><i style="background:#45759E"></i><div><strong>Huis, stofblauw</strong><em>#45759E · ruw 0.82</em></div></div>
+    <div class="swatch"><i style="background:#B2702E"></i><div><strong>Huis, oker</strong><em>#B2702E · ruw 0.82</em></div></div>
+    <div class="swatch"><i style="background:#295C38"></i><div><strong>Bus</strong><em>#295C38 · ruw 0.70</em></div></div>
+    <div class="swatch"><i style="background:#33363B"></i><div><strong>Kozijn</strong><em>#33363B · ruw 0.88</em></div></div>
+  </div>
+  <p>Het stofblauw en het oker van de huizen zijn de dove neven van de teamkleuren. Ze zitten aan de rijen, niet als accent midden in een gevecht. Zet er geen pion-blauw tegenaan.</p>
+  <h3>Foundry</h3>
+  <div class="swatches">
+    <div class="swatch"><i style="background:#40403D"></i><div><strong>Vloer</strong><em>#40403D · ruw 0.92</em></div></div>
+    <div class="swatch"><i style="background:#5C5C59"></i><div><strong>Beton</strong><em>#5C5C59 · ruw 0.88</em></div></div>
+    <div class="swatch"><i style="background:#4C4F54"></i><div><strong>Buitenmuur</strong><em>#4C4F54 · ruw 0.86</em></div></div>
+    <div class="swatch"><i style="background:#754C33"></i><div><strong>Loods, roest</strong><em>#754C33 · ruw 0.84</em></div></div>
+    <div class="swatch"><i style="background:#333638"></i><div><strong>Kap, trim</strong><em>#333638 · ruw 0.88</em></div></div>
+    <div class="swatch"><i style="background:#4C5259"></i><div><strong>Staal</strong><em>#4C5259 · ruw 0.60</em></div></div>
+    <div class="swatch"><i style="background:#C79E24"></i><div><strong>Geel, rand</strong><em>#C79E24 · ruw 0.75</em></div></div>
+    <div class="swatch"><i style="background:#806647"></i><div><strong>Krat</strong><em>#806647 · ruw 0.82</em></div></div>
+    <div class="swatch"><i style="background:#8F3326"></i><div><strong>Container rood</strong><em>#8F3326 · ruw 0.78</em></div></div>
+    <div class="swatch"><i style="background:#305285"></i><div><strong>Container blauw</strong><em>#305285 · ruw 0.78</em></div></div>
+    <div class="swatch"><i style="background:#336645"></i><div><strong>Container groen</strong><em>#336645 · ruw 0.78</em></div></div>
+    <div class="swatch"><i style="background:#B28C29"></i><div><strong>Container geel</strong><em>#B28C29 · ruw 0.78</em></div></div>
+    <div class="swatch"><i style="background:#666B66"></i><div><strong>Schuur</strong><em>#666B66 · ruw 0.85</em></div></div>
+    <div class="swatch"><i style="background:#8C9194"></i><div><strong>Tank</strong><em>#8C9194 · ruw 0.50</em></div></div>
+    <div class="swatch"><i style="background:#384C5C"></i><div><strong>Truck</strong><em>#384C5C · ruw 0.70</em></div></div>
+    <div class="swatch"><i style="background:#9E9E99"></i><div><strong>Cabine</strong><em>#9E9E99 · ruw 0.70</em></div></div>
+  </div>
+  <h3>Rooftops</h3>
+  <div class="swatches">
+    <div class="swatch"><i style="background:#3D4042"></i><div><strong>Vloer</strong><em>#3D4042 · ruw 0.92</em></div></div>
+    <div class="swatch"><i style="background:#666661"></i><div><strong>Beton</strong><em>#666661 · ruw 0.88</em></div></div>
+    <div class="swatch"><i style="background:#52575C"></i><div><strong>Buitenmuur</strong><em>#52575C · ruw 0.86</em></div></div>
+    <div class="swatch"><i style="background:#855C3D"></i><div><strong>Baksteen</strong><em>#855C3D · ruw 0.85</em></div></div>
+    <div class="swatch"><i style="background:#4D574F"></i><div><strong>Dak</strong><em>#4D574F · ruw 0.90</em></div></div>
+    <div class="swatch"><i style="background:#7A6652"></i><div><strong>Dekking</strong><em>#7A6652 · ruw 0.82</em></div></div>
+    <div class="swatch"><i style="background:#5C6B7A"></i><div><strong>Surf</strong><em>#5C6B7A · ruw 0.62</em></div></div>
+    <div class="swatch"><i style="background:#C79E24"></i><div><strong>Geel, rand</strong><em>#C79E24 · ruw 0.75</em></div></div>
+    <div class="swatch"><i style="background:#73787A"></i><div><strong>Airco</strong><em>#73787A · ruw 0.72</em></div></div>
+    <div class="swatch"><i style="background:#52575E"></i><div><strong>Staal</strong><em>#52575E · ruw 0.62</em></div></div>
+    <div class="swatch"><i style="background:#40525C"></i><div><strong>Busje</strong><em>#40525C · ruw 0.70</em></div></div>
+    <div class="swatch"><i style="background:#33363B"></i><div><strong>Trim</strong><em>#33363B · ruw 0.88</em></div></div>
+    <div class="swatch"><i style="background:#45759E"></i><div><strong>Spawn, dof blauw</strong><em>#45759E · ruw 0.82</em></div></div>
+    <div class="swatch"><i style="background:#B2702E"></i><div><strong>Spawn, dof oranje</strong><em>#B2702E · ruw 0.82</em></div></div>
+  </div>
+  <p>Het blauw en het oranje van de spawn-wanden zijn de dove neven van de teamkleuren, alleen op die wand. De surf is koeler dan het beton, zodat de ramp leesbaar is. Geel blijft op de rand.</p>
+  <h3>Wapen en effect</h3>
+  <div class="swatches">
+    <div class="swatch"><i style="background:#242629"></i><div><strong>Staal</strong><em>#242629 · metaal 0.35–0.60</em></div></div>
+    <div class="swatch"><i style="background:#D16B29"></i><div><strong>Accent, klein</strong><em>#D16B29 · magazijn of pomp</em></div></div>
+    <div class="swatch"><i style="background:#26732E"></i><div><strong>Frag</strong><em>#26732E · olijf</em></div></div>
+    <div class="swatch"><i style="background:#FFC747"></i><div><strong>Monding</strong><em>#FFC747 · alleen het schot</em></div></div>
+  </div>
+  <p>Emission is voor de monding, de frag, de tracer en de pion. Niet voor neon, lampenbakken of lichtgevende randen. Glow op de wereld staat uit.</p>
+</section>
+
+<section id="maat">
+  <h2>Maat</h2>
+  <p>De pion is de maatstaf. Capsule radius 0.40 m. Staan: 1.80 m hoog, oog op 1.60, hoofd-hit op 1.52 met radius 0.41. Hurken: 1.00 m hoog, oog op 0.88. Sprong: 7.6 m/s bij zwaartekracht 22, dus 1.31 m omhoog. Lopen 7.6, sprint 11.4, hurken 3.5. In de lucht blijft de sprintsnelheid behouden. Air-strafe gaat tot 13.5 m/s. Een helling steiler dan 45° is surf: je glijdt langs het vlak. Een kicker rond 40° is nog vloer. Melee reikt 2 m.</p>
+  <div class="heights" role="img" aria-label="Hoogtes van pion en dekking, op schaal">
+    <div class="hrow"><b>3.00 m</b><div class="hbar" style="width:100%"></div></div>
+    <div class="hrow"><b>2.40 m</b><div class="hbar" style="width:80%"></div></div>
+    <div class="hrow"><b>1.90 m</b><div class="hbar" style="width:63%"></div></div>
+    <div class="hrow"><b>1.80 m</b><div class="hbar pawn" style="width:60%"></div></div>
+    <div class="hrow"><b>1.40 m</b><div class="hbar" style="width:47%"></div></div>
+    <div class="hrow"><b>1.31 m</b><div class="hbar jump" style="width:44%"></div></div>
+    <div class="hrow"><b>1.10 m</b><div class="hbar" style="width:37%"></div></div>
+    <div class="hrow"><b>1.00 m</b><div class="hbar pawn" style="width:33%"></div></div>
+  </div>
+  <p>Blauw is de pion: staan 1.80 m, hurken 1.00 m. Bruin is dekking. De streep op 1.31 m is de sprong: die haalt de krat, en haalt de auto niet. Het oog zit op 1.60 m staand en op 0.88 m gehurkt. De balk stopt bij de entresol van 3.00 m. De daken zitten daarboven: Rooftops op 6.00 m, het loodsdak van Foundry op 7.30 m.</p>
+  <table>
+    <thead><tr><th>Hoogte</th><th>Wat de speler doet</th><th>Bestaat al als</th></tr></thead>
+    <tbody>
+      <tr><td>onder 0.45</td><td>Verbergt niets. Blijft onder 0.05 als het geen collision heeft.</td><td>pallet, stoeprand</td></tr>
+      <tr><td>1.10</td><td>Hurken is weg. Staan schiet erover. Springen lukt.</td><td>krat, 1.5 × 1.1 × 1.3</td></tr>
+      <tr><td>1.40</td><td>Lijf weg, hoofd gluurt. Springen lukt net niet.</td><td>auto, 4.8 × 1.4 × 2.0</td></tr>
+      <tr><td>1.90</td><td>Volle dekking. Niet overheen kijken, niet op springen.</td><td>truck bij spawn, 1.9 hoog</td></tr>
+      <tr><td>2.40–2.60</td><td>Breekt een lane. Alleen bovenop via een ramp.</td><td>bus 2.40; container 2.60</td></tr>
+      <tr><td>3.00</td><td>Entresol. Minstens twee wegen omhoog.</td><td>verdieping, mezzanine</td></tr>
+      <tr><td>4.00</td><td>Tussendek. Een loopramp gaat verder naar het dak.</td><td>flankdek Rooftops</td></tr>
+      <tr><td>6.00–7.30</td><td>Dak. Via ramp of trap, nooit als enige route.</td><td>Rooftops 6.00; loodsdak Foundry 7.30</td></tr>
+      <tr><td>10.00</td><td>Hoog dak. Twee loopwegen, en de surf begint hier.</td><td>loodsdak Kade</td></tr>
+    </tbody>
+  </table>
+  <p>Nieuwe dekking kiest een rij uit deze tabel. Een hoogte van 1.25 of 1.67 maakt een tussenvorm die niemand kan lezen. Daken op 6.00 m, 7.30 m en 10.00 m horen erbij, met een loopweg ernaartoe. Een verdieping boven dat dak maakt een andere game. De surfwand van Kade stijgt langs de buitenmuur boven het dak van 10 m; dat vlak is te steil om op te staan.</p>
+  <p>Deur, vrije doorgang: minstens 1.20 m breed en 2.20 m hoog voor één pion, 2.20 m breed als twee mensen elkaar moeten passeren. De grote deur van de loods is 5 m breed en 4.5 m hoog. Ramen zijn gaten. De capsule blijft haken aan een spleet van 0.90 m.</p>
+</section>
+
+<section id="maps">
+  <h2>Maps</h2>
+  <p>Vier plekken, dezelfde wereld. Townhouses is een straat van ongeveer 56 × 82 m. Foundry is een werf van ongeveer 52 × 69 m. Rooftops is een hof van ongeveer 58 × 82 m. Kade is een dok van ongeveer 90 × 120 m. De buitenmuren van Rooftops zijn 9.6 m. Die van Kade zijn 16.5 m, boven de surfrichel.</p>
+  <ul>
+    <li>Townhouses: twee rijen huizen, bovenverdieping, voortuinen, flanken, een bus dwars op het midden. Twee surframps van ongeveer 60°, 48 m lang, langs de west- en oostmuur, met een kicker van 40° aan beide uiteinden. Bots lopen de straat. Surfen doen ze niet.</li>
+    <li>Foundry: loods met een mezzanine op 3 m en een loopdak op 7.3 m. Loopramps net ten westen van de grote deuren. De deuren blijven open. Een brug over de lichtstraat. Twee surframps langs de westmuur, gesplitst door de container. Containers in het westen, steeg en schuren in het oosten, laadplaatsen achter beide spawns. Bots nemen de loopramp als er iemand op het dak staat.</li>
+    <li>Rooftops: twee daken op 6 m rond een court. Surfs langs de flanken landen op een dek van 4 m, daarna een loopramp naar het dak. Een korte surf over de court. Een drop door een gat in de rand. Trappen binnen, en die blokkeren de zijdeuren niet. De begane grond is één kamer met vier deuren. Lange flanken met kratten. Bots nemen trap en flank, niet de surf. Team Deathmatch en Free For All, in het menu of met <span class="id">--map rooftops</span>.</li>
+    <li>Kade: dokvloer op 0 m, kade op 4 m, loodsdak op 10 m. Een surf langs elke buitenmuur, van het dak naar de kade, door het midden van de map. Een kortere surf op de kademuur, het dok in. Een vlakke surf dwars door het dok. Aan het oostdak een balkon naar een kwartcirkel met straal 14 m, van 10 m naar 4 m. De bocht is een reeks korte rechte stukken en draait het dok in, naar het midden. Dezelfde hoek aan de oranje kant draait ook het dok in. Een stalen loopplank aan de noordoosthoek van elke loods klimt van de kade naar het dak, ongeveer 24°, zodat je de bocht weer kunt pakken. Trap in de loods en een smalle straatramp die op het dak aansluit, allebei met de voet op open vloer. Bots nemen die, niet de surf. In het menu of met <span class="id">--map quay</span>.</li>
+  </ul>
+  <div class="lanes" aria-hidden="true">
+    <div class="spawn">
+      <div class="pill" style="background:#408CF2">Blauw +Z</div>
+      <div class="pill" style="background:#408CF2">kijkt naar −Z</div>
+    </div>
+    <div class="mid">
+      <span>flank, dekking om de 8–15 m</span>
+      <span>middenlane, gebroken voor 35 m</span>
+      <span>flank, andere route omhoog</span>
+    </div>
+    <div class="spawn">
+      <div class="pill" style="background:#EB6138">Oranje −Z</div>
+      <div class="pill" style="background:#EB6138">kijkt naar +Z</div>
+    </div>
+  </div>
+  <ul>
+    <li>Blauw spawnt op +Z, oranje op −Z. In free-for-all kijk je naar het midden. De spawn-wand mag de dove teamkleur dragen. Verder de map in niet.</li>
+    <li>Geen spawn ziet de andere spawn. De langste schone lane blijft onder de 35 m, want een longshot telt vanaf 38 m en een lane over de hele map geeft de sniper het bord.</li>
+    <li>De meeste gevechten zitten op 10–30 m. Zet daar de dekking, niet op de spawn-lijn.</li>
+    <li>Sprint is 11.4 m/s. Om de 8–15 m valt er een keuze: links, rechts, hurken, omhoog.</li>
+    <li>Elke verdieping heeft twee wegen omhoog. Eén trap is een fuik. Naast elke surf is een loopweg. Een surf gooit je niet over de buitenmuur.</li>
+    <li>De map is spiegelbaar noord-zuid. Een asymmetrie mag, als beide kanten dezelfde soorten gevechten hebben: een shotgun-hoek, een geweer-straat, een sniper-kier.</li>
+    <li>Bots lopen dezelfde collision als spelers. Een shortcut alleen voor de speler bestaat niet.</li>
+    <li>Niets beweegt. Geen deur die dichtgaat, geen lift, geen rijdende bus. Bewegen is al het spel.</li>
+  </ul>
+  <p>Kade is die vierde plek: een dok, zelfde verf en hetzelfde licht. Het dak daar is 10 m, hoger dan de andere daken, omdat de surf van hoog naar laag moet. Een volgende plek blijft in deze wereld: schoolplein, parkeerterrein. Geen nieuw klimaat en geen nieuw decennium.</p>
+</section>
+
+<section id="objecten">
+  <h2>Objecten</h2>
+  <p>Eerst de taak, dan de hoogte, dan het mesh. Het blockout gaat de map in en wordt gespeeld voordat het mooi wordt.</p>
+  <table>
+    <thead><tr><th>Taak</th><th>Collision</th><th>Voorbeelden</th></tr></thead>
+    <tbody>
+      <tr><td>Dekking</td><td>De zichtbare massa, op een hoogte uit de tabel.</td><td>krat 1.10, auto 1.40, truck 1.90, container 2.60</td></tr>
+      <tr><td>Herkenningspunt</td><td>Groot, één per plek, leesbaar vanaf 40 m.</td><td>bus 9.2 × 2.4 × 3.2 dwars in de straat; tank ø 4.4, 5 m hoog; pers in de loods</td></tr>
+      <tr><td>Aankleding</td><td>Geen. Blijft onder 0.05 m, of plat op een muur die al dicht is.</td><td>plas, kabel, papier, schroef, naad in beton</td></tr>
+      <tr><td>Wegwijzer</td><td>De rand van iets dat al een taak heeft.</td><td>gele streep op een ramp of railing, dove teamkleur op de spawn-wand</td></tr>
+    </tbody>
+  </table>
+  <h3>Gedeelde set</h3>
+  <p>Deze mogen op beide maps, in de swatches van die map. Krat 1.10. Betonband 1.10 of 1.40. Pallet, vlak. Vat, alleen als de hoogte klopt met een rij uit de tabel: een staand vat is ongeveer 0.90 en dus geen geldige dekking tenzij je hem op 1.10 brengt of hem aankleding maakt zonder collision. Straatlantaarn en pijp tegen een muur.</p>
+  <h3>Per plek</h3>
+  <ul>
+    <li>Townhouses: bakstenen gevel, kozijn zonder glas, stoep, groene bus, kliko, lage tuinmuur, bank, fiets plat tegen de muur. Heg is een massief blok dekking, geen doorzichtig blad. Twee lange surframps langs de buitenmuren. Geel alleen op de kicker of de rand.</li>
+    <li>Foundry: container 2.4 × 2.6 × 6.1, stapel tot 5.2 met een ramp, krat, pers, band, schuur van 3.4 hoog, watertank, truck. Golfplaat alleen op de loods, niet op de huizen. Loopramps naar het dak van 7.3 m, een brug over de lichtstraat, surframps op de westmuur.</li>
+    <li>Rooftops: bakstenen blok, betonnen dakrand van 1.15 m, airco op het dak, kratten op de flank, een surf over de court. Het dek zit op 4 m, het dak op 6 m. Ramen zijn gaten, zonder glas.</li>
+    <li>Kade: bakstenen loods, betonnen kade, surf in het koelere grijs, gele rand alleen op de kicker. Bus in de straat, container van 2.60 in het dok, kratten van 1.10 op de flank en de kade. De kwartcirkel is een holle hoek, straal 14 m aan de teen, opgebouwd uit korte rechte stukken, en wijst naar het midden van het dok.</li>
+  </ul>
+  <p>Een object dat in beide werelden kan staan zonder uitleg is goed. Een object dat een derde wereld nodig heeft, gaat eruit.</p>
+  <h3>Eerlijke vorm</h3>
+  <ul>
+    <li>Wat er massief uitziet, houdt de pion en de kogel tegen. Een vensterbank die uitsteekt en de capsule vangt, is dekking, ook als je hem als sfeer bedoelde.</li>
+    <li>Detail kleiner dan ongeveer 8 cm verandert het silhouet op 20 m niet. Zet het niet op een hoek waar iemand achter denkt te hurken.</li>
+    <li>Herhaling is gewenst. Tien unieke kratten zijn tien dingen om te leren. Eén krat, drie keer, is een taal.</li>
+  </ul>
+</section>
+
+<section id="wapens">
+  <h2>Wapens</h2>
+  <p>Zeven silhouetten. Zes geweren, plus het werpmes. Op de killfeed staan ze al zo, en een nieuw mesh houdt die lezing.</p>
+  <div class="silhouettes">
+    <div class="sil">
+      <svg viewBox="0 0 96 32" aria-hidden="true"><g fill="#fff"><rect x="18" y="10" width="48" height="7" rx="1"/><rect x="58" y="8" width="16" height="6"/><rect x="28" y="17" width="10" height="12" rx="1"/><rect x="22" y="17" width="6" height="5"/></g></svg>
+      <span>Pistool</span>
+    </div>
+    <div class="sil">
+      <svg viewBox="0 0 96 32" aria-hidden="true"><g fill="#fff"><rect x="22" y="11" width="40" height="6" rx="1"/><rect x="54" y="9" width="14" height="6"/><rect x="36" y="9" width="12" height="10" rx="5"/><rect x="30" y="17" width="8" height="11" rx="1"/></g></svg>
+      <span>Revolver</span>
+    </div>
+    <div class="sil">
+      <svg viewBox="0 0 96 32" aria-hidden="true"><g fill="#fff"><rect x="6" y="13" width="62" height="6" rx="1"/><rect x="64" y="11" width="26" height="5"/><rect x="18" y="19" width="12" height="9"/><rect x="14" y="9" width="8" height="5"/><rect x="54" y="10" width="8" height="3"/></g></svg>
+      <span>Geweer</span>
+    </div>
+    <div class="sil">
+      <svg viewBox="0 0 96 32" aria-hidden="true"><g fill="#fff"><rect x="16" y="12" width="46" height="6" rx="1"/><rect x="58" y="11" width="16" height="5"/><rect x="28" y="18" width="8" height="11"/><rect x="20" y="8" width="18" height="4"/></g></svg>
+      <span>SMG</span>
+    </div>
+    <div class="sil">
+      <svg viewBox="0 0 96 32" aria-hidden="true"><g fill="#fff"><rect x="8" y="12" width="70" height="7" rx="1"/><rect x="8" y="8" width="70" height="4"/><rect x="22" y="19" width="14" height="9"/><rect x="48" y="19" width="18" height="4"/></g></svg>
+      <span>Shotgun</span>
+    </div>
+    <div class="sil">
+      <svg viewBox="0 0 96 32" aria-hidden="true"><g fill="#fff"><rect x="2" y="14" width="78" height="4"/><rect x="70" y="12" width="22" height="4"/><rect x="18" y="18" width="10" height="8"/><rect x="40" y="9" width="10" height="5"/><rect x="42" y="7" width="6" height="3"/></g></svg>
+      <span>Sniper</span>
+    </div>
+    <div class="sil">
+      <svg viewBox="0 0 96 32" aria-hidden="true"><g fill="#fff"><polygon points="8,16 58,11 58,21"/><rect x="58" y="12" width="18" height="8" rx="1"/></g></svg>
+      <span>Werpmes</span>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Id</th><th>Hoe het voelt</th><th>Wat het mesh laat zien</th></tr></thead>
+    <tbody>
+      <tr><td><span class="id">pistol</span></td><td>Semi, 6/s, 34 schade, 18 schots, herladen 1.15 s. Het makkelijke zijwapen.</td><td>Kort, geen kolf. Ongeveer 0.20 m in het bestand. Het spel toont hem op 0.30 m.</td></tr>
+      <tr><td><span class="id">revolver</span></td><td>Semi, 2.2/s, 55 schade, hoofd 110, 6 schots, herladen 2.8 s. Naast het pistool, geen vervanging. Missen kost een lange herlaad.</td><td>Kort, zichtbare cilinder, geen kolf. Weergave 0.30 m. Ook vanaf de heup herkenbaar.</td></tr>
+      <tr><td><span class="id">rifle</span></td><td>Auto, 10/s, 24 schade, 30 schots, herladen 1.55 s. Het standaard geweer. Vijf kogels op het lichaam dichtbij.</td><td>Carbine, recht magazijn, middellange loop. Weergave 0.42 m. Magazijn is het warmste vlak.</td></tr>
+      <tr><td><span class="id">smg</span></td><td>Auto, 20/s, 12 schade, hoofd 18, 35 schots, herladen 1.7 s. Vol tot 15 m, ×0.4 vanaf 30 m. 8% sneller lopen dan met het geweer. Snelle ADS.</td><td>Korter en gedrongener dan het geweer, recht magazijn. Weergave 0.40 m.</td></tr>
+      <tr><td><span class="id">shotgun</span></td><td>Pomp, 1.55/s, 8 pellets, 6 schots, herladen 2.1 s. Dichtbij zwaar, voorbij 20 m bijna weg.</td><td>Dik, twee buizen, korte loop. Weergave 0.50 m. Accent op de pomp. Geen trommelmagazijn.</td></tr>
+      <tr><td><span class="id">sniper</span></td><td>Grendel, 1.15/s, 50 schade, hoofd is dood, 10 schots, herladen 1.75 s. Enige geweer met een scope. Richtvizier gaat naar beeldhoek 38 en verbergt het model.</td><td>De langste, één kijker. Weergave 0.58 m. Ook vanaf de heup herkenbaar, want noscope bestaat.</td></tr>
+      <tr><td><span class="id">knife</span></td><td>Werpmes, toets F. Projectiel op 30 m/s, één treffer is dood, blijft 2 s in de muur steken. Vliegt door teamgenoten heen. Geen hitscan.</td><td>Kort lemmet, klein gevest. Weergave 0.25 m. Geen geweer dat toevallig dun is.</td></tr>
+    </tbody>
+  </table>
+  <p>De frag is een olijfgroene bol met een lepel, geen geweer. Het granaatslot telt drie werpbare dingen, frags en werpmessen door elkaar. G gooit de frag, F het mes. Melee op E is een slag met het wapen dat je vasthebt: 2 m, 50 schade, eens per 0.8 s. Dat is geen mes.</p>
+  <p>Een class draagt één primair (geweer, SMG, shotgun of sniper), één secundair (pistool of revolver) en die drie werpbare dingen. Er passen acht classes in het menu. Standaard zijn Rifleman, Breacher, Sniper en Runner. Runner is SMG, revolver, één frag en twee messen.</p>
+  <h3>Silhouettest</h3>
+  <p>Zet het mesh vlak zwart en bekijk het op de breedte van een duim. Een ander noemt in één seconde pistool, revolver, geweer, SMG, shotgun, sniper of werpmes. “Een gun” is een fail. Haal je de kijker van de sniper, dan blijft het de lange. Dek je het magazijn van het geweer af, dan blijft het smaller dan de shotgun. De SMG blijft korter dan het geweer. De revolver houdt zijn cilinder. Het mes blijft een lemmet.</p>
+  <h3>Materiaal van het wapen</h3>
+  <p>Donker staal <span class="id">#242629</span>, metaal 0.35 tot 0.60, ruw 0.35 tot 0.50. Greep in mat polymeer, metaal 0. Eén accent <span class="id">#D16B29</span>, klein, op magazijn, cilinder of pomp. Geen camouflage, geen teamkleur, geen goud, geen sticker, geen merknaam, geen serienummer dat een echt merk napraat. De schoten in de credits komen van bestaande opnames; het model blijft een generiek geweer uit die familie.</p>
+  <p>Het vizier zit rechtsonder. Het midden van het beeld, beeldhoek 90, blijft leeg. De loop is het verste punt aan de voorkant: daar zet het spel de mondingsvlam, op de bounding box. Een bajonet of een losse stang wordt dus de vlam. Laat dat weg.</p>
+</section>
+
+<section id="licht">
+  <h2>Licht</h2>
+  <p>Eén zon werpt schaduw. Verder is het bewolkt daglicht. Schaduw is zacht en kort. Een hurkende pion in een deuropening blijft leesbaar. Mist, nacht en regen die spelers verbergen horen er niet in. SSAO staat uit, glow staat uit, tonemap staat op filmisch.</p>
+  <table>
+    <thead><tr><th></th><th>Townhouses</th><th>Foundry</th><th>Rooftops</th></tr></thead>
+    <tbody>
+      <tr><td>Lucht</td><td>#21262E</td><td>#302B2B</td><td>#292E33</td></tr>
+      <tr><td>Zon</td><td>#FFF5E6 · energie 1.15</td><td>#FFE0BD · energie 1.1</td><td>#FFF2E0 · energie 1.12</td></tr>
+      <tr><td>Ambient</td><td>#858F9E · 0.58</td><td>#998A80 · 0.70</td><td>#8C949E · 0.62</td></tr>
+      <tr><td>Lampen</td><td>geen</td><td>warm #FFD19E onder het dak, koel #BFDBFF in de schuur, zonder schaduw</td><td>warm #FFDBB3 binnen en op de dekken, koel #C7DBFF op de court, zonder schaduw</td></tr>
+    </tbody>
+  </table>
+  <p>Een nieuwe lamp is vulling, geen tweede zon. Geen gekleurde rim, geen tl-zee, geen lichtgevend bord.</p>
+</section>
+
+<section id="leveren">
+  <h2>Aanleveren</h2>
+  <h3>Eerst één blad</h3>
+  <p>Voordat er een mesh is, is er een blad met: naam, taak, map, hoogte × breedte × diepte, welke plaat het volgt, en wat een speler kan (hurken, erover schieten, erop springen, alleen kijken). Geen referentie uit een andere game erbij. Daarna een blockout op die hoogte, in de map, gespeeld. Daarna pas het mesh, binnen die collision.</p>
+  <h3>Bestand</h3>
+  <ul>
+    <li>GLB, Y omhoog, meters. Objecten: oorsprong op het contact met de grond. Wapens: oorsprong bij de greep, loop langs +X, monding naar +X. Het mes: lemmet langs +X. Het spel draait het model 90° en schaalt de lange as naar 0.25 (mes), 0.30 (pistool, revolver), 0.40 (SMG), 0.42 (geweer), 0.50 (shotgun) of 0.58 m (sniper). Echte verhoudingen in het bestand; de schaal op het scherm doet de code.</li>
+    <li>Naam: <span class="id">wpn_pistol.glb</span>, <span class="id">wpn_revolver.glb</span>, <span class="id">wpn_rifle.glb</span>, <span class="id">wpn_smg.glb</span>, <span class="id">wpn_shotgun.glb</span>, <span class="id">wpn_sniper.glb</span>, <span class="id">wpn_knife.glb</span>. Die vervangen <span class="id">assets/weapons/&lt;id&gt;.glb</span>. Objecten: <span class="id">prop_shared_crate_110.glb</span>, <span class="id">prop_town_bus.glb</span>, <span class="id">prop_foundry_container_260.glb</span>. Het getal is de collision-hoogte in centimeters.</li>
+    <li>Eén materialenset. Albedo, ruwheid, en een normal alleen als die het silhouet op 10 m verandert. Prop 1024, viewmodel 2048. Geen 4K. De albedo blijft in de swatch, ook als de bron een foto was.</li>
+    <li>Geen camera, geen licht, geen vloer, geen handen in het bestand. De bounding box is het wapen zelf.</li>
+    <li>Viewmodel werpt geen schaduw. Wereldobjecten wel, van de zon.</li>
+    <li>Tris, als leesbaarheidsgrens: muurmodule tot 1500, prop tot 2500, herkenningspunt tot 6000, viewmodel tot 15000. Meer driehoeken maken het silhouet niet duidelijker.</li>
+  </ul>
+  <p>Ruwheid van de wereld blijft 0.75 tot 0.95, behalve de tank rond 0.50 en het staal rond 0.60. Metaal is 0 op verf, baksteen, hout en beton. Natte plekken blijven boven 0.40. Geen spiegelvloer.</p>
+</section>
+
+<section id="updates">
+  <h2>Updates</h2>
+  <p>Van 0.2.10 tot 0.3.0. Release 0.2.12 bestaat niet: het nummer springt van 0.2.11 naar 0.2.13, gelijk aan NET_VERSION. Wat hier staat, hoort in het beeld en in de map.</p>
+  <table>
+    <thead><tr><th>Versie</th><th>Wat erbij kwam</th></tr></thead>
+    <tbody>
+      <tr><td>0.2.10</td><td>Namen van vijanden alleen als je ze ziet. Teamgenoten blijven door muren leesbaar. Labels van doden zijn weg. Het pistool is semi, maximaal 6/s, schade 34. Bots mikken op het lijf, ook gehurkt. De chat staat linksonder. Na 4.5 s zonder schade komt HP terug met 12/s. Nieuwe schoten, voetstappen, hit en granaatknal.</td></tr>
+      <tr><td>0.2.11</td><td>Final killcam aan het eind van de ronde, door de ogen van de killer, ongeveer 5.5 s. Overlay FINAL KILLCAM, killer naar slachtoffer, HEADSHOT als het een headshot was. Iedereen staat stil: geen lopen, schieten, granaten of schade. Geen kill in de ronde, dan geen cam. Daarna het scorebord, zoals altijd.</td></tr>
+      <tr><td>0.2.13</td><td>Classes, tot 8, opgeslagen op de eigen machine. Standaard Rifleman (geweer, pistool, 2 frags), Breacher (shotgun, pistool, 3 frags) en Sniper (sniper, pistool, 1 frag). Kiezen bij de eerste spawn, wisselen via Esc gaat in bij de volgende spawn. Melee op E: 2 m, 50 schade, eens per 0.8 s, een vuist in de killfeed. Kogelinslagen ongeveer 2 s, met een stofwolkje. De shotgun klinkt luider. Teamradar 4 s: het hele team ziet de vijanden. Op een dedicated server volgt de score het echte team.</td></tr>
+      <tr><td>0.2.14</td><td>Foundry, zoals hierboven bij maps, toen nog zonder het dak van 7.3 m. Free For All: eerste naar 20 kills, of de beste na 10 minuten, bots vullen aan tot 10. In FFA laat de radar alleen jou de anderen zien. Map en mode in Singleplayer en bij Host, en <span class="id">--map</span> / <span class="id">--mode</span> op de server. Muisgevoeligheid 0.1–4.0, aim standaard 0.45. Een rode wig wijst waar schade vandaan kwam en vervaagt na ongeveer 1.3 s.</td></tr>
+      <tr><td>0.2.15</td><td>De achtergrondmatch achter het hoofdmenu bevriest het volgende spel niet meer. Singleplayer, Host en Join ruimen die match op, ook midden in een killcam.</td></tr>
+      <tr><td>0.2.16</td><td>Het versienummer staat rechtsboven in het hoofdmenu. Zelfde netwerkversie als 0.2.14 en 0.2.15.</td></tr>
+      <tr><td>0.2.17</td><td>Trickshots zijn alleen stijlpunten. De server beslist. NOSCOPE 100, 360 NOSCOPE 250, AIRSHOT 75, LONGSHOT vanaf 38 m is 50, POINT BLANK (shotgun) 100, DOUBLE 150, SPRAY TRANSFER 150, HEADSHOT STREAK 200, SURF KILL 150, DROP KILL vanaf 3.5 m val is 100. Combo +0.25× binnen 8 s, tot 2×. Popup voor de schutter, gouden tag in de killfeed, kolom STYLE, Style King, en de beste trickshot in de killcam in plaats van de laatste kill. Granaten geven geen tricks. Air-strafe tot 13.5 m/s. Sprint blijft in de sprong. Een helling steiler dan 45° is surf. Townhouses krijgt twee surframps van ongeveer 60°, 48 m, west en oost, met kickers van 40°. Bots surfen niet.</td></tr>
+      <tr><td>0.2.18</td><td>SMG, revolver en werpmes, met de maten uit de wapentabel. Nieuwe tricks: RUN &amp; GUN 125, HOSE 150, QUICKDRAW 150, SIX SHOOTER 200, YEET 250, YEET ×2 500. Het granaatslot mixt tot drie frags en messen. Class Runner: SMG, revolver, 1 frag en 2 messen. Bots gebruiken SMG en revolver. Messen gooien ze niet.</td></tr>
+      <tr><td>0.2.19</td><td>Rooftops. Twee daken op 6 m, flanksurfs naar een dek van 4 m en dan een loopramp, een korte surf over de court, een drop door de rand, trappen die de zijdeuren vrij laten, één kamer met vier deuren, lange flanken met kratten. TDM en FFA. Bots nemen trap en flank.</td></tr>
+      <tr><td>0.2.20</td><td>Foundry krijgt de loopramps naar het loodsdak op 7.3 m, de brug over de lichtstraat, en de twee surframps op de westmuur. De grote deuren blijven open. Bots lopen de ramp op als er iemand op het dak staat. De collision is anders dan in 0.2.19, dus server en clients zijn allebei 0.2.20.</td></tr>
+      <tr><td>0.3.0</td><td>Kade. Ongeveer 90 × 120 m, dok op 0 m, kade op 4 m, loodsdak op 10 m. Surfs van het dak naar de kade en van de kade het dok in, door het midden, plus een vlakke oversteek. Een holle kwartcirkel met straal 14 m, van 10 m naar 4 m, aan beide kanten het dok in, met een recht aanloop- en uitloopstuk. Een stalen loopplank van de kade naar het dak aan de noordoosthoek, ongeveer 24°, zodat je de bocht weer pakt. Trap en een smalle straatramp die op het dak aansluit, voor de bots, met de voet vrij van de muur. De collision is nieuw, dus server en clients zijn allebei 0.3.0. Geen ARM-build meer: alleen Windows en Linux x86_64.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="buiten">
+  <h2>Buiten de kern</h2>
+  <p>Dit breekt een regel hierboven. Het hoort er niet in, ook niet als detail op een verder goed mesh.</p>
+  <ul>
+    <li>Sciencefiction, energiegeweer, hologram, mech. Het arsenaal is zes mechanische geweren, een frag en een werpmes.</li>
+    <li>Fantasy, zombies, schedels als motief. De plekken zijn in gebruik, niet vervloekt.</li>
+    <li>Operators, capes, harnassen, skins, gouden guns, neon, anime-stickers. Eén pion, één model per geweer.</li>
+    <li>Een echt merk, een eenheidspatch, een ghillie, een arsenaal van veertig geweren. Het model blijft generiek.</li>
+    <li>Fotorealisme, fotografische modder, bloed over elke muur, of een bruin-grijze filter waar de pion in verdwijnt.</li>
+    <li>Enorme handen en speelgoedverhoudingen. De pion blijft 1.80 m.</li>
+    <li>Een open wereld, een doolhof, een auto waar je in rijdt, een interieur waar je zoekraakt. Een dak mag. Een verdieping boven dat dak niet.</li>
+    <li>Nacht, dikke mist, regen die de vijand verstopt.</li>
+    <li>Pion-blauw, pion-oranje, vijand-rood of trickshot-goud als groot vlak in de speelruimte.</li>
+    <li>Glas waar je niet doorheen schiet, of een heg waar je doorheen kijkt en toch achter blijft haken.</li>
+  </ul>
+</section>
+
+<section id="af">
+  <h2>Afvinken</h2>
+  <p>Alles aan, of het gaat niet de map in.</p>
+  <ul class="check">
+    <li><label><input type="checkbox"> De taak is één van: dekking, herkenningspunt, aankleding, wegwijzer. Of het is één van de zes geweren, de frag of het werpmes.</label></li>
+    <li><label><input type="checkbox"> De hoogte staat in centimeters en is een rij uit de maattabel.</label></li>
+    <li><label><input type="checkbox"> Hurken en staan zijn allebei geprobeerd. De sprong haalt alleen de 1.10.</label></li>
+    <li><label><input type="checkbox"> Wat je ziet, is wat de kogel raakt. Gaten zijn gaten.</label></li>
+    <li><label><input type="checkbox"> Geen groot vlak in pion-blauw, pion-oranje, vijand-rood of goud.</label></li>
+    <li><label><input type="checkbox"> De albedo zit op de swatch van deze map. Ruwheid zit in de band.</label></li>
+    <li><label><input type="checkbox"> Op 20 m is het silhouet hetzelfde verhaal als van dichtbij.</label></li>
+    <li><label><input type="checkbox"> Het wapen is zwart op duimbreedte nog steeds dat ene wapen.</label></li>
+    <li><label><input type="checkbox"> Geen merk, geen skin, geen geweer buiten de zes, geen verdieping boven het dak.</label></li>
+    <li><label><input type="checkbox"> De verf is cartoony: vlakke kleur, harde vorm. De verhoudingen blijven menselijk.</label></li>
+    <li><label><input type="checkbox"> Het kan in Townhouses, Foundry of Rooftops staan zonder een nieuwe rendertruc.</label></li>
+  </ul>
+  <p class="src">Getallen uit <span class="id">scripts/player.gd</span>, <span class="id">project.godot</span>, <span class="id">data/weapons/</span>, <span class="id">scripts/weapon.gd</span> (<span class="id">fit_model</span>), <span class="id">scenes/maps/townhouses.tscn</span>, <span class="id">tools/gen_foundry.py</span>, <span class="id">tools/gen_rooftops.py</span>, <span class="id">tools/gen_quay.py</span>, <span class="id">assets/ui/icon_*.svg</span>. Versie 0.3.0. Wijzigt de code, dan wijzigt deze pagina mee.</p>
+</section>
+</main>
+</div>
+</body>
+</html>

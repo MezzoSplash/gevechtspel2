@@ -69,7 +69,7 @@ const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## when a new map id ships, and when map collision changes: each machine moves on its own mesh.
 ## Old clients get a clear "version mismatch" instead of a silent wrong map.
-const NET_VERSION := "0.2.22"
+const NET_VERSION := "0.3.0"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
