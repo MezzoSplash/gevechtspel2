@@ -23,6 +23,8 @@ Layout (metres, Y up, Blue at +Z). Rotated 180°, not mirrored, so surf bases st
 import math
 import os
 
+import speed_strip
+
 OUT = os.path.join(os.path.dirname(__file__), "..", "scenes", "maps", "rooftops.tscn")
 
 MATS = {
@@ -357,6 +359,21 @@ surf("SurfCross", (CROSS_DEPTH / 2.0, 0.1, 1.6), CROSS_BASIS, CROSS_DEPTH, "both
 box("CrossEdgeE", 10.7, 11.15, -0.06, 0.0, -1.4, 1.5, "hazard")
 box("CrossEdgeW", -11.15, -10.7, -0.06, 0.0, -1.4, 1.5, "hazard")
 
+# Downhill toes of the flank surfs, and the far end of the flat cross.
+strips = []
+
+
+def _end_strip(name, basis, origin, along, floor_y, drop=0.0):
+    """Catch volume at the downhill toe, as tall as this surf."""
+    toe_pos = _toe_world(basis, origin, along)
+    strips.append(speed_strip.make(
+        name, toe_pos, speed_strip.forward_xz(basis, 1.0), floor_y, height=drop))
+
+
+_end_strip("StripSurfWest", WEST_BASIS, (-28.15, SURF_ORIGIN_Y, 22.5), CLIMB_DEPTH, 0.0, CLIMB_RISE)
+_end_strip("StripSurfEast", EAST_BASIS, (28.15, SURF_ORIGIN_Y, -22.5), CLIMB_DEPTH, 0.0, CLIMB_RISE)
+_end_strip("StripSurfCross", CROSS_BASIS, (CROSS_DEPTH / 2.0, 0.1, 1.6), CROSS_DEPTH, 0.0)
+
 # ---------------------------------------------------------------- court (mid-range)
 # Chest cover. The three drop-landing strips (x -8..-4.6, -1.5..1.5, 4.6..8 at |z| 9..13) stay empty.
 # The centre wall moved off the surf triangle (|z| < 1.9, |x| < 10).
@@ -412,7 +429,7 @@ def main():
     for n in nodes:
         if n[4] not in mats:
             mats.append(n[4])
-    out = ["[gd_scene load_steps=%d format=3]" % (len(mats) + 1), ""]
+    out = ["[gd_scene load_steps=%d format=3]" % (len(mats) + 1 + speed_strip.LOAD_STEPS), ""]
     out += [
         '[sub_resource type="Environment" id="Env_rooftops"]',
         "background_mode = 1",
@@ -425,6 +442,7 @@ def main():
         "glow_enabled = false",
         "",
     ]
+    out += speed_strip.resources()
     for m in mats:
         (r, g, b), rough = MATS[m]
         out += ['[sub_resource type="StandardMaterial3D" id="Mat_%s"]' % m,
@@ -446,6 +464,7 @@ def main():
                 "transform = %s" % xf]
         out += extras
         out += ['material = SubResource("Mat_%s")' % mat, ""]
+    out += speed_strip.nodes(strips)
     for name, pos, col, energy, rng in lights:
         out += ['[node name="%s" type="OmniLight3D" parent="."]' % name,
                 "transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %s, %s, %s)" % tuple(fmt(v) for v in pos),
@@ -457,8 +476,12 @@ def main():
     with open(OUT, "w") as f:
         f.write(text)
     stair_deg = math.degrees(math.atan(ROOF_Y / 10.0))
-    print("wrote %s (%d csg nodes, climb pitch %.2f deg, stair %.1f deg, roof %.1f)" % (
-        os.path.normpath(OUT), len(nodes), math.degrees(CLIMB_PITCH), stair_deg, ROOF_Y))
+    print("wrote %s (%d csg nodes, %d strips, climb pitch %.2f deg, stair %.1f deg, roof %.1f)" % (
+        os.path.normpath(OUT), len(nodes), len(strips), math.degrees(CLIMB_PITCH), stair_deg, ROOF_Y))
+    for s in strips:
+        c = s["center"]
+        print("  strip %-16s center=(%.1f, %.1f, %.1f) ramp=%.2f" % (
+            s["name"], c[0], c[1], c[2], s["ramp_h"]))
     print("  cross det=%.3f" % basis_det(CROSS_BASIS))
     for label, basis, origin in (
         ("west", WEST_BASIS, (-28.15, SURF_ORIGIN_Y, 22.5)),

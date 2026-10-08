@@ -96,6 +96,9 @@ var final_kill: Dictionary = {} # match authority: last real kill of this round,
 var best_trick: Dictionary = {} # match authority: this round's highest-scoring trickshot (same keys + tags/pts/trick_id)
 var _shot_ctx: Dictionary = {} # match authority, while a shot resolves: {shooter, origin, scoped}
 var _style_chain: Dictionary = {} # peer_id -> [trick kills in a row, time of the last one]
+var _line_cd: Dictionary = {} # peer_id -> {strip name: seconds left}. Points only; the shove is local.
+var _line_chain: Dictionary = {} # peer_id -> [last strip name, seconds left in the carry window]
+var _line_pos: Dictionary = {} # peer_id -> last physics position (speed is the delta, not _obs_speed)
 var _bursts: Dictionary = {} # peer_id -> {seq, t, victims}: the rifle burst (held trigger) in progress
 var _shotgun_kill_t: Dictionary = {} # peer_id -> time of their last shotgun kill (DOUBLE)
 var _hs_streak: Dictionary = {} # peer_id -> rifle headshot kills in a row (HEADSHOT STREAK)
@@ -1335,7 +1338,7 @@ func _apply_radar(team: int, by_name: String, seconds: float, by_peer: int) -> v
 		radar_peer = by_peer
 		radar_left = maxf(radar_left, seconds)
 	if hud:
-		hud.show_radar_event(by_name, team, friendly, by_peer == multiplayer.get_unique_id())
+		hud.show_radar_event(by_name, team, friendly)
 
 
 ## Round end, round start, killcam, and leaving: no markers carry over, and no RC stays out.
@@ -1650,6 +1653,9 @@ func start_round() -> void:
 	final_kill.clear()
 	best_trick.clear()
 	_style_chain.clear()
+	_line_cd.clear()
+	_line_chain.clear()
+	_line_pos.clear()
 	_bursts.clear()
 	_shotgun_kill_t.clear()
 	_hs_streak.clear()
@@ -1731,6 +1737,9 @@ func reset_session() -> void:
 	final_kill.clear()
 	best_trick.clear()
 	_style_chain.clear()
+	_line_cd.clear()
+	_line_chain.clear()
+	_line_pos.clear()
 	_bursts.clear()
 	_shotgun_kill_t.clear()
 	_hs_streak.clear()
@@ -1903,9 +1912,86 @@ func sync_pings(data: Dictionary) -> void:
 	pings = data
 
 
+## Match authority. A human pawn crossing a speed strip fast enough banks LINE (or LINE ×2).
+## The segment test catches a snapshot that steps through the box. Bots never surf, so they skip it.
+## is_best stays false: a strip is not a kill, and it must not replace the round's killcam.
+func _tick_lines(delta: float) -> void:
+	if not _is_match_authority():
+		return
+	_decay_line_clocks(delta)
+	var strips := get_tree().get_nodes_in_group("speed_strip")
+	if strips.is_empty():
+		return
+	for n in get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p == null or p.is_bot or p.is_dead:
+			continue
+		var prev: Vector3 = _line_pos.get(p.peer_id, p.global_position)
+		var step := p.global_position - prev
+		_line_pos[p.peer_id] = p.global_position
+		if step.length() > Player.STRIP_TELEPORT_M:
+			continue
+		var spd := Vector2(step.x, step.z).length() / maxf(delta, 0.0001)
+		if spd < Player.STRIP_SPEED:
+			continue
+		for s in strips:
+			var strip := s as Node3D
+			if strip == null or not Player.segment_hits_strip(strip, prev, p.global_position):
+				continue
+			_award_line(p.peer_id, str(strip.name))
+			break
+
+
+func _decay_line_clocks(delta: float) -> void:
+	var gone: Array[int] = []
+	for id in _line_cd:
+		var left: Dictionary = _line_cd[id]
+		var names: Array = left.keys()
+		for sname in names:
+			left[sname] = float(left[sname]) - delta
+			if float(left[sname]) <= 0.0:
+				left.erase(sname)
+		if left.is_empty():
+			gone.append(int(id))
+	for id in gone:
+		_line_cd.erase(id)
+	gone.clear()
+	for id in _line_chain:
+		var row: Array = _line_chain[id]
+		row[1] = float(row[1]) - delta
+		if float(row[1]) <= 0.0:
+			gone.append(int(id))
+	for id in gone:
+		_line_chain.erase(id)
+
+
+## Same wire as a trickshot, without the kill chain and without touching best_trick.
+func _award_line(peer_id: int, strip_name: String) -> void:
+	if not scores.has(peer_id):
+		return
+	var cd: Dictionary = _line_cd.get(peer_id, {})
+	if float(cd.get(strip_name, 0.0)) > 0.0:
+		return
+	cd[strip_name] = Player.STRIP_COOLDOWN
+	_line_cd[peer_id] = cd
+	var trick := Style.LINE
+	var prev: Array = _line_chain.get(peer_id, ["", 0.0])
+	if str(prev[0]) != "" and str(prev[0]) != strip_name and float(prev[1]) > 0.0:
+		trick = Style.LINE_X2
+	_line_chain[peer_id] = [strip_name, Player.CARRY_TIME]
+	var pts := int(Style.POINTS[trick])
+	var total := pts + int(scores[peer_id].get("style", 0))
+	_trick_seq += 1
+	var packed := Style.pack([trick])
+	_apply_trick(peer_id, 0, packed, pts, 1.0, total, _trick_seq, false)
+	if is_networked() and multiplayer.is_server():
+		sync_trick.rpc(peer_id, 0, packed, pts, 1.0, total, _trick_seq, false)
+
+
 ## Listen-server: bots have MultiplayerSynchronizer off, so we push poses ourselves.
 func _physics_process(delta: float) -> void:
 	_tick_regen(delta)
+	_tick_lines(delta)
 	if radar_left > 0.0:
 		radar_left = maxf(radar_left - delta, 0.0)
 	if not is_networked() or not multiplayer.is_server():

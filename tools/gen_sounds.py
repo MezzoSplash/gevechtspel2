@@ -122,6 +122,22 @@ def hurt_self() -> list[float]:
     return [s / peak * 0.88 for s in out]
 
 
+def whoosh() -> list[float]:
+    """Short rising air rush for the surf-exit carry. Local pawn only."""
+    n = int(0.22 * SR)
+    rng = random.Random(23)
+    out = []
+    for i in range(n):
+        t = i / SR
+        env_amp = math.sin(math.pi * min(t / 0.22, 1.0)) ** 1.15
+        noise = rng.uniform(-1.0, 1.0)
+        freq = 160.0 + 820.0 * (t / 0.22)
+        tone = math.sin(2 * math.pi * freq * t)
+        out.append((noise * 0.55 + tone * 0.4) * env_amp)
+    peak = max(abs(s) for s in out) or 1.0
+    return [s / peak * 0.75 for s in out]
+
+
 def empty_click() -> list[float]:
     n = int(0.06 * SR)
     out = []
@@ -143,6 +159,7 @@ def main() -> None:
     write_wav(os.path.join(OUT, "kill.wav"), kill_sound())
     write_wav(os.path.join(OUT, "empty.wav"), empty_click())
     write_wav(os.path.join(OUT, "hurt.wav"), hurt_self())
+    write_wav(os.path.join(OUT, "whoosh.wav"), whoosh())
     print("wrote sounds to", os.path.abspath(OUT))
 
 

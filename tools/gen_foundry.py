@@ -22,6 +22,8 @@ Layout (top view, Blue half; Orange is the mirror):
 import math
 import os
 
+import speed_strip
+
 OUT = os.path.join(os.path.dirname(__file__), "..", "scenes", "maps", "foundry.tscn")
 
 MATS = {
@@ -299,6 +301,23 @@ surf("SurfWestN", (SURF_X, 0.1, -(SURF_Z + SURF_DEPTH)), YAW180, SURF_DEPTH, "bo
 box("SurfEdgeS", -14.62, -14.22, -0.06, 0.0, 5.2, 17.6, "hazard")
 box("SurfEdgeN", -14.62, -14.22, -0.06, 0.0, -17.6, -5.2, "hazard")
 
+# The yard end of each flat surf (away from the wall container). One strip, outward.
+strips = []
+
+
+def _yard_strip(name, basis, origin, depth):
+    ends = []
+    for along, sign in ((0.0, -1.0), (depth, 1.0)):
+        toe_pos = speed_strip.toe(basis, origin, along)
+        ends.append((abs(toe_pos[2]), along, sign, toe_pos))
+    ends.sort(reverse=True)
+    _dist, _along, sign, toe_pos = ends[0]
+    strips.append(speed_strip.make(name, toe_pos, speed_strip.forward_xz(basis, sign), 0.0))
+
+
+_yard_strip("StripSurfWestS", YAW180, (SURF_X, 0.1, SURF_Z), SURF_DEPTH)
+_yard_strip("StripSurfWestN", YAW180, (SURF_X, 0.1, -(SURF_Z + SURF_DEPTH)), SURF_DEPTH)
+
 # ---------------------------------------------------------------- lights (no shadows: cheap on a Pi)
 WARM = (1.0, 0.82, 0.62)
 COOL = (0.75, 0.86, 1.0)
@@ -313,7 +332,7 @@ light_m("YardLight", (0.0, 4.0, 29.0), WARM, 0.6, 12.0)
 # ---------------------------------------------------------------- write
 def main():
     mats = sorted(set(n[4] for n in nodes))
-    out = ["[gd_scene load_steps=%d format=3]" % (len(mats) + 3), ""]
+    out = ["[gd_scene load_steps=%d format=3]" % (len(mats) + 3 + speed_strip.LOAD_STEPS), ""]
     out += [
         '[sub_resource type="Environment" id="Env_foundry"]',
         "background_mode = 1",
@@ -334,6 +353,7 @@ def main():
     out += ['[sub_resource type="StandardMaterial3D" id="Mat_tank_cyl"]',
             "albedo_color = Color(%s, %s, %s, 1)" % tuple(fmt(v) for v in MATS["tank"][0]),
             "roughness = 0.5", ""]
+    out += speed_strip.resources()
     out += ['[node name="Foundry" type="Node3D"]', ""]
     out += ['[node name="WorldEnvironment" type="WorldEnvironment" parent="."]',
             'environment = SubResource("Env_foundry")', ""]
@@ -356,6 +376,7 @@ def main():
             "transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.5, 3.6, 0)",
             "radius = 2.28", "height = 0.25", "sides = 20",
             'material = SubResource("Mat_hazard")', ""]
+    out += speed_strip.nodes(strips)
     for name, pos, col, energy, rng in lights:
         out += ['[node name="%s" type="OmniLight3D" parent="."]' % name,
                 "transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %s, %s, %s)" % tuple(fmt(v) for v in pos),
@@ -364,9 +385,13 @@ def main():
     open(OUT, "w").write("\n".join(out).rstrip("\n") + "\n")
     rise = ROOF_TOP
     run = abs(RAMP_Z_LOW - RAMP_Z_HIGH)
-    print("wrote %s: %d csg, %d lights, roof ramp %.1f deg, surf det %.3f" % (
-        os.path.normpath(OUT), len(nodes), len(lights),
+    print("wrote %s: %d csg, %d lights, %d strips, roof ramp %.1f deg, surf det %.3f" % (
+        os.path.normpath(OUT), len(nodes), len(lights), len(strips),
         math.degrees(math.atan(rise / run)), basis_det(YAW180)))
+    for s in strips:
+        c = s["center"]
+        print("  strip %-16s center=(%.1f, %.1f, %.1f) ramp=%.2f" % (
+            s["name"], c[0], c[1], c[2], s["ramp_h"]))
 
 
 main()

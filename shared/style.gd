@@ -25,6 +25,9 @@ extends RefCounted
 ## Any gun or melee
 ##   SURF KILL       the shooter is surfing (on a ramp steeper than walkable) when the kill lands
 ##   DROP KILL       the shooter is falling, or landed within DROP_RECENT, after dropping DROP_M or more
+## Speed strip (not a kill, Game awards it from the pawn's position):
+##   LINE            crossed a strip at Player.STRIP_SPEED or faster
+##   LINE ×2         a different strip within Player.CARRY_TIME of that one
 ## Tricks on one kill stack. Trick kills chained within CHAIN_WINDOW add CHAIN_STEP to a multiplier,
 ## up to CHAIN_MAX. Surfing or dropping is the shooter's own "air", so it replaces the shooter half of
 ## AIRSHOT (an airborne victim still counts).
@@ -45,6 +48,8 @@ const QUICKDRAW := &"quickdraw"
 const SIX_SHOOTER := &"sixshooter"
 const YEET := &"yeet"
 const YEET_X2 := &"yeet2" # replaces YEET (500 = double)
+const LINE := &"line" # speed strip, not a kill
+const LINE_X2 := &"line2" # a second strip inside the same carry window
 
 ## A good rifle or shotgun play lands near a 360 noscope (250): a slide point blank double is
 ## 100 + 150, a spray transfer 150 (x chain), the third headshot in a row 200.
@@ -52,6 +57,7 @@ const POINTS := {
 	NOSCOPE: 100, SPIN: 250, AIRSHOT: 75, LONGSHOT: 50,
 	POINT_BLANK: 100, DOUBLE: 150, SPRAY: 150, HS_STREAK: 200, SURF: 150, DROP: 100,
 	RUN_GUN: 125, HOSE: 150, QUICKDRAW: 150, SIX_SHOOTER: 200, YEET: 250, YEET_X2: 500,
+	LINE: 100, LINE_X2: 200,
 }
 const LABELS := {
 	NOSCOPE: "NOSCOPE", SPIN: "360 NOSCOPE", AIRSHOT: "AIRSHOT", LONGSHOT: "LONGSHOT",
@@ -59,10 +65,11 @@ const LABELS := {
 	SURF: "SURF KILL", DROP: "DROP KILL",
 	RUN_GUN: "RUN & GUN", HOSE: "HOSE", QUICKDRAW: "QUICKDRAW", SIX_SHOOTER: "SIX SHOOTER",
 	YEET: "YEET", YEET_X2: "YEET ×2",
+	LINE: "LINE", LINE_X2: "LINE ×2",
 }
 ## Biggest first in popups and the kill feed.
 const ORDER: Array[StringName] = [
-	YEET_X2, YEET, SPIN, HS_STREAK, SIX_SHOOTER, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
+	LINE_X2, LINE, YEET_X2, YEET, SPIN, HS_STREAK, SIX_SHOOTER, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
 	RUN_GUN, POINT_BLANK, DROP, AIRSHOT, LONGSHOT,
 ]
 

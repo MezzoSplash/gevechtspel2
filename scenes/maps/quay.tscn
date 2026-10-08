@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=20 format=3]
 
 [sub_resource type="Environment" id="Env_quay"]
 background_mode = 1
@@ -83,6 +83,16 @@ _data = {
 "tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 }
 point_count = 47
+
+[sub_resource type="BoxMesh" id="Mesh_line"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_line"]
+albedo_color = Color(0.78, 0.62, 0.14, 1)
+roughness = 0.45
+emission_enabled = true
+emission = Color(0.9, 0.72, 0.2, 1)
+emission_energy_multiplier = 0.45
 
 [node name="Quay" type="Node3D"]
 
@@ -1422,6 +1432,69 @@ material = SubResource("Mat_cover")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27.5, 0.55, -56.6)
 size = Vector3(2.2, 1.1, 2)
 material = SubResource("Mat_cover")
+
+[node name="StripFlankW" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(-4, 0, 0, 0, 6.2, 0, 0, 0, -3, -41.85, 6.9, -4.0654)
+
+[node name="Mark" type="MeshInstance3D" parent="StripFlankW"]
+transform = Transform3D(1, 0, 0, 0, 0.0048, 0, 0, 0, 0.1167, 0, -0.4645, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
+[node name="StripFlankE" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(4, 0, 0, 0, 6.2, 0, 0, 0, 3, 41.85, 6.9, 4.0654)
+
+[node name="Mark" type="MeshInstance3D" parent="StripFlankE"]
+transform = Transform3D(1, 0, 0, 0, 0.0048, 0, 0, 0, 0.1167, 0, -0.4645, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
+[node name="StripDockW" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(-4, 0, 0, 0, 5.45, 0, 0, 0, -3, -14.7, 2.525, -13.1751)
+
+[node name="Mark" type="MeshInstance3D" parent="StripDockW"]
+transform = Transform3D(1, 0, 0, 0, 0.0055, 0, 0, 0, 0.1167, 0, -0.4596, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
+[node name="StripDockE" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(4, 0, 0, 0, 5.45, 0, 0, 0, 3, 14.7, 2.525, 13.1751)
+
+[node name="Mark" type="MeshInstance3D" parent="StripDockE"]
+transform = Transform3D(1, 0, 0, 0, 0.0055, 0, 0, 0, 0.1167, 0, -0.4596, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
+[node name="StripCross" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(0, 0, -3, 0, 5.45, 0, 4, 0, 0, -10.5, 2.525, -1.5)
+
+[node name="Mark" type="MeshInstance3D" parent="StripCross"]
+transform = Transform3D(1, 0, 0, 0, 0.0055, 0, 0, 0, 0.1167, 0, -0.4596, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
+[node name="StripCornerB" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(0, 0, -3, 0, 6.2, 0, 4, 0, 0, 4.5163, 6.9, 10)
+
+[node name="Mark" type="MeshInstance3D" parent="StripCornerB"]
+transform = Transform3D(1, 0, 0, 0, 0.0048, 0, 0, 0, 0.1167, 0, -0.4645, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
+[node name="StripCornerO" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(0, 0, 3, 0, 6.2, 0, -4, 0, 0, -4.5163, 6.9, -10)
+
+[node name="Mark" type="MeshInstance3D" parent="StripCornerO"]
+transform = Transform3D(1, 0, 0, 0, 0.0048, 0, 0, 0, 0.1167, 0, -0.4645, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
 
 [node name="InsideAB" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 2.4, 39)

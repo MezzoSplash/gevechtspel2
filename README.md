@@ -2,6 +2,8 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
+**v0.3.2** — Surfing a ramp keeps your speed for 4 seconds. A yellow strip at the end of the surfs on Quay, Foundry and Rooftops scores LINE (+100) if you cross it fast, and LINE ×2 (+200) for a second strip in that window. Your team, including you, hears "Friendly radar online"; the other team hears "Enemy radar online". Same NET_VERSION 0.3.0 as v0.3.0 and v0.3.1, so those builds can still join. Not compatible with 0.2.22 or older.
+
 **v0.3.1** — Revolver cylinder and grip sit on the gun. The streak counter stays `STREAK n/5` during radar and while driving the RC-XD. An unused killstreak clears when the next round starts. Every map has 12 team spawns, so a full bot match does not stack on one point. Discord shows that you are playing while the window is open. Same NET_VERSION 0.3.0 as v0.3.0, so 0.3.0 and 0.3.1 can still join each other. Not compatible with 0.2.22 or older.
 
 **v0.3.0** — New map Quay: a dry dock with downhill surfs, a curved corner into the dock, and a steel walk from the quay up to the roof so you can take that corner again. **Not compatible with 0.2.22 or older** (NET_VERSION 0.3.0): everyone must update, including the dedicated server. Release builds are Windows x86_64 and Linux x86_64 only.

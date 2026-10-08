@@ -431,16 +431,14 @@ func set_streak(n: int, charges: int, earned: int) -> void:
 		_play_announcer("res://assets/sounds/radar_standby.wav")
 
 
-## Team radar switched on. Own team: markers, "Friendly radar online" (the activator keeps the
-## old "Radar online"), popup in gold. Other team: "Enemy radar online", popup in red.
-func show_radar_event(by_name: String, team: int, friendly: bool, own: bool) -> void:
+## Team radar switched on. Your team, including the player who turned it on, hears
+## "Friendly radar online" and gets the markers. The other team hears "Enemy radar online".
+## Popups stay gold for your team and red for the other.
+func show_radar_event(by_name: String, team: int, friendly: bool) -> void:
 	if friendly:
 		_radar_left = maxf(_radar_left, Game.radar_left)
 		_refresh_streak_ui()
-		if own:
-			_play_announcer("res://assets/sounds/radar_online.wav")
-		else:
-			_play_announcer("res://assets/sounds/radar_friendly.wav")
+		_play_announcer("res://assets/sounds/radar_friendly.wav")
 		show_popup("RADAR", _POPUP_FRIENDLY, by_name, team)
 	else:
 		_play_announcer("res://assets/sounds/radar_enemy.wav")

@@ -28,6 +28,8 @@ import math
 import os
 import sys
 
+import speed_strip
+
 OUT = os.path.join(os.path.dirname(__file__), "..", "scenes", "maps", "quay.tscn")
 
 MATS = {
@@ -118,6 +120,8 @@ checks = []  # (label, basis, origin, along, y_expect)
 corner_problems = []
 corner_log = []  # (label, det, ny, toe, y_expect, ok) for the mirrored corner profile
 probe = []  # dicts written for the headless ray test
+corner_exits = []  # (prefix, toe, forward xz) for the speed strip at the launch
+strips = []
 
 
 def fmt(v):
@@ -729,6 +733,7 @@ def add_corner(prefix, cx, cz, a0, a1, y_start, y_end):
             corner_problems.append(
                 "%s exit travel (%.2f, %.2f) from (%.1f, %.1f) does not face the centre" % (
                     prefix, end_travel[0], end_travel[2], end[0], end[2]))
+        corner_exits.append((prefix, end, (end_travel[0], end_travel[2])))
     return nys, toes
 
 
@@ -878,6 +883,23 @@ light("DockB", (6.0, 5.5, -8.0), COOL, 0.45, 16.0)
 pair_light("Yard", (0.0, 3.4, 57.0), WARM, 0.35, 10.0)
 
 
+def _end_strip(name, basis, origin, along, floor_y, sign=1.0, drop=0.0):
+    """Catch volume at the toe, as tall as this surf. sign -1 leaves through the origin end."""
+    toe_pos = toe_world(basis, origin, along)
+    strips.append(speed_strip.make(
+        name, toe_pos, speed_strip.forward_xz(basis, sign), floor_y, height=drop))
+
+
+_end_strip("StripFlankW", FLANK_BASIS, flank_o, FLANK_DEPTH, QUAY_Y, drop=FLANK_DROP)
+_end_strip("StripFlankE", FLANK_E_BASIS, flank_e, FLANK_DEPTH, QUAY_Y, drop=FLANK_DROP)
+_end_strip("StripDockW", DOCK_BASIS, dock_o, DOCK_DEPTH, 0.0, drop=DOCK_DROP)
+_end_strip("StripDockE", DOCK_E_BASIS, dock_e, DOCK_DEPTH, 0.0, drop=DOCK_DROP)
+_end_strip("StripCross", CROSS_BASIS, (CROSS_DEPTH / 2.0, 0.1, 1.8), CROSS_DEPTH, 0.0)
+for _prefix, _end, _fwd in corner_exits:
+    strips.append(speed_strip.make(
+        "Strip" + _prefix, _end, _fwd, QUAY_Y, height=ROOF_Y - QUAY_Y))
+
+
 def main():
     failed = False
     print("flank pitch %.2f deg, corner pitch %.2f deg, corner path %.1f m" % (
@@ -917,7 +939,7 @@ def main():
     if not (18.4 < 24.0 < _pad_x1 - 0.6 and _pad_z0 + 0.3 < 26.0 < 28.2):
         print("corner balcony missed the FFA spawn", file=sys.stderr)
         sys.exit(1)
-    out = ["[gd_scene load_steps=%d format=3]" % (len(mats) + 1 + len(curves)), ""]
+    out = ["[gd_scene load_steps=%d format=3]" % (len(mats) + 1 + len(curves) + speed_strip.LOAD_STEPS), ""]
     out += [
         '[sub_resource type="Environment" id="Env_quay"]',
         "background_mode = 1",
@@ -948,6 +970,7 @@ def main():
             "point_count = %d" % len(pts),
             "",
         ]
+    out += speed_strip.resources()
     out += ['[node name="Quay" type="Node3D"]', ""]
     out += ['[node name="WorldEnvironment" type="WorldEnvironment" parent="."]',
             'environment = SubResource("Env_quay")', ""]
@@ -967,6 +990,7 @@ def main():
                 "transform = %s" % xf]
         out += extras
         out += ['material = SubResource("Mat_%s")' % mat, ""]
+    out += speed_strip.nodes(strips)
     for name, pos, col, energy, rng in lights:
         out += ['[node name="%s" type="OmniLight3D" parent="."]' % name,
                 "transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %s, %s, %s)" % tuple(fmt(v) for v in pos),
@@ -980,7 +1004,12 @@ def main():
     probe_path = "/tmp/quay_probe.json"
     with open(probe_path, "w") as f:
         json.dump(probe, f)
-    print("wrote %s (%d csg nodes, %d probe rays)" % (os.path.normpath(OUT), len(nodes), len(probe)))
+    print("wrote %s (%d csg nodes, %d probe rays, %d strips)" % (
+        os.path.normpath(OUT), len(nodes), len(probe), len(strips)))
+    for s in strips:
+        c = s["center"]
+        print("  strip %-16s center=(%.1f, %.1f, %.1f) floor=%.1f ramp=%.2f" % (
+            s["name"], c[0], c[1], c[2], s["floor"], s["ramp_h"]))
 
 
 if __name__ == "__main__":

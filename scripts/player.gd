@@ -46,6 +46,24 @@ const SPRINT_FOV := 6.0
 const SPAWN_PROTECT := 1.8
 const SLIDE_MIN := 0.35
 const SLIDE_FRICTION := 2.4
+# Carry: surf speed survives the landing. Ground friction is 10, so an exit at 16 m/s would be
+# gone in a fraction of a second. While carry is up and a move key is held, friction is 0.06:
+# 16 m/s is still about 12.6 after CARRY_TIME (e^-0.24). Releasing move keys uses friction 6,
+# so you can stop and shoot. The cap applies only when a boost is added, not every frame.
+const CARRY_TIME := 4.0
+const CARRY_ENTER_SPEED := 12.0 # just over sprint (11.4); a walk off a ramp does not start it
+const CARRY_EXIT_BOOST := 2.0
+const CARRY_FRICTION := 0.06
+const CARRY_RELEASE_FRICTION := 6.0
+const CARRY_MAX := 18.0
+const STRIP_SPEED := 13.5 # sprint cannot cash a strip; the exit boost or a real surf can
+const STRIP_BOOST := 2.5
+const STRIP_COOLDOWN := 8.0
+const STRIP_TELEPORT_M := 8.0 # a respawn skips the segment; a long frame at carry speed does not
+const CARRY_FOV_MIN := 4.0
+const CARRY_FOV_MAX := 8.0
+const FOV_EXTRA_CAP := 10.0 # sprint FOV plus carry FOV, together
+const WHOOSH := preload("res://assets/sounds/whoosh.wav")
 const REGEN_DELAY := 4.5 # seconds without damage before health comes back
 const REGEN_RATE := 12.0 # HP per second, up to MAX_HP
 const TAG_CHECK := 0.1 # seconds between nametag line-of-sight rays
@@ -112,6 +130,11 @@ var _obs_speed := 0.0 # smoothed ground speed from position deltas (server's vie
 var _jump_buffer := 0.0
 var _surf_normal := Vector3.ZERO # last steep ramp touched (Vector3.ZERO: none)
 var _surf_t := 0.0
+var _carry_t := 0.0 # seconds of surf-speed retention left (local sim only)
+var _was_surfing := false
+var _strip_cd: Dictionary = {} # strip name -> seconds until this pawn can take it again
+var _strip_prev := Vector3.INF
+var _whoosh: AudioStreamPlayer
 # Style tracking, match authority only (Style / Game.register_kill): turn history and time in the air.
 var air_time := 0.0 # seconds with free space under the feet
 var _style_clock := 0.0
@@ -203,6 +226,12 @@ func _ready() -> void:
 		call_deferred("_apply_bot_loadout")
 	_radar_mark = _make_radar_mark()
 	add_child(_radar_mark)
+	if is_local():
+		_whoosh = AudioStreamPlayer.new()
+		_whoosh.stream = WHOOSH
+		_whoosh.bus = "SFX"
+		_whoosh.volume_db = -4.0
+		add_child(_whoosh)
 	call_deferred("_configure_control")
 
 
@@ -505,6 +534,8 @@ func _die() -> void:
 		RcXd.abort_for(peer_id)
 	Game.killcam.note_death(peer_id)
 	velocity = Vector3.ZERO
+	_carry_t = 0.0
+	_was_surfing = false
 	collision_layer = 0
 	if is_local():
 		weapon.visible = false
@@ -637,6 +668,8 @@ func _physics_process(delta: float) -> void:
 		_tick_feet(delta)
 		return
 	var chatting := Game.chat_open or Game.play_locked() or Game.rc_view
+	_carry_t = maxf(_carry_t - delta, 0.0)
+	_tick_strip_cd(delta)
 	if Game.rc_view:
 		_sliding = false
 		velocity.x = 0.0
@@ -690,12 +723,16 @@ func _physics_process(delta: float) -> void:
 	if not _sliding:
 		wish_speed *= gun_speed_mult()
 
-	camera.extra_fov = 0.0 if weapon.is_ads() else (SPRINT_FOV if is_sprinting else 0.0)
-
 	var horiz := Vector3(velocity.x, 0.0, velocity.z)
 	if jumped or not on_floor:
 		# The jump tick is already air: no ground friction, so sprint speed carries into the jump.
 		horiz = _air_accelerate(horiz, wish, WALK_SPEED * minf(wish.length(), 1.0), delta)
+	elif _carry_t > 0.0:
+		# Held keys keep the surf speed. No keys: brake, so the next shot is a choice.
+		var carry_friction := CARRY_FRICTION if wish.length_squared() > 0.04 else CARRY_RELEASE_FRICTION
+		horiz = _friction_amount(horiz, delta, carry_friction)
+		if not _sliding:
+			horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL, delta)
 	elif _sliding:
 		horiz = _friction_amount(horiz, delta, SLIDE_FRICTION)
 	else:
@@ -709,6 +746,14 @@ func _physics_process(delta: float) -> void:
 		velocity = clip_to_plane(velocity, _surf_normal)
 	move_and_slide()
 	_note_surf_contact()
+	# Landing is an air frame (no ground friction yet). Carry starts here, so the next
+	# grounded frame keeps the speed instead of scrubbing it.
+	var surfing := is_surfing()
+	if _was_surfing and not surfing:
+		_begin_carry()
+	_was_surfing = surfing
+	_boost_through_strips()
+	_apply_carry_fov()
 	_finish_slide()
 	_tick_feet(delta)
 
@@ -1005,6 +1050,102 @@ func is_surfing() -> bool:
 	return _surf_t > 0.0 and not is_on_floor()
 
 
+## Surf just ended. Above sprint, keep that speed and add a small shove, capped at CARRY_MAX.
+func _begin_carry() -> void:
+	if is_dead or Game.rc_view:
+		return
+	var horiz := Vector3(velocity.x, 0.0, velocity.z)
+	var speed := horiz.length()
+	if speed <= CARRY_ENTER_SPEED:
+		return
+	horiz = horiz.normalized() * minf(speed + CARRY_EXIT_BOOST, CARRY_MAX)
+	velocity.x = horiz.x
+	velocity.z = horiz.z
+	_carry_t = CARRY_TIME
+	if _whoosh:
+		_whoosh.play()
+
+
+## Local sim: a fast pass through a strip shoves you and refreshes carry. Points are the server's.
+func _boost_through_strips() -> void:
+	var speed := Vector2(velocity.x, velocity.z).length()
+	if speed < STRIP_SPEED or is_dead or Game.rc_view:
+		_strip_prev = global_position
+		return
+	var prev := _strip_prev if _strip_prev.is_finite() else global_position
+	_strip_prev = global_position
+	if prev.distance_to(global_position) > STRIP_TELEPORT_M:
+		return
+	for n in get_tree().get_nodes_in_group("speed_strip"):
+		var strip := n as Node3D
+		if strip == null or not segment_hits_strip(strip, prev, global_position):
+			continue
+		var id := str(strip.name)
+		if float(_strip_cd.get(id, 0.0)) > 0.0:
+			continue
+		_strip_cd[id] = STRIP_COOLDOWN
+		var horiz := Vector3(velocity.x, 0.0, velocity.z)
+		horiz = horiz.normalized() * minf(horiz.length() + STRIP_BOOST, CARRY_MAX)
+		velocity.x = horiz.x
+		velocity.z = horiz.z
+		_carry_t = CARRY_TIME
+		return
+
+
+func _tick_strip_cd(delta: float) -> void:
+	var dead: Array[String] = []
+	for id in _strip_cd:
+		_strip_cd[id] = float(_strip_cd[id]) - delta
+		if float(_strip_cd[id]) <= 0.0:
+			dead.append(str(id))
+	for id in dead:
+		_strip_cd.erase(id)
+
+
+## Sprint FOV plus a bit more while carrying. ADS clears it. The two together stay within FOV_EXTRA_CAP.
+func _apply_carry_fov() -> void:
+	if weapon == null or camera == null:
+		return
+	if weapon.is_ads():
+		camera.extra_fov = 0.0
+		return
+	var extra := SPRINT_FOV if is_sprinting else 0.0
+	if _carry_t > 0.0:
+		var speed := Vector2(velocity.x, velocity.z).length()
+		extra += lerpf(CARRY_FOV_MIN, CARRY_FOV_MAX, clampf(speed / CARRY_MAX, 0.0, 1.0))
+	camera.extra_fov = minf(extra, FOV_EXTRA_CAP)
+
+
+## Strip boxes are scaled Node3Ds (group speed_strip). Local space is the unit cube around the origin.
+static func segment_hits_strip(strip: Node3D, a: Vector3, b: Vector3) -> bool:
+	if strip == null:
+		return false
+	var inv := strip.global_transform.affine_inverse()
+	var la := inv * a
+	var lb := inv * b
+	var t0 := 0.0
+	var t1 := 1.0
+	var delta := lb - la
+	for axis in 3:
+		var p := la[axis]
+		var dir := delta[axis]
+		if absf(dir) < 0.00001:
+			if p < -0.5 or p > 0.5:
+				return false
+			continue
+		var ta := (-0.5 - p) / dir
+		var tb := (0.5 - p) / dir
+		if ta > tb:
+			var swap := ta
+			ta = tb
+			tb = swap
+		t0 = maxf(t0, ta)
+		t1 = minf(t1, tb)
+		if t0 > t1:
+			return false
+	return true
+
+
 ## Match authority, every pawn: turn history (for 360s) and time with free space under the feet
 ## (for airshots). Works from the pawn's position/rotation, so remote humans count the same as bots.
 func _tick_style_track(delta: float) -> void:
@@ -1115,6 +1256,10 @@ func _reset_style_track() -> void:
 	_landed_t = -100.0
 	_surf_seen_t = -100.0
 	_surf_t = 0.0
+	_carry_t = 0.0
+	_was_surfing = false
+	_strip_cd.clear()
+	_strip_prev = Vector3.INF
 	_jump_buffer = 0.0
 
 
