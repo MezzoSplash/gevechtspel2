@@ -2,6 +2,8 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
+**v0.3.1** — Revolver cylinder and grip sit on the gun. The streak counter stays `STREAK n/5` during radar and while driving the RC-XD. An unused killstreak clears when the next round starts. Every map has 12 team spawns, so a full bot match does not stack on one point. Discord shows that you are playing while the window is open. Same NET_VERSION 0.3.0 as v0.3.0, so 0.3.0 and 0.3.1 can still join each other. Not compatible with 0.2.22 or older.
+
 **v0.3.0** — New map Quay: a dry dock with downhill surfs, a curved corner into the dock, and a steel walk from the quay up to the roof so you can take that corner again. **Not compatible with 0.2.22 or older** (NET_VERSION 0.3.0): everyone must update, including the dedicated server. Release builds are Windows x86_64 and Linux x86_64 only.
 
 **v0.2.22** — Solo and host pick the kill limit, round length and bot count next to map and mode. Esc → Settings no longer crashes mid-match. SMG damage is 10 and falls off from 12 m; the rifle is 34 damage at 390 rpm with a headshot kill out to about 27 m; the revolver needs two headshots; the shotgun is 32 × 12 pellets; the sniper draws no crosshair until you zoom. **Not compatible with 0.2.21 or older** (NET_VERSION 0.2.22): everyone must update, including the dedicated server.
@@ -22,7 +24,7 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 - **RMB** sniper scope, or SMG iron sights (small zoom, tighter spread)
 - **G** frag grenade, **F** throwing knife (whatever your class's grenade slot holds, 3 per life)
 - **E** melee: weapon bash, 2 m reach, 50 damage (two hits kill), once per 0.8 s
-- **Up/Down** pick a streak slot, **Enter** uses it. A streak you earned stays until you use it (leaving to the menu clears it). Dying resets only the counter toward the next one. Radar is the first slot, after 3 kills in one life: your whole team sees the enemies for 4 seconds, and the other team hears "Enemy radar online"; in Free For All only you see everyone else. RC-XD is the second slot, after 5 kills in one life: you drive a small explosive car from its camera (WASD and mouse; **LMB** detonates). Your body stays where you left it.
+- **Up/Down** pick a streak slot, **Enter** uses it. A streak you earned stays until you use it, the next round starts, or you leave to the menu. Dying resets only the counter toward the next one. Radar is the first slot, after 3 kills in one life: your whole team sees the enemies for 4 seconds, and the other team hears "Enemy radar online"; in Free For All only you see everyone else. RC-XD is the second slot, after 5 kills in one life: you drive a small explosive car from its camera (WASD and mouse; **LMB** detonates). Your body stays where you left it.
 - **T** chat (Enter sends, Esc cancels)
 - **Esc** pause menu (resume, change class, settings, leave, quit)
 - **Tab** scoreboard

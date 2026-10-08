@@ -1098,7 +1098,8 @@ var streak_earned: Dictionary = {} # peer -> bitmask already passed this life (s
 
 
 ## Humans only. Death clears this life's count, not a streak already earned.
-## 3 banks the radar, 5 banks the RC-XD. Each stays until Enter uses it.
+## 3 banks the radar, 5 banks the RC-XD. Each stays until Enter uses it,
+## or until start_round clears every charge for the next round.
 func _bump_streak(killer_peer_id: int, victim_peer_id: int) -> void:
 	if victim_peer_id > 0:
 		streak_progress[victim_peer_id] = 0
@@ -1661,6 +1662,26 @@ func start_round() -> void:
 		_apply_score(id, 0, str(scores[id].name), int(scores[id].get("team", 0)))
 		if is_networked() and multiplayer.is_server():
 			sync_score.rpc(id, 0, str(scores[id].name), int(scores[id].team), 0)
+	_clear_round_streaks()
+
+
+## New round drops this life's kill count and any charge still held.
+## Leave-to-menu clears the same dictionaries in reset_session. Without this, a radar
+## banked last round is still usable after intermission. Clients hear it via sync_streak.
+func _clear_round_streaks() -> void:
+	var humans := {}
+	for src in [streak_progress, streak_charges, streak_earned]:
+		for id in src:
+			if int(id) > 0:
+				humans[int(id)] = true
+	streak_progress.clear()
+	streak_charges.clear()
+	streak_earned.clear()
+	var me := multiplayer.get_unique_id() if is_networked() else 1
+	if me > 0:
+		humans[me] = true
+	for id in humans:
+		_push_streak(int(id))
 
 
 func end_freeze() -> void:

@@ -1,5 +1,9 @@
 # Credits
 
+## Discord
+
+Rich Presence uses [discord-rich-presence-godot](https://github.com/SlayHorizon/discord-rich-presence-godot) by SlayHorizon, MIT, in `addons/discord_rich_presence/`. On Linux without `nc` or `ncat`, that copy relays the local socket through `python3` instead.
+
 ## Sounds
 
 All third-party sounds below are **CC0 1.0 (public domain)**. No attribution is required; we credit them anyway.

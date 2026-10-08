@@ -13,10 +13,11 @@ const INFO := {
 		"blurb": "Two rows of houses, a street with a bus, backyards and flanks.",
 		"scene": "res://scenes/maps/townhouses.tscn",
 		"menu_cam": [Vector3(26, 24, 62), Vector3(0, 2, 0)],
-		# Backyards behind the houses, not in the centre lane. Wings at x=±5.3 block the lane from them.
+		# Two rows in the backyard, past the wings (they end at z=33.5) and short of the south wall (z=41).
+		# Twelve points so 16 bots do not share a spot.
 		"team_spawns": [
-			[Vector3(-17.4, 0, 31.6), Vector3(-8.6, 0, 32.4), Vector3(-16.0, 0, 35.6), Vector3(8.6, 0, 32.4), Vector3(17.4, 0, 31.6)],
-			[Vector3(-17.4, 0, -31.6), Vector3(-8.6, 0, -32.4), Vector3(-16.0, 0, -35.6), Vector3(8.6, 0, -32.4), Vector3(17.4, 0, -31.6)],
+			[Vector3(-23, 0, 34.8), Vector3(-15, 0, 34.8), Vector3(-7, 0, 34.8), Vector3(1, 0, 34.8), Vector3(9, 0, 34.8), Vector3(17, 0, 34.8), Vector3(-19, 0, 38.6), Vector3(-11, 0, 38.6), Vector3(-3, 0, 38.6), Vector3(5, 0, 38.6), Vector3(13, 0, 38.6), Vector3(21, 0, 38.6)],
+			[Vector3(-23, 0, -34.8), Vector3(-15, 0, -34.8), Vector3(-7, 0, -34.8), Vector3(1, 0, -34.8), Vector3(9, 0, -34.8), Vector3(17, 0, -34.8), Vector3(-19, 0, -38.6), Vector3(-11, 0, -38.6), Vector3(-3, 0, -38.6), Vector3(5, 0, -38.6), Vector3(13, 0, -38.6), Vector3(21, 0, -38.6)],
 		],
 		"ffa_spawns": [
 			Vector3(-17.4, 0, 31.6), Vector3(8.6, 0, 32.4), Vector3(17.4, 0, -31.6), Vector3(-8.6, 0, -32.4),
@@ -30,9 +31,11 @@ const INFO := {
 		"blurb": "Warehouse hall with roof ramps, west surf, a container yard and sheds.",
 		"scene": "res://scenes/maps/foundry.tscn",
 		"menu_cam": [Vector3(34, 30, 46), Vector3(0, 0, 2)],
+		# One row on the floor in front of the dock (dock face z=30.6, spawn wall ends z=24.5).
+		# Not on the dock: that slab is 1.2 m high. Twelve points so 16 bots do not share a spot.
 		"team_spawns": [
-			[Vector3(-10, 0, 28.5), Vector3(-4, 0, 28), Vector3(4, 0, 28), Vector3(10, 0, 28.5), Vector3(0, 1.25, 32.5)],
-			[Vector3(-10, 0, -28.5), Vector3(-4, 0, -28), Vector3(4, 0, -28), Vector3(10, 0, -28.5), Vector3(0, 1.25, -32.5)],
+			[Vector3(-24.2, 0, 27.5), Vector3(-19.8, 0, 27.5), Vector3(-15.4, 0, 27.5), Vector3(-11, 0, 27.5), Vector3(-6.6, 0, 27.5), Vector3(-2.2, 0, 27.5), Vector3(2.2, 0, 27.5), Vector3(6.6, 0, 27.5), Vector3(11, 0, 27.5), Vector3(15.4, 0, 27.5), Vector3(19.8, 0, 27.5), Vector3(24.2, 0, 27.5)],
+			[Vector3(-24.2, 0, -27.5), Vector3(-19.8, 0, -27.5), Vector3(-15.4, 0, -27.5), Vector3(-11, 0, -27.5), Vector3(-6.6, 0, -27.5), Vector3(-2.2, 0, -27.5), Vector3(2.2, 0, -27.5), Vector3(6.6, 0, -27.5), Vector3(11, 0, -27.5), Vector3(15.4, 0, -27.5), Vector3(19.8, 0, -27.5), Vector3(24.2, 0, -27.5)],
 		],
 		"ffa_spawns": [
 			Vector3(-20, 0, 28), Vector3(20, 0, 28), Vector3(-20, 0, -28), Vector3(20, 0, -28),
@@ -47,11 +50,11 @@ const INFO := {
 		"blurb": "Two roofed blocks, a court, flank surfs, and a ramp across the middle.",
 		"scene": "res://scenes/maps/rooftops.tscn",
 		"menu_cam": [Vector3(34, 26, 54), Vector3(0, 2, 0)],
-		# Yards behind the spawn walls. Flanks sit behind the baffles; the truck breaks the centre line.
-		# Not on the surf, not on a drop lip, not inside the truck (x=0, z≈35).
+		# Two rows behind the spawn wall (ends z=31). The truck sits at z 33.2–36.4, the crates beside it.
+		# Twelve points so 16 bots do not share a spot. Not on the surf or the roof.
 		"team_spawns": [
-			[Vector3(-25.2, 0, 37.2), Vector3(-10.2, 0, 35.4), Vector3(-4.6, 0, 38.4), Vector3(8.4, 0, 36.2), Vector3(24.6, 0, 37.4)],
-			[Vector3(-25.2, 0, -37.2), Vector3(-10.2, 0, -35.4), Vector3(-4.6, 0, -38.4), Vector3(8.4, 0, -36.2), Vector3(24.6, 0, -37.4)],
+			[Vector3(-24, 0, 32.6), Vector3(-15, 0, 32.6), Vector3(-6, 0, 32.6), Vector3(3, 0, 32.6), Vector3(12, 0, 32.6), Vector3(21, 0, 32.6), Vector3(-20, 0, 38.2), Vector3(-11, 0, 38.2), Vector3(-2, 0, 38.2), Vector3(6, 0, 38.2), Vector3(14, 0, 38.2), Vector3(23, 0, 38.2)],
+			[Vector3(-24, 0, -32.6), Vector3(-15, 0, -32.6), Vector3(-6, 0, -32.6), Vector3(3, 0, -32.6), Vector3(12, 0, -32.6), Vector3(21, 0, -32.6), Vector3(-20, 0, -38.2), Vector3(-11, 0, -38.2), Vector3(-2, 0, -38.2), Vector3(6, 0, -38.2), Vector3(14, 0, -38.2), Vector3(23, 0, -38.2)],
 		],
 		"ffa_spawns": [
 			Vector3(-25.2, 0, 37.2), Vector3(-4.6, 0, 38.4), Vector3(24.6, 0, 37.4),
@@ -68,10 +71,11 @@ const INFO := {
 		"blurb": "Dry dock with a high quay, downhill surfs, and a curved corner.",
 		"scene": "res://scenes/maps/quay.tscn",
 		"menu_cam": [Vector3(48, 42, 86), Vector3(0, 4, 0)],
-		# Yards behind the spawn wall (z ≈ 55). Not on a stair slot, a surf toe, or a lip.
+		# One row behind the trucks (they end at z=59), short of the south wall (inner face z=61.2).
+		# Twelve points so 16 bots, or a team stacked with humans, do not share a spot.
 		"team_spawns": [
-			[Vector3(-33, 0, 57.6), Vector3(-12, 0, 58.4), Vector3(0, 0, 56.6), Vector3(12, 0, 58.2), Vector3(33, 0, 57.4)],
-			[Vector3(33, 0, -57.6), Vector3(12, 0, -58.4), Vector3(0, 0, -56.6), Vector3(-12, 0, -58.2), Vector3(-33, 0, -57.4)],
+			[Vector3(-39, 0, 59.9), Vector3(-32, 0, 59.9), Vector3(-25, 0, 59.9), Vector3(-18, 0, 59.9), Vector3(-11, 0, 59.9), Vector3(-4, 0, 59.9), Vector3(4, 0, 59.9), Vector3(11, 0, 59.9), Vector3(18, 0, 59.9), Vector3(25, 0, 59.9), Vector3(32, 0, 59.9), Vector3(39, 0, 59.9)],
+			[Vector3(39, 0, -59.9), Vector3(32, 0, -59.9), Vector3(25, 0, -59.9), Vector3(18, 0, -59.9), Vector3(11, 0, -59.9), Vector3(4, 0, -59.9), Vector3(-4, 0, -59.9), Vector3(-11, 0, -59.9), Vector3(-18, 0, -59.9), Vector3(-25, 0, -59.9), Vector3(-32, 0, -59.9), Vector3(-39, 0, -59.9)],
 		],
 		"ffa_spawns": [
 			Vector3(-33, 0, 57.6), Vector3(0, 0, 56.6), Vector3(33, 0, 57.4),

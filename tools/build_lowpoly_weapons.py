@@ -90,18 +90,20 @@ scene("smg", [
     ("FrontSight", "box", "accent", (0.015, 0.03, 0.01), (0.13, 0.06, 0.0), Z),
     ("RearSight", "box", "dark", (0.02, 0.025, 0.03), (-0.11, 0.055, 0.0), Z),
 ])
+# Cylinder yaw stays 0: a cyl already lies along +X, and a yaw wedges the chamber into the frame.
+# Grip and cap sit forward enough that the top of the grip enters the back of the frame.
 scene("revolver", [
-    ("Barrel", "cyl", "metal", (0.016, 0.17, 10), (0.135, 0.032, 0.0), Z),
-    ("Rib", "box", "metal", (0.17, 0.018, 0.02), (0.135, 0.016, 0.0), Z),
+    ("Barrel", "cyl", "metal", (0.016, 0.17, 10), (0.125, 0.032, 0.0), Z),
+    ("Rib", "box", "metal", (0.17, 0.018, 0.02), (0.125, 0.016, 0.0), Z),
     ("Frame", "box", "metal", (0.11, 0.065, 0.034), (0.0, 0.02, 0.0), Z),
-    ("Cylinder", "cyl", "steel", (0.034, 0.06, 6), (0.01, 0.024, 0.0), (0, 30, 0)),
-    ("CylinderPin", "cyl", "dark", (0.008, 0.07, 6), (0.01, 0.024, 0.0), Z),
+    ("Cylinder", "cyl", "steel", (0.034, 0.06, 6), (0.02, 0.024, 0.0), Z),
+    ("CylinderPin", "cyl", "dark", (0.008, 0.07, 6), (0.02, 0.024, 0.0), Z),
     ("Hammer", "box", "dark", (0.022, 0.03, 0.012), (-0.065, 0.06, 0.0), (0, 0, 25)),
-    ("Grip", "box", "wood", (0.04, 0.10, 0.03), (-0.078, -0.045, 0.0), (0, 0, -22)),
-    ("GripCap", "box", "metal", (0.044, 0.012, 0.032), (-0.097, -0.093, 0.0), (0, 0, -22)),
+    ("Grip", "box", "wood", (0.04, 0.10, 0.03), (-0.053, -0.045, 0.0), (0, 0, -22)),
+    ("GripCap", "box", "metal", (0.044, 0.012, 0.032), (-0.072, -0.093, 0.0), (0, 0, -22)),
     ("TriggerGuard", "box", "metal", (0.04, 0.008, 0.01), (-0.015, -0.03, 0.0), Z),
     ("Trigger", "box", "dark", (0.008, 0.025, 0.006), (-0.02, -0.015, 0.0), (0, 0, -10)),
-    ("FrontSight", "box", "accent", (0.012, 0.022, 0.006), (0.205, 0.055, 0.0), Z),
+    ("FrontSight", "box", "accent", (0.012, 0.022, 0.006), (0.195, 0.055, 0.0), Z),
 ])
 # Lies flat (thin in Y), so the blade face shows from above in the hand and while it tumbles.
 scene("knife", [

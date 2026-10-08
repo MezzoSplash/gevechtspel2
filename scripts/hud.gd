@@ -605,13 +605,10 @@ func _build_popup() -> void:
 ## The white frame is the arrow-key selection, not "ready". A gold box is a charge you still hold.
 func _refresh_streak_ui() -> void:
 	if streak_label:
-		if _rc_on:
-			streak_label.text = "RC-XD"
-		elif _radar_left > 0.0:
-			streak_label.text = "RADAR"
-		else:
-			var goal := Game.RCXD_AT if (_streak_earned & Game.CHARGE_RADAR) != 0 else Game.STREAK_AT
-			streak_label.text = "STREAK %d/%d" % [_streak_n, goal]
+		# Counter stays while radar is live or the RC-XD is driving. Those already
+		# have a popup and a hint. Swapping this label hid STREAK n/5.
+		var goal := Game.RCXD_AT if (_streak_earned & Game.CHARGE_RADAR) != 0 else Game.STREAK_AT
+		streak_label.text = "STREAK %d/%d" % [_streak_n, goal]
 		streak_label.visible = true
 	for i in _streak_slots.size():
 		var slot := _streak_slots[i]

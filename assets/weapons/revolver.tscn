@@ -84,11 +84,11 @@ size = Vector3(0.012, 0.022, 0.006)
 [node name="revolver" type="Node3D"]
 
 [node name="Barrel" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.135, 0.032, 0)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.125, 0.032, 0)
 mesh = SubResource("mesh_0")
 
 [node name="Rib" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.135, 0.016, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.125, 0.016, 0)
 mesh = SubResource("mesh_1")
 
 [node name="Frame" type="MeshInstance3D" parent="."]
@@ -96,11 +96,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
 mesh = SubResource("mesh_2")
 
 [node name="Cylinder" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -0.86603, -0.5, 1, 0, 0, 0, -0.5, 0.86603, 0.01, 0.024, 0)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.02, 0.024, 0)
 mesh = SubResource("mesh_3")
 
 [node name="CylinderPin" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.01, 0.024, 0)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0.02, 0.024, 0)
 mesh = SubResource("mesh_4")
 
 [node name="Hammer" type="MeshInstance3D" parent="."]
@@ -108,11 +108,11 @@ transform = Transform3D(0.90631, 0.42262, 0, -0.42262, 0.90631, 0, 0, 0, 1, -0.0
 mesh = SubResource("mesh_5")
 
 [node name="Grip" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.92718, -0.37461, 0, 0.37461, 0.92718, 0, 0, 0, 1, -0.078, -0.045, 0)
+transform = Transform3D(0.92718, -0.37461, 0, 0.37461, 0.92718, 0, 0, 0, 1, -0.053, -0.045, 0)
 mesh = SubResource("mesh_6")
 
 [node name="GripCap" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.92718, -0.37461, 0, 0.37461, 0.92718, 0, 0, 0, 1, -0.097, -0.093, 0)
+transform = Transform3D(0.92718, -0.37461, 0, 0.37461, 0.92718, 0, 0, 0, 1, -0.072, -0.093, 0)
 mesh = SubResource("mesh_7")
 
 [node name="TriggerGuard" type="MeshInstance3D" parent="."]
@@ -124,5 +124,5 @@ transform = Transform3D(0.98481, -0.17365, 0, 0.17365, 0.98481, 0, 0, 0, 1, -0.0
 mesh = SubResource("mesh_9")
 
 [node name="FrontSight" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.205, 0.055, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.195, 0.055, 0)
 mesh = SubResource("mesh_10")
