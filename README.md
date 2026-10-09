@@ -1,4 +1,6 @@
-# Gevechtspel
+# Gevechtspel 
+<img width="1080" height="1080" alt="image" src="https://github.com/user-attachments/assets/4e8daae6-9dc6-4691-8135-47efd86c3735" />
+
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
