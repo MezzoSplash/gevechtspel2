@@ -4,6 +4,8 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
+**v0.3.3** — Quay cleanup. Doors that looked shut are open, the west wall of each loods has a shoot hole into the stair, and the stair crests no longer have a small step. Floating blocks on the edges are gone. The steel walk is unchanged. **Not compatible with v0.3.2 or older** (NET_VERSION 0.3.3): everyone must update, including the dedicated server.
+
 **v0.3.2** — Surfing a ramp keeps your speed for 4 seconds. A yellow strip at the end of the surfs on Quay, Foundry and Rooftops scores LINE (+100) if you cross it fast, and LINE ×2 (+200) for a second strip in that window. Your team, including you, hears "Friendly radar online"; the other team hears "Enemy radar online". Same NET_VERSION 0.3.0 as v0.3.0 and v0.3.1, so those builds can still join. Not compatible with 0.2.22 or older.
 
 **v0.3.1** — Revolver cylinder and grip sit on the gun. The streak counter stays `STREAK n/5` during radar and while driving the RC-XD. An unused killstreak clears when the next round starts. Every map has 12 team spawns, so a full bot match does not stack on one point. Discord shows that you are playing while the window is open. Same NET_VERSION 0.3.0 as v0.3.0, so 0.3.0 and 0.3.1 can still join each other. Not compatible with 0.2.22 or older.

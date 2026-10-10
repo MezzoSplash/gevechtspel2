@@ -59,17 +59,28 @@ def catch_height(drop=0.0):
     return max(float(drop), FACE_HEIGHT)
 
 
-def make(name, toe_pos, forward, floor_y, width=WIDTH, depth=DEPTH, height=0.0):
+def make(name, toe_pos, forward, floor_y, width=WIDTH, depth=DEPTH, height=0.0, open_xz=None):
     """Box center sits depth/2 past the toe. height is this ramp's vertical drop.
 
     The node scale is the catch volume: from floor-BURY up to floor+catch_height.
-    The visible mark stays a thin stripe on the floor.
+    The visible mark stays a thin stripe on the floor. `open_xz` is the flat side
+    of the toe: the mark then stays on that side, instead of crossing onto the face.
     """
     fwd = horiz(forward[0], forward[1])
     if fwd is None:
         raise ValueError("strip %s has no travel direction" % name)
     fx, fz = fwd
     rx, rz = (fz, -fx)  # Y-up, local +Z is travel, det +1
+    # Full width when the caller does not say which side is floor. Other maps keep that.
+    mark_x, mark_sx = 0.0, 1.0
+    if open_xz is not None:
+        opened = horiz(open_xz[0], open_xz[1])
+        if opened is not None:
+            sign = 1.0 if opened[0] * rx + opened[1] * rz >= 0.0 else -1.0
+            # Stay off the toe. A mark that starts on the centreline clips the face.
+            mark_sx = 0.36
+            gap = 0.08
+            mark_x = sign * (gap + mark_sx * 0.5)
     ramp_h = catch_height(height)
     span = ramp_h + BURY
     center_lift = span * 0.5 - BURY
@@ -88,6 +99,8 @@ def make(name, toe_pos, forward, floor_y, width=WIDTH, depth=DEPTH, height=0.0):
         "height": span,
         "ramp_h": ramp_h,
         "floor": floor_y,
+        "mark_x": mark_x,
+        "mark_sx": mark_sx,
     }
 
 
@@ -128,9 +141,10 @@ def nodes(strips):
         vis_y = (VIS_LIFT - center_lift) / h
         vis_sy = VIS_THICK / h
         local_sz = stripe / d
+        mark_sx = s.get("mark_sx", 1.0)
         mark_xf = xform(
-            ((1.0, 0.0, 0.0), (0.0, vis_sy, 0.0), (0.0, 0.0, local_sz)),
-            (0.0, vis_y, -0.5 + local_sz * 0.5),
+            ((mark_sx, 0.0, 0.0), (0.0, vis_sy, 0.0), (0.0, 0.0, local_sz)),
+            (s.get("mark_x", 0.0), vis_y, -0.5 + local_sz * 0.5),
         )
         out += [
             '[node name="%s" type="Node3D" parent="." groups=["speed_strip"]]' % s["name"],
