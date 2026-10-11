@@ -23,7 +23,7 @@ const MODEL_SCENES := {
 	&"pistol": preload("res://assets/weapons/pistol.glb"),
 	&"shotgun": preload("res://assets/weapons/shotgun.glb"),
 	&"sniper": preload("res://assets/weapons/sniper.glb"), # slot 4; two body / one head
-	&"smg": preload("res://assets/weapons/smg/weapon_smg.tscn"), # sqorchtech: animated bolt + muzzle VFX
+	&"smg": preload("res://assets/weapons/smg/weapon_smg.tscn"), # sqorchtech viewmodel, fire clip + muzzle particles
 	&"revolver": preload("res://assets/weapons/revolver.tscn"),
 }
 ## Throwing knife: in hand for the F throw, and the flying/stuck projectile.
@@ -125,11 +125,6 @@ func _process(delta: float) -> void:
 	var owner_player := owner as Player
 	var bot_auth := owner_player != null and owner_player.is_bot and (Game.is_offline or multiplayer.is_server())
 	_melee_cd = maxf(_melee_cd - delta, 0.0)
-	# Every pawn: remote shots (play_remote_shot) light the flash too, so this runs before the early out.
-	_flash_left = maxf(_flash_left - delta, 0.0)
-	if _flash_left <= 0.0:
-		muzzle_flash.visible = false
-		muzzle_light.visible = false
 	if not _is_local():
 		_tick_melee_pose(delta, Vector3.ZERO)
 	if not _is_local() and not bot_auth:
@@ -137,6 +132,10 @@ func _process(delta: float) -> void:
 	# May go below 0: _fire carries the leftover so the rate does not depend on the frame rate.
 	_cooldown = maxf(_cooldown - delta, -1.0)
 	_click_left = maxf(_click_left - delta, 0.0)
+	_flash_left = maxf(_flash_left - delta, 0.0)
+	if _flash_left <= 0.0:
+		muzzle_flash.visible = false
+		muzzle_light.visible = false
 	_update_ads()
 	if bot_auth:
 		if _reload_left > 0.0:
@@ -479,59 +478,9 @@ func _setup_view_models() -> void:
 		inst.name = String(id)
 		inst.visible = false
 		no_shadows(inst)
-		prep_model_fx(inst)
+		prepare_muzzle(inst)
 		add_child(inst)
 		_view_models[id] = inst
-
-
-## Gun scenes with their own fire animation and particle VFX (the SMG): the particles are authored
-## as continuous emitters, so they become one-shot bursts that only fire from play_model_shot.
-## Local coords keep the flash on the muzzle while the viewmodel moves with the camera.
-static func prep_model_fx(model: Node) -> void:
-	for n in model.find_children("*", "GPUParticles3D", true, false):
-		var gp := n as GPUParticles3D
-		gp.one_shot = true
-		gp.local_coords = true
-		gp.emitting = false
-	for n in model.find_children("*", "AnimationPlayer", true, false):
-		var ap := n as AnimationPlayer
-		ap.stop()
-		# The fire clip is exported looping: one shot is one cycle, so it must stop at the end
-		# (else the bolt keeps cycling after the trigger is let go).
-		for anim_name in ap.get_animation_list():
-			ap.get_animation(anim_name).loop_mode = Animation.LOOP_NONE
-
-
-static func model_has_fx(model: Node) -> bool:
-	return model != null and not model.find_children("*", "GPUParticles3D", true, false).is_empty()
-
-
-## One shot on a gun scene: restart its fire animation and burst its particles. The animation is
-## sped up when it is longer than one shot at `fire_rate`, so a held trigger restarts it cleanly
-## every round instead of cutting it mid-cycle. Returns true when the model has its own muzzle VFX.
-static func play_model_shot(model: Node, fire_rate: float) -> bool:
-	if model == null:
-		return false
-	for n in model.find_children("*", "AnimationPlayer", true, false):
-		var ap := n as AnimationPlayer
-		var names := ap.get_animation_list()
-		if names.is_empty():
-			continue
-		var anim_name: StringName = names[0]
-		for a in names:
-			if String(a).ends_with("fire"):
-				anim_name = a
-		var length := ap.get_animation(anim_name).length
-		var speed := 1.0
-		if fire_rate > 0.0 and length > 0.0:
-			speed = maxf(1.0, length * fire_rate * 1.05)
-		ap.stop()
-		ap.play(anim_name, 0.0, speed)
-	var has_fx := false
-	for n in model.find_children("*", "GPUParticles3D", true, false):
-		(n as GPUParticles3D).restart()
-		has_fx = true
-	return has_fx
 
 
 static func no_shadows(n: Node) -> void:
@@ -593,36 +542,95 @@ static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dicti
 	model.position -= Vector3(center.x, center.y + 0.02, center.z + length * 0.18)
 	aabb = _aabb_in_parent(model)
 	var muzzle_pos := Vector3(0.0, aabb.get_center().y, aabb.position.z)
-	# A gun scene with its own muzzle VFX: tracers start where that flash is.
-	var marker := model.find_child("muzzle_flash", true, false) as Node3D
-	if marker:
-		muzzle_pos = model.transform * _xform_to(model, marker).origin
+	# A authored muzzle sits on the barrel. Tracers leave from there instead of the mesh centre.
+	var flash := model.find_child("muzzle_flash", true, false) as Node3D
+	if flash:
+		muzzle_pos = _origin_in_parent(model, flash)
 	var fit := {"root": root, "muzzle": muzzle_pos}
 	# Iron sights: top of the front sight in root space, so ADS lines it up under the eye.
-	var sight := model.find_child("Front_Sight*", true, false) as Node3D
-	if sight:
-		var sa := _aabb_in_parent_of(model, sight)
-		fit["sight_y"] = sa.end.y
+	var sight := model.find_child("Front_Sight*", true, false) as MeshInstance3D
+	if sight and sight.mesh:
+		fit["sight_y"] = (_xform_in_parent(model, sight) * sight.mesh.get_aabb()).end.y
 	return fit
 
 
-## `n`'s transform in `root`'s local space.
-static func _xform_to(root: Node3D, n: Node3D) -> Transform3D:
+## The SMG particles are authored as a loop. Hold them until a shot restarts the burst.
+## Local coords keep the flash on the muzzle while the viewmodel moves with the camera.
+## The fire clip is exported looping too: one shot is one cycle, so it must stop at the end
+## (else the bolt keeps cycling after the trigger is let go).
+static func prepare_muzzle(model: Node) -> void:
+	if model is GPUParticles3D:
+		var particles := model as GPUParticles3D
+		particles.one_shot = true
+		particles.local_coords = true
+		particles.emitting = false
+	elif model is AnimationPlayer:
+		var ap := model as AnimationPlayer
+		ap.stop()
+		for clip_name in ap.get_animation_list():
+			ap.get_animation(clip_name).loop_mode = Animation.LOOP_NONE
+	for child in model.get_children():
+		prepare_muzzle(child)
+
+
+## Fire clip plus one muzzle burst. True when the model drew its own flash, so the shared quad stays off.
+static func play_model_shot(model: Node3D, playback_speed: float = 1.0, fire_rate: float = 0.0) -> bool:
+	if model == null:
+		return false
+	var anim := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var clip_name := _fire_clip(anim)
+	if anim and clip_name != StringName():
+		var clip := anim.get_animation(clip_name)
+		# The clip is longer than the SMG interval. Speed it so each shot finishes a cycle,
+		# and follow killcam slow-mo (playback_speed is how fast replay time moves).
+		var pace := maxf(playback_speed, 0.01)
+		if fire_rate > 0.0 and clip.length > 0.0:
+			pace = maxf(pace, clip.length * fire_rate * pace)
+		anim.speed_scale = pace
+		# play() on the clip that is already running just continues it: stop first, so a held
+		# trigger restarts the bolt every round.
+		anim.stop()
+		anim.play(clip_name)
+	return _burst_muzzle(model)
+
+
+## Library clips are "weapons/weapon_smg_fire". A bare name only works in the default library.
+static func _fire_clip(anim: AnimationPlayer) -> StringName:
+	if anim == null:
+		return StringName()
+	if anim.has_animation(&"weapons/weapon_smg_fire"):
+		return &"weapons/weapon_smg_fire"
+	if anim.has_animation(&"weapon_smg_fire"):
+		return &"weapon_smg_fire"
+	return StringName()
+
+
+static func _burst_muzzle(node: Node) -> bool:
+	var burst := false
+	if node is GPUParticles3D:
+		var particles := node as GPUParticles3D
+		particles.one_shot = true
+		# restart() clears the previous burst and turns emitting on. One shot, then it stops.
+		particles.restart()
+		burst = true
+	for child in node.get_children():
+		if _burst_muzzle(child):
+			burst = true
+	return burst
+
+
+static func _origin_in_parent(root: Node3D, target: Node3D) -> Vector3:
+	return _xform_in_parent(root, target).origin
+
+
+## `target`'s transform in the space `root` sits in.
+static func _xform_in_parent(root: Node3D, target: Node3D) -> Transform3D:
 	var xf := Transform3D.IDENTITY
-	var cur: Node = n
-	while cur != null and cur != root:
-		if cur is Node3D:
-			xf = (cur as Node3D).transform * xf
-		cur = cur.get_parent()
-	return xf
-
-
-## AABB of the mesh `part` in the space `root` sits in.
-static func _aabb_in_parent_of(root: Node3D, part: Node3D) -> AABB:
-	var mi := part as MeshInstance3D
-	if mi == null or mi.mesh == null:
-		return AABB(root.transform * _xform_to(root, part).origin, Vector3.ZERO)
-	return (root.transform * _xform_to(root, part)) * mi.mesh.get_aabb()
+	var node: Node = target
+	while node != root and node is Node3D:
+		xf = (node as Node3D).transform * xf
+		node = node.get_parent()
+	return root.transform * xf
 
 
 static func _aabb_in_parent(n: Node3D) -> AABB:
@@ -661,32 +669,18 @@ func _try_fire() -> void:
 	_fire()
 
 
-func play_fire_sfx() -> void:
+## Sound, and the viewmodel muzzle burst when this gun has one.
+## True means the shared quad would double the SMG flash, so the caller leaves that quad off.
+func play_fire_sfx() -> bool:
+	var model_flash := false
+	if def != null and _view_models.has(def.id):
+		model_flash = play_model_shot(_view_models[def.id], 1.0, def.fire_rate)
 	if fire_sfx == null or fire_sfx.stream == null:
-		return
+		return model_flash
 	# Small random pitch so a held trigger does not sound like one looped sample.
 	fire_sfx.pitch_scale = randf_range(0.95, 1.05)
 	fire_sfx.play()
-
-
-## Muzzle flash for one shot. A gun scene with its own VFX (the SMG) plays its fire animation and
-## particles instead of the generic flash quad; the light stays for the local shooter.
-func _show_shot_visuals(with_light: bool) -> void:
-	_flash_left = 0.06 if def.id == &"shotgun" else 0.045
-	var model: Node3D = _view_models.get(def.id) as Node3D
-	var own_fx := play_model_shot(model, def.fire_rate) if model and model.visible else model_has_fx(model)
-	muzzle_flash.visible = not own_fx
-	muzzle_light.visible = with_light
-	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" else 4.5
-
-
-## Someone else's shot, from the server's shot FX (Game.broadcast_shot_fx / sync_shot_fx):
-## sound, fire animation and muzzle flash on their gun. No light: ten guns at once would cost too much.
-func play_remote_shot() -> void:
-	play_fire_sfx()
-	if def == null or _is_local():
-		return
-	_show_shot_visuals(false)
+	return model_flash
 
 
 func bot_try_fire() -> bool:
@@ -709,8 +703,11 @@ func _fire() -> void:
 	var kick_z := 0.055 if def.id != &"shotgun" else 0.09
 	_kick_offset += Vector3(0.0, 0.0, kick_z)
 	_kick_offset.y += randf_range(-0.008, 0.004)
-	_show_shot_visuals(true)
-	play_fire_sfx()
+	_flash_left = 0.06 if def.id == &"shotgun" else 0.045
+	var model_flash := play_fire_sfx()
+	muzzle_flash.visible = not model_flash
+	muzzle_light.visible = true
+	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" else 4.5
 
 	var shooter := owner as Player
 	Game.killcam.note_fire(shooter.peer_id if shooter else 0, def.id)

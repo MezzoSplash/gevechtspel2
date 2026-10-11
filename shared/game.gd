@@ -1838,7 +1838,7 @@ func broadcast_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int) -> void
 		_spawn_net_tracer(from, to)
 		var remote_shooter := player_for_peer(shooter_peer_id)
 		if remote_shooter and remote_shooter.weapon:
-			remote_shooter.weapon.play_remote_shot()
+			remote_shooter.weapon.play_fire_sfx()
 		_note_net_shot(from, to, remote_shooter)
 	sync_shot_fx.rpc(from, to, shooter_peer_id)
 
@@ -1851,7 +1851,7 @@ func sync_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int = 0) -> void:
 	_spawn_net_tracer(from, to)
 	var shooter := player_for_peer(shooter_peer_id)
 	if shooter and shooter.weapon:
-		shooter.weapon.play_remote_shot()
+		shooter.weapon.play_fire_sfx()
 	_note_net_shot(from, to, shooter)
 
 

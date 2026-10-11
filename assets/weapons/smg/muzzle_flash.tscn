@@ -94,6 +94,8 @@ size = Vector2(0.2, 1)
 
 [node name="muzzle_plane" type="GPUParticles3D" parent="." unique_id=1485149851]
 transform = Transform3D(0.99997294, 0, 0.007359758, 0, 1, 0, -0.007359758, 0, 0.99997294, 0, 0, 0)
+emitting = false
+one_shot = true
 material_override = SubResource("StandardMaterial3D_oe5h4")
 amount = 1
 lifetime = 0.1
@@ -103,6 +105,8 @@ draw_pass_1 = ExtResource("2_8cf7x")
 
 [node name="muzzle_cone" type="GPUParticles3D" parent="." unique_id=1794188372]
 transform = Transform3D(0.9998917, 0, 0.014719117, 0, 1, 0, -0.014719117, 0, 0.9998917, 0, 0, 0)
+emitting = false
+one_shot = true
 material_override = SubResource("StandardMaterial3D_eg7pj")
 amount = 1
 lifetime = 0.1
@@ -112,6 +116,8 @@ draw_pass_1 = ExtResource("3_bf26l")
 
 [node name="beam_flash" type="GPUParticles3D" parent="." unique_id=2052165120]
 transform = Transform3D(0.99956673, 0, 0.029435046, 0, 1, 0, -0.029435046, 0, 0.99956673, 0, 0, 0)
+emitting = false
+one_shot = true
 material_override = SubResource("StandardMaterial3D_0q35d")
 amount = 1
 lifetime = 0.1
@@ -120,6 +126,8 @@ process_material = SubResource("ParticleProcessMaterial_wsocd")
 draw_pass_1 = SubResource("QuadMesh_oe5h4")
 
 [node name="sparks" type="GPUParticles3D" parent="." unique_id=584530683]
+emitting = false
+one_shot = true
 material_override = SubResource("StandardMaterial3D_s44q1")
 amount = 20
 lifetime = 0.3
