@@ -494,7 +494,12 @@ static func prep_model_fx(model: Node) -> void:
 		gp.local_coords = true
 		gp.emitting = false
 	for n in model.find_children("*", "AnimationPlayer", true, false):
-		(n as AnimationPlayer).stop()
+		var ap := n as AnimationPlayer
+		ap.stop()
+		# The fire clip is exported looping: one shot is one cycle, so it must stop at the end
+		# (else the bolt keeps cycling after the trigger is let go).
+		for anim_name in ap.get_animation_list():
+			ap.get_animation(anim_name).loop_mode = Animation.LOOP_NONE
 
 
 static func model_has_fx(model: Node) -> bool:
