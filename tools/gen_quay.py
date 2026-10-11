@@ -584,14 +584,11 @@ pair_box("FlankDeck", _toe_lo[0] - 0.15, -29.0, 0.0, QUAY_Y,
 pair_box("FlankSeam", _toe_lo[0] - 0.21, _toe_lo[0] - 0.15, 0.0, QUAY_Y,
          _toe_lo[2] - 0.01, _toe_lo[2] + 0.8, "concrete")
 # The lane between the loods and the outer wall ran into the deck: a dead end, with the
-# pit beside the deck stopping on the flank fill. The two meet at one corner, so a cut
-# there joins the pit to the lane on the far side of the deck. Not a pair on purpose:
-# blue (east) gets a door, orange (west) only a window you can shoot through.
-# Door: 2.0-2.2 m between the corners it leaves, 2.5 m high. The deck top stays 1.5 m thick.
-sub("FlankDoorO", 40.4, 43.6, 0.0, 2.5, 0.9, 4.2)
-# Window: about 1.3 m across, chest height (standing eye is 1.6 m), 0.6 m tall. The crouched capsule is
-# 1.0 m, so nobody fits through; hitscan does.
-sub("FlankWindowB", -43.0, -40.9, 1.15, 1.75, -3.5, -1.4)
+# pit beside the deck stopping on the flank fill. The two meet at one corner. A window
+# there looks from the pit into the lane on the far side of the deck, both teams alike.
+# About 1.3 m across, chest height (standing eye is 1.6 m), 0.6 m tall. The crouched
+# capsule is 1.0 m, so nobody fits through; hitscan does.
+pair_sub("FlankWindow", -43.0, -40.9, 1.15, 1.75, -3.5, -1.4)
 
 # ---------------------------------------------------------------- dock surf, 4 m → 0, inner quay face
 DOCK_BASIS = mul_basis(yaw_into(1.0, 0.0), rx(DOCK_PITCH))

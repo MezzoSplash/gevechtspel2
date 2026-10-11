@@ -941,14 +941,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42.03, 2, 2.1704)
 size = Vector3(0.06, 4, 0.81)
 material = SubResource("Mat_concrete")
 
-[node name="FlankDoorO" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42, 1.25, 2.55)
-size = Vector3(3.2, 2.5, 3.3)
+[node name="FlankWindowB" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -41.95, 1.45, -2.45)
+size = Vector3(2.1, 0.6, 2.1)
 operation = 2
 material = SubResource("Mat_concrete")
 
-[node name="FlankWindowB" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -41.95, 1.45, -2.45)
+[node name="FlankWindowO" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.95, 1.45, 2.45)
 size = Vector3(2.1, 0.6, 2.1)
 operation = 2
 material = SubResource("Mat_concrete")
