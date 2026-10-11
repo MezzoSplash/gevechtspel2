@@ -1169,6 +1169,18 @@ transform = Transform3D(-1, 0, 0, 0, 0.9127, 0.4087, 0, 0.4087, -0.9127, -32.6, 
 size = Vector3(2.4, 0.35, 14.682)
 material = SubResource("Mat_steel")
 
+[node name="SideLinkFootB" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 31.43, 0, 0)
+polygon = PackedVector2Array(15.6, -0.1, 21.4067, -0.1, 21.4067, 6.57, 15.6, 3.97)
+depth = 2.34
+material = SubResource("Mat_steel")
+
+[node name="SideLinkFootO" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -33.77, 0, 0)
+polygon = PackedVector2Array(-15.6, 3.97, -21.4067, 6.57, -21.4067, -0.1, -15.6, -0.1)
+depth = 2.34
+material = SubResource("Mat_steel")
+
 [node name="SideLinkLandB" type="CSGBox3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.6, 9.575, 29.85)
 size = Vector3(2.7, 0.85, 1.7)

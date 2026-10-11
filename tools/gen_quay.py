@@ -238,6 +238,23 @@ def pair_wedge_x(name, z0, z1, x_low, x_high, h, mat, y0=0.0, top_drop=0.0, lip=
     wedge_x(name + "O", -z1, -z0, -x_low, -x_high, h, mat, y0=y0, top_drop=top_drop, lip=lip)
 
 
+def wedge_z(name, x0, x1, z_low, z_high, h, mat, y0=0.0, top_drop=0.0, base_y=None):
+    """wedge_x along z: top from y0 at z_low to y0+h at z_high, solid down to base_y."""
+    base = (y0 - 0.1) if base_y is None else base_y
+    top_hi = y0 + h - top_drop
+    pts = [(z_low, y0 - top_drop), (z_high, top_hi), (z_high, base), (z_low, base)]
+    area = sum(pts[i][0] * pts[(i + 1) % 4][1] - pts[(i + 1) % 4][0] * pts[i][1] for i in range(4))
+    if area < 0.0:
+        pts.reverse()
+    flat = []
+    for a, b in pts:
+        flat += [a, b]
+    # local X = world +Z, local Y = up, local Z = world -X: extrudes from x0 toward +X.
+    add(name, "CSGPolygon3D", xform(((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)), (min(x0, x1), 0.0, 0.0)),
+        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in flat),
+         "depth = %s" % fmt(abs(x1 - x0))], mat)
+
+
 def light(name, pos, col, energy, rng):
     lights.append((name, pos, col, energy, rng))
 
@@ -943,6 +960,13 @@ for _fill_name, _fill in _door_fills:
 # The foot is solid with the quay, so the east edge is not a floating shelf.
 pair_box("SideLinkPad", 31.2, 33.95, 0.0, QUAY_Y, 13.6, 17.6, "concrete")
 pair_ramp_z("SideLink", 31.4, 33.8, 15.6, 29.0, ROOF_Y - QUAY_Y, "steel", y0=QUAY_Y)
+# Solid under the low end (down to the lane), like the street ramps: under the bare slab
+# the deck edge was a head-height trap. Open again from 2.6 m clearance.
+_sl_h = 2.6
+wedge_z("SideLinkFootB", 31.43, 33.77, 15.6, 15.6 + (29.0 - 15.6) * _sl_h / (ROOF_Y - QUAY_Y), _sl_h,
+        "steel", y0=QUAY_Y, top_drop=0.03, base_y=-0.1)
+wedge_z("SideLinkFootO", -33.77, -31.43, -15.6, -(15.6 + (29.0 - 15.6) * _sl_h / (ROOF_Y - QUAY_Y)), _sl_h,
+        "steel", y0=QUAY_Y, top_drop=0.03, base_y=-0.1)
 # Fills the whole slot behind the ramp, so the roof corner is closed.
 pair_box("SideLinkLand", 31.25, 33.95, 9.15, ROOF_Y, 29.0, 30.7, "steel")
 add_ramp_probes()
