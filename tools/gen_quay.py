@@ -202,6 +202,59 @@ def pair_ramp_x(name, z0, z1, x_low, x_high, h, mat, y0=0.0):
     ramp_x(name + "O", -z1, -z0, -x_low, -x_high, h, mat, y0=y0)
 
 
+def wedge_x(name, z0, z1, x_low, x_high, h, mat, y0=0.0, top_drop=0.0, bury=0.1, lip=0.05):
+    """Solid ramp: top runs from y0 at x_low to y0+h at x_high, solid down to y0-bury.
+
+    A slab ramp hangs in the air: the capsule bumps its head under the low end, and the
+    top edge sat a few cm under the deck it climbs to. A wedge has neither. `lip` runs the
+    top flat for a few cm past x_high, under the deck it meets. `top_drop` lowers the whole
+    top (a skirt that stays inside an existing slab, so the two tops never z-fight).
+    """
+    sgn = 1.0 if x_high > x_low else -1.0
+    top_hi = y0 + h - top_drop
+    pts = [
+        (x_low, y0 - top_drop),
+        (x_high, top_hi),
+        (x_high + sgn * lip, top_hi),
+        (x_high + sgn * lip, y0 - bury),
+        (x_low, y0 - bury),
+    ]
+    area = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
+               for i in range(len(pts)))
+    if area < 0.0:
+        pts.reverse()  # CCW in local XY, like the surf triangle
+    flat = []
+    for x, y in pts:
+        flat += [x, y]
+    # Extrudes along local -Z, so the node sits on the far (z1) side.
+    add(name, "CSGPolygon3D", xform(IDENT, (0.0, 0.0, max(z0, z1))),
+        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in flat),
+         "depth = %s" % fmt(abs(z1 - z0))], mat)
+
+
+def pair_wedge_x(name, z0, z1, x_low, x_high, h, mat, y0=0.0, top_drop=0.0, lip=0.05):
+    """Blue wedge plus the half-turn. The polygon is in world X/Y, so the half-turn just negates x."""
+    wedge_x(name + "B", z0, z1, x_low, x_high, h, mat, y0=y0, top_drop=top_drop, lip=lip)
+    wedge_x(name + "O", -z1, -z0, -x_low, -x_high, h, mat, y0=y0, top_drop=top_drop, lip=lip)
+
+
+def wedge_z(name, x0, x1, z_low, z_high, h, mat, y0=0.0, top_drop=0.0, base_y=None):
+    """wedge_x along z: top from y0 at z_low to y0+h at z_high, solid down to base_y."""
+    base = (y0 - 0.1) if base_y is None else base_y
+    top_hi = y0 + h - top_drop
+    pts = [(z_low, y0 - top_drop), (z_high, top_hi), (z_high, base), (z_low, base)]
+    area = sum(pts[i][0] * pts[(i + 1) % 4][1] - pts[(i + 1) % 4][0] * pts[i][1] for i in range(4))
+    if area < 0.0:
+        pts.reverse()
+    flat = []
+    for a, b in pts:
+        flat += [a, b]
+    # local X = world +Z, local Y = up, local Z = world -X: extrudes from x0 toward +X.
+    add(name, "CSGPolygon3D", xform(((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0)), (min(x0, x1), 0.0, 0.0)),
+        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in flat),
+         "depth = %s" % fmt(abs(x1 - x0))], mat)
+
+
 def light(name, pos, col, energy, rng):
     lights.append((name, pos, col, energy, rng))
 
@@ -385,8 +438,11 @@ pair_sub("EastStairASlot", 16.45, 20.55, CEIL_Y - 0.15, ROOF_Y + 0.25, 33.5, 46.
 pair_sub("EastStairBSlot", 27.25, 31.55, CEIL_Y - 0.15, ROOF_Y + 0.25, 31.7, 44.5)
 # Quay edge, cut before the ramp is unioned. The ramp then meets the deck at y=4
 # instead of dead-ending into the vertical face.
-pair_sub("QuayNotchS", -20.85, -17.5, 0.02, QUAY_Y + 0.35, 15.9, 20.3)
-pair_sub("QuayNotchN", -20.85, -17.5, 0.02, QUAY_Y + 0.35, -20.3, -15.9)
+# The notch is the ramp's own footprint: a narrower one left a deck strip standing on
+# both edges of the ramp top, and its end sat 6 cm proud of the tread (the capsule stopped).
+QUAY_RAMP_TOP_X = -21.0
+pair_sub("QuayNotchS", QUAY_RAMP_TOP_X, -17.5, 0.02, QUAY_Y + 0.35, 15.5, 20.7)
+pair_sub("QuayNotchN", QUAY_RAMP_TOP_X, -17.5, 0.02, QUAY_Y + 0.35, -20.7, -15.5)
 # Street-ramp slot through the roof edge. Wider than the tread and open to the
 # sky, so the roof does not sit as a ledge on either side of the ramp. The west
 # stair shaft ends at z=44.5 and the east one starts at z=33.5, so the slot
@@ -460,15 +516,26 @@ for _bar_name, _bar in _rail_bars:
 # The landing is the same height as the roof, and the ramp arrives on its edge.
 pair_ramp_x("WestRamp", EXT_W_Z0, EXT_W_Z1, EXT_X_FOOT, EXT_X_TOP, ROOF_Y, "concrete")
 pair_ramp_x("EastRamp", EXT_E_Z0, EXT_E_Z1, -EXT_X_FOOT, -EXT_X_TOP, ROOF_Y, "concrete")
+# Solid foot under the low end of each street ramp. Under the bare slab the underside was
+# head height for the first few metres: players walked in and stuck on their head.
+# Top 3 cm under the slab's top, so it stays inside the slab (no z-fight). Past 2.6 m
+# the street under the ramp is open as before.
+_SKIRT_H = 2.6
+_skirt_x = EXT_X_FOOT + (EXT_X_TOP - EXT_X_FOOT) * (_SKIRT_H / ROOF_Y)
+pair_wedge_x("WestRampFoot", EXT_W_Z0 + 0.03, EXT_W_Z1 - 0.03, EXT_X_FOOT, _skirt_x, _SKIRT_H, "concrete",
+             top_drop=0.03, lip=0.0)
+pair_wedge_x("EastRampFoot", EXT_E_Z0 + 0.03, EXT_E_Z1 - 0.03, -EXT_X_FOOT, -_skirt_x, _SKIRT_H, "concrete",
+             top_drop=0.03, lip=0.0)
 pair_box("WestRampLand", EXT_X_TOP - 1.35, EXT_X_TOP, ROOF_Y - 0.45, ROOF_Y, 44.70, 48.55, "concrete")
 pair_box("EastRampLand", 18.4, 19.75, ROOF_Y - 0.45, ROOF_Y, 29.50, 33.35, "concrete")
 pair_box("WestRampEdge", EXT_X_FOOT - 0.2, EXT_X_FOOT + 0.2, -0.06, 0.0, EXT_W_Z0, EXT_W_Z1, "hazard")
 pair_box("EastRampEdge", -EXT_X_FOOT - 0.2, -EXT_X_FOOT + 0.2, -0.06, 0.0, EXT_E_Z0, EXT_E_Z1, "hazard")
 
-# Quay ↔ dock. Foot on the dock floor, top buried in the deck past the notch.
+# Quay ↔ dock. Foot on the dock floor, top flush with the deck at the end of the notch.
 # ~21°, wide enough for two capsules. Kept off the dock surf (high end is z≈14).
-pair_ramp_x("QuayRampS", 15.5, 20.7, -10.4, -21.0, QUAY_Y, "concrete")
-pair_ramp_x("QuayRampN", -20.7, -15.5, -10.4, -21.0, QUAY_Y, "concrete")
+# Solid wedge, 2 cm wider than the notch on each side (that part hides in the deck).
+pair_wedge_x("QuayRampS", 15.48, 20.72, -10.4, QUAY_RAMP_TOP_X, QUAY_Y, "concrete")
+pair_wedge_x("QuayRampN", -20.72, -15.48, -10.4, QUAY_RAMP_TOP_X, QUAY_Y, "concrete")
 pair_box("QuayRampSEdge", -10.6, -10.25, -0.06, 0.0, 15.5, 20.7, "hazard")
 pair_box("QuayRampNEdge", -10.6, -10.25, -0.06, 0.0, -20.7, -15.5, "hazard")
 
@@ -893,6 +960,13 @@ for _fill_name, _fill in _door_fills:
 # The foot is solid with the quay, so the east edge is not a floating shelf.
 pair_box("SideLinkPad", 31.2, 33.95, 0.0, QUAY_Y, 13.6, 17.6, "concrete")
 pair_ramp_z("SideLink", 31.4, 33.8, 15.6, 29.0, ROOF_Y - QUAY_Y, "steel", y0=QUAY_Y)
+# Solid under the low end (down to the lane), like the street ramps: under the bare slab
+# the deck edge was a head-height trap. Open again from 2.6 m clearance.
+_sl_h = 2.6
+wedge_z("SideLinkFootB", 31.43, 33.77, 15.6, 15.6 + (29.0 - 15.6) * _sl_h / (ROOF_Y - QUAY_Y), _sl_h,
+        "steel", y0=QUAY_Y, top_drop=0.03, base_y=-0.1)
+wedge_z("SideLinkFootO", -33.77, -31.43, -15.6, -(15.6 + (29.0 - 15.6) * _sl_h / (ROOF_Y - QUAY_Y)), _sl_h,
+        "steel", y0=QUAY_Y, top_drop=0.03, base_y=-0.1)
 # Fills the whole slot behind the ramp, so the roof corner is closed.
 pair_box("SideLinkLand", 31.25, 33.95, 9.15, ROOF_Y, 29.0, 30.7, "steel")
 add_ramp_probes()

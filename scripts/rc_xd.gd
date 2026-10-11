@@ -18,7 +18,7 @@ const HEIGHT := 0.45
 const LENGTH := 1.1
 const PITCH_MIN := -0.45
 const PITCH_MAX := 0.40
-const STEEL := Color(0.141, 0.149, 0.161) # #242629
+const BODY_SCENE := preload("res://assets/gadgets/RCExplody.glb")
 const INPUT_STALE := 0.25 # s without a packet: the remote car coasts to a stop
 
 var owner_peer := 0
@@ -405,7 +405,8 @@ func _add_camera() -> void:
 	_cam = Camera3D.new()
 	_cam.name = "RcCam"
 	_cam.fov = 80.0
-	_cam.position = Vector3(0.0, 0.32, -0.12)
+	# Behind the low RCExplody body. The old spot sat over the roof and showed only the fenders.
+	_cam.position = Vector3(0.0, 0.55, 0.85)
 	add_child(_cam)
 	_cam.current = true
 	Game.rc_view = true
@@ -433,41 +434,59 @@ func _show_hud() -> void:
 		hud.set_rc_drive(true, hp, life)
 
 
+## RCExplody faces +Z. The car and its camera look down -Z, so the mesh is turned around.
+## Scaled onto the existing hitbox: shots still use WIDTH / HEIGHT / LENGTH.
 func _build_body() -> void:
-	var paint := Player.team_color(owner_team)
-	_box(Vector3(0.66, 0.2, 1.02), Vector3(0.0, 0.0, 0.0), _steel(0.45, 0.42))
-	_box(Vector3(0.4, 0.14, 0.38), Vector3(0.0, 0.14, 0.06), _steel(0.2, 0.55))
-	var stripe := _steel(0.0, 0.6)
-	stripe.albedo_color = paint
-	stripe.emission_enabled = true
-	stripe.emission = paint
-	stripe.emission_energy_multiplier = 0.45
-	_box(Vector3(0.1, 0.025, 0.62), Vector3(0.0, 0.115, -0.22), stripe)
-	_box(Vector3(0.03, 0.16, 0.03), Vector3(0.0, 0.12, 0.42), _steel(0.5, 0.4))
-	var wheel := _steel(0.1, 0.85)
-	wheel.albedo_color = Color(0.08, 0.08, 0.09)
-	for side in [-1.0, 1.0]:
-		for axle in [-0.32, 0.32]:
-			_box(Vector3(0.14, 0.16, 0.16), Vector3(side * 0.26, -0.1, axle), wheel)
+	var model := BODY_SCENE.instantiate() as Node3D
+	model.name = "Body"
+	model.rotation.y = PI
+	add_child(model)
+	var bounds := _mesh_bounds(model)
+	var span := maxf(bounds.size.z, 0.05)
+	model.scale = Vector3.ONE * (LENGTH / span)
+	bounds = _mesh_bounds(model)
+	var mid := bounds.get_center()
+	model.position -= Vector3(mid.x, bounds.position.y + HEIGHT * 0.5, mid.z)
+	_add_team_mark(-HEIGHT * 0.5 + bounds.size.y)
 
 
-func _box(size: Vector3, at: Vector3, mat: Material) -> void:
-	var mesh := MeshInstance3D.new()
+func _mesh_bounds(model: Node3D) -> AABB:
+	var acc := AABB()
+	var has := false
+	var stack: Array = [[model, model.transform]]
+	while not stack.is_empty():
+		var item: Array = stack.pop_back()
+		var node: Node = item[0]
+		var xf: Transform3D = item[1]
+		if node is MeshInstance3D and (node as MeshInstance3D).mesh:
+			var box: AABB = xf * (node as MeshInstance3D).mesh.get_aabb()
+			acc = box if not has else acc.merge(box)
+			has = true
+		for child in node.get_children():
+			if child is Node3D:
+				stack.append([child, xf * (child as Node3D).transform])
+			else:
+				stack.append([child, xf])
+	return acc if has else AABB(Vector3.ZERO, Vector3.ONE)
+
+
+## The GLB uses one paint for both teams. The roof bar is how you tell them apart.
+func _add_team_mark(top_y: float) -> void:
+	var mark := MeshInstance3D.new()
 	var box := BoxMesh.new()
-	box.size = size
-	mesh.mesh = box
-	mesh.position = at
-	mesh.material_override = mat
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	add_child(mesh)
-
-
-func _steel(metal: float, rough: float) -> StandardMaterial3D:
+	box.size = Vector3(0.08, 0.02, 0.36)
+	mark.mesh = box
+	var paint := Player.team_color(owner_team)
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = STEEL
-	mat.metallic = metal
-	mat.roughness = rough
-	return mat
+	mat.albedo_color = paint
+	mat.emission_enabled = true
+	mat.emission = paint
+	mat.emission_energy_multiplier = 0.8
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mark.material_override = mat
+	mark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mark.position = Vector3(0.0, top_y - 0.005, 0.0)
+	add_child(mark)
 
 
 func _local_driver() -> bool:

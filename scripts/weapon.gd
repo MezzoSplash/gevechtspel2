@@ -23,7 +23,7 @@ const MODEL_SCENES := {
 	&"pistol": preload("res://assets/weapons/pistol.glb"),
 	&"shotgun": preload("res://assets/weapons/shotgun.glb"),
 	&"sniper": preload("res://assets/weapons/sniper.glb"), # slot 4; two body / one head
-	&"smg": preload("res://assets/weapons/smg.tscn"), # hand-built low-poly (tools/build_lowpoly_weapons.py)
+	&"smg": preload("res://assets/weapons/smg/weapon_smg.tscn"), # sqorchtech viewmodel, fire clip + muzzle particles
 	&"revolver": preload("res://assets/weapons/revolver.tscn"),
 }
 ## Throwing knife: in hand for the F throw, and the flying/stuck projectile.
@@ -59,6 +59,7 @@ var _active_index := 0 # index into `slots`
 var slots: Array[WeaponDef] = []
 var _view_models: Dictionary = {} # StringName → Node3D
 var _ads := false
+var _ads_drop := -0.092 # WeaponRoot y while aiming (iron sights), set per gun in _apply_view_for_def
 ## Held-trigger counter for automatic guns: +1 on every new press (humans) or new burst (bots).
 ## Only for the SPRAY TRANSFER trick; the server also ends a burst after Style.BURST_GAP.
 var burst_seq := 0
@@ -71,6 +72,7 @@ const CLICK_BUFFER := 0.12
 const MELEE_ANIM := 0.36 # seconds: thrust out, hold, pull back
 const MELEE_SWING := preload("res://assets/sounds/melee_swing.wav")
 const MELEE_HIT := preload("res://assets/sounds/melee_hit.wav")
+const ADS_SIGHT_GAP := 0.004 # front sight tip this far under the eye line while aiming
 const ADS_TIME := 0.09 # s to slide the SMG to the centre (fast ADS)
 const THROW_ANIM := 0.34 # knife in hand: wind up, release, gun comes back
 ## Per weapon id: +1 on every fresh magazine (reload done, spawn refill). Sent with each shot so the
@@ -312,7 +314,8 @@ func ads_sens_mult() -> float:
 
 
 func _ads_pose() -> Vector3:
-	return Vector3(0.0, -0.092, _view_rest.z - 0.02)
+	# Guns with a modelled front sight put its tip just under the eye line; the rest keep the tuned drop.
+	return Vector3(0.0, _ads_drop, _view_rest.z - 0.02)
 
 
 func _cycle_weapon() -> void:
@@ -475,6 +478,7 @@ func _setup_view_models() -> void:
 		inst.name = String(id)
 		inst.visible = false
 		no_shadows(inst)
+		prepare_muzzle(inst)
 		add_child(inst)
 		_view_models[id] = inst
 
@@ -498,6 +502,7 @@ func _apply_view_for_def() -> void:
 	position = fit.root
 	muzzle.position = fit.muzzle
 	_view_rest = position
+	_ads_drop = -float(fit.sight_y) - ADS_SIGHT_GAP if fit.has("sight_y") else -0.092
 
 
 ## Scales and centres a gun GLB for this slot. Returns where the gun root sits under the camera
@@ -536,7 +541,96 @@ static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dicti
 	var center := aabb.get_center()
 	model.position -= Vector3(center.x, center.y + 0.02, center.z + length * 0.18)
 	aabb = _aabb_in_parent(model)
-	return {"root": root, "muzzle": Vector3(0.0, aabb.get_center().y, aabb.position.z)}
+	var muzzle_pos := Vector3(0.0, aabb.get_center().y, aabb.position.z)
+	# A authored muzzle sits on the barrel. Tracers leave from there instead of the mesh centre.
+	var flash := model.find_child("muzzle_flash", true, false) as Node3D
+	if flash:
+		muzzle_pos = _origin_in_parent(model, flash)
+	var fit := {"root": root, "muzzle": muzzle_pos}
+	# Iron sights: top of the front sight in root space, so ADS lines it up under the eye.
+	var sight := model.find_child("Front_Sight*", true, false) as MeshInstance3D
+	if sight and sight.mesh:
+		fit["sight_y"] = (_xform_in_parent(model, sight) * sight.mesh.get_aabb()).end.y
+	return fit
+
+
+## The SMG particles are authored as a loop. Hold them until a shot restarts the burst.
+## Local coords keep the flash on the muzzle while the viewmodel moves with the camera.
+## The fire clip is exported looping too: one shot is one cycle, so it must stop at the end
+## (else the bolt keeps cycling after the trigger is let go).
+static func prepare_muzzle(model: Node) -> void:
+	if model is GPUParticles3D:
+		var particles := model as GPUParticles3D
+		particles.one_shot = true
+		particles.local_coords = true
+		particles.emitting = false
+	elif model is AnimationPlayer:
+		var ap := model as AnimationPlayer
+		ap.stop()
+		for clip_name in ap.get_animation_list():
+			ap.get_animation(clip_name).loop_mode = Animation.LOOP_NONE
+	for child in model.get_children():
+		prepare_muzzle(child)
+
+
+## Fire clip plus one muzzle burst. True when the model drew its own flash, so the shared quad stays off.
+static func play_model_shot(model: Node3D, playback_speed: float = 1.0, fire_rate: float = 0.0) -> bool:
+	if model == null:
+		return false
+	var anim := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var clip_name := _fire_clip(anim)
+	if anim and clip_name != StringName():
+		var clip := anim.get_animation(clip_name)
+		# The clip is longer than the SMG interval. Speed it so each shot finishes a cycle,
+		# and follow killcam slow-mo (playback_speed is how fast replay time moves).
+		var pace := maxf(playback_speed, 0.01)
+		if fire_rate > 0.0 and clip.length > 0.0:
+			pace = maxf(pace, clip.length * fire_rate * pace)
+		anim.speed_scale = pace
+		# play() on the clip that is already running just continues it: stop first, so a held
+		# trigger restarts the bolt every round.
+		anim.stop()
+		anim.play(clip_name)
+	return _burst_muzzle(model)
+
+
+## Library clips are "weapons/weapon_smg_fire". A bare name only works in the default library.
+static func _fire_clip(anim: AnimationPlayer) -> StringName:
+	if anim == null:
+		return StringName()
+	if anim.has_animation(&"weapons/weapon_smg_fire"):
+		return &"weapons/weapon_smg_fire"
+	if anim.has_animation(&"weapon_smg_fire"):
+		return &"weapon_smg_fire"
+	return StringName()
+
+
+static func _burst_muzzle(node: Node) -> bool:
+	var burst := false
+	if node is GPUParticles3D:
+		var particles := node as GPUParticles3D
+		particles.one_shot = true
+		# restart() clears the previous burst and turns emitting on. One shot, then it stops.
+		particles.restart()
+		burst = true
+	for child in node.get_children():
+		if _burst_muzzle(child):
+			burst = true
+	return burst
+
+
+static func _origin_in_parent(root: Node3D, target: Node3D) -> Vector3:
+	return _xform_in_parent(root, target).origin
+
+
+## `target`'s transform in the space `root` sits in.
+static func _xform_in_parent(root: Node3D, target: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var node: Node = target
+	while node != root and node is Node3D:
+		xf = (node as Node3D).transform * xf
+		node = node.get_parent()
+	return root.transform * xf
 
 
 static func _aabb_in_parent(n: Node3D) -> AABB:
@@ -575,12 +669,18 @@ func _try_fire() -> void:
 	_fire()
 
 
-func play_fire_sfx() -> void:
+## Sound, and the viewmodel muzzle burst when this gun has one.
+## True means the shared quad would double the SMG flash, so the caller leaves that quad off.
+func play_fire_sfx() -> bool:
+	var model_flash := false
+	if def != null and _view_models.has(def.id):
+		model_flash = play_model_shot(_view_models[def.id], 1.0, def.fire_rate)
 	if fire_sfx == null or fire_sfx.stream == null:
-		return
+		return model_flash
 	# Small random pitch so a held trigger does not sound like one looped sample.
 	fire_sfx.pitch_scale = randf_range(0.95, 1.05)
 	fire_sfx.play()
+	return model_flash
 
 
 func bot_try_fire() -> bool:
@@ -604,10 +704,10 @@ func _fire() -> void:
 	_kick_offset += Vector3(0.0, 0.0, kick_z)
 	_kick_offset.y += randf_range(-0.008, 0.004)
 	_flash_left = 0.06 if def.id == &"shotgun" else 0.045
-	muzzle_flash.visible = true
+	var model_flash := play_fire_sfx()
+	muzzle_flash.visible = not model_flash
 	muzzle_light.visible = true
 	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" else 4.5
-	play_fire_sfx()
 
 	var shooter := owner as Player
 	Game.killcam.note_fire(shooter.peer_id if shooter else 0, def.id)

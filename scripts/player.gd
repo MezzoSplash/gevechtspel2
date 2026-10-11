@@ -744,7 +744,12 @@ func _physics_process(delta: float) -> void:
 	_surf_t = maxf(_surf_t - delta, 0.0)
 	if not on_floor and _surf_t > 0.0:
 		velocity = clip_to_plane(velocity, _surf_normal)
+	var pre_move := velocity
 	move_and_slide()
+	# Small lips (slab seams, curbs, ramp edges up to StepUp.MAX_HEIGHT) are walked over, not
+	# a wall. Floor only: air strafing and surfing are untouched.
+	if not jumped:
+		_smooth_step(StepUp.try_step(self, pre_move, on_floor, delta))
 	_note_surf_contact()
 	# Landing is an air frame (no ground friction yet). Carry starts here, so the next
 	# grounded frame keeps the speed instead of scrubbing it.
@@ -756,8 +761,28 @@ func _physics_process(delta: float) -> void:
 	_apply_carry_fov()
 	_finish_slide()
 	_tick_feet(delta)
+	_tick_step_view(delta)
 
 	weapon.speed_factor = Vector2(velocity.x, velocity.z).length() / WALK_SPEED
+
+
+## A step-up moves the body up in one frame. The camera starts that much lower and catches up
+## over a few frames, so a curb reads as a step and not a snap.
+var _step_view := 0.0
+const STEP_VIEW_RATE := 18.0
+
+
+func _smooth_step(climb: float) -> void:
+	if climb > 0.0 and camera:
+		_step_view = clampf(_step_view - climb, -StepUp.MAX_HEIGHT, 0.0)
+
+
+func _tick_step_view(delta: float) -> void:
+	if camera == null:
+		return
+	if _step_view < 0.0:
+		_step_view = minf(_step_view * exp(-STEP_VIEW_RATE * delta) + 0.0001, 0.0)
+	camera.position.y = _step_view
 
 
 ## Uses velocity when we simulate, otherwise position delta (puppets have velocity zeroed).
