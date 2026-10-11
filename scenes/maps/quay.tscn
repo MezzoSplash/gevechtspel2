@@ -931,6 +931,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.5, 2, 8.3654)
 size = Vector3(13, 4, 12.4)
 material = SubResource("Mat_concrete")
 
+[node name="FlankDoorO" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42, 1.25, 2.55)
+size = Vector3(3.2, 2.5, 3.3)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="FlankWindowB" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -41.95, 1.45, -2.45)
+size = Vector3(2.1, 0.6, 2.1)
+operation = 2
+material = SubResource("Mat_concrete")
+
 [node name="DockW" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 0.9881, 0.1538, 0, -0.1538, 0.9881, -18, 4.0988, 14)
 polygon = PackedVector2Array(-0.1, -0.1, 3.3, -0.1, -0.1, 5.15)
@@ -977,6 +989,38 @@ material = SubResource("Mat_surf")
 transform = Transform3D(-1, 0, 0, 0, 0.9881, 0.1538, 0, 0.1538, -0.9881, 18, 4.0988, -14)
 polygon = PackedVector2Array(-0.15, -0.05, 3.1, -0.05, 3.1, -5, -0.15, -5)
 depth = 26
+material = SubResource("Mat_concrete")
+
+[node name="DockETrim" type="CSGCylinder3D" parent="Arena/DockE"]
+transform = Transform3D(-1, 0, 0, 0, 0.9881, 0.1538, 0, 0.1538, -0.9881, 6, 1.7961, -38.1782)
+operation = 2
+radius = 14.35
+height = 40
+sides = 128
+material = SubResource("Mat_concrete")
+
+[node name="FillDockETrim" type="CSGCylinder3D" parent="Arena/FillDockE"]
+transform = Transform3D(-1, 0, 0, 0, 0.9881, 0.1538, 0, 0.1538, -0.9881, 6, 1.7961, -38.1782)
+operation = 2
+radius = 14.35
+height = 40
+sides = 128
+material = SubResource("Mat_concrete")
+
+[node name="DockWTrim" type="CSGCylinder3D" parent="Arena/DockW"]
+transform = Transform3D(1, 0, 0, 0, 0.9881, -0.1538, 0, 0.1538, 0.9881, 6, 1.7961, -38.1782)
+operation = 2
+radius = 14.35
+height = 40
+sides = 128
+material = SubResource("Mat_concrete")
+
+[node name="FillDockWTrim" type="CSGCylinder3D" parent="Arena/FillDockW"]
+transform = Transform3D(1, 0, 0, 0, 0.9881, -0.1538, 0, 0.1538, 0.9881, 6, 1.7961, -38.1782)
+operation = 2
+radius = 14.35
+height = 40
+sides = 128
 material = SubResource("Mat_concrete")
 
 [node name="DockLipEdgeB" type="CSGBox3D" parent="Arena/DockW"]

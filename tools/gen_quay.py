@@ -578,6 +578,16 @@ _toe_lo = toe_world(FLANK_BASIS, flank_o, FLANK_DEPTH)
 pair_box("FlankDeck", _toe_lo[0] - 0.15, -29.0, 0.0, QUAY_Y,
          _toe_lo[2] - 12.0, _toe_lo[2] + 0.4, "concrete")
 
+# The lane between the loods and the outer wall ran into the deck: a dead end, with the
+# pit beside the deck stopping on the flank fill. The two meet at one corner, so a cut
+# there joins the pit to the lane on the far side of the deck. Not a pair on purpose:
+# blue (east) gets a door, orange (west) only a window you can shoot through.
+# Door: 2.0-2.2 m between the corners it leaves, 2.5 m high. The deck top stays 1.5 m thick.
+sub("FlankDoorO", 40.4, 43.6, 0.0, 2.5, 0.9, 4.2)
+# Window: about 1.3 m across, chest height (standing eye is 1.6 m), 0.6 m tall. The crouched capsule is
+# 1.0 m, so nobody fits through; hitscan does.
+sub("FlankWindowB", -43.0, -40.9, 1.15, 1.75, -3.5, -1.4)
+
 # ---------------------------------------------------------------- dock surf, 4 m → 0, inner quay face
 DOCK_BASIS = mul_basis(yaw_into(1.0, 0.0), rx(DOCK_PITCH))
 dock_o = origin_for_toe_y(DOCK_BASIS, DOCK_X, DOCK_Z, QUAY_Y)
@@ -592,6 +602,31 @@ fill_under("FillDockE", DOCK_E_BASIS, dock_e, DOCK_DEPTH, QUAY_Y + 1.0)
 watch("dockE high", DOCK_E_BASIS, dock_e, 0.0, QUAY_Y)
 watch("dockE low", DOCK_E_BASIS, dock_e, DOCK_DEPTH, 0.0)
 _dock_hi = toe_world(DOCK_BASIS, dock_o, 0.0)
+
+
+def trim_round(target, basis, origin, centre, radius):
+    """Cut everything of one surf/fill inside a vertical cylinder (world centre xz).
+
+    The dock surfs run under the radial corner and their last metre came out on the
+    inner side of the corner fill: a small wedge standing on the floor. The fill's inner
+    wall sits at radius ~14.2, so the cut ends just inside the fill and nothing shows.
+    Child of the target, so it cuts only that piece. Local frame = inverse of the basis.
+    """
+    (X, Y, Z) = basis
+    w = (centre[0], 0.0, centre[1])
+    d = [w[i] - origin[i] for i in range(3)]
+    local = tuple(sum(c[i] * d[i] for i in range(3)) for c in (X, Y, Z))
+    inv = ((X[0], Y[0], Z[0]), (X[1], Y[1], Z[1]), (X[2], Y[2], Z[2]))
+    add(target + "Trim", "CSGCylinder3D", xform(inv, local),
+        ["operation = 2", "radius = %s" % fmt(radius), "height = 40", "sides = 128"],
+        "concrete", parent="Arena/" + target)
+
+
+_TRIM_R = CORNER_R + SURF_TOE - 3.10 + 0.15  # inner fill wall + 15 cm
+trim_round("DockE", DOCK_E_BASIS, dock_e, CORNER_C, _TRIM_R)
+trim_round("FillDockE", DOCK_E_BASIS, dock_e, CORNER_C, _TRIM_R)
+trim_round("DockW", DOCK_BASIS, dock_o, (-CORNER_C[0], -CORNER_C[1]), _TRIM_R)
+trim_round("FillDockW", DOCK_BASIS, dock_o, (-CORNER_C[0], -CORNER_C[1]), _TRIM_R)
 face_stripe("DockW", "DockLipEdgeB")
 face_stripe("DockE", "DockLipEdgeO")
 
