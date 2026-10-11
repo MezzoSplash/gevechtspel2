@@ -466,8 +466,14 @@ func _replay_fire(peer_id: int, weapon_id: StringName, speed: float, is_killer: 
 		sfx.stream = def.fire_sound
 		sfx.pitch_scale = randf_range(0.95, 1.05) * (0.72 if speed < 1.0 else 1.0)
 		sfx.play()
-	g.flash_t = FLASH_LIFE
-	(g.flash as Node3D).visible = true
+	var model_flash := Weapon.play_model_shot(g.model as Node3D, speed, def.fire_rate if def else 0.0)
+	# Model particles replace the plain quad for this shot. flash_t would turn that quad back on.
+	if model_flash:
+		g.flash_t = 0.0
+		(g.flash as Node3D).visible = false
+	else:
+		g.flash_t = FLASH_LIFE
+		(g.flash as Node3D).visible = true
 	if is_killer and def:
 		_cam_kick += def.kick_pitch_deg * 0.6
 
@@ -639,6 +645,7 @@ func _ghost_weapon(g: Dictionary, index: int) -> void:
 		return
 	var model := packed.instantiate() as Node3D
 	Weapon.no_shadows(model)
+	Weapon.prepare_muzzle(model)
 	var gun_root: Node3D = g.gun_root
 	gun_root.add_child(model)
 	var fit := Weapon.fit_model(model, def.id, _rest)
