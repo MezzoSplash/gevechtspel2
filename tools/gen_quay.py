@@ -578,6 +578,11 @@ _toe_lo = toe_world(FLANK_BASIS, flank_o, FLANK_DEPTH)
 pair_box("FlankDeck", _toe_lo[0] - 0.15, -29.0, 0.0, QUAY_Y,
          _toe_lo[2] - 12.0, _toe_lo[2] + 0.4, "concrete")
 
+# The fill stops 0.2 m short of the toe and the deck 0.15 m: a 5 cm slit at the corner
+# where they meet, from the floor up to the surf. You could see (and shoot) through it.
+# The fill's end leans with the pitch, so near the floor the slit runs on past the deck.
+pair_box("FlankSeam", _toe_lo[0] - 0.21, _toe_lo[0] - 0.15, 0.0, QUAY_Y,
+         _toe_lo[2] - 0.01, _toe_lo[2] + 0.8, "concrete")
 # The lane between the loods and the outer wall ran into the deck: a dead end, with the
 # pit beside the deck stopping on the flank fill. The two meet at one corner, so a cut
 # there joins the pit to the lane on the far side of the deck. Not a pair on purpose:
