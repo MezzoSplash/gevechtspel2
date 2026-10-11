@@ -468,6 +468,13 @@ func _replay_fire(peer_id: int, weapon_id: StringName, speed: float, is_killer: 
 		sfx.play()
 	g.flash_t = FLASH_LIFE
 	(g.flash as Node3D).visible = true
+	# Gun scenes with their own VFX (SMG): replay the fire animation and particles, hide the generic quad.
+	var own_fx := false
+	if g.model != null and is_instance_valid(g.model):
+		own_fx = Weapon.play_model_shot(g.model, (def.fire_rate if def else 10.0) * speed)
+	var quad := (g.flash as Node3D).get_child(0) as Node3D
+	if quad:
+		quad.visible = not own_fx
 	if is_killer and def:
 		_cam_kick += def.kick_pitch_deg * 0.6
 
@@ -639,6 +646,7 @@ func _ghost_weapon(g: Dictionary, index: int) -> void:
 		return
 	var model := packed.instantiate() as Node3D
 	Weapon.no_shadows(model)
+	Weapon.prep_model_fx(model)
 	var gun_root: Node3D = g.gun_root
 	gun_root.add_child(model)
 	var fit := Weapon.fit_model(model, def.id, _rest)

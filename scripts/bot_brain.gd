@@ -117,7 +117,7 @@ func physics_tick(delta: float) -> void:
 		if _stuck_pulse:
 			_pick_unstick()
 		_steer_to(_home, Player.WALK_SPEED, delta)
-		pawn.move_and_slide()
+		_move(delta)
 		return
 	# Seen but out of weapon range (a shotgun bot at a window, the enemy across the street): walk the
 	# navmesh toward him instead of pushing straight at him into the wall.
@@ -139,7 +139,15 @@ func physics_tick(delta: float) -> void:
 		_in_fight = false
 		_acquire_left = ACQUIRE
 		_hunt(enemy, delta)
+	_move(delta)
+
+
+## move_and_slide plus the same small step-up the players get (StepUp), so bots do not stall on a lip.
+func _move(delta: float) -> void:
+	var pre := pawn.velocity
+	var was_floor := pawn.is_on_floor()
 	pawn.move_and_slide()
+	StepUp.try_step(pawn, pre, was_floor, delta)
 
 
 ## Nearest enemy we can actually see; else the nearest one to hunt. Re-picked every RETARGET.

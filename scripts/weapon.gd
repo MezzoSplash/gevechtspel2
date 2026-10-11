@@ -23,7 +23,7 @@ const MODEL_SCENES := {
 	&"pistol": preload("res://assets/weapons/pistol.glb"),
 	&"shotgun": preload("res://assets/weapons/shotgun.glb"),
 	&"sniper": preload("res://assets/weapons/sniper.glb"), # slot 4; two body / one head
-	&"smg": preload("res://assets/weapons/smg.tscn"), # hand-built low-poly (tools/build_lowpoly_weapons.py)
+	&"smg": preload("res://assets/weapons/smg/weapon_smg.tscn"), # sqorchtech: animated bolt + muzzle VFX
 	&"revolver": preload("res://assets/weapons/revolver.tscn"),
 }
 ## Throwing knife: in hand for the F throw, and the flying/stuck projectile.
@@ -59,6 +59,7 @@ var _active_index := 0 # index into `slots`
 var slots: Array[WeaponDef] = []
 var _view_models: Dictionary = {} # StringName → Node3D
 var _ads := false
+var _ads_drop := -0.092 # WeaponRoot y while aiming (iron sights), set per gun in _apply_view_for_def
 ## Held-trigger counter for automatic guns: +1 on every new press (humans) or new burst (bots).
 ## Only for the SPRAY TRANSFER trick; the server also ends a burst after Style.BURST_GAP.
 var burst_seq := 0
@@ -71,6 +72,7 @@ const CLICK_BUFFER := 0.12
 const MELEE_ANIM := 0.36 # seconds: thrust out, hold, pull back
 const MELEE_SWING := preload("res://assets/sounds/melee_swing.wav")
 const MELEE_HIT := preload("res://assets/sounds/melee_hit.wav")
+const ADS_SIGHT_GAP := 0.004 # front sight tip this far under the eye line while aiming
 const ADS_TIME := 0.09 # s to slide the SMG to the centre (fast ADS)
 const THROW_ANIM := 0.34 # knife in hand: wind up, release, gun comes back
 ## Per weapon id: +1 on every fresh magazine (reload done, spawn refill). Sent with each shot so the
@@ -123,6 +125,11 @@ func _process(delta: float) -> void:
 	var owner_player := owner as Player
 	var bot_auth := owner_player != null and owner_player.is_bot and (Game.is_offline or multiplayer.is_server())
 	_melee_cd = maxf(_melee_cd - delta, 0.0)
+	# Every pawn: remote shots (play_remote_shot) light the flash too, so this runs before the early out.
+	_flash_left = maxf(_flash_left - delta, 0.0)
+	if _flash_left <= 0.0:
+		muzzle_flash.visible = false
+		muzzle_light.visible = false
 	if not _is_local():
 		_tick_melee_pose(delta, Vector3.ZERO)
 	if not _is_local() and not bot_auth:
@@ -130,10 +137,6 @@ func _process(delta: float) -> void:
 	# May go below 0: _fire carries the leftover so the rate does not depend on the frame rate.
 	_cooldown = maxf(_cooldown - delta, -1.0)
 	_click_left = maxf(_click_left - delta, 0.0)
-	_flash_left = maxf(_flash_left - delta, 0.0)
-	if _flash_left <= 0.0:
-		muzzle_flash.visible = false
-		muzzle_light.visible = false
 	_update_ads()
 	if bot_auth:
 		if _reload_left > 0.0:
@@ -312,7 +315,8 @@ func ads_sens_mult() -> float:
 
 
 func _ads_pose() -> Vector3:
-	return Vector3(0.0, -0.092, _view_rest.z - 0.02)
+	# Guns with a modelled front sight put its tip just under the eye line; the rest keep the tuned drop.
+	return Vector3(0.0, _ads_drop, _view_rest.z - 0.02)
 
 
 func _cycle_weapon() -> void:
@@ -475,8 +479,54 @@ func _setup_view_models() -> void:
 		inst.name = String(id)
 		inst.visible = false
 		no_shadows(inst)
+		prep_model_fx(inst)
 		add_child(inst)
 		_view_models[id] = inst
+
+
+## Gun scenes with their own fire animation and particle VFX (the SMG): the particles are authored
+## as continuous emitters, so they become one-shot bursts that only fire from play_model_shot.
+## Local coords keep the flash on the muzzle while the viewmodel moves with the camera.
+static func prep_model_fx(model: Node) -> void:
+	for n in model.find_children("*", "GPUParticles3D", true, false):
+		var gp := n as GPUParticles3D
+		gp.one_shot = true
+		gp.local_coords = true
+		gp.emitting = false
+	for n in model.find_children("*", "AnimationPlayer", true, false):
+		(n as AnimationPlayer).stop()
+
+
+static func model_has_fx(model: Node) -> bool:
+	return model != null and not model.find_children("*", "GPUParticles3D", true, false).is_empty()
+
+
+## One shot on a gun scene: restart its fire animation and burst its particles. The animation is
+## sped up when it is longer than one shot at `fire_rate`, so a held trigger restarts it cleanly
+## every round instead of cutting it mid-cycle. Returns true when the model has its own muzzle VFX.
+static func play_model_shot(model: Node, fire_rate: float) -> bool:
+	if model == null:
+		return false
+	for n in model.find_children("*", "AnimationPlayer", true, false):
+		var ap := n as AnimationPlayer
+		var names := ap.get_animation_list()
+		if names.is_empty():
+			continue
+		var anim_name: StringName = names[0]
+		for a in names:
+			if String(a).ends_with("fire"):
+				anim_name = a
+		var length := ap.get_animation(anim_name).length
+		var speed := 1.0
+		if fire_rate > 0.0 and length > 0.0:
+			speed = maxf(1.0, length * fire_rate * 1.05)
+		ap.stop()
+		ap.play(anim_name, 0.0, speed)
+	var has_fx := false
+	for n in model.find_children("*", "GPUParticles3D", true, false):
+		(n as GPUParticles3D).restart()
+		has_fx = true
+	return has_fx
 
 
 static func no_shadows(n: Node) -> void:
@@ -498,6 +548,7 @@ func _apply_view_for_def() -> void:
 	position = fit.root
 	muzzle.position = fit.muzzle
 	_view_rest = position
+	_ads_drop = -float(fit.sight_y) - ADS_SIGHT_GAP if fit.has("sight_y") else -0.092
 
 
 ## Scales and centres a gun GLB for this slot. Returns where the gun root sits under the camera
@@ -536,7 +587,37 @@ static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dicti
 	var center := aabb.get_center()
 	model.position -= Vector3(center.x, center.y + 0.02, center.z + length * 0.18)
 	aabb = _aabb_in_parent(model)
-	return {"root": root, "muzzle": Vector3(0.0, aabb.get_center().y, aabb.position.z)}
+	var muzzle_pos := Vector3(0.0, aabb.get_center().y, aabb.position.z)
+	# A gun scene with its own muzzle VFX: tracers start where that flash is.
+	var marker := model.find_child("muzzle_flash", true, false) as Node3D
+	if marker:
+		muzzle_pos = model.transform * _xform_to(model, marker).origin
+	var fit := {"root": root, "muzzle": muzzle_pos}
+	# Iron sights: top of the front sight in root space, so ADS lines it up under the eye.
+	var sight := model.find_child("Front_Sight*", true, false) as Node3D
+	if sight:
+		var sa := _aabb_in_parent_of(model, sight)
+		fit["sight_y"] = sa.end.y
+	return fit
+
+
+## `n`'s transform in `root`'s local space.
+static func _xform_to(root: Node3D, n: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var cur: Node = n
+	while cur != null and cur != root:
+		if cur is Node3D:
+			xf = (cur as Node3D).transform * xf
+		cur = cur.get_parent()
+	return xf
+
+
+## AABB of the mesh `part` in the space `root` sits in.
+static func _aabb_in_parent_of(root: Node3D, part: Node3D) -> AABB:
+	var mi := part as MeshInstance3D
+	if mi == null or mi.mesh == null:
+		return AABB(root.transform * _xform_to(root, part).origin, Vector3.ZERO)
+	return (root.transform * _xform_to(root, part)) * mi.mesh.get_aabb()
 
 
 static func _aabb_in_parent(n: Node3D) -> AABB:
@@ -583,6 +664,26 @@ func play_fire_sfx() -> void:
 	fire_sfx.play()
 
 
+## Muzzle flash for one shot. A gun scene with its own VFX (the SMG) plays its fire animation and
+## particles instead of the generic flash quad; the light stays for the local shooter.
+func _show_shot_visuals(with_light: bool) -> void:
+	_flash_left = 0.06 if def.id == &"shotgun" else 0.045
+	var model: Node3D = _view_models.get(def.id) as Node3D
+	var own_fx := play_model_shot(model, def.fire_rate) if model and model.visible else model_has_fx(model)
+	muzzle_flash.visible = not own_fx
+	muzzle_light.visible = with_light
+	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" else 4.5
+
+
+## Someone else's shot, from the server's shot FX (Game.broadcast_shot_fx / sync_shot_fx):
+## sound, fire animation and muzzle flash on their gun. No light: ten guns at once would cost too much.
+func play_remote_shot() -> void:
+	play_fire_sfx()
+	if def == null or _is_local():
+		return
+	_show_shot_visuals(false)
+
+
 func bot_try_fire() -> bool:
 	if _cooldown > 0.0 or _reload_left > 0.0:
 		return false
@@ -603,10 +704,7 @@ func _fire() -> void:
 	var kick_z := 0.055 if def.id != &"shotgun" else 0.09
 	_kick_offset += Vector3(0.0, 0.0, kick_z)
 	_kick_offset.y += randf_range(-0.008, 0.004)
-	_flash_left = 0.06 if def.id == &"shotgun" else 0.045
-	muzzle_flash.visible = true
-	muzzle_light.visible = true
-	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" else 4.5
+	_show_shot_visuals(true)
 	play_fire_sfx()
 
 	var shooter := owner as Player
