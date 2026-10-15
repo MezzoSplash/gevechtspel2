@@ -68,7 +68,7 @@ const INFO := {
 	},
 	&"quay": {
 		"name": "Quay",
-		"blurb": "Dry dock with a high quay, downhill surfs, and a curved corner.",
+		"blurb": "Dry dock with surfs, harbour offices, a crane, and screened roofs.",
 		"scene": "res://scenes/maps/quay.tscn",
 		"menu_cam": [Vector3(48, 42, 86), Vector3(0, 4, 0)],
 		# Two rows of six in the yard, all behind the 3.2 m spawn wall (x -16..16, z 54.6..55.3).
