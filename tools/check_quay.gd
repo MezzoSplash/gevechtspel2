@@ -30,6 +30,7 @@ func _run() -> void:
 		await physics_frame
 	space = root.get_world_3d().direct_space_state
 	_probes()
+	_spawns()
 	await _surfs()
 	await _walks()
 	await _nav()
@@ -90,6 +91,30 @@ func _probes() -> void:
 			bad += 1
 			_fail("probe %s want %s got %s" % [p.name, want, got])
 	print("PROBE %d rays, %d bad" % [list.size(), bad])
+
+
+## Every team and FFA spawn stands on floor at its height with a free capsule above it.
+func _spawns() -> void:
+	var info: Dictionary = Maps.info(&"quay")
+	var pts := []
+	for team in info.team_spawns:
+		pts.append_array(team)
+	pts.append_array(info.ffa_spawns)
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.4
+	cap.height = 1.8
+	var bad := 0
+	for p in pts:
+		var h := _ray(p + Vector3(0, 1.5, 0), p - Vector3(0, 1.0, 0))
+		var q := PhysicsShapeQueryParameters3D.new()
+		q.shape = cap
+		q.transform = Transform3D(Basis.IDENTITY, p + Vector3(0, 0.95, 0))
+		q.collision_mask = 1
+		var hit := space.intersect_shape(q, 1)
+		if h.is_empty() or absf(h.position.y - p.y) > 0.25 or not hit.is_empty():
+			bad += 1
+			_fail("spawn %s: floor %s, capsule %s" % [p, "none" if h.is_empty() else str(h.position.y), "blocked" if not hit.is_empty() else "free"])
+	print("SPAWN %d spawns, %d bad" % [pts.size(), bad])
 
 
 ## 0.3 m sphere cast from a to b: "sweep" when it gets all the way, else where it stopped.
@@ -223,13 +248,10 @@ func _surfs() -> void:
 		"dock": [Vector3(-15.13, 2.3, 2.5), Vector3(0, 0, -11), Vector3(-1, 0, 0)],
 		"conn": [Vector3(9.0, 5.5, 9.95), Vector3(-14, 0, 0), Vector3(0, 0, 1)],
 		"corner": [Vector3(26.3, 10.83, 26.0), Vector3(0, 0, -11), Vector3(1, 0, 0)],
-		"cross": [Vector3(7.5, 2.33, -0.18), Vector3(-11, 0, 0), Vector3(0, 0, 1)],
 	}
 	for k in rides:
 		var r: Array = rides[k]
 		await _surf(k + "_b", r[0], r[1], r[2])
-		if k == "cross":
-			continue # one piece through the middle, it faces orange only
 		await _surf(k + "_o", Vector3(-r[0].x, r[0].y, -r[0].z), Vector3(-r[1].x, r[1].y, -r[1].z), Vector3(-r[2].x, r[2].y, -r[2].z))
 
 
@@ -259,9 +281,12 @@ func _walks() -> void:
 		"quay_ramp": [Vector3(-26, 4, 18.1), Vector3(-12, 0, 18.1), Vector3(-8.5, 0, 21.5)],
 		# Deck over the back of the connector: from the quay out to its end by the quay-ramp foot.
 		"conn_deck": [Vector3(-24, 4, 21), Vector3(-20, 4, 15.0), Vector3(-16.5, 4, 10.0), Vector3(-11.0, 4, 14.6)],
+		# Across the open middle of the dock (the cross surf is gone), both ways.
+		"mid_we": [Vector3(-12, 0, 0.5), Vector3(12, 0, 0.5)],
+		"mid_ns": [Vector3(0, 0, 7.0), Vector3(0, 0, -7.0)],
 		# Under the connector: blue dock floor to the middle.
 		"conn_under": [Vector3(1.8, 0, 15.2), Vector3(2.5, 0, 11.6), Vector3(2.5, 0, 6.0)],
-		# Dock floor inside the connector's turn, out past the cross surf.
+		# Dock floor inside the connector's turn, out across the open middle.
 		"conn_inside": [Vector3(-2, 0, 8.0), Vector3(-11.5, 0, 6.5), Vector3(-12.5, 0, 3.0), Vector3(-6, 0, -3.5)],
 	}
 	var extra: Dictionary = map.get_meta("quay_walks", {})
@@ -348,9 +373,7 @@ func _symmetry() -> void:
 			var b := _ray(Vector3(-x, 30, -z), Vector3(-x, -2, -z))
 			var ya: float = a.position.y if not a.is_empty() else -9.0
 			var yb: float = b.position.y if not b.is_empty() else -9.0
-			# The cross surf is one piece through the middle (faces orange): skip its strip.
-			var cross := absf(z) < 2.6 and absf(x) < 10.5
-			if absf(ya - yb) > 0.06 and not cross:
+			if absf(ya - yb) > 0.06:
 				bad += 1
 				if worst.size() < 12:
 					worst.append("(%.1f, %.1f) %.2f vs %.2f" % [x, z, ya, yb])
