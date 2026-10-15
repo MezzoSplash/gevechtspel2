@@ -32,22 +32,20 @@ import speed_strip
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "scenes", "maps", "quay.tscn")
 
+# Ten materials. Concrete is everything poured (decks, walls, ramps, the outer walls), brick is
+# the two loods and the two harbour offices, steel is everything bolted on (stair rails, steel
+# walk, gantry), containers are the only loose cover. Yellow only marks surf edges and ramp feet.
 MATS = {
     "floor": ((0.24, 0.25, 0.26), 0.92),
     "concrete": ((0.40, 0.40, 0.38), 0.88),
-    "outer": ((0.32, 0.34, 0.36), 0.86),
     "roof": ((0.30, 0.34, 0.31), 0.90),
     "brick": ((0.52, 0.36, 0.24), 0.85),
-    "cover": ((0.48, 0.40, 0.32), 0.82),
-    "steel": ((0.32, 0.34, 0.37), 0.62),
+    "steel": ((0.30, 0.33, 0.37), 0.62),
     "hazard": ((0.78, 0.62, 0.14), 0.75),
     "surf": ((0.36, 0.42, 0.48), 0.62),
     "team_blue": ((0.27, 0.46, 0.62), 0.82),
     "team_orange": ((0.70, 0.44, 0.18), 0.82),
-    "van": ((0.25, 0.32, 0.36), 0.70),
-    "trim": ((0.20, 0.21, 0.23), 0.88),
-    "bus": ((0.28, 0.38, 0.30), 0.78),
-    "c_red": ((0.56, 0.20, 0.15), 0.78),
+    "container": ((0.56, 0.22, 0.16), 0.78),
 }
 
 # ~57° face. Buried 0.1 m into the wall and the floor. Same triangle as Rooftops.
@@ -255,6 +253,12 @@ def wedge_z(name, x0, x1, z_low, z_high, h, mat, y0=0.0, top_drop=0.0, base_y=No
          "depth = %s" % fmt(abs(x1 - x0))], mat)
 
 
+def pair_wedge_z(name, x0, x1, z_low, z_high, h, mat, y0=0.0, top_drop=0.0, base_y=None):
+    """Blue wedge_z plus the half-turn (x and z both flip)."""
+    wedge_z(name + "B", x0, x1, z_low, z_high, h, mat, y0=y0, top_drop=top_drop, base_y=base_y)
+    wedge_z(name + "O", -x1, -x0, -z_low, -z_high, h, mat, y0=y0, top_drop=top_drop, base_y=base_y)
+
+
 def light(name, pos, col, energy, rng):
     lights.append((name, pos, col, energy, rng))
 
@@ -377,8 +381,8 @@ def watch(label, basis, origin, along, y_expect):
 
 # ---------------------------------------------------------------- shell
 box("Floor", -HALF_X, HALF_X, -1.0, 0.0, -HALF_Z, HALF_Z, "floor")
-box("WallWest", -HALF_X, -INNER_X, 0, WALL_H, -HALF_Z, HALF_Z, "outer")
-box("WallEast", INNER_X, HALF_X, 0, WALL_H, -HALF_Z, HALF_Z, "outer")
+box("WallWest", -HALF_X, -INNER_X, 0, WALL_H, -HALF_Z, HALF_Z, "concrete")
+box("WallEast", INNER_X, HALF_X, 0, WALL_H, -HALF_Z, HALF_Z, "concrete")
 box("WallSouth", -HALF_X, HALF_X, 0, WALL_H, INNER_Z, HALF_Z, "team_blue")
 box("WallNorth", -HALF_X, HALF_X, 0, WALL_H, -HALF_Z, -INNER_Z, "team_orange")
 
@@ -412,7 +416,6 @@ pair_sub("EastDoorW", 13.6, 15.6, 0.0, 2.6, 46.0, 48.6)
 # Windows are holes. Not on the spawn face (south): that looks into the yard.
 pair_sub("WestWinN1", -32.2, -30.0, 1.0, 2.5, 27.6, 29.6)
 pair_sub("WestWinN2", -20.4, -18.2, 1.0, 2.5, 27.6, 29.6)
-pair_sub("WestWinW", -34.4, -32.4, 1.0, 2.5, 30.2, 32.4)
 # Flank shoot-hole, on the open west wall just south of the lip. The low slot
 # sat on shadowed brick and read as part of the wall. This one is tall and
 # cuts through to the stair shaft, so the lane sees sky and the stair, not a
@@ -422,7 +425,6 @@ pair_sub("WestWinW2", -34.4, -31.50, 1.15, 6.40, _W2_Z0, _W2_Z1)
 pair_sub("WestWinE", -15.6, -13.6, 1.0, 2.5, 35.6, 37.8)
 pair_sub("EastWinN1", 18.2, 20.4, 1.0, 2.5, 27.6, 29.6)
 pair_sub("EastWinN2", 30.0, 32.2, 1.0, 2.5, 27.6, 29.6)
-pair_sub("EastWinE", 32.4, 34.4, 1.0, 2.5, 30.2, 32.4)
 pair_sub("EastWinW", 13.6, 15.6, 1.0, 2.5, 35.6, 37.8)
 # Jog between the two stairs. Clear of both treads (≥1.2 m) and of both landings.
 # Doors sit on the end walls; the jog is mid-room, so it does not close a door.
@@ -454,6 +456,45 @@ pair_sub("ExtNotchE", 13.55, 19.3, 6.3, ROOF_Y + 0.4, 29.50, 33.35)
 # cut left a hole in the corner with the landing floating over it.
 pair_sub("SideLinkNotch", 31.25, 33.95, 9.05, ROOF_Y + 0.45, 27.55, 30.7)
 
+# ---------------------------------------------------------------- harbour office
+# Two floors on the middle of each quay deck. Pass-through on the ground floor (west, north and
+# south doors), a solid stair along the east wall to the top floor, shoot windows up there and a
+# wide opening on the dock side to drop back onto the deck. With the gantry beam on top it
+# breaks the long quay and roof-to-roof lines. Orange is the half-turn on the east quay.
+OFF_X0, OFF_X1 = -31.0, -20.0
+OFF_Z0, OFF_Z1 = -5.0, 5.0
+OFF_WT = 0.5
+OFF_F1 = QUAY_Y            # ground floor = deck
+OFF_SLAB0, OFF_F2 = 7.4, 7.8
+OFF_CEIL2 = 11.4
+OFF_TOP = 12.0
+OFF_STAIR_X0, OFF_STAIR_X1 = -22.6, OFF_X1 + OFF_WT   # against the east wall
+# Foot in the south half (open floor in front of it and beside it), crest on the north wall.
+OFF_STAIR_Z0, OFF_STAIR_Z1 = 2.4, -3.6                # 3.8 m over 6 m, 32° (loods stairs are 38°)
+OFF_DOOR_H = OFF_F1 + 2.7
+GANTRY_Y0, GANTRY_Y1 = 11.2, 13.6   # beam over the dock, see "crane gantry"
+GANTRY_WEB_Y = 9.0
+pair_box("Office", OFF_X0, OFF_X1, OFF_F1, OFF_TOP, OFF_Z0, OFF_Z1, "brick")
+pair_sub("OfficeVoid1", OFF_X0 + OFF_WT, OFF_X1 - OFF_WT, OFF_F1, OFF_SLAB0, OFF_Z0 + OFF_WT, OFF_Z1 - OFF_WT)
+pair_sub("OfficeVoid2", OFF_X0 + OFF_WT, OFF_X1 - OFF_WT, OFF_F2, OFF_CEIL2, OFF_Z0 + OFF_WT, OFF_Z1 - OFF_WT)
+# Ground floor doors, 2.6 m wide.
+pair_sub("OfficeDoorW", OFF_X0 - 0.1, OFF_X0 + OFF_WT + 0.1, OFF_F1, OFF_DOOR_H, -1.3, 1.3)
+pair_sub("OfficeDoorN", -27.3, -24.7, OFF_F1, OFF_DOOR_H, OFF_Z0 - 0.1, OFF_Z0 + OFF_WT + 0.1)
+pair_sub("OfficeDoorS", -27.3, -24.7, OFF_F1, OFF_DOOR_H, OFF_Z1 - OFF_WT - 0.1, OFF_Z1 + 0.1)
+pair_sub("OfficeWinN1", -30.0, -28.6, OFF_F1 + 1.0, OFF_F1 + 2.2, OFF_Z0 - 0.1, OFF_Z0 + OFF_WT + 0.1)
+pair_sub("OfficeWinS1", -30.0, -28.6, OFF_F1 + 1.0, OFF_F1 + 2.2, OFF_Z1 - OFF_WT - 0.1, OFF_Z1 + 0.1)
+# Top floor: shoot windows (sill 1.1 m, eye 1.6 m) on three sides, open on the dock side.
+_W2Y0, _W2Y1 = OFF_F2 + 1.1, OFF_F2 + 2.1
+for _i, (_a, _b) in enumerate(((-29.6, -27.6), (-25.4, -23.4))):
+    pair_sub("OfficeHiN%d" % _i, _a, _b, _W2Y0, _W2Y1, OFF_Z0 - 0.1, OFF_Z0 + OFF_WT + 0.1)
+    pair_sub("OfficeHiS%d" % _i, _a, _b, _W2Y0, _W2Y1, OFF_Z1 - OFF_WT - 0.1, OFF_Z1 + 0.1)
+for _i, (_a, _b) in enumerate(((-2.8, -1.2), (1.2, 2.8))):
+    pair_sub("OfficeHiW%d" % _i, OFF_X0 - 0.1, OFF_X0 + OFF_WT + 0.1, _W2Y0, _W2Y1, _a, _b)
+pair_sub("OfficeDrop", OFF_X1 - OFF_WT - 0.1, OFF_X1 + 0.1, OFF_F2, OFF_F2 + 2.6, 1.0, 3.4)
+# Slot in the top-floor slab over the stair. Starts where a capsule on the tread would reach
+# the slab (tread 5.4 m at z=0.3, head room 2 m), ends on the crest so the tread meets the slab.
+pair_sub("OfficeStairSlot", OFF_STAIR_X0, OFF_STAIR_X1, OFF_SLAB0 - 0.1, OFF_F2 + 0.1, OFF_STAIR_Z1, 0.3)
+
 # Subtracts end here. Ramps, surfs and pads are unions and must stay below this line
 # in the file, or a later subtract slices them.
 
@@ -481,16 +522,16 @@ pair_box("EastStairBLand", 27.25, 31.55, ROOF_Y - 0.45, ROOF_Y, 31.65, 32.0, "co
 # The street-side bars used to run through the door and the street window.
 # They are unions, so they put the cut back: the hole still looked open and
 # the capsule (radius 0.4) stopped on a 0.25 m bar just inside the wall.
-pair_box("WestRailAO", -32.15, -31.9, 0.0, CEIL_Y, 33.9, 42.80, "trim")
-pair_box("WestRailAI", -26.9, -26.65, 0.0, CEIL_Y, 33.9, 45.3, "trim")
-pair_box("WestRailBN", -16.1, -15.85, 0.0, CEIL_Y, 32.7, 35.35, "trim")
-pair_box("WestRailBS", -16.1, -15.85, 0.0, CEIL_Y, 42.05, 44.1, "trim")
-pair_box("WestRailBI", -20.9, -20.65, 0.0, CEIL_Y, 32.7, 44.1, "trim")
-pair_box("EastRailAN", 15.85, 16.1, 0.0, CEIL_Y, 33.9, 35.35, "trim")
-pair_box("EastRailAS", 15.85, 16.1, 0.0, CEIL_Y, 38.05, 45.3, "trim")
-pair_box("EastRailAI", 20.9, 21.15, 0.0, CEIL_Y, 33.9, 45.3, "trim")
-pair_box("EastRailBO", 31.9, 32.15, 0.0, CEIL_Y, 32.7, 44.1, "trim")
-pair_box("EastRailBI", 26.65, 26.9, 0.0, CEIL_Y, 32.7, 44.1, "trim")
+pair_box("WestRailAO", -32.15, -31.9, 0.0, CEIL_Y, 33.9, 42.80, "steel")
+pair_box("WestRailAI", -26.9, -26.65, 0.0, CEIL_Y, 33.9, 45.3, "steel")
+pair_box("WestRailBN", -16.1, -15.85, 0.0, CEIL_Y, 32.7, 35.35, "steel")
+pair_box("WestRailBS", -16.1, -15.85, 0.0, CEIL_Y, 42.05, 44.1, "steel")
+pair_box("WestRailBI", -20.9, -20.65, 0.0, CEIL_Y, 32.7, 44.1, "steel")
+pair_box("EastRailAN", 15.85, 16.1, 0.0, CEIL_Y, 33.9, 35.35, "steel")
+pair_box("EastRailAS", 15.85, 16.1, 0.0, CEIL_Y, 38.05, 45.3, "steel")
+pair_box("EastRailAI", 20.9, 21.15, 0.0, CEIL_Y, 33.9, 45.3, "steel")
+pair_box("EastRailBO", 31.9, 32.15, 0.0, CEIL_Y, 32.7, 44.1, "steel")
+pair_box("EastRailBI", 26.65, 26.9, 0.0, CEIL_Y, 32.7, 44.1, "steel")
 # Same test as the balcony pier: a later union must not land in an opening.
 _rail_holes = (
     ("WestWinW2", (-34.35, -31.55, 1.20, 6.30, _W2_Z0 + 0.05, _W2_Z1 - 0.05)),
@@ -539,6 +580,12 @@ pair_wedge_x("QuayRampN", -20.72, -15.48, -10.4, QUAY_RAMP_TOP_X, QUAY_Y, "concr
 pair_box("QuayRampSEdge", -10.6, -10.25, -0.06, 0.0, 15.5, 20.7, "hazard")
 pair_box("QuayRampNEdge", -10.6, -10.25, -0.06, 0.0, -20.7, -15.5, "hazard")
 
+# Office stair: solid wedge (nothing to walk under), crest flush with the top floor at z=3.0.
+pair_wedge_z("OfficeStair", OFF_STAIR_X0, OFF_STAIR_X1, OFF_STAIR_Z0, OFF_STAIR_Z1, OFF_F2 - OFF_F1, "concrete", y0=OFF_F1)
+pair_box("OfficeStairEdge", OFF_STAIR_X0, OFF_STAIR_X1, OFF_F1 - 0.06, OFF_F1, OFF_STAIR_Z0, OFF_STAIR_Z0 + 0.3, "hazard")
+# Behind the crest the ground floor would be a 2 x 0.9 m nook under the slab. Solid instead.
+pair_box("OfficeNook", OFF_STAIR_X0, OFF_STAIR_X1, OFF_F1, OFF_SLAB0, OFF_Z0 + OFF_WT, OFF_STAIR_Z1, "concrete")
+
 # ---------------------------------------------------------------- flank surf, 10 m → 4 m, mid-wall
 # Opens +X (into the map). Downhill is -Z. High end on the roof lip, low end on the quay.
 FLANK_BASIS = mul_basis(yaw_into(1.0, 0.0), rx(FLANK_PITCH))
@@ -563,7 +610,10 @@ _toe_hi = toe_world(FLANK_BASIS, flank_o, 0.0)
 _LIP_Z0 = _toe_hi[2] - 0.12
 _LIP_Z1 = _toe_hi[2] + 2.7
 # 6 cm past the toe, under the face, so the walk and the surf share an edge.
-pair_box("FlankLip", _toe_hi[0] - 0.06, -32.2, 0.0, ROOF_Y, _LIP_Z0, _LIP_Z1, "concrete")
+# The lip is an arch: the side lane runs under it (3.4 m clear), so the pocket behind the
+# loods is no longer cut off from the quay. Both ends sit in solid (the surf fill, the loods).
+LIP_ARCH_Y = 3.4
+pair_box("FlankLip", _toe_hi[0] - 0.06, -32.2, LIP_ARCH_Y, ROOF_Y, _LIP_Z0, _LIP_Z1, "concrete")
 # The lip is a later union and reaches through the west wall. It must stop
 # short of the flank shoot-hole or it fills that cut back in.
 if _LIP_Z1 > _W2_Z0 and _toe_hi[0] - 0.06 < -31.50:
@@ -578,17 +628,38 @@ _toe_lo = toe_world(FLANK_BASIS, flank_o, FLANK_DEPTH)
 pair_box("FlankDeck", _toe_lo[0] - 0.15, -29.0, 0.0, QUAY_Y,
          _toe_lo[2] - 12.0, _toe_lo[2] + 0.4, "concrete")
 
-# The fill stops 0.2 m short of the toe and the deck 0.15 m: a 5 cm slit at the corner
-# where they meet, from the floor up to the surf. You could see (and shoot) through it.
-# The fill's end leans with the pitch, so near the floor the slit runs on past the deck.
-pair_box("FlankSeam", _toe_lo[0] - 0.21, _toe_lo[0] - 0.15, 0.0, QUAY_Y,
-         _toe_lo[2] - 0.01, _toe_lo[2] + 0.8, "concrete")
-# The lane between the loods and the outer wall ran into the deck: a dead end, with the
-# pit beside the deck stopping on the flank fill. The two meet at one corner. A window
-# there looks from the pit into the lane on the far side of the deck, both teams alike.
-# About 1.3 m across, chest height (standing eye is 1.6 m), 0.6 m tall. The crouched
-# capsule is 1.0 m, so nobody fits through; hitscan does.
-pair_sub("FlankWindow", -43.0, -40.9, 1.15, 1.75, -3.5, -1.4)
+# ---------------------------------------------------------------- side lanes
+# The ground lane between each loods and the outer wall used to dead-end on the 4 m quay.
+# Now the quay deck runs out to the wall and each end of every side lane has a 12° walk ramp:
+# yard strip -> lane -> ramp -> quay deck -> ramp -> lane -> the other yard strip.
+#
+# Under the flank surf the deck starts inside the fill (x=-42.2) and stays below the face:
+# the toe is at y>=4 wherever the deck is, and 0.35 m in from the toe the face is 0.54 m higher.
+# Past the low end of the surf the deck goes all the way to the wall.
+SURF_DECK_X = -42.2
+# Runs 0.8 m on under the surf's low end: the fill's end leans, and a shorter deck left a sealed sliver.
+pair_box("DeckWallN", -INNER_X, -32.0, 0.0, QUAY_Y, -22.0, _toe_lo[2] + 0.8, "concrete")
+pair_box("DeckWallS", SURF_DECK_X, -32.0, 0.0, QUAY_Y, _toe_lo[2], 22.0, "concrete")
+# The fill stops 0.2 m short of the toe, so the toe overhung a slot down to the floor. Now that
+# you walk beside it, close the slot: a skirt straight down from just under the toe. It never
+# reaches the face (2 cm under the toe line), so the surf is the same surface as before.
+for _nm, _bs, _org in (("FlankSkirtW", FLANK_BASIS, flank_o), ("FlankSkirtE", FLANK_E_BASIS, flank_e)):
+    add(_nm, "CSGPolygon3D", xform(_bs, _org),
+        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in (3.05, -0.12, SURF_TOE - 0.01, -0.12,
+                                                                         SURF_TOE - 0.01, -(ROOF_Y + 1.0), 3.05, -(ROOF_Y + 1.0))),
+         "depth = %s" % fmt(FLANK_DEPTH)], "concrete")
+# Ramps, 4 m over 18 m (12.5°). Solid wedges, tops flush with the deck at the high end.
+SIDE_RAMP_FOOT = 40.0
+SIDE_RAMP_TOP = 22.0
+# Blue pocket (west, under the flank surf) and its half-turn on the orange east side.
+pair_wedge_z("PocketRamp", SURF_DECK_X, -33.9, SIDE_RAMP_FOOT, SIDE_RAMP_TOP, QUAY_Y, "concrete")
+# Orange-end west lane and its half-turn on the blue east side. Wall to loods.
+pair_wedge_z("LaneRamp", -INNER_X, -33.9, -SIDE_RAMP_FOOT, -SIDE_RAMP_TOP, QUAY_Y, "concrete")
+pair_box("PocketRampEdge", SURF_DECK_X + 0.3, -33.9, -0.06, 0.0, SIDE_RAMP_FOOT, SIDE_RAMP_FOOT + 0.35, "hazard")
+pair_box("LaneRampEdge", -INNER_X, -33.9, -0.06, 0.0, -SIDE_RAMP_FOOT - 0.35, -SIDE_RAMP_FOOT, "hazard")
+# Under the arch the fill's slanted end left a 3 x 3 m niche against the wall. Fill it up to the
+# arch, past the skirt, so the passage is one clean box.
+pair_box("LipNiche", -INNER_X, -41.80, 0.0, LIP_ARCH_Y, _LIP_Z0, _LIP_Z1, "concrete")
 
 # ---------------------------------------------------------------- dock surf, 4 m → 0, inner quay face
 DOCK_BASIS = mul_basis(yaw_into(1.0, 0.0), rx(DOCK_PITCH))
@@ -1008,14 +1079,80 @@ wedge_z("SideLinkFootO", -33.77, -31.43, -15.6, -(15.6 + (29.0 - 15.6) * _sl_h /
 pair_box("SideLinkLand", 31.25, 33.95, 9.15, ROOF_Y, 29.0, 30.7, "steel")
 add_ramp_probes()
 
+
+def add_rework_probes():
+    """New pieces of the rework. Half-turn copies are the same rays negated in x and z."""
+    rays = [
+        # Arch: open at chest height, 3 m clear above the floor.
+        ("arch_open", (-38.0, 1.0, 43.5), (-38.0, 1.0, 38.6), "clear"),
+        ("arch_head", (-38.0, 0.3, 41.2), (-38.0, 3.2, 41.2), "clear"),
+        # Side ramps: floor at the foot, a tread, no lip where they meet the deck.
+        ("pocket_foot", (-38.0, 1.6, 40.6), (-38.0, -0.5, 40.6), "floor"),
+        ("pocket_tread", (-38.0, 4.0, 31.0), (-38.0, -0.5, 31.0), "slope"),
+        ("pocket_join", (-38.0, QUAY_Y + 0.12, 23.6), (-38.0, QUAY_Y + 0.12, 20.4), "clear"),
+        ("pocket_deck", (-38.0, 6.0, 20.0), (-38.0, 2.0, 20.0), "deck"),
+        ("lane_foot", (-40.0, 1.6, -40.6), (-40.0, -0.5, -40.6), "floor"),
+        ("lane_tread", (-40.0, 4.0, -31.0), (-40.0, -0.5, -31.0), "slope"),
+        ("lane_join", (-40.0, QUAY_Y + 0.12, -23.6), (-40.0, QUAY_Y + 0.12, -20.4), "clear"),
+        # Deck beside the surf foot: flat deck, nothing at shin height.
+        ("surf_foot_deck", (-41.4, 6.0, 8.0), (-41.4, 2.0, 8.0), "deck"),
+        ("surf_foot_shin", (-41.3, QUAY_Y + 0.3, 20.0), (-41.3, QUAY_Y + 0.3, -1.0), "clear"),
+        # Deck stack stays out of the flank surf's riding space.
+        ("stack_vs_surf", (-41.5, 6.5, 13.2), (-39.7, 6.5, 13.2), "clear"),
+        # Office: doors open, stair is a tread, crest flush with the top floor, drop opening open.
+        ("office_door_w", (-33.0, 5.0, 0.0), (-26.0, 5.0, 0.0), "clear"),
+        ("office_door_n", (-26.0, 5.0, -7.0), (-26.0, 5.0, -1.0), "clear"),
+        ("office_door_s", (-26.0, 5.0, 7.0), (-26.0, 5.0, 1.0), "clear"),
+        ("office_foot", (-21.5, 5.0, 3.6), (-21.5, 3.0, 3.6), "deck"),
+        ("office_tread", (-21.5, 9.5, -1.0), (-21.5, 3.0, -1.0), "slope"),
+        ("office_crest", (-21.5, OFF_F2 + 0.12, -2.8), (-21.5, OFF_F2 + 0.12, -4.4), "clear"),
+        ("office_top", (-21.5, 9.5, -4.1), (-21.5, 6.0, -4.1), "flat@%.2f" % OFF_F2),
+        ("office_floor2", (-26.0, 9.5, 0.0), (-26.0, 6.0, 0.0), "flat@%.2f" % OFF_F2),
+        ("office_drop", (-23.0, 8.8, 2.2), (-18.6, 8.8, 2.2), "clear"),
+        ("office_stair_head", (-21.5, 5.3, 0.6), (-21.5, 7.2, 0.6), "clear"),
+        # Gantry and hanging box: clear over everything you ride.
+        ("cross_over", (0.0, 5.7, 1.6), (0.0, 8.5, 1.6), "clear"),
+        ("cross_glide", (-9.5, 6.6, 0.4), (9.5, 6.6, 0.4), "clear"),
+        ("dock_surf_over", (-16.5, 6.2, 0.0), (-16.5, 8.8, 0.0), "clear"),
+        ("gantry_web", (-12.0, 7.5, 0.0), (-12.0, 10.0, 0.0), "wall"),
+        ("gantry_hit", (0.0, 15.0, 0.0), (0.0, 12.0, 0.0), "flat@%.2f" % GANTRY_Y1),
+        # Screen slit: open at eye height, closed under and over it.
+        ("slit_open", (-32.0, ROOF_Y + 1.6, 30.0), (-32.0, ROOF_Y + 1.6, 26.0), "clear"),
+        ("slit_low", (-32.0, ROOF_Y + 0.8, 30.0), (-32.0, ROOF_Y + 0.8, 26.0), "wall"),
+        ("screen_shut", (-28.6 + 6.0, ROOF_Y + 1.6, 30.0), (-28.6 + 6.0, ROOF_Y + 1.6, 26.0), "wall"),
+    ]
+    for name, a, b, want in rays:
+        _ray("%s_b" % name, a, b, want)
+        _ray("%s_o" % name, (-a[0], a[1], -a[2]), (-b[0], b[1], -b[2]), want)
+
+
+add_rework_probes()
+
 # ---------------------------------------------------------------- parapets (gaps are the surf lip, the ramp bridge, the balcony, one drop)
 def para(name, x0, x1, z0, z1):
     pair_box(name, x0, x1, ROOF_Y, ROOF_Y + PARAPET, z0, z1, "concrete")
 
 
 # West roof.
-para("WParN1", -34.0, -30.0, 28.0, 28.45)
-para("WParN2", -26.0, -14.0, 28.0, 28.45)  # gap -30..-26 is the drop
+# Roof screens, 2.4 m, on the edge of each west-type roof that faces the far team. The far
+# roof (the east type) keeps its open north edge for the balcony and the corner surf, so every
+# roof-to-roof line along a side passes one screen. Two slits per roof, 1.2 m wide at standing
+# eye height (11.6 m): the sniper keeps two fixed lanes instead of the whole map.
+SCREEN_H = 2.4
+SLIT_Y0, SLIT_Y1 = ROOF_Y + 1.15, ROOF_Y + 1.95
+
+
+def screen(name, x0, x1, z0, z1, slits=()):
+    pair_box(name + "Lo", x0, x1, ROOF_Y, ROOF_Y + SLIT_Y0 - ROOF_Y, z0, z1, "concrete")
+    pair_box(name + "Hi", x0, x1, SLIT_Y1, ROOF_Y + SCREEN_H, z0, z1, "concrete")
+    edges = [x0] + [v for sl in slits for v in sl] + [x1]
+    for i in range(0, len(edges), 2):
+        pair_box(name + "Mid%d" % (i // 2), edges[i], edges[i + 1], SLIT_Y0, SLIT_Y1, z0, z1, "concrete")
+
+
+SLITS_W = ((-32.6, -31.4), (-19.4, -18.2))
+screen("WScrN1", -34.0, -30.0, 28.0, 28.45, (SLITS_W[0],))
+screen("WScrN2", -26.0, -14.0, 28.0, 28.45, (SLITS_W[1],))  # gap -30..-26 is still the drop
 para("WParS", -34.0, -14.0, 49.55, 50.0)
 para("WParW1", -34.0, -33.55, 28.0, _LIP_Z0)
 para("WParW2", -34.0, -33.55, _LIP_Z1, 50.0)  # gap is the solid walk to the flank toe
@@ -1023,46 +1160,50 @@ para("WParE1", -14.45, -14.0, 28.0, 44.55)
 # No stub past the exterior ramp. The south parapet closes that corner.
 # East roof. The north edge stays open from the balcony across to the side link.
 # A 0.7 m tooth between those two gaps was a block on the corner.
-para("EParN1", 14.0, 18.0, 28.0, 28.45)
+screen("EScrN1", 14.0, 18.0, 28.0, 28.45)
+# The balcony's north edge gets the same screen (no slit). Its east side, the step onto the
+# corner toe, stays open, and so does the roof edge between the surf cap and the side link.
+pair_box("BalconyScreen", 18.2, _pad_x1 - 0.9, ROOF_Y, ROOF_Y + SCREEN_H, _pad_z0, _pad_z0 + 0.45, "concrete")
 para("EParS", 14.0, 34.0, 49.55, 50.0)
 para("EParE", 33.55, 34.0, 30.7, 50.0)  # north end is the side-link landing
 para("EParW2", 14.0, 14.45, 33.50, 50.0)
-# AC on the roof: 1.1 m, the crate row. Between the shafts — the old spot hung over a stair.
-pair_box("WestAC", -26.6, -24.3, ROOF_Y, ROOF_Y + 1.1, 40.2, 42.5, "steel")
-pair_box("EastAC", 21.2, 23.6, ROOF_Y, ROOF_Y + 1.1, 38.0, 40.4, "steel")
 
 # ---------------------------------------------------------------- cover
-# Bus across each street, so the spawn door does not see the dock.
-pair_box("Bus", -4.6, 4.6, 0.0, 2.4, 37.4, 40.6, "bus")
-# Containers across the dock, 2.6 m, breaking the long axis.
-pair_box("DockBox", -3.05, 3.05, 0.0, 2.6, 15.2, 17.6, "c_red")
-# Van, 1.4 m, off the cross surf (that surf is |x|<9, z about -1.5..1.8).
-# Sits on the floor. 1.40 m: body covered, head peeks, a jump does not clear it.
-pair_box("Van", 5.2, 8.6, 0.0, 1.4, -9.4, -6.2, "van")
-# Crates in the flank lane, the quay and the dock. 1.10 m.
-# The flank landing is solid from z≈-14.6 to -2.2, so nothing sits under it.
-pair_box("LaneCrateA", -40.4, -38.2, 0.0, 1.1, -26.0, -24.0, "cover")
-pair_box("LaneCrateC", -40.2, -38.0, 0.0, 1.1, 8.0, 10.0, "cover")
-pair_box("LaneCrateD", -39.4, -37.2, 0.0, 1.1, 20.0, 22.0, "cover")
-pair_box("LaneCrateE", -40.0, -37.8, 0.0, 1.1, 32.0, 34.0, "cover")
-pair_box("QuayCrateA", -28.4, -26.2, QUAY_Y, QUAY_Y + 1.1, -10.0, -8.0, "cover")
-pair_box("QuayCrateB", -27.2, -25.0, QUAY_Y, QUAY_Y + 1.1, 6.0, 8.0, "cover")
-pair_box("DockCrateA", -12.4, -10.2, 0.0, 1.1, 6.4, 8.4, "cover")
-pair_box("DockCrateB", 8.2, 10.4, 0.0, 1.1, -5.2, -3.2, "cover")
-# Off the street-ramp foot (that foot is x -12..-7, z≈23).
-pair_box("StreetCrate", -6.2, -4.2, 0.0, 1.1, 12.4, 14.4, "cover")
+# Containers are the only loose cover (2.44 m deep, 2.6 m per box). The old crates, van, AC
+# units and dock box were scattered singles that made the lanes read as clutter.
+# One container across each street, so the spawn strip does not see the dock (was the bus).
+pair_box("StreetBox", -4.5, 4.5, 0.0, 2.6, 37.6, 40.04, "container")
+# Dock: offset boxes so the dock is two routes around cover, not one open floor. They stay out
+# of the surf flight lines: the corner exits fly west/east at z≈±(5..13), the cross surf
+# launches along x at |z|<2, the dock surfs land on the quay ramps.
+pair_box("DockBoxA", -6.5, -0.5, 0.0, 2.6, 15.6, 18.04, "container")  # 3.9 m off the quay-ramp foot
+pair_box("DockStack", 3.0, 5.44, 0.0, 5.2, 14.5, 20.6, "container")   # two high
+pair_box("MouthBox", -6.0, 0.0, 0.0, 5.2, 23.0, 25.44, "container")  # two high: street ramp to street
+# Quay deck: two high, so the wall lane has to step around it. 1.65 m clear of the flank toe,
+# outside the riding envelope of the surf (capsule on the face reaches x≈-41.2).
+pair_box("DeckStack", -39.5, -31.0, QUAY_Y, QUAY_Y + 5.2, 12.0, 14.44, "container")
+
+# ---------------------------------------------------------------- crane gantry
+# One beam across the dock at z=0, resting on the two office walls (it is its own half-turn).
+# 11.2 m underside: the cross surf ridge is 5.25 m and the dock surf ridges about 5.5 m here,
+# so nothing you ride comes near it. The container hangs right under the beam, 8.6 m up:
+# 3.35 m over the cross surf ridge. It cuts the roof-to-roof diagonals through the middle.
+# The web under the beam goes down to 9.0 m (still 1.95 m over a rider on the cross surf
+# ridge), with the container clamped in the middle. Without it the street-ramp-to-roof
+# diagonals passed under an 11.2 m beam.
+box("Gantry", OFF_X1 + OFF_WT, -(OFF_X1 + OFF_WT), GANTRY_Y0, GANTRY_Y1, -1.0, 1.0, "steel")
+pair_box("GantryWeb", OFF_X1 + OFF_WT, -3.05, GANTRY_WEB_Y, GANTRY_Y0, -0.6, 0.6, "steel")
+box("GantryBox", -3.05, 3.05, 8.6, GANTRY_Y0, -1.22, 1.22, "container")
 
 # ---------------------------------------------------------------- spawns
 # Yards behind a 3.2 m wall. Team colour only on that wall. Baffles close the flanks.
 # The wall covers the street mouth. The baffles meet the loods, so a spawn does not
 # look down the flank. The way out is the strip between this wall and the south doors.
 pair_box("SpawnWall", -16.0, 16.0, 0.0, 3.2, 54.6, 55.3, "team_blue", "team_orange")
-pair_box("BaffleIn", -45.2, -33.8, 0.0, 3.2, 53.8, 54.5, "concrete")
-pair_box("BaffleOut", 33.8, 45.2, 0.0, 3.2, 53.8, 54.5, "concrete")
-pair_box("TruckA", 5.2, 8.4, 0.0, 1.9, 56.0, 59.0, "van")
-pair_box("TruckB", -8.4, -5.2, 0.0, 1.9, 56.0, 59.0, "van")
-pair_box("SpawnCrateA", -28.6, -26.4, 0.0, 1.1, 55.2, 57.2, "cover")
-pair_box("SpawnCrateB", 26.4, 28.6, 0.0, 1.1, 55.6, 57.6, "cover")
+# The corners behind the baffles were dead space (and spawns). They are solid now: the
+# baffle grew into a 3.2 m block, and the yard is the part between them.
+pair_box("YardFillW", -INNER_X, -33.8, 0.0, 3.2, 53.8, INNER_Z, "concrete")
+pair_box("YardFillE", 33.8, INNER_X, 0.0, 3.2, 53.8, INNER_Z, "concrete")
 
 # ---------------------------------------------------------------- lights (omni, no shadows)
 WARM = (1.0, 0.86, 0.70)
@@ -1070,7 +1211,9 @@ COOL = (0.78, 0.86, 1.0)
 pair_light("InsideA", (-24.0, 2.4, 39.0), WARM, 0.7, 12.0)
 pair_light("InsideB", (24.0, 2.4, 39.0), WARM, 0.7, 12.0)
 pair_light("RoofLight", (-24.0, 12.4, 40.0), WARM, 0.35, 10.0)
-pair_light("QuayLight", (-26.0, 6.2, 0.0), COOL, 0.4, 14.0)
+pair_light("QuayLight", (-37.0, 7.5, 0.0), COOL, 0.4, 14.0)
+pair_light("OfficeLow", (-25.5, 6.6, 0.0), WARM, 0.55, 8.0)
+pair_light("OfficeHigh", (-25.5, 10.6, 0.0), WARM, 0.45, 8.0)
 pair_light("CornerLight", (24.0, 12.2, 26.0), WARM, 0.4, 11.0)
 light("DockA", (-6.0, 5.5, 8.0), COOL, 0.45, 16.0)
 light("DockB", (6.0, 5.5, -8.0), COOL, 0.45, 16.0)
