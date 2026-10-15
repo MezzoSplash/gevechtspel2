@@ -32,22 +32,20 @@ import speed_strip
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "scenes", "maps", "quay.tscn")
 
+# Ten materials. Concrete is everything poured (decks, walls, ramps, the outer walls), brick is
+# the two loods and the two harbour offices, steel is everything bolted on (stair rails, steel
+# walk, gantry), containers are the only loose cover. Yellow only marks surf edges and ramp feet.
 MATS = {
     "floor": ((0.24, 0.25, 0.26), 0.92),
     "concrete": ((0.40, 0.40, 0.38), 0.88),
-    "outer": ((0.32, 0.34, 0.36), 0.86),
     "roof": ((0.30, 0.34, 0.31), 0.90),
     "brick": ((0.52, 0.36, 0.24), 0.85),
-    "cover": ((0.48, 0.40, 0.32), 0.82),
-    "steel": ((0.32, 0.34, 0.37), 0.62),
+    "steel": ((0.30, 0.33, 0.37), 0.62),
     "hazard": ((0.78, 0.62, 0.14), 0.75),
     "surf": ((0.36, 0.42, 0.48), 0.62),
     "team_blue": ((0.27, 0.46, 0.62), 0.82),
     "team_orange": ((0.70, 0.44, 0.18), 0.82),
-    "van": ((0.25, 0.32, 0.36), 0.70),
-    "trim": ((0.20, 0.21, 0.23), 0.88),
-    "bus": ((0.28, 0.38, 0.30), 0.78),
-    "c_red": ((0.56, 0.20, 0.15), 0.78),
+    "container": ((0.56, 0.22, 0.16), 0.78),
 }
 
 # ~57° face. Buried 0.1 m into the wall and the floor. Same triangle as Rooftops.
@@ -377,8 +375,8 @@ def watch(label, basis, origin, along, y_expect):
 
 # ---------------------------------------------------------------- shell
 box("Floor", -HALF_X, HALF_X, -1.0, 0.0, -HALF_Z, HALF_Z, "floor")
-box("WallWest", -HALF_X, -INNER_X, 0, WALL_H, -HALF_Z, HALF_Z, "outer")
-box("WallEast", INNER_X, HALF_X, 0, WALL_H, -HALF_Z, HALF_Z, "outer")
+box("WallWest", -HALF_X, -INNER_X, 0, WALL_H, -HALF_Z, HALF_Z, "concrete")
+box("WallEast", INNER_X, HALF_X, 0, WALL_H, -HALF_Z, HALF_Z, "concrete")
 box("WallSouth", -HALF_X, HALF_X, 0, WALL_H, INNER_Z, HALF_Z, "team_blue")
 box("WallNorth", -HALF_X, HALF_X, 0, WALL_H, -HALF_Z, -INNER_Z, "team_orange")
 
@@ -481,16 +479,16 @@ pair_box("EastStairBLand", 27.25, 31.55, ROOF_Y - 0.45, ROOF_Y, 31.65, 32.0, "co
 # The street-side bars used to run through the door and the street window.
 # They are unions, so they put the cut back: the hole still looked open and
 # the capsule (radius 0.4) stopped on a 0.25 m bar just inside the wall.
-pair_box("WestRailAO", -32.15, -31.9, 0.0, CEIL_Y, 33.9, 42.80, "trim")
-pair_box("WestRailAI", -26.9, -26.65, 0.0, CEIL_Y, 33.9, 45.3, "trim")
-pair_box("WestRailBN", -16.1, -15.85, 0.0, CEIL_Y, 32.7, 35.35, "trim")
-pair_box("WestRailBS", -16.1, -15.85, 0.0, CEIL_Y, 42.05, 44.1, "trim")
-pair_box("WestRailBI", -20.9, -20.65, 0.0, CEIL_Y, 32.7, 44.1, "trim")
-pair_box("EastRailAN", 15.85, 16.1, 0.0, CEIL_Y, 33.9, 35.35, "trim")
-pair_box("EastRailAS", 15.85, 16.1, 0.0, CEIL_Y, 38.05, 45.3, "trim")
-pair_box("EastRailAI", 20.9, 21.15, 0.0, CEIL_Y, 33.9, 45.3, "trim")
-pair_box("EastRailBO", 31.9, 32.15, 0.0, CEIL_Y, 32.7, 44.1, "trim")
-pair_box("EastRailBI", 26.65, 26.9, 0.0, CEIL_Y, 32.7, 44.1, "trim")
+pair_box("WestRailAO", -32.15, -31.9, 0.0, CEIL_Y, 33.9, 42.80, "steel")
+pair_box("WestRailAI", -26.9, -26.65, 0.0, CEIL_Y, 33.9, 45.3, "steel")
+pair_box("WestRailBN", -16.1, -15.85, 0.0, CEIL_Y, 32.7, 35.35, "steel")
+pair_box("WestRailBS", -16.1, -15.85, 0.0, CEIL_Y, 42.05, 44.1, "steel")
+pair_box("WestRailBI", -20.9, -20.65, 0.0, CEIL_Y, 32.7, 44.1, "steel")
+pair_box("EastRailAN", 15.85, 16.1, 0.0, CEIL_Y, 33.9, 35.35, "steel")
+pair_box("EastRailAS", 15.85, 16.1, 0.0, CEIL_Y, 38.05, 45.3, "steel")
+pair_box("EastRailAI", 20.9, 21.15, 0.0, CEIL_Y, 33.9, 45.3, "steel")
+pair_box("EastRailBO", 31.9, 32.15, 0.0, CEIL_Y, 32.7, 44.1, "steel")
+pair_box("EastRailBI", 26.65, 26.9, 0.0, CEIL_Y, 32.7, 44.1, "steel")
 # Same test as the balcony pier: a later union must not land in an opening.
 _rail_holes = (
     ("WestWinW2", (-34.35, -31.55, 1.20, 6.30, _W2_Z0 + 0.05, _W2_Z1 - 0.05)),
@@ -1027,30 +1025,12 @@ para("EParN1", 14.0, 18.0, 28.0, 28.45)
 para("EParS", 14.0, 34.0, 49.55, 50.0)
 para("EParE", 33.55, 34.0, 30.7, 50.0)  # north end is the side-link landing
 para("EParW2", 14.0, 14.45, 33.50, 50.0)
-# AC on the roof: 1.1 m, the crate row. Between the shafts — the old spot hung over a stair.
-pair_box("WestAC", -26.6, -24.3, ROOF_Y, ROOF_Y + 1.1, 40.2, 42.5, "steel")
-pair_box("EastAC", 21.2, 23.6, ROOF_Y, ROOF_Y + 1.1, 38.0, 40.4, "steel")
 
 # ---------------------------------------------------------------- cover
-# Bus across each street, so the spawn door does not see the dock.
-pair_box("Bus", -4.6, 4.6, 0.0, 2.4, 37.4, 40.6, "bus")
-# Containers across the dock, 2.6 m, breaking the long axis.
-pair_box("DockBox", -3.05, 3.05, 0.0, 2.6, 15.2, 17.6, "c_red")
-# Van, 1.4 m, off the cross surf (that surf is |x|<9, z about -1.5..1.8).
-# Sits on the floor. 1.40 m: body covered, head peeks, a jump does not clear it.
-pair_box("Van", 5.2, 8.6, 0.0, 1.4, -9.4, -6.2, "van")
-# Crates in the flank lane, the quay and the dock. 1.10 m.
-# The flank landing is solid from z≈-14.6 to -2.2, so nothing sits under it.
-pair_box("LaneCrateA", -40.4, -38.2, 0.0, 1.1, -26.0, -24.0, "cover")
-pair_box("LaneCrateC", -40.2, -38.0, 0.0, 1.1, 8.0, 10.0, "cover")
-pair_box("LaneCrateD", -39.4, -37.2, 0.0, 1.1, 20.0, 22.0, "cover")
-pair_box("LaneCrateE", -40.0, -37.8, 0.0, 1.1, 32.0, 34.0, "cover")
-pair_box("QuayCrateA", -28.4, -26.2, QUAY_Y, QUAY_Y + 1.1, -10.0, -8.0, "cover")
-pair_box("QuayCrateB", -27.2, -25.0, QUAY_Y, QUAY_Y + 1.1, 6.0, 8.0, "cover")
-pair_box("DockCrateA", -12.4, -10.2, 0.0, 1.1, 6.4, 8.4, "cover")
-pair_box("DockCrateB", 8.2, 10.4, 0.0, 1.1, -5.2, -3.2, "cover")
-# Off the street-ramp foot (that foot is x -12..-7, z≈23).
-pair_box("StreetCrate", -6.2, -4.2, 0.0, 1.1, 12.4, 14.4, "cover")
+# Containers are the only loose cover (2.44 m deep, 2.6 m per box). The old crates, van, AC
+# units and dock box were scattered singles that made the lanes read as clutter.
+# One container across each street, so the spawn strip does not see the dock (was the bus).
+pair_box("StreetBox", -4.5, 4.5, 0.0, 2.6, 37.6, 40.04, "container")
 
 # ---------------------------------------------------------------- spawns
 # Yards behind a 3.2 m wall. Team colour only on that wall. Baffles close the flanks.
@@ -1059,10 +1039,6 @@ pair_box("StreetCrate", -6.2, -4.2, 0.0, 1.1, 12.4, 14.4, "cover")
 pair_box("SpawnWall", -16.0, 16.0, 0.0, 3.2, 54.6, 55.3, "team_blue", "team_orange")
 pair_box("BaffleIn", -45.2, -33.8, 0.0, 3.2, 53.8, 54.5, "concrete")
 pair_box("BaffleOut", 33.8, 45.2, 0.0, 3.2, 53.8, 54.5, "concrete")
-pair_box("TruckA", 5.2, 8.4, 0.0, 1.9, 56.0, 59.0, "van")
-pair_box("TruckB", -8.4, -5.2, 0.0, 1.9, 56.0, 59.0, "van")
-pair_box("SpawnCrateA", -28.6, -26.4, 0.0, 1.1, 55.2, 57.2, "cover")
-pair_box("SpawnCrateB", 26.4, 28.6, 0.0, 1.1, 55.6, 57.6, "cover")
 
 # ---------------------------------------------------------------- lights (omni, no shadows)
 WARM = (1.0, 0.86, 0.70)
