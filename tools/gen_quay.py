@@ -253,6 +253,12 @@ def wedge_z(name, x0, x1, z_low, z_high, h, mat, y0=0.0, top_drop=0.0, base_y=No
          "depth = %s" % fmt(abs(x1 - x0))], mat)
 
 
+def pair_wedge_z(name, x0, x1, z_low, z_high, h, mat, y0=0.0, top_drop=0.0, base_y=None):
+    """Blue wedge_z plus the half-turn (x and z both flip)."""
+    wedge_z(name + "B", x0, x1, z_low, z_high, h, mat, y0=y0, top_drop=top_drop, base_y=base_y)
+    wedge_z(name + "O", -x1, -x0, -z_low, -z_high, h, mat, y0=y0, top_drop=top_drop, base_y=base_y)
+
+
 def light(name, pos, col, energy, rng):
     lights.append((name, pos, col, energy, rng))
 
@@ -410,7 +416,6 @@ pair_sub("EastDoorW", 13.6, 15.6, 0.0, 2.6, 46.0, 48.6)
 # Windows are holes. Not on the spawn face (south): that looks into the yard.
 pair_sub("WestWinN1", -32.2, -30.0, 1.0, 2.5, 27.6, 29.6)
 pair_sub("WestWinN2", -20.4, -18.2, 1.0, 2.5, 27.6, 29.6)
-pair_sub("WestWinW", -34.4, -32.4, 1.0, 2.5, 30.2, 32.4)
 # Flank shoot-hole, on the open west wall just south of the lip. The low slot
 # sat on shadowed brick and read as part of the wall. This one is tall and
 # cuts through to the stair shaft, so the lane sees sky and the stair, not a
@@ -420,7 +425,6 @@ pair_sub("WestWinW2", -34.4, -31.50, 1.15, 6.40, _W2_Z0, _W2_Z1)
 pair_sub("WestWinE", -15.6, -13.6, 1.0, 2.5, 35.6, 37.8)
 pair_sub("EastWinN1", 18.2, 20.4, 1.0, 2.5, 27.6, 29.6)
 pair_sub("EastWinN2", 30.0, 32.2, 1.0, 2.5, 27.6, 29.6)
-pair_sub("EastWinE", 32.4, 34.4, 1.0, 2.5, 30.2, 32.4)
 pair_sub("EastWinW", 13.6, 15.6, 1.0, 2.5, 35.6, 37.8)
 # Jog between the two stairs. Clear of both treads (≥1.2 m) and of both landings.
 # Doors sit on the end walls; the jog is mid-room, so it does not close a door.
@@ -561,7 +565,10 @@ _toe_hi = toe_world(FLANK_BASIS, flank_o, 0.0)
 _LIP_Z0 = _toe_hi[2] - 0.12
 _LIP_Z1 = _toe_hi[2] + 2.7
 # 6 cm past the toe, under the face, so the walk and the surf share an edge.
-pair_box("FlankLip", _toe_hi[0] - 0.06, -32.2, 0.0, ROOF_Y, _LIP_Z0, _LIP_Z1, "concrete")
+# The lip is an arch: the side lane runs under it (3.4 m clear), so the pocket behind the
+# loods is no longer cut off from the quay. Both ends sit in solid (the surf fill, the loods).
+LIP_ARCH_Y = 3.4
+pair_box("FlankLip", _toe_hi[0] - 0.06, -32.2, LIP_ARCH_Y, ROOF_Y, _LIP_Z0, _LIP_Z1, "concrete")
 # The lip is a later union and reaches through the west wall. It must stop
 # short of the flank shoot-hole or it fills that cut back in.
 if _LIP_Z1 > _W2_Z0 and _toe_hi[0] - 0.06 < -31.50:
@@ -576,17 +583,38 @@ _toe_lo = toe_world(FLANK_BASIS, flank_o, FLANK_DEPTH)
 pair_box("FlankDeck", _toe_lo[0] - 0.15, -29.0, 0.0, QUAY_Y,
          _toe_lo[2] - 12.0, _toe_lo[2] + 0.4, "concrete")
 
-# The fill stops 0.2 m short of the toe and the deck 0.15 m: a 5 cm slit at the corner
-# where they meet, from the floor up to the surf. You could see (and shoot) through it.
-# The fill's end leans with the pitch, so near the floor the slit runs on past the deck.
-pair_box("FlankSeam", _toe_lo[0] - 0.21, _toe_lo[0] - 0.15, 0.0, QUAY_Y,
-         _toe_lo[2] - 0.01, _toe_lo[2] + 0.8, "concrete")
-# The lane between the loods and the outer wall ran into the deck: a dead end, with the
-# pit beside the deck stopping on the flank fill. The two meet at one corner. A window
-# there looks from the pit into the lane on the far side of the deck, both teams alike.
-# About 1.3 m across, chest height (standing eye is 1.6 m), 0.6 m tall. The crouched
-# capsule is 1.0 m, so nobody fits through; hitscan does.
-pair_sub("FlankWindow", -43.0, -40.9, 1.15, 1.75, -3.5, -1.4)
+# ---------------------------------------------------------------- side lanes
+# The ground lane between each loods and the outer wall used to dead-end on the 4 m quay.
+# Now the quay deck runs out to the wall and each end of every side lane has a 12° walk ramp:
+# yard strip -> lane -> ramp -> quay deck -> ramp -> lane -> the other yard strip.
+#
+# Under the flank surf the deck starts inside the fill (x=-42.2) and stays below the face:
+# the toe is at y>=4 wherever the deck is, and 0.35 m in from the toe the face is 0.54 m higher.
+# Past the low end of the surf the deck goes all the way to the wall.
+SURF_DECK_X = -42.2
+# Runs 0.8 m on under the surf's low end: the fill's end leans, and a shorter deck left a sealed sliver.
+pair_box("DeckWallN", -INNER_X, -32.0, 0.0, QUAY_Y, -22.0, _toe_lo[2] + 0.8, "concrete")
+pair_box("DeckWallS", SURF_DECK_X, -32.0, 0.0, QUAY_Y, _toe_lo[2], 22.0, "concrete")
+# The fill stops 0.2 m short of the toe, so the toe overhung a slot down to the floor. Now that
+# you walk beside it, close the slot: a skirt straight down from just under the toe. It never
+# reaches the face (2 cm under the toe line), so the surf is the same surface as before.
+for _nm, _bs, _org in (("FlankSkirtW", FLANK_BASIS, flank_o), ("FlankSkirtE", FLANK_E_BASIS, flank_e)):
+    add(_nm, "CSGPolygon3D", xform(_bs, _org),
+        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in (3.05, -0.12, SURF_TOE - 0.01, -0.12,
+                                                                         SURF_TOE - 0.01, -(ROOF_Y + 1.0), 3.05, -(ROOF_Y + 1.0))),
+         "depth = %s" % fmt(FLANK_DEPTH)], "concrete")
+# Ramps, 4 m over 18 m (12.5°). Solid wedges, tops flush with the deck at the high end.
+SIDE_RAMP_FOOT = 40.0
+SIDE_RAMP_TOP = 22.0
+# Blue pocket (west, under the flank surf) and its half-turn on the orange east side.
+pair_wedge_z("PocketRamp", SURF_DECK_X, -33.9, SIDE_RAMP_FOOT, SIDE_RAMP_TOP, QUAY_Y, "concrete")
+# Orange-end west lane and its half-turn on the blue east side. Wall to loods.
+pair_wedge_z("LaneRamp", -INNER_X, -33.9, -SIDE_RAMP_FOOT, -SIDE_RAMP_TOP, QUAY_Y, "concrete")
+pair_box("PocketRampEdge", SURF_DECK_X + 0.3, -33.9, -0.06, 0.0, SIDE_RAMP_FOOT, SIDE_RAMP_FOOT + 0.35, "hazard")
+pair_box("LaneRampEdge", -INNER_X, -33.9, -0.06, 0.0, -SIDE_RAMP_FOOT - 0.35, -SIDE_RAMP_FOOT, "hazard")
+# Under the arch the fill's slanted end left a 3 x 3 m niche against the wall. Fill it up to the
+# arch, past the skirt, so the passage is one clean box.
+pair_box("LipNiche", -INNER_X, -41.80, 0.0, LIP_ARCH_Y, _LIP_Z0, _LIP_Z1, "concrete")
 
 # ---------------------------------------------------------------- dock surf, 4 m → 0, inner quay face
 DOCK_BASIS = mul_basis(yaw_into(1.0, 0.0), rx(DOCK_PITCH))
@@ -1037,8 +1065,10 @@ pair_box("StreetBox", -4.5, 4.5, 0.0, 2.6, 37.6, 40.04, "container")
 # The wall covers the street mouth. The baffles meet the loods, so a spawn does not
 # look down the flank. The way out is the strip between this wall and the south doors.
 pair_box("SpawnWall", -16.0, 16.0, 0.0, 3.2, 54.6, 55.3, "team_blue", "team_orange")
-pair_box("BaffleIn", -45.2, -33.8, 0.0, 3.2, 53.8, 54.5, "concrete")
-pair_box("BaffleOut", 33.8, 45.2, 0.0, 3.2, 53.8, 54.5, "concrete")
+# The corners behind the baffles were dead space (and spawns). They are solid now: the
+# baffle grew into a 3.2 m block, and the yard is the part between them.
+pair_box("YardFillW", -INNER_X, -33.8, 0.0, 3.2, 53.8, INNER_Z, "concrete")
+pair_box("YardFillE", 33.8, INNER_X, 0.0, 3.2, 53.8, INNER_Z, "concrete")
 
 # ---------------------------------------------------------------- lights (omni, no shadows)
 WARM = (1.0, 0.86, 0.70)

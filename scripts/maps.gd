@@ -71,19 +71,22 @@ const INFO := {
 		"blurb": "Dry dock with a high quay, downhill surfs, and a curved corner.",
 		"scene": "res://scenes/maps/quay.tscn",
 		"menu_cam": [Vector3(48, 42, 86), Vector3(0, 4, 0)],
-		# One row behind the trucks (they end at z=59), short of the south wall (inner face z=61.2).
-		# Twelve points so 16 bots, or a team stacked with humans, do not share a spot.
+		# Two rows of six in the yard, all behind the 3.2 m spawn wall (x -16..16, z 54.6..55.3).
+		# The corners past the baffles are solid now, so nobody spawns out there.
 		"team_spawns": [
-			[Vector3(-39, 0, 59.9), Vector3(-32, 0, 59.9), Vector3(-25, 0, 59.9), Vector3(-18, 0, 59.9), Vector3(-11, 0, 59.9), Vector3(-4, 0, 59.9), Vector3(4, 0, 59.9), Vector3(11, 0, 59.9), Vector3(18, 0, 59.9), Vector3(25, 0, 59.9), Vector3(32, 0, 59.9), Vector3(39, 0, 59.9)],
-			[Vector3(39, 0, -59.9), Vector3(32, 0, -59.9), Vector3(25, 0, -59.9), Vector3(18, 0, -59.9), Vector3(11, 0, -59.9), Vector3(4, 0, -59.9), Vector3(-4, 0, -59.9), Vector3(-11, 0, -59.9), Vector3(-18, 0, -59.9), Vector3(-25, 0, -59.9), Vector3(-32, 0, -59.9), Vector3(-39, 0, -59.9)],
+			[Vector3(-13, 0, 57.4), Vector3(-7.8, 0, 57.4), Vector3(-2.6, 0, 57.4), Vector3(2.6, 0, 57.4), Vector3(7.8, 0, 57.4), Vector3(13, 0, 57.4), Vector3(-13, 0, 60.2), Vector3(-7.8, 0, 60.2), Vector3(-2.6, 0, 60.2), Vector3(2.6, 0, 60.2), Vector3(7.8, 0, 60.2), Vector3(13, 0, 60.2)],
+			[Vector3(13, 0, -57.4), Vector3(7.8, 0, -57.4), Vector3(2.6, 0, -57.4), Vector3(-2.6, 0, -57.4), Vector3(-7.8, 0, -57.4), Vector3(-13, 0, -57.4), Vector3(13, 0, -60.2), Vector3(7.8, 0, -60.2), Vector3(2.6, 0, -60.2), Vector3(-2.6, 0, -60.2), Vector3(-7.8, 0, -60.2), Vector3(-13, 0, -60.2)],
 		],
+		# Half-turn pairs. Yard, side-lane ground, quay deck beside the office, dock, roofs, balconies.
 		"ffa_spawns": [
-			Vector3(-33, 0, 57.6), Vector3(0, 0, 56.6), Vector3(33, 0, 57.4),
-			Vector3(33, 0, -57.6), Vector3(0, 0, -56.6), Vector3(-33, 0, -57.4),
-			Vector3(-26, 4, 0), Vector3(26, 4, 0),
-			Vector3(0, 0, 10), Vector3(0, 0, -12),
+			Vector3(-26, 0, 58), Vector3(0, 0, 57), Vector3(26, 0, 58),
+			Vector3(26, 0, -58), Vector3(0, 0, -57), Vector3(-26, 0, -58),
+			Vector3(-38, 0, -47), Vector3(38, 0, 47),
+			Vector3(-37, 4, 0), Vector3(37, 4, 0),
+			Vector3(0, 0, 11), Vector3(0, 0, -11),
 			Vector3(-24, 10, 38), Vector3(24, 10, -38),
-			Vector3(24, 10, 26), Vector3(-8, 0, 6),
+			Vector3(24, 10, 26), Vector3(-24, 10, -26),
+			Vector3(-8, 0, 6), Vector3(8, 0, -6),
 		],
 	},
 }
