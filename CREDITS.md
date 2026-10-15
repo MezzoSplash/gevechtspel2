@@ -25,7 +25,7 @@ They were trimmed, mixed to mono, faded and normalized with `tools/build_sfx.py`
 | `melee_hit.wav` | Kenney *Impact Sounds* `impactPunch_heavy_001.ogg` + `impactPlate_light_002.ogg` | Kenney | CC0 |
 | `trickshot.wav` | Kenney *Interface Sounds* `maximize_005.ogg` (rising sweep) + `confirmation_002.ogg` (chime, plus an octave-up copy), mixed and saturated in `tools/build_sfx.py` | Kenney | CC0 |
 | `melee_swing.wav` | Synthesized in `tools/build_sfx.py` (band-passed noise whoosh) | this project | CC0 |
-| `radar_friendly.wav`, `radar_enemy.wav` | "Friendly radar online." / "Enemy radar online." spoken by the [Piper](https://github.com/rhasspy/piper) TTS, voice `en_US-ljspeech-high`, then radio-filtered in `tools/build_sfx.py` | voice: Bryce Beattie, trained on the LJ Speech dataset (Keith Ito, Linda Johnson) | voice model MIT, training data public domain; we release the clips as CC0 |
+| `radar_friendly.wav`, `radar_enemy.wav`, `rcxd_ready.wav` | "Friendly radar online." / "Enemy radar online." / "RC-XD ready for deployment." spoken by the [Piper](https://github.com/rhasspy/piper) TTS, voice `en_US-ljspeech-high`, then radio-filtered in `tools/build_sfx.py` | voice: Bryce Beattie, trained on the LJ Speech dataset (Keith Ito, Linda Johnson) | voice model MIT, training data public domain; we release the clips as CC0 |
 
 - The Free Firearm Sound Library: <https://opengameart.org/content/the-free-firearm-sound-library> ("Prepared SFX Library")
 - Kenney Impact Sounds: <https://kenney.nl/assets/impact-sounds>
