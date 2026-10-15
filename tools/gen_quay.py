@@ -473,6 +473,7 @@ OFF_STAIR_X0, OFF_STAIR_X1 = -22.6, OFF_X1 + OFF_WT   # against the east wall
 OFF_STAIR_Z0, OFF_STAIR_Z1 = 2.4, -3.6                # 3.8 m over 6 m, 32° (loods stairs are 38°)
 OFF_DOOR_H = OFF_F1 + 2.7
 GANTRY_Y0, GANTRY_Y1 = 11.2, 13.6   # beam over the dock, see "crane gantry"
+GANTRY_WEB_Y = 9.0
 pair_box("Office", OFF_X0, OFF_X1, OFF_F1, OFF_TOP, OFF_Z0, OFF_Z1, "brick")
 pair_sub("OfficeVoid1", OFF_X0 + OFF_WT, OFF_X1 - OFF_WT, OFF_F1, OFF_SLAB0, OFF_Z0 + OFF_WT, OFF_Z1 - OFF_WT)
 pair_sub("OfficeVoid2", OFF_X0 + OFF_WT, OFF_X1 - OFF_WT, OFF_F2, OFF_CEIL2, OFF_Z0 + OFF_WT, OFF_Z1 - OFF_WT)
@@ -1112,7 +1113,8 @@ def add_rework_probes():
         # Gantry and hanging box: clear over everything you ride.
         ("cross_over", (0.0, 5.7, 1.6), (0.0, 8.5, 1.6), "clear"),
         ("cross_glide", (-9.5, 6.6, 0.4), (9.5, 6.6, 0.4), "clear"),
-        ("dock_surf_over", (-16.5, 6.2, 0.0), (-16.5, 11.0, 0.0), "clear"),
+        ("dock_surf_over", (-16.5, 6.2, 0.0), (-16.5, 8.8, 0.0), "clear"),
+        ("gantry_web", (-12.0, 7.5, 0.0), (-12.0, 10.0, 0.0), "wall"),
         ("gantry_hit", (0.0, 15.0, 0.0), (0.0, 12.0, 0.0), "flat@%.2f" % GANTRY_Y1),
         # Screen slit: open at eye height, closed under and over it.
         ("slit_open", (-32.0, ROOF_Y + 1.6, 30.0), (-32.0, ROOF_Y + 1.6, 26.0), "clear"),
@@ -1159,6 +1161,9 @@ para("WParE1", -14.45, -14.0, 28.0, 44.55)
 # East roof. The north edge stays open from the balcony across to the side link.
 # A 0.7 m tooth between those two gaps was a block on the corner.
 screen("EScrN1", 14.0, 18.0, 28.0, 28.45)
+# The balcony's north edge gets the same screen (no slit). Its east side, the step onto the
+# corner toe, stays open, and so does the roof edge between the surf cap and the side link.
+pair_box("BalconyScreen", 18.2, _pad_x1 - 0.9, ROOF_Y, ROOF_Y + SCREEN_H, _pad_z0, _pad_z0 + 0.45, "concrete")
 para("EParS", 14.0, 34.0, 49.55, 50.0)
 para("EParE", 33.55, 34.0, 30.7, 50.0)  # north end is the side-link landing
 para("EParW2", 14.0, 14.45, 33.50, 50.0)
@@ -1173,7 +1178,7 @@ pair_box("StreetBox", -4.5, 4.5, 0.0, 2.6, 37.6, 40.04, "container")
 # launches along x at |z|<2, the dock surfs land on the quay ramps.
 pair_box("DockBoxA", -6.5, -0.5, 0.0, 2.6, 15.6, 18.04, "container")  # 3.9 m off the quay-ramp foot
 pair_box("DockStack", 3.0, 5.44, 0.0, 5.2, 14.5, 20.6, "container")   # two high
-pair_box("MouthBox", -6.0, 0.0, 0.0, 2.6, 23.0, 25.44, "container")
+pair_box("MouthBox", -6.0, 0.0, 0.0, 5.2, 23.0, 25.44, "container")  # two high: street ramp to street
 # Quay deck: two high, so the wall lane has to step around it. 1.65 m clear of the flank toe,
 # outside the riding envelope of the surf (capsule on the face reaches x≈-41.2).
 pair_box("DeckStack", -39.5, -31.0, QUAY_Y, QUAY_Y + 5.2, 12.0, 14.44, "container")
@@ -1183,7 +1188,11 @@ pair_box("DeckStack", -39.5, -31.0, QUAY_Y, QUAY_Y + 5.2, 12.0, 14.44, "containe
 # 11.2 m underside: the cross surf ridge is 5.25 m and the dock surf ridges about 5.5 m here,
 # so nothing you ride comes near it. The container hangs right under the beam, 8.6 m up:
 # 3.35 m over the cross surf ridge. It cuts the roof-to-roof diagonals through the middle.
+# The web under the beam goes down to 9.0 m (still 1.95 m over a rider on the cross surf
+# ridge), with the container clamped in the middle. Without it the street-ramp-to-roof
+# diagonals passed under an 11.2 m beam.
 box("Gantry", OFF_X1 + OFF_WT, -(OFF_X1 + OFF_WT), GANTRY_Y0, GANTRY_Y1, -1.0, 1.0, "steel")
+pair_box("GantryWeb", OFF_X1 + OFF_WT, -3.05, GANTRY_WEB_Y, GANTRY_Y0, -0.6, 0.6, "steel")
 box("GantryBox", -3.05, 3.05, 8.6, GANTRY_Y0, -1.22, 1.22, "container")
 
 # ---------------------------------------------------------------- spawns
