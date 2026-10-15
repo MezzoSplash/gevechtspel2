@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=25 format=3]
 
 [sub_resource type="Environment" id="Env_quay"]
 background_mode = 1
@@ -38,13 +38,13 @@ roughness = 0.75
 albedo_color = Color(0.3, 0.33, 0.37, 1)
 roughness = 0.62
 
-[sub_resource type="StandardMaterial3D" id="Mat_surf"]
-albedo_color = Color(0.36, 0.42, 0.48, 1)
-roughness = 0.62
-
 [sub_resource type="StandardMaterial3D" id="Mat_roof"]
 albedo_color = Color(0.3, 0.34, 0.31, 1)
 roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_surf"]
+albedo_color = Color(0.36, 0.42, 0.48, 1)
+roughness = 0.62
 
 [sub_resource type="StandardMaterial3D" id="Mat_container"]
 albedo_color = Color(0.56, 0.22, 0.16, 1)
@@ -77,6 +77,62 @@ _data = {
 "tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 }
 point_count = 43
+
+[sub_resource type="Curve3D" id="Curve_FlankWPath"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -34.1, 9.9998, 51.3, 0, 0, 0, 0, 0, 0, -34.6833, 9.9658, 51.3, 0, 0, 0, 0, 0, 0, -35.2667, 9.9333, 51.3, 0, 0, 0, 0, 0, 0, -35.85, 9.9022, 51.3, 0, 0, 0, 0, 0, 0, -37.0639, 9.8617, 51.2204, 0, 0, 0, 0, 0, 0, -38.257, 9.8222, 50.9831, 0, 0, 0, 0, 0, 0, -39.409, 9.7827, 50.5921, 0, 0, 0, 0, 0, 0, -40.5, 9.7426, 50.054, 0, 0, 0, 0, 0, 0, -41.5115, 9.701, 49.3782, 0, 0, 0, 0, 0, 0, -42.4261, 9.657, 48.5761, 0, 0, 0, 0, 0, 0, -43.2282, 9.61, 47.6615, 0, 0, 0, 0, 0, 0, -43.904, 9.559, 46.65, 0, 0, 0, 0, 0, 0, -44.4421, 9.5033, 45.559, 0, 0, 0, 0, 0, 0, -44.8331, 9.4421, 44.407, 0, 0, 0, 0, 0, 0, -45.0704, 9.3745, 43.2139, 0, 0, 0, 0, 0, 0, -45.15, 9.2997, 42, 0, 0, 0, 0, 0, 0, -45.15, 9.22, 41.2036, 0, 0, 0, 0, 0, 0, -45.15, 9.1408, 40.4071, 0, 0, 0, 0, 0, 0, -45.15, 9.0617, 39.6107, 0, 0, 0, 0, 0, 0, -45.15, 8.9828, 38.8143, 0, 0, 0, 0, 0, 0, -45.15, 8.9041, 38.0179, 0, 0, 0, 0, 0, 0, -45.15, 8.8254, 37.2214, 0, 0, 0, 0, 0, 0, -45.15, 8.7468, 36.425, 0, 0, 0, 0, 0, 0, -45.15, 8.6682, 35.6286, 0, 0, 0, 0, 0, 0, -45.15, 8.5895, 34.8321, 0, 0, 0, 0, 0, 0, -45.15, 8.5108, 34.0357, 0, 0, 0, 0, 0, 0, -45.15, 8.432, 33.2393, 0, 0, 0, 0, 0, 0, -45.15, 8.353, 32.4429, 0, 0, 0, 0, 0, 0, -45.15, 8.2738, 31.6464, 0, 0, 0, 0, 0, 0, -45.15, 8.1943, 30.85, 0, 0, 0, 0, 0, 0, -45.15, 8.1146, 30.0536, 0, 0, 0, 0, 0, 0, -45.15, 8.0345, 29.2571, 0, 0, 0, 0, 0, 0, -45.15, 7.9541, 28.4607, 0, 0, 0, 0, 0, 0, -45.15, 7.8733, 27.6643, 0, 0, 0, 0, 0, 0, -45.15, 7.792, 26.8679, 0, 0, 0, 0, 0, 0, -45.15, 7.7103, 26.0714, 0, 0, 0, 0, 0, 0, -45.15, 7.628, 25.275, 0, 0, 0, 0, 0, 0, -45.15, 7.5452, 24.4786, 0, 0, 0, 0, 0, 0, -45.15, 7.4617, 23.6821, 0, 0, 0, 0, 0, 0, -45.15, 7.3776, 22.8857, 0, 0, 0, 0, 0, 0, -45.15, 7.2928, 22.0893, 0, 0, 0, 0, 0, 0, -45.15, 7.2073, 21.2929, 0, 0, 0, 0, 0, 0, -45.15, 7.121, 20.4964, 0, 0, 0, 0, 0, 0, -45.15, 7.0339, 19.7, 0, 0, 0, 0, 0, 0, -45.15, 6.9459, 18.9036, 0, 0, 0, 0, 0, 0, -45.15, 6.8571, 18.1071, 0, 0, 0, 0, 0, 0, -45.15, 6.7673, 17.3107, 0, 0, 0, 0, 0, 0, -45.15, 6.6765, 16.5143, 0, 0, 0, 0, 0, 0, -45.15, 6.5847, 15.7179, 0, 0, 0, 0, 0, 0, -45.15, 6.4919, 14.9214, 0, 0, 0, 0, 0, 0, -45.15, 6.3979, 14.125, 0, 0, 0, 0, 0, 0, -45.15, 6.3029, 13.3286, 0, 0, 0, 0, 0, 0, -45.15, 6.2066, 12.5321, 0, 0, 0, 0, 0, 0, -45.15, 6.1091, 11.7357, 0, 0, 0, 0, 0, 0, -45.15, 6.0103, 10.9393, 0, 0, 0, 0, 0, 0, -45.15, 5.9103, 10.1429, 0, 0, 0, 0, 0, 0, -45.15, 5.8089, 9.3464, 0, 0, 0, 0, 0, 0, -45.15, 5.7061, 8.55, 0, 0, 0, 0, 0, 0, -45.15, 5.6019, 7.7536, 0, 0, 0, 0, 0, 0, -45.15, 5.4962, 6.9571, 0, 0, 0, 0, 0, 0, -45.15, 5.389, 6.1607, 0, 0, 0, 0, 0, 0, -45.15, 5.2803, 5.3643, 0, 0, 0, 0, 0, 0, -45.15, 5.17, 4.5679, 0, 0, 0, 0, 0, 0, -45.15, 5.058, 3.7714, 0, 0, 0, 0, 0, 0, -45.15, 4.9444, 2.975, 0, 0, 0, 0, 0, 0, -45.15, 4.829, 2.1786, 0, 0, 0, 0, 0, 0, -45.15, 4.7119, 1.3821, 0, 0, 0, 0, 0, 0, -45.15, 4.5931, 0.5857, 0, 0, 0, 0, 0, 0, -45.15, 4.4723, -0.2107, 0, 0, 0, 0, 0, 0, -45.15, 4.3497, -1.0071, 0, 0, 0, 0, 0, 0, -45.15, 4.2252, -1.8036, 0, 0, 0, 0, 0, 0, -45.15, 4.0987, -2.6, 0, 0, 0, 0, 0, 0, -45.15, 3.9718, -3.376, 0, 0, 0, 0, 0, 0, -45.15, 3.8396, -4.152, 0, 0, 0, 0, 0, 0, -45.15, 3.7026, -4.928, 0, 0, 0, 0, 0, 0, -45.15, 3.5611, -5.704, 0, 0, 0, 0, 0, 0, -45.15, 3.4153, -6.48, 0, 0, 0, 0, 0, 0, -45.15, 3.2656, -7.256, 0, 0, 0, 0, 0, 0, -45.15, 3.1123, -8.032, 0, 0, 0, 0, 0, 0, -45.15, 2.9557, -8.808, 0, 0, 0, 0, 0, 0, -45.15, 2.7962, -9.584, 0, 0, 0, 0, 0, 0, -45.15, 2.634, -10.36, 0, 0, 0, 0, 0, 0, -45.15, 2.4695, -11.136, 0, 0, 0, 0, 0, 0, -45.15, 2.3029, -11.912, 0, 0, 0, 0, 0, 0, -45.15, 2.1347, -12.688, 0, 0, 0, 0, 0, 0, -45.15, 1.965, -13.464, 0, 0, 0, 0, 0, 0, -45.15, 1.7943, -14.24, 0, 0, 0, 0, 0, 0, -45.15, 1.6229, -15.016, 0, 0, 0, 0, 0, 0, -45.15, 1.451, -15.792, 0, 0, 0, 0, 0, 0, -45.15, 1.279, -16.568, 0, 0, 0, 0, 0, 0, -45.15, 1.1071, -17.344, 0, 0, 0, 0, 0, 0, -45.15, 0.9358, -18.12, 0, 0, 0, 0, 0, 0, -45.15, 0.7653, -18.896, 0, 0, 0, 0, 0, 0, -45.15, 0.596, -19.672, 0, 0, 0, 0, 0, 0, -45.15, 0.428, -20.448, 0, 0, 0, 0, 0, 0, -45.15, 0.2619, -21.224, 0, 0, 0, 0, 0, 0, -45.15, 0.0978, -22),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 97
+
+[sub_resource type="Curve3D" id="Curve_FlankWPathHi"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -34.1, 9.9998, 51.3, 0, 0, 0, 0, 0, 0, -34.6833, 9.9658, 51.3, 0, 0, 0, 0, 0, 0, -35.2667, 9.9333, 51.3, 0, 0, 0, 0, 0, 0, -35.85, 9.9022, 51.3, 0, 0, 0, 0, 0, 0, -37.0639, 9.8617, 51.2204, 0, 0, 0, 0, 0, 0, -38.257, 9.8222, 50.9831, 0, 0, 0, 0, 0, 0, -39.409, 9.7827, 50.5921, 0, 0, 0, 0, 0, 0, -40.5, 9.7426, 50.054, 0, 0, 0, 0, 0, 0, -41.5115, 9.701, 49.3782, 0, 0, 0, 0, 0, 0, -42.4261, 9.657, 48.5761, 0, 0, 0, 0, 0, 0, -43.2282, 9.61, 47.6615, 0, 0, 0, 0, 0, 0, -43.904, 9.559, 46.65, 0, 0, 0, 0, 0, 0, -44.4421, 9.5033, 45.559, 0, 0, 0, 0, 0, 0, -44.8331, 9.4421, 44.407, 0, 0, 0, 0, 0, 0, -45.0704, 9.3745, 43.2139, 0, 0, 0, 0, 0, 0, -45.15, 9.2997, 42),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 16
+
+[sub_resource type="Curve3D" id="Curve_FlankWPathLo"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -45.15, 9.2997, 42, 0, 0, 0, 0, 0, 0, -45.15, 9.22, 41.2036, 0, 0, 0, 0, 0, 0, -45.15, 9.1408, 40.4071, 0, 0, 0, 0, 0, 0, -45.15, 9.0617, 39.6107, 0, 0, 0, 0, 0, 0, -45.15, 8.9828, 38.8143, 0, 0, 0, 0, 0, 0, -45.15, 8.9041, 38.0179, 0, 0, 0, 0, 0, 0, -45.15, 8.8254, 37.2214, 0, 0, 0, 0, 0, 0, -45.15, 8.7468, 36.425, 0, 0, 0, 0, 0, 0, -45.15, 8.6682, 35.6286, 0, 0, 0, 0, 0, 0, -45.15, 8.5895, 34.8321, 0, 0, 0, 0, 0, 0, -45.15, 8.5108, 34.0357, 0, 0, 0, 0, 0, 0, -45.15, 8.432, 33.2393, 0, 0, 0, 0, 0, 0, -45.15, 8.353, 32.4429, 0, 0, 0, 0, 0, 0, -45.15, 8.2738, 31.6464, 0, 0, 0, 0, 0, 0, -45.15, 8.1943, 30.85, 0, 0, 0, 0, 0, 0, -45.15, 8.1146, 30.0536, 0, 0, 0, 0, 0, 0, -45.15, 8.0345, 29.2571, 0, 0, 0, 0, 0, 0, -45.15, 7.9541, 28.4607, 0, 0, 0, 0, 0, 0, -45.15, 7.8733, 27.6643, 0, 0, 0, 0, 0, 0, -45.15, 7.792, 26.8679, 0, 0, 0, 0, 0, 0, -45.15, 7.7103, 26.0714, 0, 0, 0, 0, 0, 0, -45.15, 7.628, 25.275, 0, 0, 0, 0, 0, 0, -45.15, 7.5452, 24.4786, 0, 0, 0, 0, 0, 0, -45.15, 7.4617, 23.6821, 0, 0, 0, 0, 0, 0, -45.15, 7.3776, 22.8857, 0, 0, 0, 0, 0, 0, -45.15, 7.2928, 22.0893, 0, 0, 0, 0, 0, 0, -45.15, 7.2073, 21.2929, 0, 0, 0, 0, 0, 0, -45.15, 7.121, 20.4964, 0, 0, 0, 0, 0, 0, -45.15, 7.0339, 19.7, 0, 0, 0, 0, 0, 0, -45.15, 6.9459, 18.9036, 0, 0, 0, 0, 0, 0, -45.15, 6.8571, 18.1071, 0, 0, 0, 0, 0, 0, -45.15, 6.7673, 17.3107, 0, 0, 0, 0, 0, 0, -45.15, 6.6765, 16.5143, 0, 0, 0, 0, 0, 0, -45.15, 6.5847, 15.7179, 0, 0, 0, 0, 0, 0, -45.15, 6.4919, 14.9214, 0, 0, 0, 0, 0, 0, -45.15, 6.3979, 14.125, 0, 0, 0, 0, 0, 0, -45.15, 6.3029, 13.3286, 0, 0, 0, 0, 0, 0, -45.15, 6.2066, 12.5321, 0, 0, 0, 0, 0, 0, -45.15, 6.1091, 11.7357, 0, 0, 0, 0, 0, 0, -45.15, 6.0103, 10.9393, 0, 0, 0, 0, 0, 0, -45.15, 5.9103, 10.1429, 0, 0, 0, 0, 0, 0, -45.15, 5.8089, 9.3464, 0, 0, 0, 0, 0, 0, -45.15, 5.7061, 8.55, 0, 0, 0, 0, 0, 0, -45.15, 5.6019, 7.7536, 0, 0, 0, 0, 0, 0, -45.15, 5.4962, 6.9571, 0, 0, 0, 0, 0, 0, -45.15, 5.389, 6.1607, 0, 0, 0, 0, 0, 0, -45.15, 5.2803, 5.3643, 0, 0, 0, 0, 0, 0, -45.15, 5.17, 4.5679, 0, 0, 0, 0, 0, 0, -45.15, 5.058, 3.7714, 0, 0, 0, 0, 0, 0, -45.15, 4.9444, 2.975, 0, 0, 0, 0, 0, 0, -45.15, 4.829, 2.1786, 0, 0, 0, 0, 0, 0, -45.15, 4.7119, 1.3821, 0, 0, 0, 0, 0, 0, -45.15, 4.5931, 0.5857, 0, 0, 0, 0, 0, 0, -45.15, 4.4723, -0.2107, 0, 0, 0, 0, 0, 0, -45.15, 4.3497, -1.0071, 0, 0, 0, 0, 0, 0, -45.15, 4.2252, -1.8036, 0, 0, 0, 0, 0, 0, -45.15, 4.0987, -2.6, 0, 0, 0, 0, 0, 0, -45.15, 3.9718, -3.376, 0, 0, 0, 0, 0, 0, -45.15, 3.8396, -4.152, 0, 0, 0, 0, 0, 0, -45.15, 3.7026, -4.928, 0, 0, 0, 0, 0, 0, -45.15, 3.5611, -5.704, 0, 0, 0, 0, 0, 0, -45.15, 3.4153, -6.48, 0, 0, 0, 0, 0, 0, -45.15, 3.2656, -7.256, 0, 0, 0, 0, 0, 0, -45.15, 3.1123, -8.032, 0, 0, 0, 0, 0, 0, -45.15, 2.9557, -8.808, 0, 0, 0, 0, 0, 0, -45.15, 2.7962, -9.584, 0, 0, 0, 0, 0, 0, -45.15, 2.634, -10.36, 0, 0, 0, 0, 0, 0, -45.15, 2.4695, -11.136, 0, 0, 0, 0, 0, 0, -45.15, 2.3029, -11.912, 0, 0, 0, 0, 0, 0, -45.15, 2.1347, -12.688, 0, 0, 0, 0, 0, 0, -45.15, 1.965, -13.464, 0, 0, 0, 0, 0, 0, -45.15, 1.7943, -14.24, 0, 0, 0, 0, 0, 0, -45.15, 1.6229, -15.016, 0, 0, 0, 0, 0, 0, -45.15, 1.451, -15.792, 0, 0, 0, 0, 0, 0, -45.15, 1.279, -16.568, 0, 0, 0, 0, 0, 0, -45.15, 1.1071, -17.344, 0, 0, 0, 0, 0, 0, -45.15, 0.9358, -18.12, 0, 0, 0, 0, 0, 0, -45.15, 0.7653, -18.896, 0, 0, 0, 0, 0, 0, -45.15, 0.596, -19.672, 0, 0, 0, 0, 0, 0, -45.15, 0.428, -20.448, 0, 0, 0, 0, 0, 0, -45.15, 0.2619, -21.224, 0, 0, 0, 0, 0, 0, -45.15, 0.0978, -22),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 82
+
+[sub_resource type="Curve3D" id="Curve_FlankWPathGut"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -45.15, 4.0987, -2.6, 0, 0, 0, 0, 0, 0, -45.15, 3.9718, -3.376, 0, 0, 0, 0, 0, 0, -45.15, 3.8396, -4.152, 0, 0, 0, 0, 0, 0, -45.15, 3.7026, -4.928, 0, 0, 0, 0, 0, 0, -45.15, 3.5611, -5.704, 0, 0, 0, 0, 0, 0, -45.15, 3.4153, -6.48, 0, 0, 0, 0, 0, 0, -45.15, 3.2656, -7.256, 0, 0, 0, 0, 0, 0, -45.15, 3.1123, -8.032, 0, 0, 0, 0, 0, 0, -45.15, 2.9557, -8.808, 0, 0, 0, 0, 0, 0, -45.15, 2.7962, -9.584, 0, 0, 0, 0, 0, 0, -45.15, 2.634, -10.36, 0, 0, 0, 0, 0, 0, -45.15, 2.4695, -11.136, 0, 0, 0, 0, 0, 0, -45.15, 2.3029, -11.912, 0, 0, 0, 0, 0, 0, -45.15, 2.1347, -12.688, 0, 0, 0, 0, 0, 0, -45.15, 1.965, -13.464, 0, 0, 0, 0, 0, 0, -45.15, 1.7943, -14.24, 0, 0, 0, 0, 0, 0, -45.15, 1.6229, -15.016, 0, 0, 0, 0, 0, 0, -45.15, 1.451, -15.792, 0, 0, 0, 0, 0, 0, -45.15, 1.279, -16.568, 0, 0, 0, 0, 0, 0, -45.15, 1.1071, -17.344, 0, 0, 0, 0, 0, 0, -45.15, 0.9358, -18.12, 0, 0, 0, 0, 0, 0, -45.15, 0.7653, -18.896, 0, 0, 0, 0, 0, 0, -45.15, 0.596, -19.672, 0, 0, 0, 0, 0, 0, -45.15, 0.428, -20.448, 0, 0, 0, 0, 0, 0, -45.15, 0.2619, -21.224, 0, 0, 0, 0, 0, 0, -45.15, 0.0978, -22),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 26
+
+[sub_resource type="Curve3D" id="Curve_FlankEPath"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 34.1, 9.9998, -51.3, 0, 0, 0, 0, 0, 0, 34.6833, 9.9658, -51.3, 0, 0, 0, 0, 0, 0, 35.2667, 9.9333, -51.3, 0, 0, 0, 0, 0, 0, 35.85, 9.9022, -51.3, 0, 0, 0, 0, 0, 0, 37.0639, 9.8617, -51.2204, 0, 0, 0, 0, 0, 0, 38.257, 9.8222, -50.9831, 0, 0, 0, 0, 0, 0, 39.409, 9.7827, -50.5921, 0, 0, 0, 0, 0, 0, 40.5, 9.7426, -50.054, 0, 0, 0, 0, 0, 0, 41.5115, 9.701, -49.3782, 0, 0, 0, 0, 0, 0, 42.4261, 9.657, -48.5761, 0, 0, 0, 0, 0, 0, 43.2282, 9.61, -47.6615, 0, 0, 0, 0, 0, 0, 43.904, 9.559, -46.65, 0, 0, 0, 0, 0, 0, 44.4421, 9.5033, -45.559, 0, 0, 0, 0, 0, 0, 44.8331, 9.4421, -44.407, 0, 0, 0, 0, 0, 0, 45.0704, 9.3745, -43.2139, 0, 0, 0, 0, 0, 0, 45.15, 9.2997, -42, 0, 0, 0, 0, 0, 0, 45.15, 9.22, -41.2036, 0, 0, 0, 0, 0, 0, 45.15, 9.1408, -40.4071, 0, 0, 0, 0, 0, 0, 45.15, 9.0617, -39.6107, 0, 0, 0, 0, 0, 0, 45.15, 8.9828, -38.8143, 0, 0, 0, 0, 0, 0, 45.15, 8.9041, -38.0179, 0, 0, 0, 0, 0, 0, 45.15, 8.8254, -37.2214, 0, 0, 0, 0, 0, 0, 45.15, 8.7468, -36.425, 0, 0, 0, 0, 0, 0, 45.15, 8.6682, -35.6286, 0, 0, 0, 0, 0, 0, 45.15, 8.5895, -34.8321, 0, 0, 0, 0, 0, 0, 45.15, 8.5108, -34.0357, 0, 0, 0, 0, 0, 0, 45.15, 8.432, -33.2393, 0, 0, 0, 0, 0, 0, 45.15, 8.353, -32.4429, 0, 0, 0, 0, 0, 0, 45.15, 8.2738, -31.6464, 0, 0, 0, 0, 0, 0, 45.15, 8.1943, -30.85, 0, 0, 0, 0, 0, 0, 45.15, 8.1146, -30.0536, 0, 0, 0, 0, 0, 0, 45.15, 8.0345, -29.2571, 0, 0, 0, 0, 0, 0, 45.15, 7.9541, -28.4607, 0, 0, 0, 0, 0, 0, 45.15, 7.8733, -27.6643, 0, 0, 0, 0, 0, 0, 45.15, 7.792, -26.8679, 0, 0, 0, 0, 0, 0, 45.15, 7.7103, -26.0714, 0, 0, 0, 0, 0, 0, 45.15, 7.628, -25.275, 0, 0, 0, 0, 0, 0, 45.15, 7.5452, -24.4786, 0, 0, 0, 0, 0, 0, 45.15, 7.4617, -23.6821, 0, 0, 0, 0, 0, 0, 45.15, 7.3776, -22.8857, 0, 0, 0, 0, 0, 0, 45.15, 7.2928, -22.0893, 0, 0, 0, 0, 0, 0, 45.15, 7.2073, -21.2929, 0, 0, 0, 0, 0, 0, 45.15, 7.121, -20.4964, 0, 0, 0, 0, 0, 0, 45.15, 7.0339, -19.7, 0, 0, 0, 0, 0, 0, 45.15, 6.9459, -18.9036, 0, 0, 0, 0, 0, 0, 45.15, 6.8571, -18.1071, 0, 0, 0, 0, 0, 0, 45.15, 6.7673, -17.3107, 0, 0, 0, 0, 0, 0, 45.15, 6.6765, -16.5143, 0, 0, 0, 0, 0, 0, 45.15, 6.5847, -15.7179, 0, 0, 0, 0, 0, 0, 45.15, 6.4919, -14.9214, 0, 0, 0, 0, 0, 0, 45.15, 6.3979, -14.125, 0, 0, 0, 0, 0, 0, 45.15, 6.3029, -13.3286, 0, 0, 0, 0, 0, 0, 45.15, 6.2066, -12.5321, 0, 0, 0, 0, 0, 0, 45.15, 6.1091, -11.7357, 0, 0, 0, 0, 0, 0, 45.15, 6.0103, -10.9393, 0, 0, 0, 0, 0, 0, 45.15, 5.9103, -10.1429, 0, 0, 0, 0, 0, 0, 45.15, 5.8089, -9.3464, 0, 0, 0, 0, 0, 0, 45.15, 5.7061, -8.55, 0, 0, 0, 0, 0, 0, 45.15, 5.6019, -7.7536, 0, 0, 0, 0, 0, 0, 45.15, 5.4962, -6.9571, 0, 0, 0, 0, 0, 0, 45.15, 5.389, -6.1607, 0, 0, 0, 0, 0, 0, 45.15, 5.2803, -5.3643, 0, 0, 0, 0, 0, 0, 45.15, 5.17, -4.5679, 0, 0, 0, 0, 0, 0, 45.15, 5.058, -3.7714, 0, 0, 0, 0, 0, 0, 45.15, 4.9444, -2.975, 0, 0, 0, 0, 0, 0, 45.15, 4.829, -2.1786, 0, 0, 0, 0, 0, 0, 45.15, 4.7119, -1.3821, 0, 0, 0, 0, 0, 0, 45.15, 4.5931, -0.5857, 0, 0, 0, 0, 0, 0, 45.15, 4.4723, 0.2107, 0, 0, 0, 0, 0, 0, 45.15, 4.3497, 1.0071, 0, 0, 0, 0, 0, 0, 45.15, 4.2252, 1.8036, 0, 0, 0, 0, 0, 0, 45.15, 4.0987, 2.6, 0, 0, 0, 0, 0, 0, 45.15, 3.9718, 3.376, 0, 0, 0, 0, 0, 0, 45.15, 3.8396, 4.152, 0, 0, 0, 0, 0, 0, 45.15, 3.7026, 4.928, 0, 0, 0, 0, 0, 0, 45.15, 3.5611, 5.704, 0, 0, 0, 0, 0, 0, 45.15, 3.4153, 6.48, 0, 0, 0, 0, 0, 0, 45.15, 3.2656, 7.256, 0, 0, 0, 0, 0, 0, 45.15, 3.1123, 8.032, 0, 0, 0, 0, 0, 0, 45.15, 2.9557, 8.808, 0, 0, 0, 0, 0, 0, 45.15, 2.7962, 9.584, 0, 0, 0, 0, 0, 0, 45.15, 2.634, 10.36, 0, 0, 0, 0, 0, 0, 45.15, 2.4695, 11.136, 0, 0, 0, 0, 0, 0, 45.15, 2.3029, 11.912, 0, 0, 0, 0, 0, 0, 45.15, 2.1347, 12.688, 0, 0, 0, 0, 0, 0, 45.15, 1.965, 13.464, 0, 0, 0, 0, 0, 0, 45.15, 1.7943, 14.24, 0, 0, 0, 0, 0, 0, 45.15, 1.6229, 15.016, 0, 0, 0, 0, 0, 0, 45.15, 1.451, 15.792, 0, 0, 0, 0, 0, 0, 45.15, 1.279, 16.568, 0, 0, 0, 0, 0, 0, 45.15, 1.1071, 17.344, 0, 0, 0, 0, 0, 0, 45.15, 0.9358, 18.12, 0, 0, 0, 0, 0, 0, 45.15, 0.7653, 18.896, 0, 0, 0, 0, 0, 0, 45.15, 0.596, 19.672, 0, 0, 0, 0, 0, 0, 45.15, 0.428, 20.448, 0, 0, 0, 0, 0, 0, 45.15, 0.2619, 21.224, 0, 0, 0, 0, 0, 0, 45.15, 0.0978, 22),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 97
+
+[sub_resource type="Curve3D" id="Curve_FlankEPathHi"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 34.1, 9.9998, -51.3, 0, 0, 0, 0, 0, 0, 34.6833, 9.9658, -51.3, 0, 0, 0, 0, 0, 0, 35.2667, 9.9333, -51.3, 0, 0, 0, 0, 0, 0, 35.85, 9.9022, -51.3, 0, 0, 0, 0, 0, 0, 37.0639, 9.8617, -51.2204, 0, 0, 0, 0, 0, 0, 38.257, 9.8222, -50.9831, 0, 0, 0, 0, 0, 0, 39.409, 9.7827, -50.5921, 0, 0, 0, 0, 0, 0, 40.5, 9.7426, -50.054, 0, 0, 0, 0, 0, 0, 41.5115, 9.701, -49.3782, 0, 0, 0, 0, 0, 0, 42.4261, 9.657, -48.5761, 0, 0, 0, 0, 0, 0, 43.2282, 9.61, -47.6615, 0, 0, 0, 0, 0, 0, 43.904, 9.559, -46.65, 0, 0, 0, 0, 0, 0, 44.4421, 9.5033, -45.559, 0, 0, 0, 0, 0, 0, 44.8331, 9.4421, -44.407, 0, 0, 0, 0, 0, 0, 45.0704, 9.3745, -43.2139, 0, 0, 0, 0, 0, 0, 45.15, 9.2997, -42),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 16
+
+[sub_resource type="Curve3D" id="Curve_FlankEPathLo"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 45.15, 9.2997, -42, 0, 0, 0, 0, 0, 0, 45.15, 9.22, -41.2036, 0, 0, 0, 0, 0, 0, 45.15, 9.1408, -40.4071, 0, 0, 0, 0, 0, 0, 45.15, 9.0617, -39.6107, 0, 0, 0, 0, 0, 0, 45.15, 8.9828, -38.8143, 0, 0, 0, 0, 0, 0, 45.15, 8.9041, -38.0179, 0, 0, 0, 0, 0, 0, 45.15, 8.8254, -37.2214, 0, 0, 0, 0, 0, 0, 45.15, 8.7468, -36.425, 0, 0, 0, 0, 0, 0, 45.15, 8.6682, -35.6286, 0, 0, 0, 0, 0, 0, 45.15, 8.5895, -34.8321, 0, 0, 0, 0, 0, 0, 45.15, 8.5108, -34.0357, 0, 0, 0, 0, 0, 0, 45.15, 8.432, -33.2393, 0, 0, 0, 0, 0, 0, 45.15, 8.353, -32.4429, 0, 0, 0, 0, 0, 0, 45.15, 8.2738, -31.6464, 0, 0, 0, 0, 0, 0, 45.15, 8.1943, -30.85, 0, 0, 0, 0, 0, 0, 45.15, 8.1146, -30.0536, 0, 0, 0, 0, 0, 0, 45.15, 8.0345, -29.2571, 0, 0, 0, 0, 0, 0, 45.15, 7.9541, -28.4607, 0, 0, 0, 0, 0, 0, 45.15, 7.8733, -27.6643, 0, 0, 0, 0, 0, 0, 45.15, 7.792, -26.8679, 0, 0, 0, 0, 0, 0, 45.15, 7.7103, -26.0714, 0, 0, 0, 0, 0, 0, 45.15, 7.628, -25.275, 0, 0, 0, 0, 0, 0, 45.15, 7.5452, -24.4786, 0, 0, 0, 0, 0, 0, 45.15, 7.4617, -23.6821, 0, 0, 0, 0, 0, 0, 45.15, 7.3776, -22.8857, 0, 0, 0, 0, 0, 0, 45.15, 7.2928, -22.0893, 0, 0, 0, 0, 0, 0, 45.15, 7.2073, -21.2929, 0, 0, 0, 0, 0, 0, 45.15, 7.121, -20.4964, 0, 0, 0, 0, 0, 0, 45.15, 7.0339, -19.7, 0, 0, 0, 0, 0, 0, 45.15, 6.9459, -18.9036, 0, 0, 0, 0, 0, 0, 45.15, 6.8571, -18.1071, 0, 0, 0, 0, 0, 0, 45.15, 6.7673, -17.3107, 0, 0, 0, 0, 0, 0, 45.15, 6.6765, -16.5143, 0, 0, 0, 0, 0, 0, 45.15, 6.5847, -15.7179, 0, 0, 0, 0, 0, 0, 45.15, 6.4919, -14.9214, 0, 0, 0, 0, 0, 0, 45.15, 6.3979, -14.125, 0, 0, 0, 0, 0, 0, 45.15, 6.3029, -13.3286, 0, 0, 0, 0, 0, 0, 45.15, 6.2066, -12.5321, 0, 0, 0, 0, 0, 0, 45.15, 6.1091, -11.7357, 0, 0, 0, 0, 0, 0, 45.15, 6.0103, -10.9393, 0, 0, 0, 0, 0, 0, 45.15, 5.9103, -10.1429, 0, 0, 0, 0, 0, 0, 45.15, 5.8089, -9.3464, 0, 0, 0, 0, 0, 0, 45.15, 5.7061, -8.55, 0, 0, 0, 0, 0, 0, 45.15, 5.6019, -7.7536, 0, 0, 0, 0, 0, 0, 45.15, 5.4962, -6.9571, 0, 0, 0, 0, 0, 0, 45.15, 5.389, -6.1607, 0, 0, 0, 0, 0, 0, 45.15, 5.2803, -5.3643, 0, 0, 0, 0, 0, 0, 45.15, 5.17, -4.5679, 0, 0, 0, 0, 0, 0, 45.15, 5.058, -3.7714, 0, 0, 0, 0, 0, 0, 45.15, 4.9444, -2.975, 0, 0, 0, 0, 0, 0, 45.15, 4.829, -2.1786, 0, 0, 0, 0, 0, 0, 45.15, 4.7119, -1.3821, 0, 0, 0, 0, 0, 0, 45.15, 4.5931, -0.5857, 0, 0, 0, 0, 0, 0, 45.15, 4.4723, 0.2107, 0, 0, 0, 0, 0, 0, 45.15, 4.3497, 1.0071, 0, 0, 0, 0, 0, 0, 45.15, 4.2252, 1.8036, 0, 0, 0, 0, 0, 0, 45.15, 4.0987, 2.6, 0, 0, 0, 0, 0, 0, 45.15, 3.9718, 3.376, 0, 0, 0, 0, 0, 0, 45.15, 3.8396, 4.152, 0, 0, 0, 0, 0, 0, 45.15, 3.7026, 4.928, 0, 0, 0, 0, 0, 0, 45.15, 3.5611, 5.704, 0, 0, 0, 0, 0, 0, 45.15, 3.4153, 6.48, 0, 0, 0, 0, 0, 0, 45.15, 3.2656, 7.256, 0, 0, 0, 0, 0, 0, 45.15, 3.1123, 8.032, 0, 0, 0, 0, 0, 0, 45.15, 2.9557, 8.808, 0, 0, 0, 0, 0, 0, 45.15, 2.7962, 9.584, 0, 0, 0, 0, 0, 0, 45.15, 2.634, 10.36, 0, 0, 0, 0, 0, 0, 45.15, 2.4695, 11.136, 0, 0, 0, 0, 0, 0, 45.15, 2.3029, 11.912, 0, 0, 0, 0, 0, 0, 45.15, 2.1347, 12.688, 0, 0, 0, 0, 0, 0, 45.15, 1.965, 13.464, 0, 0, 0, 0, 0, 0, 45.15, 1.7943, 14.24, 0, 0, 0, 0, 0, 0, 45.15, 1.6229, 15.016, 0, 0, 0, 0, 0, 0, 45.15, 1.451, 15.792, 0, 0, 0, 0, 0, 0, 45.15, 1.279, 16.568, 0, 0, 0, 0, 0, 0, 45.15, 1.1071, 17.344, 0, 0, 0, 0, 0, 0, 45.15, 0.9358, 18.12, 0, 0, 0, 0, 0, 0, 45.15, 0.7653, 18.896, 0, 0, 0, 0, 0, 0, 45.15, 0.596, 19.672, 0, 0, 0, 0, 0, 0, 45.15, 0.428, 20.448, 0, 0, 0, 0, 0, 0, 45.15, 0.2619, 21.224, 0, 0, 0, 0, 0, 0, 45.15, 0.0978, 22),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 82
+
+[sub_resource type="Curve3D" id="Curve_FlankEPathGut"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 45.15, 4.0987, 2.6, 0, 0, 0, 0, 0, 0, 45.15, 3.9718, 3.376, 0, 0, 0, 0, 0, 0, 45.15, 3.8396, 4.152, 0, 0, 0, 0, 0, 0, 45.15, 3.7026, 4.928, 0, 0, 0, 0, 0, 0, 45.15, 3.5611, 5.704, 0, 0, 0, 0, 0, 0, 45.15, 3.4153, 6.48, 0, 0, 0, 0, 0, 0, 45.15, 3.2656, 7.256, 0, 0, 0, 0, 0, 0, 45.15, 3.1123, 8.032, 0, 0, 0, 0, 0, 0, 45.15, 2.9557, 8.808, 0, 0, 0, 0, 0, 0, 45.15, 2.7962, 9.584, 0, 0, 0, 0, 0, 0, 45.15, 2.634, 10.36, 0, 0, 0, 0, 0, 0, 45.15, 2.4695, 11.136, 0, 0, 0, 0, 0, 0, 45.15, 2.3029, 11.912, 0, 0, 0, 0, 0, 0, 45.15, 2.1347, 12.688, 0, 0, 0, 0, 0, 0, 45.15, 1.965, 13.464, 0, 0, 0, 0, 0, 0, 45.15, 1.7943, 14.24, 0, 0, 0, 0, 0, 0, 45.15, 1.6229, 15.016, 0, 0, 0, 0, 0, 0, 45.15, 1.451, 15.792, 0, 0, 0, 0, 0, 0, 45.15, 1.279, 16.568, 0, 0, 0, 0, 0, 0, 45.15, 1.1071, 17.344, 0, 0, 0, 0, 0, 0, 45.15, 0.9358, 18.12, 0, 0, 0, 0, 0, 0, 45.15, 0.7653, 18.896, 0, 0, 0, 0, 0, 0, 45.15, 0.596, 19.672, 0, 0, 0, 0, 0, 0, 45.15, 0.428, 20.448, 0, 0, 0, 0, 0, 0, 45.15, 0.2619, 21.224, 0, 0, 0, 0, 0, 0, 45.15, 0.0978, 22),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 26
 
 [sub_resource type="BoxMesh" id="Mesh_line"]
 size = Vector3(1, 1, 1)
@@ -117,6 +173,30 @@ curve = SubResource("Curve_ConnB")
 
 [node name="ConnOPath" type="Path3D" parent="Arena"]
 curve = SubResource("Curve_ConnO")
+
+[node name="FlankWPath" type="Path3D" parent="Arena"]
+curve = SubResource("Curve_FlankWPath")
+
+[node name="FlankWPathHi" type="Path3D" parent="Arena"]
+curve = SubResource("Curve_FlankWPathHi")
+
+[node name="FlankWPathLo" type="Path3D" parent="Arena"]
+curve = SubResource("Curve_FlankWPathLo")
+
+[node name="FlankWPathGut" type="Path3D" parent="Arena"]
+curve = SubResource("Curve_FlankWPathGut")
+
+[node name="FlankEPath" type="Path3D" parent="Arena"]
+curve = SubResource("Curve_FlankEPath")
+
+[node name="FlankEPathHi" type="Path3D" parent="Arena"]
+curve = SubResource("Curve_FlankEPathHi")
+
+[node name="FlankEPathLo" type="Path3D" parent="Arena"]
+curve = SubResource("Curve_FlankEPathLo")
+
+[node name="FlankEPathGut" type="Path3D" parent="Arena"]
+curve = SubResource("Curve_FlankEPathGut")
 
 [node name="Floor" type="CSGBox3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
@@ -1051,114 +1131,24 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.05, 5.7, 4.05)
 size = Vector3(3.1, 3.4, 0.9)
 material = SubResource("Mat_concrete")
 
-[node name="FlankW" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 0.9902, 0.1395, 0, -0.1395, 0.9902, -45.15, 10.099, 40)
-polygon = PackedVector2Array(-0.1, -0.1, 3.3, -0.1, -0.1, 5.15)
-depth = 43
-material = SubResource("Mat_surf")
-
-[node name="FlankWKickA" type="CSGBox3D" parent="Arena/FlankW"]
-transform = Transform3D(1, 0, 0, 0, 0.6691, -0.7431, 0, 0.7431, 0.6691, 1.3, 6.6913, 7.4314)
-operation = 2
-size = Vector3(8, 20, 30)
-material = SubResource("Mat_surf")
-
-[node name="FlankWKickB" type="CSGBox3D" parent="Arena/FlankW"]
-transform = Transform3D(1, 0, 0, 0, 0.848, 0.5299, 0, -0.5299, 0.848, 1.3, 8.4805, -48.2992)
-operation = 2
-size = Vector3(8, 20, 30)
-material = SubResource("Mat_surf")
-
-[node name="FillFlankW" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 0.9902, 0.1395, 0, -0.1395, 0.9902, -45.15, 10.099, 40)
-polygon = PackedVector2Array(-0.15, -0.05, 3.1, -0.05, 3.1, -11, -0.15, -11)
-depth = 43
-material = SubResource("Mat_concrete")
-
-[node name="FlankE" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(-1, 0, 0, 0, 0.9902, 0.1395, 0, 0.1395, -0.9902, 45.15, 10.099, -40)
-polygon = PackedVector2Array(-0.1, -0.1, 3.3, -0.1, -0.1, 5.15)
-depth = 43
-material = SubResource("Mat_surf")
-
-[node name="FlankEKickA" type="CSGBox3D" parent="Arena/FlankE"]
-transform = Transform3D(1, 0, 0, 0, 0.6691, -0.7431, 0, 0.7431, 0.6691, 1.3, 6.6913, 7.4314)
-operation = 2
-size = Vector3(8, 20, 30)
-material = SubResource("Mat_surf")
-
-[node name="FlankEKickB" type="CSGBox3D" parent="Arena/FlankE"]
-transform = Transform3D(1, 0, 0, 0, 0.848, 0.5299, 0, -0.5299, 0.848, 1.3, 8.4805, -48.2992)
-operation = 2
-size = Vector3(8, 20, 30)
-material = SubResource("Mat_surf")
-
-[node name="FillFlankE" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(-1, 0, 0, 0, 0.9902, 0.1395, 0, 0.1395, -0.9902, 45.15, 10.099, -40)
-polygon = PackedVector2Array(-0.15, -0.05, 3.1, -0.05, 3.1, -11, -0.15, -11)
-depth = 43
-material = SubResource("Mat_concrete")
-
-[node name="FlankLipB" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.055, 6.7, 41.304)
-size = Vector3(9.71, 6.6, 2.82)
-material = SubResource("Mat_concrete")
-
-[node name="FlankLipO" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37.055, 6.7, -41.304)
-size = Vector3(9.71, 6.6, 2.82)
-material = SubResource("Mat_concrete")
-
-[node name="FlankLipEdgeB" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -41.66, 9.97, 41.254)
-size = Vector3(0.3, 0.06, 2.22)
-material = SubResource("Mat_hazard")
-
-[node name="FlankLipEdgeO" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.66, 9.97, -41.254)
-size = Vector3(0.3, 0.06, 2.22)
-material = SubResource("Mat_hazard")
-
-[node name="FlankDeckB" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35.5, 2, -8.3654)
-size = Vector3(13, 4, 12.4)
-material = SubResource("Mat_concrete")
-
-[node name="FlankDeckO" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.5, 2, 8.3654)
-size = Vector3(13, 4, 12.4)
-material = SubResource("Mat_concrete")
-
 [node name="DeckWallNB" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -38.6, 2, -11.8827)
-size = Vector3(13.2, 4, 20.2346)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35.5, 2, -12.3)
+size = Vector3(7, 4, 19.4)
 material = SubResource("Mat_concrete")
 
 [node name="DeckWallNO" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38.6, 2, 11.8827)
-size = Vector3(13.2, 4, 20.2346)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.5, 2, 12.3)
+size = Vector3(7, 4, 19.4)
 material = SubResource("Mat_concrete")
 
 [node name="DeckWallSB" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.1, 2, 9.7173)
-size = Vector3(10.2, 4, 24.5654)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.1, 2, 9.7)
+size = Vector3(10.2, 4, 24.6)
 material = SubResource("Mat_concrete")
 
 [node name="DeckWallSO" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37.1, 2, -9.7173)
-size = Vector3(10.2, 4, 24.5654)
-material = SubResource("Mat_concrete")
-
-[node name="FlankSkirtW" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 0.9902, 0.1395, 0, -0.1395, 0.9902, -45.15, 10.099, 40)
-polygon = PackedVector2Array(3.05, -0.12, 3.29, -0.12, 3.29, -11, 3.05, -11)
-depth = 43
-material = SubResource("Mat_concrete")
-
-[node name="FlankSkirtE" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(-1, 0, 0, 0, 0.9902, 0.1395, 0, 0.1395, -0.9902, 45.15, 10.099, -40)
-polygon = PackedVector2Array(3.05, -0.12, 3.29, -0.12, 3.29, -11, 3.05, -11)
-depth = 43
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37.1, 2, -9.7)
+size = Vector3(10.2, 4, 24.6)
 material = SubResource("Mat_concrete")
 
 [node name="PocketRampB" type="CSGPolygon3D" parent="Arena"]
@@ -1173,18 +1163,6 @@ polygon = PackedVector2Array(-40, -0.1, -22, -0.1, -22, 4, -40, 0)
 depth = 8.3
 material = SubResource("Mat_concrete")
 
-[node name="LaneRampB" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -45.2, 0, 0)
-polygon = PackedVector2Array(-40, -0.1, -22, -0.1, -22, 4, -40, 0)
-depth = 11.3
-material = SubResource("Mat_concrete")
-
-[node name="LaneRampO" type="CSGPolygon3D" parent="Arena"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 33.9, 0, 0)
-polygon = PackedVector2Array(40, 0, 22, 4, 22, -0.1, 40, -0.1)
-depth = 11.3
-material = SubResource("Mat_concrete")
-
 [node name="PocketRampEdgeB" type="CSGBox3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.9, -0.03, 40.175)
 size = Vector3(8, 0.06, 0.35)
@@ -1195,25 +1173,25 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37.9, -0.03, -40.175)
 size = Vector3(8, 0.06, 0.35)
 material = SubResource("Mat_hazard")
 
-[node name="LaneRampEdgeB" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -39.55, -0.03, -40.175)
-size = Vector3(11.3, 0.06, 0.35)
+[node name="FlankPadB" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -34.85, 9.6, 46.76)
+size = Vector3(1.9, 0.8, 2.32)
+material = SubResource("Mat_roof")
+
+[node name="FlankPadO" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34.85, 9.6, -46.76)
+size = Vector3(1.9, 0.8, 2.32)
+material = SubResource("Mat_roof")
+
+[node name="FlankPadEdgeB" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -34.9, 9.97, 47.75)
+size = Vector3(1.8, 0.06, 0.3)
 material = SubResource("Mat_hazard")
 
-[node name="LaneRampEdgeO" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 39.55, -0.03, 40.175)
-size = Vector3(11.3, 0.06, 0.35)
+[node name="FlankPadEdgeO" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 34.9, 9.97, -47.75)
+size = Vector3(1.8, 0.06, 0.3)
 material = SubResource("Mat_hazard")
-
-[node name="LipNicheB" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.5, 1.7, 41.304)
-size = Vector3(3.4, 3.4, 2.82)
-material = SubResource("Mat_concrete")
-
-[node name="LipNicheO" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.5, 1.7, -41.304)
-size = Vector3(3.4, 3.4, 2.82)
-material = SubResource("Mat_concrete")
 
 [node name="DockW" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 0.975, 0.2222, 0, -0.2222, 0.975, -18, 1.1117, 0.9)
@@ -1429,6 +1407,126 @@ polygon = PackedVector2Array(-18.2, -3.4, -18.05, -3.9, -18.03, -4.5115, -17.97,
 depth = 4
 material = SubResource("Mat_concrete")
 
+[node name="FlankWSurf" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+polygon = PackedVector2Array(-0.1, -0.1, 3.3, -0.1, -0.1, 5.15)
+mode = 2
+path_node = NodePath("../FlankWPath")
+path_interval = 0.5
+path_rotation = 1
+path_rotation_accurate = true
+path_simplify_angle = 0
+path_joined = false
+material = SubResource("Mat_surf")
+
+[node name="FlankWSlab" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+polygon = PackedVector2Array(-0.15, -0.05, 3.1, -0.05, 3.29, -0.12, 3.29, -0.5, -0.15, -0.5)
+mode = 2
+path_node = NodePath("../FlankWPathHi")
+path_interval = 0.5
+path_rotation = 1
+path_rotation_accurate = true
+path_simplify_angle = 0
+path_joined = false
+material = SubResource("Mat_concrete")
+
+[node name="FlankWFill" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+polygon = PackedVector2Array(-0.15, -0.05, 3.1, -0.05, 3.29, -0.12, 3.29, -14, -0.15, -14)
+mode = 2
+path_node = NodePath("../FlankWPathLo")
+path_interval = 0.5
+path_rotation = 1
+path_rotation_accurate = true
+path_simplify_angle = 0
+path_joined = false
+material = SubResource("Mat_concrete")
+
+[node name="FlankWGutter" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+polygon = PackedVector2Array(3, -0.1, 6.15, -0.1, 6.15, -14, 3, -14)
+mode = 2
+path_node = NodePath("../FlankWPathGut")
+path_interval = 0.5
+path_rotation = 1
+path_rotation_accurate = true
+path_simplify_angle = 0
+path_joined = false
+material = SubResource("Mat_concrete")
+
+[node name="FlankWKickA" type="CSGBox3D" parent="Arena/FlankWSurf"]
+transform = Transform3D(0, 0.7029, 0.7113, 0, 0.7113, -0.7029, -1, 0, 0, -27.0713, 17.1131, 50)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="FlankWSlabKickA" type="CSGBox3D" parent="Arena/FlankWSlab"]
+transform = Transform3D(0, 0.7029, 0.7113, 0, 0.7113, -0.7029, -1, 0, 0, -27.0713, 17.1131, 50)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="FlankESurf" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+polygon = PackedVector2Array(-0.1, -0.1, 3.3, -0.1, -0.1, 5.15)
+mode = 2
+path_node = NodePath("../FlankEPath")
+path_interval = 0.5
+path_rotation = 1
+path_rotation_accurate = true
+path_simplify_angle = 0
+path_joined = false
+material = SubResource("Mat_surf")
+
+[node name="FlankESlab" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+polygon = PackedVector2Array(-0.15, -0.05, 3.1, -0.05, 3.29, -0.12, 3.29, -0.5, -0.15, -0.5)
+mode = 2
+path_node = NodePath("../FlankEPathHi")
+path_interval = 0.5
+path_rotation = 1
+path_rotation_accurate = true
+path_simplify_angle = 0
+path_joined = false
+material = SubResource("Mat_concrete")
+
+[node name="FlankEFill" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+polygon = PackedVector2Array(-0.15, -0.05, 3.1, -0.05, 3.29, -0.12, 3.29, -14, -0.15, -14)
+mode = 2
+path_node = NodePath("../FlankEPathLo")
+path_interval = 0.5
+path_rotation = 1
+path_rotation_accurate = true
+path_simplify_angle = 0
+path_joined = false
+material = SubResource("Mat_concrete")
+
+[node name="FlankEGutter" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+polygon = PackedVector2Array(3, -0.1, 6.15, -0.1, 6.15, -14, 3, -14)
+mode = 2
+path_node = NodePath("../FlankEPathGut")
+path_interval = 0.5
+path_rotation = 1
+path_rotation_accurate = true
+path_simplify_angle = 0
+path_joined = false
+material = SubResource("Mat_concrete")
+
+[node name="FlankEKickA" type="CSGBox3D" parent="Arena/FlankESurf"]
+transform = Transform3D(0, -0.7029, -0.7113, 0, 0.7113, -0.7029, 1, 0, 0, 27.0713, 17.1131, -50)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="FlankESlabKickA" type="CSGBox3D" parent="Arena/FlankESlab"]
+transform = Transform3D(0, -0.7029, -0.7113, 0, 0.7113, -0.7029, 1, 0, 0, 27.0713, 17.1131, -50)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
 [node name="CornerPadB" type="CSGBox3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22.06, 9.6, 25.825)
 size = Vector3(7.72, 0.8, 5.25)
@@ -1622,23 +1720,23 @@ size = Vector3(20, 1.15, 0.45)
 material = SubResource("Mat_concrete")
 
 [node name="WParW1B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.775, 10.575, 33.947)
-size = Vector3(0.45, 1.15, 11.894)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.775, 10.575, 36.8)
+size = Vector3(0.45, 1.15, 17.6)
 material = SubResource("Mat_concrete")
 
 [node name="WParW1O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.775, 10.575, -33.947)
-size = Vector3(0.45, 1.15, 11.894)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.775, 10.575, -36.8)
+size = Vector3(0.45, 1.15, 17.6)
 material = SubResource("Mat_concrete")
 
 [node name="WParW2B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.775, 10.575, 46.357)
-size = Vector3(0.45, 1.15, 7.286)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.775, 10.575, 48.775)
+size = Vector3(0.45, 1.15, 1.55)
 material = SubResource("Mat_concrete")
 
 [node name="WParW2O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.775, 10.575, -46.357)
-size = Vector3(0.45, 1.15, 7.286)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33.775, 10.575, -48.775)
+size = Vector3(0.45, 1.15, 1.55)
 material = SubResource("Mat_concrete")
 
 [node name="WParE1B" type="CSGBox3D" parent="Arena"]
@@ -1771,6 +1869,26 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.25, 6.6, -13.22)
 size = Vector3(8.5, 5.2, 2.44)
 material = SubResource("Mat_container")
 
+[node name="OfficeStackB" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.18, 6.6, 0.03)
+size = Vector3(2.44, 5.2, 6.06)
+material = SubResource("Mat_container")
+
+[node name="OfficeStackO" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37.18, 6.6, -0.03)
+size = Vector3(2.44, 5.2, 6.06)
+material = SubResource("Mat_container")
+
+[node name="PocketStackB" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35.12, 4.1556, 26.03)
+size = Vector3(2.44, 8.3111, 6.06)
+material = SubResource("Mat_container")
+
+[node name="PocketStackO" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.12, 4.1556, -26.03)
+size = Vector3(2.44, 8.3111, 6.06)
+material = SubResource("Mat_container")
+
 [node name="Gantry" type="CSGBox3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.4, 0)
 size = Vector3(39, 2.4, 2)
@@ -1822,7 +1940,7 @@ size = Vector3(11.4, 3.2, 7.4)
 material = SubResource("Mat_concrete")
 
 [node name="StripFlankW" type="Node3D" parent="." groups=["speed_strip"]]
-transform = Transform3D(-4, 0, 0, 0, 6.2, 0, 0, 0, -3, -41.85, 6.9, -4.0654)
+transform = Transform3D(-4, 0, 0, 0, 6.2, 0, 0, 0, -3, -41.85, 6.9, -1.1)
 
 [node name="Mark" type="MeshInstance3D" parent="StripFlankW"]
 transform = Transform3D(0.36, 0, 0, 0, 0.0048, 0, 0, 0, 0.1167, -0.26, -0.4645, -0.4417)
@@ -1830,11 +1948,29 @@ mesh = SubResource("Mesh_line")
 surface_material_override/0 = SubResource("Mat_line")
 cast_shadow = 0
 
+[node name="StripFlankFootW" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(-4, 0, 0, 0, 5.45, 0, 0, 0, -3, -41.85, 2.525, -23.5)
+
+[node name="Mark" type="MeshInstance3D" parent="StripFlankFootW"]
+transform = Transform3D(0.36, 0, 0, 0, 0.0055, 0, 0, 0, 0.1167, -0.26, -0.4596, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
 [node name="StripFlankE" type="Node3D" parent="." groups=["speed_strip"]]
-transform = Transform3D(4, 0, 0, 0, 6.2, 0, 0, 0, 3, 41.85, 6.9, 4.0654)
+transform = Transform3D(4, 0, 0, 0, 6.2, 0, 0, 0, 3, 41.85, 6.9, 1.1)
 
 [node name="Mark" type="MeshInstance3D" parent="StripFlankE"]
 transform = Transform3D(0.36, 0, 0, 0, 0.0048, 0, 0, 0, 0.1167, -0.26, -0.4645, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
+[node name="StripFlankFootE" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(4, 0, 0, 0, 5.45, 0, 0, 0, 3, 41.85, 2.525, 23.5)
+
+[node name="Mark" type="MeshInstance3D" parent="StripFlankFootE"]
+transform = Transform3D(0.36, 0, 0, 0, 0.0055, 0, 0, 0, 0.1167, -0.26, -0.4596, -0.4417)
 mesh = SubResource("Mesh_line")
 surface_material_override/0 = SubResource("Mat_line")
 cast_shadow = 0

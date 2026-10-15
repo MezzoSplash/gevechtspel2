@@ -82,7 +82,7 @@ const INFO := {
 			Vector3(-26, 0, 58), Vector3(0, 0, 57), Vector3(26, 0, 58),
 			Vector3(26, 0, -58), Vector3(0, 0, -57), Vector3(-26, 0, -58),
 			Vector3(-38, 0, -47), Vector3(38, 0, 47),
-			Vector3(-37, 4, 0), Vector3(37, 4, 0),
+			Vector3(-36.5, 4, -6), Vector3(36.5, 4, 6),
 			Vector3(0, 0, 5), Vector3(0, 0, -5),
 			Vector3(-24, 10, 38), Vector3(24, 10, -38),
 			Vector3(24, 10, 26), Vector3(-24, 10, -26),
