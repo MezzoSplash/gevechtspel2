@@ -244,7 +244,7 @@ func _surf(label: String, start: Vector3, vel: Vector3, push: Vector3, secs := 4
 func _surfs() -> void:
 	# Start on the face, 1-1.5 m above the toe, moving downhill. Push = into the face.
 	var rides := {
-		"flank": [Vector3(-42.47, 10.91, 37.0), Vector3(0, 0, -13), Vector3(-1, 0, 0)],
+		"flank": [Vector3(-42.47, 9.9, 37.0), Vector3(0, 0, -13), Vector3(-1, 0, 0)],
 		"dock": [Vector3(-15.13, 2.3, 2.5), Vector3(0, 0, -11), Vector3(-1, 0, 0)],
 		"conn": [Vector3(9.0, 5.5, 9.95), Vector3(-14, 0, 0), Vector3(0, 0, 1)],
 		"corner": [Vector3(26.3, 10.83, 26.0), Vector3(0, 0, -11), Vector3(1, 0, 0)],
@@ -264,10 +264,16 @@ func _mirror(pts: Array) -> Array:
 
 func _walks() -> void:
 	var routes := {
-		# West side lane, blue yard strip to orange yard strip, over the new ramps and under the arch.
-		"west_lane": [Vector3(-20, 0, 52), Vector3(-38, 0, 51), Vector3(-38, 0, 41.3), Vector3(-38, 0, 38.5),
-			Vector3(-38, 4, 23), Vector3(-40.6, 4, 16), Vector3(-40.6, 4, 10), Vector3(-37, 4, -8), Vector3(-40, 4, -20),
-			Vector3(-40, 0, -41), Vector3(-39, 0, -51), Vector3(-20, 0, -52)],
+		# West side lane, blue yard strip to orange yard strip: under the run-in pad and the turn, up the
+		# pocket ramp, along the deck between the surf and the stacks, down the gutter into the far lane.
+		"west_lane": [Vector3(-20, 0, 52), Vector3(-38, 0, 51), Vector3(-38, 0, 46.8), Vector3(-38, 0, 38.5),
+			Vector3(-38, 4, 23), Vector3(-40.6, 4, 16), Vector3(-40.6, 4, 10), Vector3(-40.0, 4, -3.5),
+			Vector3(-40.4, 2, -14), Vector3(-40.4, 0, -24), Vector3(-40, 0, -41), Vector3(-39, 0, -51), Vector3(-20, 0, -52)],
+		# Back up: far lane -> gutter -> deck beside the office stack.
+		"gutter_up": [Vector3(-40, 0, -34), Vector3(-40.4, 0, -24), Vector3(-40.4, 2, -12), Vector3(-40.2, 4, -3.0),
+			Vector3(-36.5, 4, -6)],
+		# Roof -> run-in pad, to its end at the turn.
+		"pad_run": [Vector3(-20, 10, 47.6), Vector3(-33, 10, 47.0), Vector3(-35.3, 10, 46.8)],
 		# Round the inner side of the deck stack, then through the office (west door, north door).
 		"deck_inner": [Vector3(-38, 4, 23), Vector3(-29.5, 4, 15.5), Vector3(-29.5, 4, 10), Vector3(-34, 4, 0),
 			Vector3(-28, 4, 0), Vector3(-26, 4, -2.5), Vector3(-26, 4, -7), Vector3(-36, 4, -12)],
@@ -276,7 +282,7 @@ func _walks() -> void:
 			Vector3(-21.55, 7.8, -4.0), Vector3(-25.5, 7.8, -4.0), Vector3(-25.5, 7.8, 2.2), Vector3(-21.3, 7.8, 2.2),
 			Vector3(-19.0, 4, 2.2)],
 		# Along the foot of the flank surf, on the new deck.
-		"surf_foot": [Vector3(-41.2, 4, 20), Vector3(-41.2, 4, 5), Vector3(-41.2, 4, -2), Vector3(-43.5, 4, -6)],
+		"surf_foot": [Vector3(-41.2, 4, 20), Vector3(-41.2, 4, 5), Vector3(-41.2, 4, -2), Vector3(-40.6, 3, -8)],
 		# Quay ramps (deck <-> dock), unchanged, as a regression walk.
 		"quay_ramp": [Vector3(-26, 4, 18.1), Vector3(-12, 0, 18.1), Vector3(-8.5, 0, 21.5)],
 		# Deck over the back of the connector: from the quay out to its end by the quay-ramp foot.
@@ -327,7 +333,8 @@ func _nav() -> void:
 	var orange: Vector3 = info.team_spawns[1][2]
 	var targets := {
 		"orange_spawn": orange,
-		"west_deck": Vector3(-37, 4, 0), "east_deck": Vector3(37, 4, 0),
+		"west_deck": Vector3(-37, 4, -6), "east_deck": Vector3(37, 4, 6),
+		"west_gutter": Vector3(-40.4, 2.5, -12), "flank_pad": Vector3(-35.0, 10, 46.6),
 		"west_pocket": Vector3(-38, 0, 46), "east_lane": Vector3(39, 0, 46),
 		"orange_west_lane": Vector3(-39, 0, -46), "orange_pocket": Vector3(38, 0, -46),
 		"dock_mid": Vector3(0, 0, 6.5), "dock_mid_o": Vector3(0, 0, -6.5), "conn_deck": Vector3(-13, 4, 14.4),
