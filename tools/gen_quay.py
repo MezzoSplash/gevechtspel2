@@ -88,6 +88,19 @@ DOCK_DROP = 4.0
 DOCK_PITCH = math.asin(DOCK_DROP / DOCK_DEPTH)
 DOCK_X = -18.0
 DOCK_Z = 14.0
+# Connector: the corner exit runs on into the dock surf. Its toe follows the corner's exit toe
+# (z 9.9, 0.1 m into it) west, then a quarter turn of toe radius CONN_R to heading north on the
+# dock surf's toe line (x -14.7). The dock surf itself starts where the turn ends.
+CONN_R = 6.0
+CONN_TOE_Z = 9.9
+CONN_X0 = 12.0  # start, alongside the corner's straight run-out (that run-out is x 12 -> 6)
+CONN_CX = (DOCK_X + SURF_TOE) + CONN_R
+CONN_CZ = CONN_TOE_Z - CONN_R          # arc centre z, and the z where the dock surf starts
+CONN_SPACING = 0.8
+# Straight 3 m after the turn: on the bend the profile frame is tilted less than the toe (the
+# origin runs on a larger radius), so the end of the turn is not yet the dock surf's frame.
+CONN_LEAD_OUT = 3.0
+DOCK_JOIN_Z = CONN_CZ - CONN_LEAD_OUT
 
 # Radial corner. Toe radius 14 m, 90°. The profile is mirrored (toe at local -X) and the
 # arc is clockwise, so the open side stays on the inside while the run turns toward the
@@ -494,9 +507,10 @@ for _i, (_a, _b) in enumerate(((-29.6, -27.6), (-25.4, -23.4))):
 for _i, (_a, _b) in enumerate(((-2.8, -1.2), (1.2, 2.8))):
     pair_sub("OfficeHiW%d" % _i, OFF_X0 - 0.1, OFF_X0 + OFF_WT + 0.1, _W2Y0, _W2Y1, _a, _b)
 pair_sub("OfficeDrop", OFF_X1 - OFF_WT - 0.1, OFF_X1 + 0.1, OFF_F2, OFF_F2 + 2.6, 1.0, 3.4)
-# Slot in the top-floor slab over the stair. Starts where a capsule on the tread would reach
-# the slab (tread 5.4 m at z=0.3, head room 2 m), ends on the crest so the tread meets the slab.
-pair_sub("OfficeStairSlot", OFF_STAIR_X0, OFF_STAIR_X1, OFF_SLAB0 - 0.1, OFF_F2 + 0.1, OFF_STAIR_Z1, 0.3)
+# Slot in the top-floor slab over the stair, from z=1.0 (tread 4.9 m, 2.5 m head room) to the
+# crest, so the tread meets the slab. From z=0.3 (2.0 m) the bot navmesh sometimes lost the stair:
+# the 1.75 m agent plus 0.25 m cells sat right on that head room.
+pair_sub("OfficeStairSlot", OFF_STAIR_X0, OFF_STAIR_X1, OFF_SLAB0 - 0.1, OFF_F2 + 0.1, OFF_STAIR_Z1, 1.0)
 
 # Subtracts end here. Ramps, surfs and pads are unions and must stay below this line
 # in the file, or a later subtract slices them.
@@ -666,17 +680,24 @@ pair_box("LipNiche", -INNER_X, -41.80, 0.0, LIP_ARCH_Y, _LIP_Z0, _LIP_Z1, "concr
 
 # ---------------------------------------------------------------- dock surf, 4 m → 0, inner quay face
 DOCK_BASIS = mul_basis(yaw_into(1.0, 0.0), rx(DOCK_PITCH))
+# The plane of the dock surf is unchanged (high end z 14 at 4 m); only the part from the
+# connector's end at z CONN_CZ down to the strip is built. No start kick: the connector's end
+# is the same cross-section, so the two meet flush.
 dock_o = origin_for_toe_y(DOCK_BASIS, DOCK_X, DOCK_Z, QUAY_Y)
-surf("DockW", dock_o, DOCK_BASIS, DOCK_DEPTH, "both", kick_start=48.0, kick_end=32.0)
-fill_under("FillDockW", DOCK_BASIS, dock_o, DOCK_DEPTH, QUAY_Y + 1.0)
-watch("dockW high", DOCK_BASIS, dock_o, 0.0, QUAY_Y)
-watch("dockW low", DOCK_BASIS, dock_o, DOCK_DEPTH, 0.0)
+DOCK_A0 = (DOCK_Z - DOCK_JOIN_Z) / math.cos(DOCK_PITCH)
+DOCK_J_Y = toe_world(DOCK_BASIS, dock_o, DOCK_A0)[1]
+dock_o2 = apply_basis(DOCK_BASIS, dock_o, (0.0, 0.0, -DOCK_A0))
+surf("DockW", dock_o2, DOCK_BASIS, DOCK_DEPTH - DOCK_A0, "end", kick_end=32.0)
+fill_under("FillDockW", DOCK_BASIS, dock_o2, DOCK_DEPTH - DOCK_A0, QUAY_Y + 1.0)
+watch("dockW join", DOCK_BASIS, dock_o2, 0.0, DOCK_J_Y)
+watch("dockW low", DOCK_BASIS, dock_o2, DOCK_DEPTH - DOCK_A0, 0.0)
 DOCK_E_BASIS = mul_basis(YAW180, DOCK_BASIS)
 dock_e = (-dock_o[0], dock_o[1], -dock_o[2])
-surf("DockE", dock_e, DOCK_E_BASIS, DOCK_DEPTH, "both", kick_start=48.0, kick_end=32.0)
-fill_under("FillDockE", DOCK_E_BASIS, dock_e, DOCK_DEPTH, QUAY_Y + 1.0)
-watch("dockE high", DOCK_E_BASIS, dock_e, 0.0, QUAY_Y)
-watch("dockE low", DOCK_E_BASIS, dock_e, DOCK_DEPTH, 0.0)
+dock_e2 = (-dock_o2[0], dock_o2[1], -dock_o2[2])
+surf("DockE", dock_e2, DOCK_E_BASIS, DOCK_DEPTH - DOCK_A0, "end", kick_end=32.0)
+fill_under("FillDockE", DOCK_E_BASIS, dock_e2, DOCK_DEPTH - DOCK_A0, QUAY_Y + 1.0)
+watch("dockE join", DOCK_E_BASIS, dock_e2, 0.0, DOCK_J_Y)
+watch("dockE low", DOCK_E_BASIS, dock_e2, DOCK_DEPTH - DOCK_A0, 0.0)
 _dock_hi = toe_world(DOCK_BASIS, dock_o, 0.0)
 
 
@@ -703,35 +724,6 @@ _dock_lo = toe_world(DOCK_BASIS, dock_o, DOCK_DEPTH)
 if _dock_lo[2] < -CORNER_C[1] + math.sqrt((CORNER_R + SURF_TOE) ** 2 - (CORNER_C[0] - 14.7) ** 2) + 2.6:
     corner_problems.append("DockW end z=%.2f leaves no room for its strip before the corner" % _dock_lo[2])
 
-# Start pad: the 1.2 m slot between the start of the dock surf and the quay ramp, down to the
-# floor, is solid at deck height now. Run north across it (from the deck or the ramp top) onto
-# the start. 2 cm into the deck, the ramp and under the start.
-pair_box("DockPad", -18.02, -14.62, 0.0, QUAY_Y, 13.98, 15.50, "concrete")
-
-# Kicker: corner exit -> dock surf. The corner exit flies toward the dock surf at z≈10 and lands
-# around x -2..-4 (x≈-11 with a hop). A walkable wedge up to the toe of the dock surf takes that
-# speed onto the face; the dock strip is then the second strip of the run (LINE x2).
-# Built in the dock surf's own frame, so its top edge is the toe line exactly (2 cm under it):
-# no step between ramp and face. Across x it climbs 20°, along z it falls with the surf (12.8°),
-# about 23° overall. It runs on under the floor; only the part above y=0 shows.
-KICK_SLOPE = math.tan(math.radians(20.0))
-KICK_RUN = 11.0
-KICK_Z0, KICK_Z1 = 12.0, 6.5  # world z of the two ends (blue side)
-
-
-def add_kicker(name, basis, origin):
-    a0 = (DOCK_Z - KICK_Z0) / math.cos(DOCK_PITCH)
-    a1 = (DOCK_Z - KICK_Z1) / math.cos(DOCK_PITCH)
-    poly = [(3.05, -0.12), (SURF_TOE, -0.12), (SURF_TOE + KICK_RUN, -0.12 - KICK_RUN * KICK_SLOPE),
-            (SURF_TOE + KICK_RUN, -12.0), (3.05, -12.0)]
-    org = apply_basis(basis, origin, (0.0, 0.0, -a0))
-    add(name, "CSGPolygon3D", xform(basis, org),
-        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for pt in poly for v in pt),
-         "depth = %s" % fmt(a1 - a0)], "concrete")
-
-
-add_kicker("DockKickerW", DOCK_BASIS, dock_o)
-add_kicker("DockKickerE", DOCK_E_BASIS, dock_e)
 face_stripe("DockW", "DockLipEdgeB")
 face_stripe("DockE", "DockLipEdgeO")
 
@@ -878,7 +870,7 @@ def _add_path_poly(name, path_name, poly, mat):
     ], mat)
 
 
-def _add_path_kick(surf_name, kick_name, basis, origin, deg, at_end):
+def _add_path_kick(surf_name, kick_name, basis, origin, deg, at_end, side_x=-1.6):
     """Chamfer only this surf's end cap. A sibling subtract would carve the whole map.
 
     The corner profile is mirrored, so the box sits on -X, across the toe. +1.3 is the
@@ -888,7 +880,7 @@ def _add_path_kick(surf_name, kick_name, basis, origin, deg, at_end):
     half = 10.0
     sign = -1.0 if at_end else 1.0
     local_z = -half * math.sin(angle) if at_end else half * math.sin(angle)
-    local = (-1.6, half * math.cos(angle), local_z)
+    local = (side_x, half * math.cos(angle), local_z)
     add(kick_name, "CSGBox3D",
         xform(mul_basis(basis, _kick_basis(deg, sign)), apply_basis(basis, origin, local)),
         ["operation = 2", "size = Vector3(8, 20, 30)"], "surf", parent="Arena/" + surf_name)
@@ -1052,6 +1044,144 @@ def add_ramp_probes():
 c_ny, c_toes = add_corner("CornerB", CORNER_C[0], CORNER_C[1], CORNER_A0, CORNER_A1, ROOF_Y, QUAY_Y)
 add_corner("CornerO", -CORNER_C[0], -CORNER_C[1], CORNER_A0 + math.pi, CORNER_A1 + math.pi, ROOF_Y, QUAY_Y)
 
+
+# ---------------------------------------------------------------- connector: corner exit -> dock surf
+# The corner turns left and its face is on the north side of its exit toe. The dock surf needs a
+# right turn with the face on the outside (south, then west). So the connector starts beside the
+# corner's straight run-out with its toe on the corner's toe line: for those 6 m the two faces
+# make a V, and a rider sliding off the bottom of the corner is already on the connector. Past
+# the corner's end it is the connector alone: straight west, a quarter turn (toe radius 6 m,
+# banked for about 16 m/s at the 57° face), and on as the dock surf. Nothing to land on.
+# Unmirrored profile (toe at local +X), the same triangle as the dock surf, so the end is the
+# dock surf's cross-section exactly.
+CONN_FILL = (-0.15, -0.05, 3.10, -0.05, 3.10, -14.0, -0.15, -14.0)
+_CORNER_SLOPE = (ROOF_Y - QUAY_Y) / CORNER_LEN  # toe drop per metre along the corner
+
+
+def conn_samples(sign):
+    """(x, z, dist, total) of the profile origin, 3.3 m outside the toe line. sign -1 = half-turn."""
+    straight = CONN_X0 - CONN_CX
+    arc = CONN_R * math.pi * 0.5
+    total = straight + arc + CONN_LEAD_OUT
+    count = int(math.ceil(total / CONN_SPACING))
+    out = []
+    for i in range(count + 1):
+        d = total * i / float(count)
+        if d <= straight:
+            tx, tz, ox, oz = CONN_X0 - d, CONN_TOE_Z, 0.0, 1.0
+        elif d <= straight + arc:
+            th = math.pi * 0.5 + (d - straight) / CONN_R
+            ox, oz = math.cos(th), math.sin(th)
+            tx, tz = CONN_CX + CONN_R * ox, CONN_CZ + CONN_R * oz
+        else:
+            tx, tz, ox, oz = CONN_CX - CONN_R, CONN_CZ - (d - straight - arc), -1.0, 0.0
+        x, z = tx + ox * SURF_TOE, tz + oz * SURF_TOE
+        out.append((sign * x, sign * z, d, total))
+    return out
+
+
+def conn_want(d, total):
+    """Toe height: the corner's own toe line beside its run-out (x 12 -> 6), then a smooth drop
+    (cubic Hermite, no kinks) to the dock surf's toe with the dock surf's slope."""
+    y_c0 = QUAY_Y + (CONN_X0 - 6.0) * _CORNER_SLOPE
+    if d <= CONN_X0 - 6.0:
+        return y_c0 - d * _CORNER_SLOPE
+    d0 = CONN_X0 - 6.0
+    L = total - d0
+    t = (d - d0) / L
+    m0 = -_CORNER_SLOPE * L
+    m1 = -math.tan(DOCK_PITCH) * L
+    h00, h10, h01, h11 = 2 * t ** 3 - 3 * t ** 2 + 1, t ** 3 - 2 * t ** 2 + t, -2 * t ** 3 + 3 * t ** 2, t ** 3 - t ** 2
+    return h00 * QUAY_Y + h10 * m0 + h01 * DOCK_J_Y + h11 * m1
+
+
+def add_connector(prefix, sign):
+    pts = conn_samples(sign)
+    heights = [conn_want(p[2], p[3]) + 0.1 for p in pts]
+    frames = None
+    for _ in range(10):
+        frames = _corner_frames(pts, heights)
+        for i, (origin, basis, _t) in enumerate(frames):
+            heights[i] += conn_want(pts[i][2], pts[i][3]) - _toe_point(basis, origin, SURF_TOE)[1]
+    frames = _corner_frames(pts, heights)
+    origins = [f[0] for f in frames]
+    path_name = prefix + "Path"
+    curves.append(("Curve_%s" % prefix, origins))
+    paths.append((path_name, "Curve_%s" % prefix))
+    _add_path_poly(prefix + "Surf", path_name, SURF_POLY, "surf")
+    _add_path_poly(prefix + "Fill", path_name, CONN_FILL, "concrete")
+    _add_path_kick(prefix + "Surf", prefix + "KickA", frames[0][1], frames[0][0], 48.0, False, 1.3)
+    _add_path_kick(prefix + "Fill", prefix + "FillKickA", frames[0][1], frames[0][0], 48.0, False, 1.3)
+    toes = []
+    for i, (origin, basis, tangent) in enumerate(frames):
+        toe = _toe_point(basis, origin, SURF_TOE)
+        ny = apply_basis(basis, (0.0, 0.0, 0.0), FACE_N)[1]
+        want = conn_want(pts[i][2], pts[i][3])
+        toes.append(toe)
+        if basis_det(basis) < 0.5 or not 0.15 <= ny <= 0.62 or abs(toe[1] - want) > 0.05:
+            corner_problems.append("%s s=%.1f ny=%.3f toe=(%.2f, %.2f, %.2f) want %.2f" % (
+                prefix, pts[i][2], ny, toe[0], toe[1], toe[2], want))
+    # The end has to be the dock surf's start: same origin, same frame.
+    end_o = frames[-1][0]
+    want_o = dock_o2 if sign > 0 else dock_e2
+    if max(abs(end_o[k] - want_o[k]) for k in range(3)) > 0.06:
+        corner_problems.append("%s end %s is not the dock surf start %s" % (
+            prefix, tuple(round(v, 2) for v in end_o), tuple(round(v, 2) for v in want_o)))
+    corner_log.append((prefix + " start", basis_det(frames[0][1]), apply_basis(frames[0][1], (0, 0, 0), FACE_N)[1], toes[0], conn_want(0, pts[0][3]), True))
+    corner_log.append((prefix + " end", basis_det(frames[-1][1]), apply_basis(frames[-1][1], (0, 0, 0), FACE_N)[1], toes[-1], DOCK_J_Y, True))
+    return frames
+
+
+conn_frames_b = add_connector("ConnB", 1.0)
+add_connector("ConnO", -1.0)
+
+
+# Underpass: the connector runs across the whole dock (x 12 -> -14.7), so without a hole the dock
+# floor was cut in two and bots could not reach the middle from either spawn. A 4 m passage
+# through the fill only (a child cut, so the face above and the floor stay whole). Its ceiling is
+# the flat underside of the surf triangle, which sits 0.1 m under the toe.
+UNDER_X0, UNDER_X1 = 0.5, 4.5
+_under_d = [CONN_X0 - x for x in (UNDER_X0, UNDER_X1)]
+_under_tot = conn_samples(1.0)[0][3]
+UNDER_TOP = min(conn_want(d, _under_tot) for d in _under_d) - 0.15
+if UNDER_TOP < 2.6:
+    corner_problems.append("connector underpass only %.2f m high" % UNDER_TOP)
+for _nm, _sg in (("ConnBFill", 1.0), ("ConnOFill", -1.0)):
+    _x0, _x1 = sorted((_sg * UNDER_X0, _sg * UNDER_X1))
+    _z0, _z1 = sorted((_sg * (CONN_TOE_Z - 0.6), _sg * (CONN_TOE_Z + SURF_TOE + 0.9)))
+    add(_nm + "Under", "CSGBox3D", xform(IDENT, ((_x0 + _x1) / 2, UNDER_TOP / 2 - 0.5, (_z0 + _z1) / 2)),
+        ["operation = 2", "size = Vector3(%s, %s, %s)" % (fmt(_x1 - _x0), fmt(UNDER_TOP + 1.0), fmt(_z1 - _z0))],
+        "concrete", parent="Arena/" + _nm)
+print("  connector underpass x %.1f..%.1f, %.2f m high" % (UNDER_X0, UNDER_X1, UNDER_TOP))
+
+# Behind the turn the connector's back wall left a wedge down to the floor between it and the
+# quay (0.8 m wide at its north end). It is deck now: a plan polygon from the quay edge round the
+# back of the turn (just inside the fill) to the quay-ramp foot, 4 m high, flush with the deck.
+_RB = CONN_R + SURF_TOE + 0.05
+_back = [(-18.2, CONN_CZ - 0.5)]
+for _k in range(0, 24):
+    _th = math.pi - (math.pi * 0.5) * _k / 24.0
+    _bx, _bz = CONN_CX + _RB * math.cos(_th), CONN_CZ + _RB * math.sin(_th)
+    if _bx > -10.4:
+        break
+    _back.append((_bx, _bz))
+_back += [(-10.4, CONN_CZ + math.sqrt(max(_RB ** 2 - (-10.4 - CONN_CX) ** 2, 0.0))), (-10.4, 15.50), (-18.2, 15.50)]
+
+
+def plan_block(name, pts, y0, y1, mat, sign=1.0):
+    basis = ((1.0, 0.0, 0.0), (0.0, 0.0, -1.0), (0.0, 1.0, 0.0))
+    if sign < 0:
+        basis = ((-1.0, 0.0, 0.0), (0.0, 0.0, 1.0), (0.0, 1.0, 0.0))
+    poly = []
+    for x, z in pts:
+        poly += [x, -z]
+    add(name, "CSGPolygon3D", xform(basis, (0.0, y1, 0.0)),
+        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in poly), "depth = %s" % fmt(y1 - y0)], mat)
+
+
+plan_block("ConnDeckB", _back, 0.0, QUAY_Y, "concrete")
+plan_block("ConnDeckO", _back, 0.0, QUAY_Y, "concrete", -1.0)
+
 # Balcony on the open side of the entry toe (west, toward the dock) and back into
 # the north wall. The face itself is east of the toe, so the floor stops short of it.
 # The pier holds the floor up. A 0.3 m plate here stuck out of the roof with nothing under it.
@@ -1178,29 +1308,51 @@ def add_dock_probes():
     dh = math.hypot(down[0], down[2])
     rays = []
     for f in (0.2, 0.5, 0.8):
-        rays.append(("dock_glide_%d" % int(f * 10), face(f, 1.5, 0.5), face(f, DOCK_DEPTH - 0.3, 0.5), "sweep"))
+        rays.append(("dock_glide_%d" % int(f * 10), face(f, DOCK_A0 + 0.3, 0.5), face(f, DOCK_DEPTH - 0.3, 0.5), "sweep"))
     end = face(0.2, DOCK_DEPTH - 0.3, 0.5)
     out = (end[0], end[1] - 0.2, end[2] + down[2] / dh * 2.0)
     rays.append(("dock_exit", end, out, "sweep"))
     rays.append(("dock_strip", end, out, "strip"))
     # Head room over a rider near the ridge, every 2 m down the run (the gantry beam crosses at z=0).
-    along = 0.5
+    along = DOCK_A0 + 0.3
     while along < DOCK_DEPTH:
         p = face(0.85, along, 0.0)
         rays.append(("dock_head_%d" % int(along), (p[0], p[1] + 0.3, p[2]), (p[0], p[1] + 4.6, p[2]), "clear"))
         along += 2.0
-    # Start pad flush with the deck; no slot left beside the quay ramp.
+    # Deck over the back of the connector, flush with the quay.
     rays.append(("dock_pad", (-16.3, 6.0, 14.8), (-16.3, 2.0, 14.8), "deck"))
+    rays.append(("conn_deck", (-17.0, 6.0, 9.0), (-17.0, 2.0, 9.0), "deck"))
     rays.append(("dock_pad_run", (-24.0, QUAY_Y + 0.4, 14.8), (-15.0, QUAY_Y + 0.4, 14.8), "clear"))
-    # Chain: the corner exit flight is clear to the kicker, the kicker is a walkable slope, and its top
-    # edge meets the toe (no wall under the toe to run into).
-    for z in (8.0, 10.0, 12.0):
-        rays.append(("chain_flight_%d" % int(z), (6.0, 4.4, z), (-12.0, 4.4, z), "clear"))
-    for z in (7.0, 9.5, 11.5):
-        toe = toe_world(DOCK_BASIS, dock_o, (DOCK_Z - z) / math.cos(DOCK_PITCH))
-        rays.append(("kicker_tread_%d" % int(z * 10), (-10.0, 6.0, z), (-10.0, -0.5, z), "slope"))
-        rays.append(("kicker_top_%d" % int(z * 10), (toe[0] + 0.2, toe[1] + 2.0, z), (toe[0] + 0.2, -0.5, z), "slope"))
-        rays.append(("kicker_seam_%d" % int(z * 10), (toe[0] + 0.6, toe[1] + 0.12, z), (toe[0] - 0.05, toe[1] + 0.12, z), "clear"))
+    # Chain: corner run-out -> V -> connector -> dock surf -> dock strip, as one string of sphere
+    # casts 0.5 m off the faces. First the V beside the corner's run-out, through the corner strip.
+    fr = conn_frames_b
+    vt = [_toe_point(f[1], f[0], SURF_TOE) for f in fr]
+    v0, v1 = vt[2], vt[9]
+    rays.append(("chain_v", (v0[0], v0[1] + 0.9, v0[2] + 0.05), (v1[0], v1[1] + 0.9, v1[2] + 0.05), "sweep"))
+    rays.append(("chain_corner_strip", (v1[0], v1[1] + 0.9, v1[2] + 0.05), (v1[0], v1[1] + 0.9, v1[2] + 0.05), "strip"))
+
+    def conn_face(i, f=0.25, off=0.5):
+        b, o = fr[i][1], fr[i][0]
+        p = apply_basis(b, o, (SURF_TOE - 3.4 * f, -0.1 + 5.25 * f, 0.0))
+        nn = apply_basis(b, (0.0, 0.0, 0.0), FACE_N)
+        ln = math.sqrt(sum(c * c for c in nn))
+        return tuple(p[k] + nn[k] / ln * off for k in range(3))
+    prev = (v1[0], v1[1] + 0.9, v1[2] + 0.05)
+    idx = list(range(12, len(fr), 3)) + [len(fr) - 1]
+    for i in idx:
+        cur = conn_face(i)
+        rays.append(("chain_conn_%02d" % i, prev, cur, "sweep"))
+        prev = cur
+    rays.append(("chain_join", prev, face(0.25, DOCK_A0 + 1.0, 0.5), "sweep"))
+    rays.append(("chain_dock", face(0.25, DOCK_A0 + 1.0, 0.5), face(0.2, DOCK_DEPTH - 0.3, 0.5), "sweep"))
+    # Underpass through the connector: open at chest height, head room over the walk.
+    rays.append(("conn_under_open", (2.5, 1.0, 15.0), (2.5, 1.0, 7.0), "clear"))
+    rays.append(("conn_under_head", (2.5, 0.3, 11.6), (2.5, UNDER_TOP - 0.2, 11.6), "clear"))
+    rays.append(("conn_under_ceiling", (2.5, 1.0, 11.6), (2.5, UNDER_TOP + 0.6, 11.6), "wall"))
+    # Head room over the connector (gantry, containers): 4 m over a rider near the ridge.
+    for i in range(4, len(fr), 6):
+        p = conn_face(i, 0.85, 0.0)
+        rays.append(("conn_head_%02d" % i, (p[0], p[1] + 0.3, p[2]), (p[0], p[1] + 4.3, p[2]), "clear"))
     # The corner base is solid down to the floor where the dock strip ends (no crawl slot).
     for x in (-16.0, -13.0, -10.0):
         rays.append(("corner_base_%d" % int(-x), (x, 0.2, -4.0), (x, 0.2, -9.0), "wall"))
@@ -1260,7 +1412,7 @@ pair_box("StreetBox", -4.5, 4.5, 0.0, 2.6, 37.6, 40.04, "container")
 # of the surf flight lines: the corner exits fly west/east at z≈±(5..13), the cross surf
 # launches along x at |z|<2, the dock surfs land on the quay ramps.
 pair_box("DockBoxA", -6.5, -0.5, 0.0, 2.6, 15.6, 18.04, "container")  # 3.9 m off the quay-ramp foot
-pair_box("DockStack", 3.0, 5.44, 0.0, 5.2, 14.5, 20.6, "container")   # two high
+pair_box("DockStack", 3.0, 5.44, 0.0, 5.2, 16.2, 22.3, "container")   # two high, 2.85 m behind the connector
 pair_box("MouthBox", -6.0, 0.0, 0.0, 5.2, 23.0, 25.44, "container")  # two high: street ramp to street
 # Quay deck: two high, so the wall lane has to step around it. 1.65 m clear of the flank toe,
 # outside the riding envelope of the surf (capsule on the face reaches x≈-41.2).
