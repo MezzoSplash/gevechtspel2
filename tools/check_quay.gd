@@ -75,8 +75,14 @@ func _probes() -> void:
 	for p in list:
 		var a := Vector3(p.from[0], p.from[1], p.from[2])
 		var b := Vector3(p.to[0], p.to[1], p.to[2])
-		var got := _classify(_ray(a, b))
 		var want: String = p.want
+		var got: String
+		if want == "sweep":
+			got = _sweep(a, b)
+		elif want == "strip":
+			got = "strip" if _in_strip(b) else "outside every strip"
+		else:
+			got = _classify(_ray(a, b))
 		var ok := got == want
 		if want == "slope" and got in ["slope"]:
 			ok = true
@@ -84,6 +90,33 @@ func _probes() -> void:
 			bad += 1
 			_fail("probe %s want %s got %s" % [p.name, want, got])
 	print("PROBE %d rays, %d bad" % [list.size(), bad])
+
+
+## 0.3 m sphere cast from a to b: "sweep" when it gets all the way, else where it stopped.
+func _sweep(a: Vector3, b: Vector3) -> String:
+	var q := PhysicsShapeQueryParameters3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 0.3
+	q.shape = sph
+	q.transform = Transform3D(Basis.IDENTITY, a)
+	q.motion = b - a
+	q.collision_mask = 1
+	var r := space.cast_motion(q)
+	if r.size() == 0 or r[0] >= 1.0:
+		return "sweep"
+	return "blocked at %s" % (a + (b - a) * r[0]).snapped(Vector3.ONE * 0.01)
+
+
+## Inside the box of any speed strip (Node3D in group speed_strip; its scale is the box size).
+func _in_strip(p: Vector3) -> bool:
+	for n in map.find_children("Strip*", "Node3D", true, false):
+		if not n.is_in_group("speed_strip"):
+			continue
+		var t: Transform3D = (n as Node3D).global_transform
+		var local := t.affine_inverse() * p
+		if absf(local.x) <= 0.5 and absf(local.y) <= 0.5 and absf(local.z) <= 0.5:
+			return true
+	return false
 
 
 ## Walks a standing capsule through waypoints with the game's StepUp, like a player holding W.
@@ -223,6 +256,10 @@ func _walks() -> void:
 		"surf_foot": [Vector3(-41.2, 4, 20), Vector3(-41.2, 4, 5), Vector3(-41.2, 4, -2), Vector3(-43.5, 4, -6)],
 		# Quay ramps (deck <-> dock), unchanged, as a regression walk.
 		"quay_ramp": [Vector3(-26, 4, 18.1), Vector3(-12, 0, 18.1), Vector3(-8.5, 0, 21.5)],
+		# Corner exit landing, west up the kicker to the toe of the dock surf.
+		"chain_kicker": [Vector3(-2, 0, 9.5), Vector3(-8, 0, 9.5), Vector3(-14.0, 0, 9.5)],
+		# Run-in to the dock surf start: deck, over the ramp top, onto the new pad.
+		"dock_entry": [Vector3(-24, 4, 21), Vector3(-20, 4, 15.0), Vector3(-15.4, 4, 14.8)],
 	}
 	var extra: Dictionary = map.get_meta("quay_walks", {})
 	for k in extra:

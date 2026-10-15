@@ -80,8 +80,10 @@ FLANK_PITCH = math.asin(FLANK_DROP / FLANK_DEPTH)
 FLANK_Z = 40.0  # high-end origin, on the blue roof lip
 FLANK_X = -(INNER_X - 0.05)  # buried 5 cm into the west inner face
 
-# Dock-edge surf: 4 m down to the floor.
-DOCK_DEPTH = 26.0
+# Dock-edge surf: 4 m down to the floor. It ends at z≈-3.55, 3 m short of the outer wall of the
+# other team's corner (z -6.6), so the speed strip fits in front of that wall. 26 m long, it ran
+# into that wall and its strip sat behind it. Shorter and steeper (12.8°) keeps the 4 m drop.
+DOCK_DEPTH = 18.0
 DOCK_DROP = 4.0
 DOCK_PITCH = math.asin(DOCK_DROP / DOCK_DEPTH)
 DOCK_X = -18.0
@@ -474,6 +476,7 @@ OFF_STAIR_Z0, OFF_STAIR_Z1 = 2.4, -3.6                # 3.8 m over 6 m, 32° (lo
 OFF_DOOR_H = OFF_F1 + 2.7
 GANTRY_Y0, GANTRY_Y1 = 11.2, 13.6   # beam over the dock, see "crane gantry"
 GANTRY_WEB_Y = 9.0
+GANTRY_WEB_X0 = -13.0
 pair_box("Office", OFF_X0, OFF_X1, OFF_F1, OFF_TOP, OFF_Z0, OFF_Z1, "brick")
 pair_sub("OfficeVoid1", OFF_X0 + OFF_WT, OFF_X1 - OFF_WT, OFF_F1, OFF_SLAB0, OFF_Z0 + OFF_WT, OFF_Z1 - OFF_WT)
 pair_sub("OfficeVoid2", OFF_X0 + OFF_WT, OFF_X1 - OFF_WT, OFF_F2, OFF_CEIL2, OFF_Z0 + OFF_WT, OFF_Z1 - OFF_WT)
@@ -695,11 +698,40 @@ def trim_round(target, basis, origin, centre, radius):
         "concrete", parent="Arena/" + target)
 
 
-_TRIM_R = CORNER_R + SURF_TOE - 3.10 + 0.15  # inner fill wall + 15 cm
-trim_round("DockE", DOCK_E_BASIS, dock_e, CORNER_C, _TRIM_R)
-trim_round("FillDockE", DOCK_E_BASIS, dock_e, CORNER_C, _TRIM_R)
-trim_round("DockW", DOCK_BASIS, dock_o, (-CORNER_C[0], -CORNER_C[1]), _TRIM_R)
-trim_round("FillDockW", DOCK_BASIS, dock_o, (-CORNER_C[0], -CORNER_C[1]), _TRIM_R)
+# The shortened dock surfs stop well before the corners, so trim_round has nothing to cut.
+_dock_lo = toe_world(DOCK_BASIS, dock_o, DOCK_DEPTH)
+if _dock_lo[2] < -CORNER_C[1] + math.sqrt((CORNER_R + SURF_TOE) ** 2 - (CORNER_C[0] - 14.7) ** 2) + 2.6:
+    corner_problems.append("DockW end z=%.2f leaves no room for its strip before the corner" % _dock_lo[2])
+
+# Start pad: the 1.2 m slot between the start of the dock surf and the quay ramp, down to the
+# floor, is solid at deck height now. Run north across it (from the deck or the ramp top) onto
+# the start. 2 cm into the deck, the ramp and under the start.
+pair_box("DockPad", -18.02, -14.62, 0.0, QUAY_Y, 13.98, 15.50, "concrete")
+
+# Kicker: corner exit -> dock surf. The corner exit flies toward the dock surf at z≈10 and lands
+# around x -2..-4 (x≈-11 with a hop). A walkable wedge up to the toe of the dock surf takes that
+# speed onto the face; the dock strip is then the second strip of the run (LINE x2).
+# Built in the dock surf's own frame, so its top edge is the toe line exactly (2 cm under it):
+# no step between ramp and face. Across x it climbs 20°, along z it falls with the surf (12.8°),
+# about 23° overall. It runs on under the floor; only the part above y=0 shows.
+KICK_SLOPE = math.tan(math.radians(20.0))
+KICK_RUN = 11.0
+KICK_Z0, KICK_Z1 = 12.0, 6.5  # world z of the two ends (blue side)
+
+
+def add_kicker(name, basis, origin):
+    a0 = (DOCK_Z - KICK_Z0) / math.cos(DOCK_PITCH)
+    a1 = (DOCK_Z - KICK_Z1) / math.cos(DOCK_PITCH)
+    poly = [(3.05, -0.12), (SURF_TOE, -0.12), (SURF_TOE + KICK_RUN, -0.12 - KICK_RUN * KICK_SLOPE),
+            (SURF_TOE + KICK_RUN, -12.0), (3.05, -12.0)]
+    org = apply_basis(basis, origin, (0.0, 0.0, -a0))
+    add(name, "CSGPolygon3D", xform(basis, org),
+        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for pt in poly for v in pt),
+         "depth = %s" % fmt(a1 - a0)], "concrete")
+
+
+add_kicker("DockKickerW", DOCK_BASIS, dock_o)
+add_kicker("DockKickerE", DOCK_E_BASIS, dock_e)
 face_stripe("DockW", "DockLipEdgeB")
 face_stripe("DockE", "DockLipEdgeO")
 
@@ -1128,6 +1160,57 @@ def add_rework_probes():
 
 add_rework_probes()
 
+
+def add_dock_probes():
+    """Dock surf after the fix: you can ride it into its strip, the corner exit chains onto it over
+    the kicker, and only the beam is over it. "sweep" is a 0.3 m sphere cast that must hit nothing;
+    "strip" wants the end point inside a speed strip's box."""
+    n = apply_basis(DOCK_BASIS, (0.0, 0.0, 0.0), FACE_N)
+    nl = math.sqrt(sum(c * c for c in n))
+    n = tuple(c / nl for c in n)
+
+    def face(f, along, off):
+        # f = 0 at the toe, 1 at the ridge; off = metres out along the face normal
+        p = apply_basis(DOCK_BASIS, dock_o, (SURF_TOE - 3.4 * f, -0.1 + 5.25 * f, -along))
+        return tuple(p[i] + n[i] * off for i in range(3))
+
+    down = apply_basis(DOCK_BASIS, (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))
+    dh = math.hypot(down[0], down[2])
+    rays = []
+    for f in (0.2, 0.5, 0.8):
+        rays.append(("dock_glide_%d" % int(f * 10), face(f, 1.5, 0.5), face(f, DOCK_DEPTH - 0.3, 0.5), "sweep"))
+    end = face(0.2, DOCK_DEPTH - 0.3, 0.5)
+    out = (end[0], end[1] - 0.2, end[2] + down[2] / dh * 2.0)
+    rays.append(("dock_exit", end, out, "sweep"))
+    rays.append(("dock_strip", end, out, "strip"))
+    # Head room over a rider near the ridge, every 2 m down the run (the gantry beam crosses at z=0).
+    along = 0.5
+    while along < DOCK_DEPTH:
+        p = face(0.85, along, 0.0)
+        rays.append(("dock_head_%d" % int(along), (p[0], p[1] + 0.3, p[2]), (p[0], p[1] + 4.6, p[2]), "clear"))
+        along += 2.0
+    # Start pad flush with the deck; no slot left beside the quay ramp.
+    rays.append(("dock_pad", (-16.3, 6.0, 14.8), (-16.3, 2.0, 14.8), "deck"))
+    rays.append(("dock_pad_run", (-24.0, QUAY_Y + 0.4, 14.8), (-15.0, QUAY_Y + 0.4, 14.8), "clear"))
+    # Chain: the corner exit flight is clear to the kicker, the kicker is a walkable slope, and its top
+    # edge meets the toe (no wall under the toe to run into).
+    for z in (8.0, 10.0, 12.0):
+        rays.append(("chain_flight_%d" % int(z), (6.0, 4.4, z), (-12.0, 4.4, z), "clear"))
+    for z in (7.0, 9.5, 11.5):
+        toe = toe_world(DOCK_BASIS, dock_o, (DOCK_Z - z) / math.cos(DOCK_PITCH))
+        rays.append(("kicker_tread_%d" % int(z * 10), (-10.0, 6.0, z), (-10.0, -0.5, z), "slope"))
+        rays.append(("kicker_top_%d" % int(z * 10), (toe[0] + 0.2, toe[1] + 2.0, z), (toe[0] + 0.2, -0.5, z), "slope"))
+        rays.append(("kicker_seam_%d" % int(z * 10), (toe[0] + 0.6, toe[1] + 0.12, z), (toe[0] - 0.05, toe[1] + 0.12, z), "clear"))
+    # The corner base is solid down to the floor where the dock strip ends (no crawl slot).
+    for x in (-16.0, -13.0, -10.0):
+        rays.append(("corner_base_%d" % int(-x), (x, 0.2, -4.0), (x, 0.2, -9.0), "wall"))
+    for name, a, b, want in rays:
+        _ray("%s_b" % name, a, b, want)
+        _ray("%s_o" % name, (-a[0], a[1], -a[2]), (-b[0], b[1], -b[2]), want)
+
+
+add_dock_probes()
+
 # ---------------------------------------------------------------- parapets (gaps are the surf lip, the ramp bridge, the balcony, one drop)
 def para(name, x0, x1, z0, z1):
     pair_box(name, x0, x1, ROOF_Y, ROOF_Y + PARAPET, z0, z1, "concrete")
@@ -1192,7 +1275,9 @@ pair_box("DeckStack", -39.5, -31.0, QUAY_Y, QUAY_Y + 5.2, 12.0, 14.44, "containe
 # ridge), with the container clamped in the middle. Without it the street-ramp-to-roof
 # diagonals passed under an 11.2 m beam.
 box("Gantry", OFF_X1 + OFF_WT, -(OFF_X1 + OFF_WT), GANTRY_Y0, GANTRY_Y1, -1.0, 1.0, "steel")
-pair_box("GantryWeb", OFF_X1 + OFF_WT, -3.05, GANTRY_WEB_Y, GANTRY_Y0, -0.6, 0.6, "steel")
+# The web stops 1.7 m east of the dock-surf toe: over the dock surfs there is only the beam
+# (11.2 m, about 5 m over the ridge), so a pop off the ridge does not hit it.
+pair_box("GantryWeb", GANTRY_WEB_X0, -3.05, GANTRY_WEB_Y, GANTRY_Y0, -0.6, 0.6, "steel")
 box("GantryBox", -3.05, 3.05, 8.6, GANTRY_Y0, -1.22, 1.22, "container")
 
 # ---------------------------------------------------------------- spawns
