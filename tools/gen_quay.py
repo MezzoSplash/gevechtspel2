@@ -11,7 +11,8 @@ Flat colours, no PBR. Surf faces are the Rooftops triangle (~57°). Anything ste
 Layout (metres, Y up). Playable inside the walls is about 90 x 123.
   - Dock floor at 0 m through the middle. Quay decks at 4 m on the west and east.
     Loods roofs at 10 m behind each spawn. Outer walls are 16.5 m, above the surf ridge.
-  - West flank surf: 10 m roof down to the 4 m quay, along the west wall through mid-map.
+  - West flank surf: off the blue west roof (run-in, banked quarter turn), down the west wall
+    past the 4 m deck to the floor of the orange-side lane. Strips at the deck end and the foot.
     The east flank is the half-turn (high end on the orange roof).
   - Inner quay surfs: 4 m down to the dock floor, on the dock side of each quay.
   - The middle of the dock is open floor (the flat cross surf is gone).
@@ -73,12 +74,26 @@ WALL_T = 0.8
 INNER_X = HALF_X - WALL_T  # 45.2
 INNER_Z = HALF_Z - WALL_T
 
-# Flank surf: 6 m of drop over 43 m of extrusion → about 8° along the run.
-FLANK_DEPTH = 43.0
-FLANK_DROP = 6.0
-FLANK_PITCH = math.asin(FLANK_DROP / FLANK_DEPTH)
-FLANK_Z = 40.0  # high-end origin, on the blue roof lip
-FLANK_X = -(INNER_X - 0.05)  # buried 5 cm into the west inner face
+# Flank surf, one path per side (built after the connector, it uses the same path helpers).
+# Run-in off the roof heading west (toe at z FLANK_RUN_Z), a banked quarter turn of toe radius
+# FLANK_R over the pocket onto the outer wall, then straight down the wall: roof 10 m -> 4 m where
+# the deck ends (z FLANK_DECK_Z) -> 0 m at the far lane (z FLANK_END_Z). Two strips: one where the
+# toe passes the deck end, one at the foot.
+FLANK_X = -(INNER_X - 0.05)  # profile origin, buried 5 cm into the west inner face
+FLANK_TOE_X = FLANK_X + 3.30  # -41.85
+FLANK_R = 6.0
+FLANK_JZ = 42.0  # the turn ends and the straight starts here
+FLANK_RUN_Z = FLANK_JZ + FLANK_R  # run-in toe line, 48; ridge at 51.3, over the pocket
+FLANK_CX = FLANK_TOE_X + FLANK_R  # turn centre x
+# The surf starts just off the roof edge. The run-up is the roof itself: west along z 46.4..49.5,
+# south of the stair slot (it ends at z 46.35), so the toe line has to be south of that too.
+FLANK_RUN_X0 = -34.1
+FLANK_DECK_Z = -2.6  # toe meets the deck height (4 m) here
+FLANK_END_Z = -22.0  # foot of the surf, ground level, start of the far lane
+FLANK_Y_J = 9.2  # toe height where the turn ends
+FLANK_S1_Z = 0.4  # first strip: toe line, still beside the deck
+FLANK_GUTTER_X = -39.0  # past the deck end, ground-level gutter from the toe to here
+FLANK_PAD_Z0 = 45.6  # roof-level pad on the inside of the run-in, z FLANK_PAD_Z0..toe
 
 # Dock-edge surf: 4 m down to the floor. It ends at z≈-3.55, 3 m short of the outer wall of the
 # other team's corner (z -6.6), so the speed strip fits in front of that wall. 26 m long, it ran
@@ -434,7 +449,7 @@ pair_sub("WestWinN2", -20.4, -18.2, 1.0, 2.5, 27.6, 29.6)
 # Flank shoot-hole, on the open west wall just south of the lip. The low slot
 # sat on shadowed brick and read as part of the wall. This one is tall and
 # cuts through to the stair shaft, so the lane sees sky and the stair, not a
-# black niche. Clear of the lip (ends z≈42.7) and of WestRailAO.
+# black niche. Under the run-in pad (9.2 m) and clear of WestRailAO.
 _W2_Z0, _W2_Z1 = 43.05, 46.20
 pair_sub("WestWinW2", -34.4, -31.50, 1.15, 6.40, _W2_Z0, _W2_Z1)
 pair_sub("WestWinE", -15.6, -13.6, 1.0, 2.5, 35.6, 37.8)
@@ -603,80 +618,29 @@ pair_box("OfficeStairEdge", OFF_STAIR_X0, OFF_STAIR_X1, OFF_F1 - 0.06, OFF_F1, O
 # Behind the crest the ground floor would be a 2 x 0.9 m nook under the slab. Solid instead.
 pair_box("OfficeNook", OFF_STAIR_X0, OFF_STAIR_X1, OFF_F1, OFF_SLAB0, OFF_Z0 + OFF_WT, OFF_STAIR_Z1, "concrete")
 
-# ---------------------------------------------------------------- flank surf, 10 m → 4 m, mid-wall
-# Opens +X (into the map). Downhill is -Z. High end on the roof lip, low end on the quay.
-FLANK_BASIS = mul_basis(yaw_into(1.0, 0.0), rx(FLANK_PITCH))
-flank_o = origin_for_toe_y(FLANK_BASIS, FLANK_X, FLANK_Z, ROOF_Y)
-surf("FlankW", flank_o, FLANK_BASIS, FLANK_DEPTH, "both", kick_start=48.0, kick_end=32.0)
-fill_under("FillFlankW", FLANK_BASIS, flank_o, FLANK_DEPTH, ROOF_Y + 1.0)
-watch("flankW high", FLANK_BASIS, flank_o, 0.0, ROOF_Y)
-watch("flankW low", FLANK_BASIS, flank_o, FLANK_DEPTH, QUAY_Y)
-
-# East flank is the half-turn of the west one: yaw 180, origin flipped.
-FLANK_E_BASIS = mul_basis(YAW180, FLANK_BASIS)
-flank_e = (-flank_o[0], flank_o[1], -flank_o[2])
-surf("FlankE", flank_e, FLANK_E_BASIS, FLANK_DEPTH, "both", kick_start=48.0, kick_end=32.0)
-fill_under("FillFlankE", FLANK_E_BASIS, flank_e, FLANK_DEPTH, ROOF_Y + 1.0)
-watch("flankE high", FLANK_E_BASIS, flank_e, 0.0, ROOF_Y)
-watch("flankE low", FLANK_E_BASIS, flank_e, FLANK_DEPTH, QUAY_Y)
-
-# Walk from the west roof to the high toe. Full height, and only as wide as the
-# entry, so it reads as part of the building. A thin plate here hung in the lane.
-# The west face stops on the toe: past it the box would sit on the surf.
-_toe_hi = toe_world(FLANK_BASIS, flank_o, 0.0)
-_LIP_Z0 = _toe_hi[2] - 0.12
-_LIP_Z1 = _toe_hi[2] + 2.7
-# 6 cm past the toe, under the face, so the walk and the surf share an edge.
-# The lip is an arch: the side lane runs under it (3.4 m clear), so the pocket behind the
-# loods is no longer cut off from the quay. Both ends sit in solid (the surf fill, the loods).
-LIP_ARCH_Y = 3.4
-pair_box("FlankLip", _toe_hi[0] - 0.06, -32.2, LIP_ARCH_Y, ROOF_Y, _LIP_Z0, _LIP_Z1, "concrete")
-# The lip is a later union and reaches through the west wall. It must stop
-# short of the flank shoot-hole or it fills that cut back in.
-if _LIP_Z1 > _W2_Z0 and _toe_hi[0] - 0.06 < -31.50:
-    corner_problems.append("FlankLip overlaps WestWinW2")
-# On the lip, in from the toe. Past the toe the bar would hang in the air.
-pair_box("FlankLipEdge", _toe_hi[0] + 0.04, _toe_hi[0] + 0.34, ROOF_Y - 0.06, ROOF_Y,
-         _LIP_Z0 + 0.25, _LIP_Z1 - 0.35, "hazard")
-
-# Low end of the flank. Solid from the floor up to the quay, buried into the deck
-# so the join is not a lip on two posts. Stays west of the dock surf.
-_toe_lo = toe_world(FLANK_BASIS, flank_o, FLANK_DEPTH)
-pair_box("FlankDeck", _toe_lo[0] - 0.15, -29.0, 0.0, QUAY_Y,
-         _toe_lo[2] - 12.0, _toe_lo[2] + 0.4, "concrete")
-
-# ---------------------------------------------------------------- side lanes
-# The ground lane between each loods and the outer wall used to dead-end on the 4 m quay.
-# Now the quay deck runs out to the wall and each end of every side lane has a 12° walk ramp:
-# yard strip -> lane -> ramp -> quay deck -> ramp -> lane -> the other yard strip.
+# ---------------------------------------------------------------- flank surf: deck, lanes, pad
+# The surf itself is the path extrusion add_flank (after the connector). Here: what is around it.
+# Low end on the deck is now where the toe passes 4 m; past it the surf goes on down the wall and
+# the deck along the wall becomes a gutter at toe height (the gutter is part of add_flank).
 #
 # Under the flank surf the deck starts inside the fill (x=-42.2) and stays below the face:
 # the toe is at y>=4 wherever the deck is, and 0.35 m in from the toe the face is 0.54 m higher.
-# Past the low end of the surf the deck goes all the way to the wall.
 SURF_DECK_X = -42.2
-# Runs 0.8 m on under the surf's low end: the fill's end leans, and a shorter deck left a sealed sliver.
-pair_box("DeckWallN", -INNER_X, -32.0, 0.0, QUAY_Y, -22.0, _toe_lo[2] + 0.8, "concrete")
-pair_box("DeckWallS", SURF_DECK_X, -32.0, 0.0, QUAY_Y, _toe_lo[2], 22.0, "concrete")
-# The fill stops 0.2 m short of the toe, so the toe overhung a slot down to the floor. Now that
-# you walk beside it, close the slot: a skirt straight down from just under the toe. It never
-# reaches the face (2 cm under the toe line), so the surf is the same surface as before.
-for _nm, _bs, _org in (("FlankSkirtW", FLANK_BASIS, flank_o), ("FlankSkirtE", FLANK_E_BASIS, flank_e)):
-    add(_nm, "CSGPolygon3D", xform(_bs, _org),
-        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in (3.05, -0.12, SURF_TOE - 0.01, -0.12,
-                                                                         SURF_TOE - 0.01, -(ROOF_Y + 1.0), 3.05, -(ROOF_Y + 1.0))),
-         "depth = %s" % fmt(FLANK_DEPTH)], "concrete")
-# Ramps, 4 m over 18 m (12.5°). Solid wedges, tops flush with the deck at the high end.
+# Orange end of the west deck: only the part east of the gutter is deck now.
+pair_box("DeckWallN", FLANK_GUTTER_X, -32.0, 0.0, QUAY_Y, -22.0, FLANK_DECK_Z, "concrete")
+pair_box("DeckWallS", SURF_DECK_X, -32.0, 0.0, QUAY_Y, FLANK_DECK_Z, 22.0, "concrete")
+# Ramp, 4 m over 18 m (12.5°), solid wedge, top flush with the deck at the high end. The blue
+# pocket (west, under the flank surf) and its half-turn on the orange east side. The lane ramp at
+# the other end is gone: the gutter beside the surf is the way between that lane and the deck.
 SIDE_RAMP_FOOT = 40.0
 SIDE_RAMP_TOP = 22.0
-# Blue pocket (west, under the flank surf) and its half-turn on the orange east side.
 pair_wedge_z("PocketRamp", SURF_DECK_X, -33.9, SIDE_RAMP_FOOT, SIDE_RAMP_TOP, QUAY_Y, "concrete")
-# Orange-end west lane and its half-turn on the blue east side. Wall to loods.
-pair_wedge_z("LaneRamp", -INNER_X, -33.9, -SIDE_RAMP_FOOT, -SIDE_RAMP_TOP, QUAY_Y, "concrete")
 pair_box("PocketRampEdge", SURF_DECK_X + 0.3, -33.9, -0.06, 0.0, SIDE_RAMP_FOOT, SIDE_RAMP_FOOT + 0.35, "hazard")
-pair_box("LaneRampEdge", -INNER_X, -33.9, -0.06, 0.0, -SIDE_RAMP_FOOT - 0.35, -SIDE_RAMP_FOOT, "hazard")
-# Under the arch the fill's slanted end left a 3 x 3 m niche against the wall. Fill it up to the
-# arch, past the skirt, so the passage is one clean box.
-pair_box("LipNiche", -INNER_X, -41.80, 0.0, LIP_ARCH_Y, _LIP_Z0, _LIP_Z1, "concrete")
+# Run-in pad: from the roof edge out to where the toe starts to turn, on the open side of the toe,
+# flush with the roof. A cantilever: the pocket lane under it keeps about 9 m.
+FLANK_PAD_X1 = FLANK_CX + 0.05
+pair_box("FlankPad", FLANK_PAD_X1, -33.9, ROOF_Y - 0.8, ROOF_Y, FLANK_PAD_Z0, FLANK_RUN_Z - 0.08, "roof")
+pair_box("FlankPadEdge", FLANK_PAD_X1, -34.0, ROOF_Y - 0.06, ROOF_Y, FLANK_RUN_Z - 0.4, FLANK_RUN_Z - 0.1, "hazard")
 
 # ---------------------------------------------------------------- dock surf, 4 m → 0, inner quay face
 DOCK_BASIS = mul_basis(yaw_into(1.0, 0.0), rx(DOCK_PITCH))
@@ -1177,6 +1141,107 @@ def plan_block(name, pts, y0, y1, mat, sign=1.0):
 plan_block("ConnDeckB", _back, 0.0, QUAY_Y, "concrete")
 plan_block("ConnDeckO", _back, 0.0, QUAY_Y, "concrete", -1.0)
 
+
+# ---------------------------------------------------------------- flank surf (path)
+# Same build as the connector, and the same turn: heading west, a quarter turn of toe radius 6 m
+# to heading north (-z), face on the outside. Then straight down the outer wall.
+FLANK_LEAD = FLANK_RUN_X0 - FLANK_CX
+FLANK_ARC = FLANK_R * math.pi * 0.5
+FLANK_DJ = FLANK_LEAD + FLANK_ARC
+FLANK_DDK = FLANK_DJ + (FLANK_JZ - FLANK_DECK_Z)
+FLANK_TOTAL = FLANK_DJ + (FLANK_JZ - FLANK_END_Z)
+# Toe height knots (distance along the toe, height, slope). Cubic Hermite between them: no kinks.
+# Turn about 4°, the wall run about 7° down to the deck, then about 12° (4 m over 19.4 m) to the lane.
+FLANK_KNOTS = ((0.0, ROOF_Y - 0.1, -0.06), (FLANK_DJ, FLANK_Y_J, -0.10), (FLANK_DDK, QUAY_Y, -0.16),
+               (FLANK_TOTAL, 0.0, -0.21))
+# Fill under the face down into the ground, reaching under the toe (the old skirt): the top stays
+# under the face, so it is the same surface. Over the pocket only a 0.5 m slab.
+FLANK_FILL = (-0.15, -0.05, 3.10, -0.05, 3.29, -0.12, 3.29, -14.0, -0.15, -14.0)
+FLANK_SLAB = (-0.15, -0.05, 3.10, -0.05, 3.29, -0.12, 3.29, -0.5, -0.15, -0.5)
+# Gutter: floor at toe height from just under the face out to FLANK_GUTTER_X.
+FLANK_GUTTER = (3.0, -0.1, FLANK_GUTTER_X - FLANK_X, -0.1, FLANK_GUTTER_X - FLANK_X, -14.0, 3.0, -14.0)
+
+
+def flank_want(d):
+    for (d0, y0, m0), (d1, y1, m1) in zip(FLANK_KNOTS, FLANK_KNOTS[1:]):
+        if d <= d1 + 1e-9:
+            L = d1 - d0
+            t = min(max((d - d0) / L, 0.0), 1.0)
+            h00, h10, h01, h11 = 2 * t ** 3 - 3 * t ** 2 + 1, t ** 3 - 2 * t ** 2 + t, -2 * t ** 3 + 3 * t ** 2, t ** 3 - t ** 2
+            return h00 * y0 + h10 * m0 * L + h01 * y1 + h11 * m1 * L
+    return FLANK_KNOTS[-1][1]
+
+
+def flank_want_z(z):
+    """Toe height on the straight, by z (west side)."""
+    return flank_want(FLANK_DJ + (FLANK_JZ - z))
+
+
+def flank_samples(sign):
+    """(x, z, dist, total) of the profile origin, 3.3 m outside the toe line. Knots fall on samples."""
+    ds = []
+    edges = [0.0, FLANK_LEAD, FLANK_DJ, FLANK_DDK, FLANK_TOTAL]
+    for a, b in zip(edges, edges[1:]):
+        n = max(2, int(math.ceil((b - a) / CONN_SPACING)))
+        ds += [a + (b - a) * i / float(n) for i in range(n)]
+    ds.append(FLANK_TOTAL)
+    out = []
+    for d in ds:
+        if d <= FLANK_LEAD:
+            tx, tz, ox, oz = FLANK_RUN_X0 - d, FLANK_RUN_Z, 0.0, 1.0
+        elif d <= FLANK_DJ:
+            th = math.pi * 0.5 + (d - FLANK_LEAD) / FLANK_R
+            ox, oz = math.cos(th), math.sin(th)
+            tx, tz = FLANK_CX + FLANK_R * ox, FLANK_JZ + FLANK_R * oz
+        else:
+            tx, tz, ox, oz = FLANK_TOE_X, FLANK_JZ - (d - FLANK_DJ), -1.0, 0.0
+        x, z = tx + ox * SURF_TOE, tz + oz * SURF_TOE
+        out.append((sign * x, sign * z, d, FLANK_TOTAL))
+    return out
+
+
+def add_flank(prefix, sign):
+    pts = flank_samples(sign)
+    heights = [flank_want(p[2]) + 0.1 for p in pts]
+    frames = None
+    for _ in range(10):
+        frames = _corner_frames(pts, heights)
+        for i, (origin, basis, _t) in enumerate(frames):
+            heights[i] += flank_want(pts[i][2]) - _toe_point(basis, origin, SURF_TOE)[1]
+    frames = _corner_frames(pts, heights)
+    origins = [f[0] for f in frames]
+    dj = [i for i, p in enumerate(pts) if abs(p[2] - FLANK_DJ) < 1e-6][0]
+    ddk = [i for i, p in enumerate(pts) if abs(p[2] - FLANK_DDK) < 1e-6][0]
+
+    def path(name, a, b):
+        curves.append(("Curve_%s" % name, origins[a:b]))
+        paths.append((name, "Curve_%s" % name))
+        return name
+    whole = path(prefix + "Path", 0, len(origins))
+    _add_path_poly(prefix + "Surf", whole, SURF_POLY, "surf")
+    _add_path_poly(prefix + "Slab", path(prefix + "PathHi", 0, dj + 1), FLANK_SLAB, "concrete")
+    _add_path_poly(prefix + "Fill", path(prefix + "PathLo", dj, len(origins)), FLANK_FILL, "concrete")
+    _add_path_poly(prefix + "Gutter", path(prefix + "PathGut", ddk, len(origins)), FLANK_GUTTER, "concrete")
+    _add_path_kick(prefix + "Surf", prefix + "KickA", frames[0][1], frames[0][0], 48.0, False, 1.3)
+    _add_path_kick(prefix + "Slab", prefix + "SlabKickA", frames[0][1], frames[0][0], 48.0, False, 1.3)
+    toes = []
+    for i, (origin, basis, tangent) in enumerate(frames):
+        toe = _toe_point(basis, origin, SURF_TOE)
+        ny = apply_basis(basis, (0.0, 0.0, 0.0), FACE_N)[1]
+        want = flank_want(pts[i][2])
+        toes.append(toe)
+        if basis_det(basis) < 0.5 or not 0.15 <= ny <= 0.62 or abs(toe[1] - want) > 0.05:
+            corner_problems.append("%s s=%.1f ny=%.3f toe=(%.2f, %.2f, %.2f) want %.2f" % (
+                prefix, pts[i][2], ny, toe[0], toe[1], toe[2], want))
+    for lbl, i in (("start", 0), ("turned", dj), ("deck", ddk), ("foot", len(frames) - 1)):
+        corner_log.append(("%s %s" % (prefix, lbl), basis_det(frames[i][1]),
+                           apply_basis(frames[i][1], (0, 0, 0), FACE_N)[1], toes[i], flank_want(pts[i][2]), True))
+    return frames
+
+
+flank_frames_w = add_flank("FlankW", 1.0)
+add_flank("FlankE", -1.0)
+
 # Balcony on the open side of the entry toe (west, toward the dock) and back into
 # the north wall. The face itself is east of the toe, so the floor stops short of it.
 # The pier holds the floor up. A 0.3 m plate here stuck out of the roof with nothing under it.
@@ -1248,9 +1313,19 @@ def add_rework_probes():
         ("pocket_tread", (-38.0, 4.0, 31.0), (-38.0, -0.5, 31.0), "slope"),
         ("pocket_join", (-38.0, QUAY_Y + 0.12, 23.6), (-38.0, QUAY_Y + 0.12, 20.4), "clear"),
         ("pocket_deck", (-38.0, 6.0, 20.0), (-38.0, 2.0, 20.0), "deck"),
-        ("lane_foot", (-40.0, 1.6, -40.6), (-40.0, -0.5, -40.6), "floor"),
-        ("lane_tread", (-40.0, 4.0, -31.0), (-40.0, -0.5, -31.0), "slope"),
-        ("lane_join", (-40.0, QUAY_Y + 0.12, -23.6), (-40.0, QUAY_Y + 0.12, -20.4), "clear"),
+        # Far end: the lane ramp is gone, the lane is floor; the gutter is a tread at toe height.
+        ("lane_floor", (-40.0, 1.6, -31.0), (-40.0, -0.5, -31.0), "floor"),
+        ("lane_open", (-40.0, 1.0, -24.0), (-40.0, 1.0, -45.0), "clear"),
+        ("gutter_tread", (-40.4, 6.0, -12.0), (-40.4, -0.5, -12.0), "slope"),
+        ("gutter_start", (-40.4, 6.0, -1.0), (-40.4, 2.0, -1.0), "deck"),
+        ("deck_end_wall", (-38.0, 1.0, -24.0), (-38.0, 1.0, -20.0), "wall"),
+        # Run-in pad: roof level, the pocket lane keeps about 9 m under it and under the turn.
+        ("pad_top", (-35.0, 11.0, 46.8), (-35.0, 9.0, 46.8), "roof"),
+        ("pad_head", (-35.0, 0.3, 46.8), (-35.0, 8.9, 46.8), "clear"),
+        ("turn_head", (-40.0, 0.3, 46.0), (-40.0, 8.6, 46.0), "clear"),
+        # Cover stacks beside the flank: clear of the riding space.
+        ("office_stack_vs_surf", (-41.4, 6.0, 0.0), (-38.6, 6.0, 0.0), "clear"),
+        ("pocket_stack_vs_surf", (-41.4, 8.0, 26.0), (-36.5, 8.0, 26.0), "clear"),
         # Deck beside the surf foot: flat deck, nothing at shin height.
         ("surf_foot_deck", (-41.4, 6.0, 8.0), (-41.4, 2.0, 8.0), "deck"),
         ("surf_foot_shin", (-41.3, QUAY_Y + 0.3, 20.0), (-41.3, QUAY_Y + 0.3, -1.0), "clear"),
@@ -1361,6 +1436,54 @@ def add_dock_probes():
 
 add_dock_probes()
 
+
+def add_flank_probes():
+    """Flank after the rework: one string of 0.3 m sphere casts 0.5 m off the face from the run-in on
+    the roof, through the turn, down the wall past the deck end and the first strip, to the foot and
+    its strip, then out into the lane. Head room over a rider near the ridge all the way; the gutter
+    beside the lower run has no lip."""
+    fr = flank_frames_w
+
+    def fface(i, f=0.25, off=0.5):
+        b, o = fr[i][1], fr[i][0]
+        p = apply_basis(b, o, (SURF_TOE - 3.4 * f, -0.1 + 5.25 * f, 0.0))
+        nn = apply_basis(b, (0.0, 0.0, 0.0), FACE_N)
+        ln = math.sqrt(sum(c * c for c in nn))
+        return tuple(p[k] + nn[k] / ln * off for k in range(3))
+    rays = []
+    idx = list(range(1, len(fr), 3)) + [len(fr) - 1]
+    prev = fface(1)
+    for i in idx[1:]:
+        cur = fface(i)
+        rays.append(("flank_ride_%02d" % i, prev, cur, "sweep"))
+        prev = cur
+    # Strip 1: the rider's line where the toe passes the deck end; strip 2 at the foot.
+    for name, z in (("flank_strip1", FLANK_S1_Z - 1.5), ("flank_strip2", FLANK_END_Z - 0.6)):
+        i = min(range(len(fr)), key=lambda k: abs(fr[k][0][2] - z))
+        p = fface(i) if z > FLANK_END_Z else fface(len(fr) - 1)
+        if name == "flank_strip2":
+            p = (p[0], p[1], FLANK_END_Z - 0.6)
+        rays.append((name, p, p, "strip"))
+    end = fface(len(fr) - 1)
+    rays.append(("flank_exit", end, (end[0] + 0.3, max(end[1] - 0.6, 0.45), FLANK_END_Z - 8.0), "sweep"))
+    for i in range(2, len(fr), 5):
+        p = fface(i, 0.85, 0.0)
+        rays.append(("flank_head_%02d" % i, (p[0], p[1] + 0.3, p[2]), (p[0], p[1] + 4.3, p[2]), "clear"))
+    # Gutter: a capsule-height sweep along it, 0.45 m over the toe line, from the deck end to the lane.
+    g = []
+    for z in (FLANK_DECK_Z - 0.5, -8.0, -14.0, -20.0, FLANK_END_Z - 2.0):
+        g.append((-40.4, max(flank_want_z(z), 0.0) + 0.45, z))
+    for k in range(len(g) - 1):
+        rays.append(("gutter_run_%d" % k, g[k], g[k + 1], "sweep"))
+    # From the roof onto the pad: no parapet, no lip.
+    rays.append(("pad_walk", (-29.0, ROOF_Y + 0.45, 47.0), (-35.5, ROOF_Y + 0.45, 47.0), "sweep"))
+    for name, a, b, want in rays:
+        _ray("%s_b" % name, a, b, want)
+        _ray("%s_o" % name, (-a[0], a[1], -a[2]), (-b[0], b[1], -b[2]), want)
+
+
+add_flank_probes()
+
 # ---------------------------------------------------------------- parapets (gaps are the surf lip, the ramp bridge, the balcony, one drop)
 def para(name, x0, x1, z0, z1):
     pair_box(name, x0, x1, ROOF_Y, ROOF_Y + PARAPET, z0, z1, "concrete")
@@ -1387,8 +1510,8 @@ SLITS_W = ((-32.6, -31.4), (-19.4, -18.2))
 screen("WScrN1", -34.0, -30.0, 28.0, 28.45, (SLITS_W[0],))
 screen("WScrN2", -26.0, -14.0, 28.0, 28.45, (SLITS_W[1],))  # gap -30..-26 is still the drop
 para("WParS", -34.0, -14.0, 49.55, 50.0)
-para("WParW1", -34.0, -33.55, 28.0, _LIP_Z0)
-para("WParW2", -34.0, -33.55, _LIP_Z1, 50.0)  # gap is the solid walk to the flank toe
+para("WParW1", -34.0, -33.55, 28.0, FLANK_PAD_Z0)  # gap: the run-in pad
+para("WParW2", -34.0, -33.55, FLANK_RUN_Z, 49.55)  # beside the surf's start cap
 para("WParE1", -14.45, -14.0, 28.0, 44.55)
 # No stub past the exterior ramp. The south parapet closes that corner.
 # East roof. The north edge stays open from the balcony across to the side link.
@@ -1414,6 +1537,12 @@ pair_box("MouthBox", -6.0, 0.0, 0.0, 5.2, 23.0, 25.44, "container")  # two high:
 # Quay deck: two high, so the wall lane has to step around it. 1.65 m clear of the flank toe,
 # outside the riding envelope of the surf (capsule on the face reaches x≈-41.2).
 pair_box("DeckStack", -39.5, -31.0, QUAY_Y, QUAY_Y + 5.2, 12.0, 14.44, "container")
+# Cover for the flank rider, two high beside the surf: one on the deck in front of the office's
+# west wall (doors and windows looked straight at the run), one on the pocket ramp against its
+# loods-side edge (it screens the run from the dock and the street). Long side along the run.
+pair_box("OfficeStack", -38.4, -35.96, QUAY_Y, QUAY_Y + 5.2, -3.0, 3.06, "container")
+_ps_mid = QUAY_Y * (SIDE_RAMP_FOOT - 26.0) / (SIDE_RAMP_FOOT - SIDE_RAMP_TOP)
+pair_box("PocketStack", -36.34, -33.9, 0.0, _ps_mid + 5.2, 23.0, 29.06, "container")
 
 # ---------------------------------------------------------------- crane gantry
 # One beam across the dock at z=0, resting on the two office walls (it is its own half-turn).
@@ -1465,8 +1594,12 @@ def _end_strip(name, basis, origin, along, floor_y, sign=1.0, drop=0.0):
         open_xz=(basis[0][0], basis[0][2])))
 
 
-_end_strip("StripFlankW", FLANK_BASIS, flank_o, FLANK_DEPTH, QUAY_Y, drop=FLANK_DROP)
-_end_strip("StripFlankE", FLANK_E_BASIS, flank_e, FLANK_DEPTH, QUAY_Y, drop=FLANK_DROP)
+for _sg, _sfx in ((1.0, "W"), (-1.0, "E")):
+    # Strip 1 where the toe passes the end of the deck (catch box over the deck), strip 2 at the foot.
+    strips.append(speed_strip.make("StripFlank" + _sfx, (_sg * FLANK_TOE_X, flank_want_z(FLANK_S1_Z), _sg * FLANK_S1_Z),
+                                   (0.0, -_sg), QUAY_Y, height=6.0, open_xz=(_sg, 0.0)))
+    strips.append(speed_strip.make("StripFlankFoot" + _sfx, (_sg * FLANK_TOE_X, 0.0, _sg * FLANK_END_Z),
+                                   (0.0, -_sg), 0.0, height=QUAY_Y, open_xz=(_sg, 0.0)))
 _end_strip("StripDockW", DOCK_BASIS, dock_o, DOCK_DEPTH, 0.0, drop=DOCK_DROP)
 _end_strip("StripDockE", DOCK_E_BASIS, dock_e, DOCK_DEPTH, 0.0, drop=DOCK_DROP)
 for _prefix, _end, _fwd, _open in corner_exits:
@@ -1476,8 +1609,8 @@ for _prefix, _end, _fwd, _open in corner_exits:
 
 def main():
     failed = False
-    print("flank pitch %.2f deg, corner pitch %.2f deg, corner path %.1f m" % (
-        math.degrees(FLANK_PITCH), math.degrees(CORNER_PITCH), CORNER_LEN))
+    print("flank path %.1f m (run-in %.1f, turn %.1f), corner pitch %.2f deg, corner path %.1f m" % (
+        FLANK_TOTAL, FLANK_LEAD, FLANK_ARC, math.degrees(CORNER_PITCH), CORNER_LEN))
     nys = []
     for label, basis, origin, along, y_expect in checks:
         det = basis_det(basis)
