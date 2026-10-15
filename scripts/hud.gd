@@ -420,14 +420,19 @@ func _refresh_weapon_slots() -> void:
 			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
 
 
-## A new radar charge plays "Radar on standby". The slot stays armed until Enter, including after death.
+## A new radar charge plays "Radar on standby", a new RC-XD charge "RC-XD ready for deployment".
+## Only the player who owns the streak gets this call. The slot stays armed until Enter, including after death.
 func set_streak(n: int, charges: int, earned: int) -> void:
 	var radar_new := (_streak_charges & Game.CHARGE_RADAR) == 0 and (charges & Game.CHARGE_RADAR) != 0
+	var rcxd_new := (_streak_charges & Game.CHARGE_RCXD) == 0 and (charges & Game.CHARGE_RCXD) != 0
 	_streak_n = n
 	_streak_charges = charges
 	_streak_earned = earned
 	_refresh_streak_ui()
-	if radar_new:
+	# Both at once is not expected (3 vs 5 kills); the RC-XD line wins then, it is the newer reward.
+	if rcxd_new:
+		_play_announcer("res://assets/sounds/rcxd_ready.wav")
+	elif radar_new:
 		_play_announcer("res://assets/sounds/radar_standby.wav")
 
 

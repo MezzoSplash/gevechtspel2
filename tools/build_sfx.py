@@ -10,6 +10,7 @@ Usage: python3 tools/build_sfx.py <src_dir>
   tts/                           raw Piper TTS takes, voice en_US-ljspeech-high (LJ Speech, public domain):
                                    echo "Friendly radar online." | piper -m en_US-ljspeech-high.onnx -f tts/friendly_radar_online.wav
                                    echo "Enemy radar online." | piper -m en_US-ljspeech-high.onnx -f tts/enemy_radar_online.wav
+                                   echo "RC-XD ready for deployment." | piper -m en_US-ljspeech-high.onnx -f tts/rcxd_ready_for_deployment.wav
 Needs ffmpeg and numpy. Writes into assets/sounds/.
 """
 import os
@@ -144,7 +145,7 @@ hit[:min(n, len(clank))] += norm(clank, 0)[:n] * 0.35
 hit = np.tanh(2.0 * norm(hit, 0)) / np.tanh(2.0)
 write("melee_hit.wav", norm(shape(hit, 0.40, 0.4, pre=0.0), -1.0))
 
-def radio(src, name):
+def radio(src, name, peak_db=-1.5):
     if ONLY and name not in ONLY:
         return
     # Radio announcer: band-limited voice, saturation, a squelch burst before and a short tail after.
@@ -164,10 +165,12 @@ def radio(src, name):
     env[total - post:total - post + sq] = 0.22 * np.linspace(1, 0.2, sq)
     env[total - post + sq:] = 0.0
     y += hiss * env
-    write(name, norm(shape(y, total / SR, 0.92, pre=0.002), -1.5))
+    write(name, norm(shape(y, total / SR, 0.92, pre=0.002), peak_db))
 
 radio("friendly_radar_online.wav", "radar_friendly.wav")
 radio("enemy_radar_online.wav", "radar_enemy.wav")
+# -3.5 dB peak puts it at the same loudness as the shipped radar_friendly / radar_enemy clips (about -16.5 dB mean).
+radio("rcxd_ready_for_deployment.wav", "rcxd_ready.wav", peak_db=-3.5)
 
 def trickshot():
     # Trickshot sting: Kenney Interface rising sweep, then the two-tone chime plus an octave-up copy for sparkle.
