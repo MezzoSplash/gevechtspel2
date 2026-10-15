@@ -14,7 +14,7 @@ Layout (metres, Y up). Playable inside the walls is about 90 x 123.
   - West flank surf: 10 m roof down to the 4 m quay, along the west wall through mid-map.
     The east flank is the half-turn (high end on the orange roof).
   - Inner quay surfs: 4 m down to the dock floor, on the dock side of each quay.
-  - A flat surf across the dock, so a run can cross the middle.
+  - The middle of the dock is open floor (the flat cross surf is gone).
   - Radial corner: a concave quarter-circle, radius 14 m at the toe. Off the east roof
     the run turns west into the dock, toward the middle of the map. The orange corner
     is the half-turn, so it turns east into the dock. One path of short rectangles.
@@ -727,13 +727,8 @@ if _dock_lo[2] < -CORNER_C[1] + math.sqrt((CORNER_R + SURF_TOE) ** 2 - (CORNER_C
 face_stripe("DockW", "DockLipEdgeB")
 face_stripe("DockE", "DockLipEdgeO")
 
-# ---------------------------------------------------------------- cross surf, flat, through the dock
-# Same turn as Rooftops: local +X → world -Z (face opens north), extrusion toward -X.
-CROSS_BASIS = ((0.0, 0.0, -1.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0))
-CROSS_DEPTH = 18.0
-surf("Cross", (CROSS_DEPTH / 2.0, 0.1, 1.8), CROSS_BASIS, CROSS_DEPTH, "both")
-pair_box("CrossEdge", 8.7, 9.15, -0.06, 0.0, 0.4, 3.2, "hazard")
-watch("cross", CROSS_BASIS, (CROSS_DEPTH / 2.0, 0.1, 1.8), 0.0, 0.0)
+# The flat cross surf that stood across the middle of the dock is gone: it had no drop, so no speed,
+# and it walled the middle in half. The middle is open floor under the gantry now.
 
 # ---------------------------------------------------------------- radial corner
 def _vadd(a, b, s=1.0):
@@ -1272,9 +1267,12 @@ def add_rework_probes():
         ("office_floor2", (-26.0, 9.5, 0.0), (-26.0, 6.0, 0.0), "flat@%.2f" % OFF_F2),
         ("office_drop", (-23.0, 8.8, 2.2), (-18.6, 8.8, 2.2), "clear"),
         ("office_stair_head", (-21.5, 5.3, 0.6), (-21.5, 7.2, 0.6), "clear"),
+        # Middle of the dock: open floor across, and room to walk under the hanging container.
+        ("mid_floor", (0.0, 3.0, 0.0), (0.0, -0.5, 0.0), "floor"),
+        ("mid_open_x", (-12.0, 1.0, 0.5), (12.0, 1.0, 0.5), "clear"),
+        ("mid_open_z", (0.0, 1.0, 7.0), (0.0, 1.0, -7.0), "clear"),
+        ("mid_head", (0.0, 0.3, 0.0), (0.0, 8.4, 0.0), "clear"),
         # Gantry and hanging box: clear over everything you ride.
-        ("cross_over", (0.0, 5.7, 1.6), (0.0, 8.5, 1.6), "clear"),
-        ("cross_glide", (-9.5, 6.6, 0.4), (9.5, 6.6, 0.4), "clear"),
         ("dock_surf_over", (-16.5, 6.2, 0.0), (-16.5, 8.8, 0.0), "clear"),
         ("gantry_web", (-12.0, 7.5, 0.0), (-12.0, 10.0, 0.0), "wall"),
         ("gantry_hit", (0.0, 15.0, 0.0), (0.0, 12.0, 0.0), "flat@%.2f" % GANTRY_Y1),
@@ -1409,8 +1407,7 @@ para("EParW2", 14.0, 14.45, 33.50, 50.0)
 # One container across each street, so the spawn strip does not see the dock (was the bus).
 pair_box("StreetBox", -4.5, 4.5, 0.0, 2.6, 37.6, 40.04, "container")
 # Dock: offset boxes so the dock is two routes around cover, not one open floor. They stay out
-# of the surf flight lines: the corner exits fly west/east at z≈±(5..13), the cross surf
-# launches along x at |z|<2, the dock surfs land on the quay ramps.
+# of the surf lines: the corner run-outs and connectors at z≈±(10..13), the dock surfs at x≈±16.
 pair_box("DockBoxA", -6.5, -0.5, 0.0, 2.6, 15.6, 18.04, "container")  # 3.9 m off the quay-ramp foot
 pair_box("DockStack", 3.0, 5.44, 0.0, 5.2, 16.2, 22.3, "container")   # two high, 2.85 m behind the connector
 pair_box("MouthBox", -6.0, 0.0, 0.0, 5.2, 23.0, 25.44, "container")  # two high: street ramp to street
@@ -1420,12 +1417,11 @@ pair_box("DeckStack", -39.5, -31.0, QUAY_Y, QUAY_Y + 5.2, 12.0, 14.44, "containe
 
 # ---------------------------------------------------------------- crane gantry
 # One beam across the dock at z=0, resting on the two office walls (it is its own half-turn).
-# 11.2 m underside: the cross surf ridge is 5.25 m and the dock surf ridges about 5.5 m here,
-# so nothing you ride comes near it. The container hangs right under the beam, 8.6 m up:
-# 3.35 m over the cross surf ridge. It cuts the roof-to-roof diagonals through the middle.
-# The web under the beam goes down to 9.0 m (still 1.95 m over a rider on the cross surf
-# ridge), with the container clamped in the middle. Without it the street-ramp-to-roof
-# diagonals passed under an 11.2 m beam.
+# 11.2 m underside, about 5 m over the dock surf ridges, so nothing you ride comes near it.
+# The container hangs right under the beam, 8.6 m over the open middle of the dock. It cuts the
+# roof-to-roof diagonals through the middle. The web under the beam goes down to 9.0 m with the
+# container clamped in the middle. Without it the street-ramp-to-roof diagonals passed under an
+# 11.2 m beam.
 box("Gantry", OFF_X1 + OFF_WT, -(OFF_X1 + OFF_WT), GANTRY_Y0, GANTRY_Y1, -1.0, 1.0, "steel")
 # The web stops 1.7 m east of the dock-surf toe: over the dock surfs there is only the beam
 # (11.2 m, about 5 m over the ridge), so a pop off the ridge does not hit it.
@@ -1473,7 +1469,6 @@ _end_strip("StripFlankW", FLANK_BASIS, flank_o, FLANK_DEPTH, QUAY_Y, drop=FLANK_
 _end_strip("StripFlankE", FLANK_E_BASIS, flank_e, FLANK_DEPTH, QUAY_Y, drop=FLANK_DROP)
 _end_strip("StripDockW", DOCK_BASIS, dock_o, DOCK_DEPTH, 0.0, drop=DOCK_DROP)
 _end_strip("StripDockE", DOCK_E_BASIS, dock_e, DOCK_DEPTH, 0.0, drop=DOCK_DROP)
-_end_strip("StripCross", CROSS_BASIS, (CROSS_DEPTH / 2.0, 0.1, 1.8), CROSS_DEPTH, 0.0)
 for _prefix, _end, _fwd, _open in corner_exits:
     strips.append(speed_strip.make(
         "Strip" + _prefix, _end, _fwd, QUAY_Y, height=ROOF_Y - QUAY_Y, open_xz=_open))
