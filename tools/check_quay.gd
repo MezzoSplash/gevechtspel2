@@ -220,7 +220,8 @@ func _surfs() -> void:
 	# Start on the face, 1-1.5 m above the toe, moving downhill. Push = into the face.
 	var rides := {
 		"flank": [Vector3(-42.47, 10.91, 37.0), Vector3(0, 0, -13), Vector3(-1, 0, 0)],
-		"dock": [Vector3(-15.13, 4.57, 11.0), Vector3(0, 0, -11), Vector3(-1, 0, 0)],
+		"dock": [Vector3(-15.13, 2.3, 2.5), Vector3(0, 0, -11), Vector3(-1, 0, 0)],
+		"conn": [Vector3(9.0, 5.5, 9.95), Vector3(-14, 0, 0), Vector3(0, 0, 1)],
 		"corner": [Vector3(26.3, 10.83, 26.0), Vector3(0, 0, -11), Vector3(1, 0, 0)],
 		"cross": [Vector3(7.5, 2.33, -0.18), Vector3(-11, 0, 0), Vector3(0, 0, 1)],
 	}
@@ -256,10 +257,12 @@ func _walks() -> void:
 		"surf_foot": [Vector3(-41.2, 4, 20), Vector3(-41.2, 4, 5), Vector3(-41.2, 4, -2), Vector3(-43.5, 4, -6)],
 		# Quay ramps (deck <-> dock), unchanged, as a regression walk.
 		"quay_ramp": [Vector3(-26, 4, 18.1), Vector3(-12, 0, 18.1), Vector3(-8.5, 0, 21.5)],
-		# Corner exit landing, west up the kicker to the toe of the dock surf.
-		"chain_kicker": [Vector3(-2, 0, 9.5), Vector3(-8, 0, 9.5), Vector3(-14.0, 0, 9.5)],
-		# Run-in to the dock surf start: deck, over the ramp top, onto the new pad.
-		"dock_entry": [Vector3(-24, 4, 21), Vector3(-20, 4, 15.0), Vector3(-15.4, 4, 14.8)],
+		# Deck over the back of the connector: from the quay out to its end by the quay-ramp foot.
+		"conn_deck": [Vector3(-24, 4, 21), Vector3(-20, 4, 15.0), Vector3(-16.5, 4, 10.0), Vector3(-11.0, 4, 14.6)],
+		# Under the connector: blue dock floor to the middle.
+		"conn_under": [Vector3(1.8, 0, 15.2), Vector3(2.5, 0, 11.6), Vector3(2.5, 0, 6.0)],
+		# Dock floor inside the connector's turn, out past the cross surf.
+		"conn_inside": [Vector3(-2, 0, 8.0), Vector3(-11.5, 0, 6.5), Vector3(-12.5, 0, 3.0), Vector3(-6, 0, -3.5)],
 	}
 	var extra: Dictionary = map.get_meta("quay_walks", {})
 	for k in extra:
@@ -302,7 +305,7 @@ func _nav() -> void:
 		"west_deck": Vector3(-37, 4, 0), "east_deck": Vector3(37, 4, 0),
 		"west_pocket": Vector3(-38, 0, 46), "east_lane": Vector3(39, 0, 46),
 		"orange_west_lane": Vector3(-39, 0, -46), "orange_pocket": Vector3(38, 0, -46),
-		"dock_mid": Vector3(0, 0, 11), "dock_mid_o": Vector3(0, 0, -11),
+		"dock_mid": Vector3(0, 0, 6.5), "dock_mid_o": Vector3(0, 0, -6.5), "conn_deck": Vector3(-13, 4, 14.4),
 		"blue_west_roof": Vector3(-24, 10, 38), "orange_east_roof": Vector3(24, 10, -38),
 		"blue_east_roof": Vector3(24, 10, 40), "orange_west_roof": Vector3(-24, 10, -40),
 		"west_office_low": Vector3(-27, 4, 0), "west_office_top": Vector3(-25.5, 7.8, 0),
