@@ -30,6 +30,7 @@ func _run() -> void:
 		await physics_frame
 	space = root.get_world_3d().direct_space_state
 	_probes()
+	await _surfs()
 	await _walks()
 	await _nav()
 	_symmetry()
@@ -49,7 +50,7 @@ func _classify(hit: Dictionary) -> String:
 		return "clear"
 	var n: Vector3 = hit.normal
 	var y: float = hit.position.y
-	if n.y > 0.97:
+	if n.y > 0.995:
 		if absf(y) < 0.15:
 			return "floor"
 		if absf(y - 4.0) < 0.15:
@@ -138,6 +139,66 @@ func _walk(label: String, pts: Array, speed := 6.0) -> void:
 		print("WALK %s ok, end %s" % [label, endp.snapped(Vector3.ONE * 0.01)])
 
 
+## Rides each surf with a bare capsule: gravity, velocity clipped to the face while touching it
+## (the player's surf rule) and a steady push into the face like holding strafe. Prints where it ends up so a run on the old
+## and the new map can be compared (map=res://... user arg). Report only, no pass/fail: the
+## bare capsule is a much worse surfer than a player.
+func _surf(label: String, start: Vector3, vel: Vector3, push: Vector3, secs := 4.0) -> void:
+	var body := CharacterBody3D.new()
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.4
+	cap.height = 1.8
+	cs.shape = cap
+	cs.position.y = 0.9
+	body.add_child(cs)
+	body.collision_layer = 2
+	body.collision_mask = 1
+	body.floor_max_angle = deg_to_rad(45.0)
+	root.add_child(body)
+	body.global_position = start
+	body.velocity = vel
+	var dt := 1.0 / 60.0
+	var ride := 0.0
+	var top_speed := 0.0
+	for f in int(secs * 60):
+		body.velocity.y -= 20.0 * dt
+		if not body.is_on_floor():
+			body.velocity += push * 10.0 * dt # holding strafe into the face
+		body.move_and_slide()
+		var touching := false
+		for i in body.get_slide_collision_count():
+			var n := body.get_slide_collision(i).get_normal()
+			if n.y >= 0.15 and n.y <= 0.62:
+				body.velocity = body.velocity - n * body.velocity.dot(n)
+				touching = true
+		if touching:
+			ride += dt
+		top_speed = maxf(top_speed, Vector2(body.velocity.x, body.velocity.z).length())
+		await physics_frame
+		if body.is_on_floor() and f > 10:
+			break
+	var endp := body.global_position
+	body.queue_free()
+	print("SURF %-10s ride %.2f s, top %.1f m/s, end %s" % [label, ride, top_speed, endp.snapped(Vector3.ONE * 0.1)])
+
+
+func _surfs() -> void:
+	# Start on the face, 1-1.5 m above the toe, moving downhill. Push = into the face.
+	var rides := {
+		"flank": [Vector3(-42.47, 10.91, 37.0), Vector3(0, 0, -13), Vector3(-1, 0, 0)],
+		"dock": [Vector3(-15.13, 4.57, 11.0), Vector3(0, 0, -11), Vector3(-1, 0, 0)],
+		"corner": [Vector3(26.3, 10.83, 26.0), Vector3(0, 0, -11), Vector3(1, 0, 0)],
+		"cross": [Vector3(7.5, 2.33, -0.18), Vector3(-11, 0, 0), Vector3(0, 0, 1)],
+	}
+	for k in rides:
+		var r: Array = rides[k]
+		await _surf(k + "_b", r[0], r[1], r[2])
+		if k == "cross":
+			continue # one piece through the middle, it faces orange only
+		await _surf(k + "_o", Vector3(-r[0].x, r[0].y, -r[0].z), Vector3(-r[1].x, r[1].y, -r[1].z), Vector3(-r[2].x, r[2].y, -r[2].z))
+
+
 func _mirror(pts: Array) -> Array:
 	var out := []
 	for p in pts:
@@ -149,12 +210,19 @@ func _walks() -> void:
 	var routes := {
 		# West side lane, blue yard strip to orange yard strip, over the new ramps and under the arch.
 		"west_lane": [Vector3(-20, 0, 52), Vector3(-38, 0, 51), Vector3(-38, 0, 41.3), Vector3(-38, 0, 38.5),
-			Vector3(-38, 4, 23), Vector3(-38, 4, 8), Vector3(-37, 4, -8), Vector3(-40, 4, -20),
+			Vector3(-38, 4, 23), Vector3(-40.6, 4, 16), Vector3(-40.6, 4, 10), Vector3(-37, 4, -8), Vector3(-40, 4, -20),
 			Vector3(-40, 0, -41), Vector3(-39, 0, -51), Vector3(-20, 0, -52)],
+		# Round the inner side of the deck stack, then through the office (west door, north door).
+		"deck_inner": [Vector3(-38, 4, 23), Vector3(-29.5, 4, 15.5), Vector3(-29.5, 4, 10), Vector3(-34, 4, 0),
+			Vector3(-28, 4, 0), Vector3(-26, 4, -2.5), Vector3(-26, 4, -7), Vector3(-36, 4, -12)],
+		# Office: ground floor, up the stair, across the top floor, out of the drop opening onto the deck.
+		"office_up": [Vector3(-27, 4, 6.5), Vector3(-26, 4, 3.6), Vector3(-21.55, 4, 3.8),
+			Vector3(-21.55, 7.8, -4.0), Vector3(-25.5, 7.8, -4.0), Vector3(-25.5, 7.8, 2.2), Vector3(-21.3, 7.8, 2.2),
+			Vector3(-19.0, 4, 2.2)],
 		# Along the foot of the flank surf, on the new deck.
 		"surf_foot": [Vector3(-41.2, 4, 20), Vector3(-41.2, 4, 5), Vector3(-41.2, 4, -2), Vector3(-43.5, 4, -6)],
 		# Quay ramps (deck <-> dock), unchanged, as a regression walk.
-		"quay_ramp": [Vector3(-26, 4, 18.1), Vector3(-12, 0, 18.1), Vector3(-6, 0, 18.1)],
+		"quay_ramp": [Vector3(-26, 4, 18.1), Vector3(-12, 0, 18.1), Vector3(-8.5, 0, 21.5)],
 	}
 	var extra: Dictionary = map.get_meta("quay_walks", {})
 	for k in extra:
@@ -200,6 +268,8 @@ func _nav() -> void:
 		"dock_mid": Vector3(0, 0, 11), "dock_mid_o": Vector3(0, 0, -11),
 		"blue_west_roof": Vector3(-24, 10, 38), "orange_east_roof": Vector3(24, 10, -38),
 		"blue_east_roof": Vector3(24, 10, 40), "orange_west_roof": Vector3(-24, 10, -40),
+		"west_office_low": Vector3(-27, 4, 0), "west_office_top": Vector3(-25.5, 7.8, 0),
+		"east_office_top": Vector3(25.5, 7.8, 0),
 	}
 	var extra: Dictionary = map.get_meta("quay_nav", {})
 	for k in extra:
@@ -252,6 +322,16 @@ func _symmetry() -> void:
 		print("SYM half-turn ok")
 
 
+## True when there is floor at this height a capsule radius away in all four directions:
+## a room or a slot you can stand in, not a window sill or the top of a wall.
+func _wide(x: float, fy: float, z: float) -> bool:
+	for d in [Vector2(0.45, 0), Vector2(-0.45, 0), Vector2(0, 0.45), Vector2(0, -0.45)]:
+		var h := _ray(Vector3(x + d.x, fy + 0.3, z + d.y), Vector3(x + d.x, fy - 0.3, z + d.y))
+		if h.is_empty() or absf(h.position.y - fy) > 0.12:
+			return false
+	return true
+
+
 ## Head traps: a floor you can walk onto with a ceiling under 2.0 m but over 0.3 m above it.
 ## Lists them so new geometry (stairs, arch, gantry, slabs) can be checked by name.
 func _headroom() -> void:
@@ -271,7 +351,7 @@ func _headroom() -> void:
 					var up := _ray(Vector3(x, fy + 0.05, z), Vector3(x, fy + 2.0, z))
 					if not up.is_empty():
 						var gap: float = up.position.y - fy
-						if gap > 0.3 and gap < 1.95:
+						if gap > 0.3 and gap < 1.95 and _wide(x, fy, z):
 							traps.append(Vector3(x, fy, z))
 				top = fy - 0.3
 				if top < 0.5:
