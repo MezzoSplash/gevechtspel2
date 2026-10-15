@@ -4,6 +4,8 @@
 
 A small native Linux + Windows arena shooter. Feel first, art later.
 
+**v0.3.4** — Quay is rebuilt. Side lanes run out to the outer wall. Each quay has a two-floor harbour office, a crane spans the dock with a hanging container, and the roof facing the enemy has a 2.4 m screen with two sniper slits. The flank surf starts on the roof, banks through a quarter turn, and runs down the outer wall into the far lane; one clean ride scores LINE ×2. The corner surf hands off into the dock surf for a second LINE ×2, and the middle of the dock is open floor. The SMG has a new viewmodel with a fire animation and muzzle flash. The RC-XD is the RCExplody car, and earning it plays "RC-XD ready for deployment." On the ground you step up lips to 0.32 m. **Not compatible with v0.3.3 or older** (NET_VERSION 0.3.4): everyone must update, including the dedicated server.
+
 **v0.3.3** — Quay cleanup. Doors that looked shut are open, the west wall of each loods has a shoot hole into the stair, and the stair crests no longer have a small step. Floating blocks on the edges are gone. The steel walk is unchanged. **Not compatible with v0.3.2 or older** (NET_VERSION 0.3.3): everyone must update, including the dedicated server.
 
 **v0.3.2** — Surfing a ramp keeps your speed for 4 seconds. A yellow strip at the end of the surfs on Quay, Foundry and Rooftops scores LINE (+100) if you cross it fast, and LINE ×2 (+200) for a second strip in that window. Your team, including you, hears "Friendly radar online"; the other team hears "Enemy radar online". Same NET_VERSION 0.3.0 as v0.3.0 and v0.3.1, so those builds can still join. Not compatible with 0.2.22 or older.
