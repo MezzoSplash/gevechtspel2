@@ -36,6 +36,21 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "scenes", "maps", "quay.tscn
 # Ten materials. Concrete is everything poured (decks, walls, ramps, the outer walls), brick is
 # the two loods and the two harbour offices, steel is everything bolted on (stair rails, steel
 # walk, gantry), containers are the only loose cover. Yellow only marks surf edges and ramp feet.
+# World paint pattern per material (shaders/world_paint.gdshader):
+# (pattern, wear, line_dark, grain). 0 plain, 1 brick, 2 slabs, 3 ribs, 4 roof sheets, 5 asphalt.
+PAINT = {
+    "floor": (5, 0.10, 0.0, 0.05),
+    "concrete": (2, 0.09, 0.30, 0.035),
+    "roof": (4, 0.08, 0.25, 0.04),
+    "brick": (1, 0.08, 0.38, 0.03),
+    "steel": (0, 0.07, 0.0, 0.025),
+    "hazard": (0, 0.06, 0.0, 0.02),
+    "surf": (0, 0.04, 0.0, 0.015),
+    "team_blue": (2, 0.06, 0.22, 0.02),
+    "team_orange": (2, 0.06, 0.22, 0.02),
+    "container": (3, 0.09, 0.35, 0.03),
+}
+
 MATS = {
     "floor": ((0.24, 0.25, 0.26), 0.92),
     "concrete": ((0.40, 0.40, 0.38), 0.88),
@@ -1646,24 +1661,73 @@ def main():
     if not (18.4 < 24.0 < _pad_x1 - 0.6 and _pad_z0 + 0.3 < 26.0 < 28.2):
         print("corner balcony missed the FFA spawn", file=sys.stderr)
         sys.exit(1)
-    out = ["[gd_scene load_steps=%d format=3]" % (len(mats) + 1 + len(curves) + speed_strip.LOAD_STEPS), ""]
+    out = ["[gd_scene load_steps=%d format=3]" % (len(mats) + 4 + len(curves) + speed_strip.LOAD_STEPS), ""]
+    out += ['[ext_resource type="Shader" path="res://shaders/world_paint.gdshader" id="1_paint"]', ""]
     out += [
+        # Overcast daylight sky. Ambient and reflections come from it. Heavy bits (SSAO, glow)
+        # are on here and switched per quality level at runtime by shared/gfx.gd.
+        '[sub_resource type="ProceduralSkyMaterial" id="Sky_quay_mat"]',
+        "sky_top_color = Color(0.36, 0.45, 0.58, 1)",
+        "sky_horizon_color = Color(0.68, 0.71, 0.74, 1)",
+        "sky_curve = 0.12",
+        "sky_energy_multiplier = 1.0",
+        "sky_cover_modulate = Color(1, 1, 1, 1)",
+        "ground_bottom_color = Color(0.4, 0.42, 0.44, 1)",
+        "ground_horizon_color = Color(0.6, 0.62, 0.64, 1)",
+        "sun_angle_max = 20.0",
+        "sun_curve = 0.2",
+        "",
+        '[sub_resource type="Sky" id="Sky_quay"]',
+        'sky_material = SubResource("Sky_quay_mat")',
+        "radiance_size = 1",
+        "",
         '[sub_resource type="Environment" id="Env_quay"]',
-        "background_mode = 1",
-        "background_color = Color(0.16, 0.18, 0.2, 1)",
-        "ambient_light_source = 2",
+        "background_mode = 2",
+        'sky = SubResource("Sky_quay")',
+        "ambient_light_source = 3",
         "ambient_light_color = Color(0.55, 0.58, 0.62, 1)",
-        "ambient_light_energy = 0.62",
-        "tonemap_mode = 2",
-        "ssao_enabled = false",
-        "glow_enabled = false",
+        "ambient_light_sky_contribution = 0.85",
+        "ambient_light_energy = 0.75",
+        "reflected_light_source = 2",
+        "tonemap_mode = 4",
+        "tonemap_exposure = 1.05",
+        "tonemap_white = 6.0",
+        "ssao_enabled = true",
+        "ssao_radius = 1.2",
+        "ssao_intensity = 1.6",
+        "ssao_power = 1.4",
+        "ssao_detail = 0.4",
+        "ssao_light_affect = 0.15",
+        "glow_enabled = true",
+        "glow_intensity = 0.5",
+        "glow_strength = 0.9",
+        "glow_bloom = 0.0",
+        "glow_blend_mode = 1",
+        "glow_hdr_threshold = 1.4",
+        "fog_enabled = true",
+        "fog_mode = 1",
+        "fog_light_color = Color(0.64, 0.68, 0.73, 1)",
+        "fog_density = 0.35",
+        "fog_sky_affect = 0.0",
+        "fog_depth_begin = 35.0",
+        "fog_depth_end = 220.0",
+        "fog_depth_curve = 1.6",
+        "adjustment_enabled = true",
+        "adjustment_contrast = 1.06",
+        "adjustment_saturation = 1.08",
         "",
     ]
     for m in mats:
         (r, g, b), rough = MATS[m]
-        out += ['[sub_resource type="StandardMaterial3D" id="Mat_%s"]' % m,
-                "albedo_color = Color(%s, %s, %s, 1)" % (fmt(r), fmt(g), fmt(b)),
-                "roughness = %s" % fmt(rough), ""]
+        pat, wear, line_dark, grain = PAINT[m]
+        out += ['[sub_resource type="ShaderMaterial" id="Mat_%s"]' % m,
+                'shader = ExtResource("1_paint")',
+                "shader_parameter/albedo = Color(%s, %s, %s, 1)" % (fmt(r), fmt(g), fmt(b)),
+                "shader_parameter/roughness = %s" % fmt(rough),
+                "shader_parameter/pattern = %d" % pat,
+                "shader_parameter/wear = %s" % fmt(wear),
+                "shader_parameter/line_dark = %s" % fmt(line_dark),
+                "shader_parameter/grain = %s" % fmt(grain), ""]
     for cid, pts in curves:
         floats = []
         for p in pts:
@@ -1685,7 +1749,15 @@ def main():
             "transform = Transform3D(0.766, -0.4545, 0.4545, 0, 0.7071, 0.7071, -0.6428, -0.5417, 0.5417, 8, 22, 10)",
             "light_energy = 1.12",
             "light_color = Color(1, 0.95, 0.88, 1)",
-            "shadow_enabled = true", ""]
+            "shadow_enabled = true",
+            "shadow_bias = 0.04",
+            "shadow_normal_bias = 1.2",
+            "shadow_blur = 1.4",
+            "directional_shadow_split_1 = 0.08",
+            "directional_shadow_split_2 = 0.22",
+            "directional_shadow_split_3 = 0.5",
+            "directional_shadow_blend_splits = true",
+            "directional_shadow_max_distance = 110.0", ""]
     out += ['[node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]', ""]
     out += ['[node name="Arena" type="CSGCombiner3D" parent="."]',
             "use_collision = true", "collision_layer = 1", "collision_mask = 0", ""]

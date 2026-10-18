@@ -18,6 +18,7 @@ var _fov_val: Label
 var _scale: HSlider
 var _scale_val: Label
 var _msaa: OptionButton
+var _quality: OptionButton
 var _sens: Array = [] # [HSlider, SpinBox]
 var _ads: Array = []
 var _invert: CheckBox
@@ -84,6 +85,7 @@ func refresh() -> void:
 	_scale.set_value_no_signal(Game.render_scale * 100.0)
 	_scale_val.text = "%d%%" % roundi(Game.render_scale * 100.0)
 	_select_quiet(_msaa, clampi(Game.msaa, 0, 3))
+	_select_quiet(_quality, clampi(Game.gfx_quality, 0, 2))
 	_set_pair(_sens, Game.mouse_sens)
 	_set_pair(_ads, Game.ads_sens)
 	_invert.set_pressed_no_signal(Game.invert_y)
@@ -126,7 +128,9 @@ func _build() -> void:
 	_scale.value_changed.connect(_on_scale)
 	_msaa = _options(_row(body, "Antialiasing"), ["Off", "2×", "4×", "8×"])
 	_msaa.item_selected.connect(_on_msaa)
-	_hint(body, "VSync follows the monitor. Max FPS is an extra cap; Unlimited means no cap. Borderless uses the monitor's resolution. Render scale changes the 3D image only.")
+	_quality = _options(_row(body, "Graphics"), Gfx.NAMES)
+	_quality.item_selected.connect(_on_quality)
+	_hint(body, "VSync follows the monitor. Max FPS is an extra cap; Unlimited means no cap. Borderless uses the monitor's resolution. Render scale changes the 3D image only. Graphics Low drops SSAO, glow, fog and wall detail for the most FPS.")
 	_section(body, "MOUSE")
 	_sens = _number_row(body, "Mouse", Game.MOUSE_SENS_MIN, Game.MOUSE_SENS_MAX, 0.05, Game.set_mouse_sens)
 	_ads = _number_row(body, "Aim / scope", Game.ADS_SENS_MIN, Game.ADS_SENS_MAX, 0.05, Game.set_ads_sens)
@@ -214,6 +218,12 @@ func _on_scale(v: float) -> void:
 		return
 	_scale_val.text = "%d%%" % roundi(v)
 	Game.set_render_scale(v / 100.0)
+
+
+func _on_quality(i: int) -> void:
+	if _filling:
+		return
+	Game.set_gfx_quality(i)
 
 
 func _on_msaa(i: int) -> void:
