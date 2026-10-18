@@ -232,7 +232,7 @@
 </nav>
 <main>
 <header class="top">
-  <p class="kicker">Art direction · 0.2.20 · objecten, maps, wapens</p>
+  <p class="kicker">Art direction · 0.3.5 · objecten, maps, wapens, licht</p>
   <h1>Blijf bij het gevecht.</h1>
   <p class="lede">Een snelle cartoony arena op mensenmaat. Het beeld maakt een gevecht leesbaar. Het begint geen tweede spel.</p>
 </header>
@@ -255,6 +255,7 @@
 <section id="stijl">
   <h2>Stijl</h2>
   <p>De stijl is cartoony. Vlakke kleur, harde randen, vormen die je op 20 m nog uit elkaar houdt. Cel-shading mag. Een donkere rand mag als die het silhouet duidelijker maakt. Materiaal blijft eenvoudig: één albedo uit de swatch, ruwheid in de band, slijtage in grote vlakken.</p>
+  <p>Op de muren en vloeren van de map legt de shader <span class="id">shaders/world_paint.gdshader</span> die slijtage over de swatch, plus één simpel patroon: baksteenlagen, naden in beton, ribbels op een container, dakplaten, korrel in het asfalt. Het is procedureel en blijft cartoony. Geen foto-textuur, geen fotografische modder. De kleur blijft op de swatch. Op Graphics Low is de muur weer vlak.</p>
   <p>De verhoudingen blijven menselijk. De pion is een capsule van 1.80 m, en een mesh blijft daarbinnen. Enorme handen en speelgoedverhoudingen horen er niet in. Fotorealisme ook niet: geen poreuze huid, geen fotografische modder, geen filter waar de pion in verdwijnt.</p>
 </section>
 
@@ -362,7 +363,7 @@
     <div class="swatch"><i style="background:#26732E"></i><div><strong>Frag</strong><em>#26732E · olijf</em></div></div>
     <div class="swatch"><i style="background:#FFC747"></i><div><strong>Monding</strong><em>#FFC747 · alleen het schot</em></div></div>
   </div>
-  <p>Emission is voor de monding, de frag, de tracer en de pion. Niet voor neon, lampenbakken of lichtgevende randen. Glow op de wereld staat uit.</p>
+  <p>Emission is voor de monding, de frag, de tracer en de pion. Niet voor neon, lampenbakken of lichtgevende randen. Glow pakt alleen die emission: de monding en de tracer lichten op, de wereld niet.</p>
 </section>
 
 <section id="maat">
@@ -520,7 +521,9 @@
 
 <section id="licht">
   <h2>Licht</h2>
-  <p>Eén zon werpt schaduw. Verder is het bewolkt daglicht. Schaduw is zacht en kort. Een hurkende pion in een deuropening blijft leesbaar. Mist, nacht en regen die spelers verbergen horen er niet in. SSAO staat uit, glow staat uit, tonemap staat op filmisch.</p>
+  <p>Eén zon werpt schaduw, in vier splits met zachte randen, tot ongeveer 110 m. Verder is het bewolkt daglicht: een bewolkte lucht, en die lucht geeft ook het ambient en de reflecties. Schaduw is zacht en kort. Een hurkende pion in een deuropening blijft leesbaar.</p>
+  <p>Tonemap staat op AgX. SSAO is licht en staat alleen op High. Glow pakt alleen emission, de monding en de tracer, met een drempel van 1.4. De wereld gloeit niet. Mist is lichte afstandsmist vanaf ongeveer 35 m. Die verbergt nooit een speler: op 10–30 m is er geen mist, en verder weg blijft een pion leesbaar. Nacht, regen en dikke mist horen er niet in.</p>
+  <p>Graphics staat in de instellingen: Low, Medium of High. Low heeft geen SSAO, glow of mist, vlakke muren en een harde zonneschaduw tot 60 m. Medium heeft glow, mist, de muurshader en zachte schaduw, zonder SSAO. High heeft alles. Een effect maakt een gevecht nooit leesbaar: op Low lees je de pion even goed.</p>
   <table>
     <thead><tr><th></th><th>Townhouses</th><th>Foundry</th><th>Rooftops</th></tr></thead>
     <tbody>
@@ -530,6 +533,7 @@
       <tr><td>Lampen</td><td>geen</td><td>warm #FFD19E onder het dak, koel #BFDBFF in de schuur, zonder schaduw</td><td>warm #FFDBB3 binnen en op de dekken, koel #C7DBFF op de court, zonder schaduw</td></tr>
     </tbody>
   </table>
+  <p>Kade heeft de nieuwe lucht al: boven #5C7394, horizon #ADB5BD, ambient uit de lucht 0.75, zon #FFF2E0 · energie 1.12. Townhouses, Foundry en Rooftops staan nog op de tabel hierboven, tot ze dezelfde pas krijgen.</p>
   <p>Een nieuwe lamp is vulling, geen tweede zon. Geen gekleurde rim, geen tl-zee, geen lichtgevend bord.</p>
 </section>
 
@@ -551,7 +555,7 @@
 
 <section id="updates">
   <h2>Updates</h2>
-  <p>Van 0.2.10 tot 0.3.0. Release 0.2.12 bestaat niet: het nummer springt van 0.2.11 naar 0.2.13, gelijk aan NET_VERSION. Wat hier staat, hoort in het beeld en in de map.</p>
+  <p>Van 0.2.10 tot 0.3.5; 0.3.1 tot 0.3.4 staan in de README. Release 0.2.12 bestaat niet: het nummer springt van 0.2.11 naar 0.2.13, gelijk aan NET_VERSION. Wat hier staat, hoort in het beeld en in de map.</p>
   <table>
     <thead><tr><th>Versie</th><th>Wat erbij kwam</th></tr></thead>
     <tbody>
@@ -566,6 +570,7 @@
       <tr><td>0.2.19</td><td>Rooftops. Twee daken op 6 m, flanksurfs naar een dek van 4 m en dan een loopramp, een korte surf over de court, een drop door de rand, trappen die de zijdeuren vrij laten, één kamer met vier deuren, lange flanken met kratten. TDM en FFA. Bots nemen trap en flank.</td></tr>
       <tr><td>0.2.20</td><td>Foundry krijgt de loopramps naar het loodsdak op 7.3 m, de brug over de lichtstraat, en de twee surframps op de westmuur. De grote deuren blijven open. Bots lopen de ramp op als er iemand op het dak staat. De collision is anders dan in 0.2.19, dus server en clients zijn allebei 0.2.20.</td></tr>
       <tr><td>0.3.0</td><td>Kade. Ongeveer 90 × 120 m, dok op 0 m, kade op 4 m, loodsdak op 10 m. Surfs van het dak naar de kade en van de kade het dok in, door het midden, plus een vlakke oversteek. Een holle kwartcirkel met straal 14 m, van 10 m naar 4 m, aan beide kanten het dok in, met een recht aanloop- en uitloopstuk. Een stalen loopplank van de kade naar het dak aan de noordoosthoek, ongeveer 24°, zodat je de bocht weer pakt. Trap en een smalle straatramp die op het dak aansluit, voor de bots, met de voet vrij van de muur. De collision is nieuw, dus server en clients zijn allebei 0.3.0. Geen ARM-build meer: alleen Windows en Linux x86_64.</td></tr>
+      <tr><td>0.3.5</td><td>Kade krijgt een bewolkte lucht die het ambient geeft, AgX, zachte zonneschaduw in vier splits, lichte SSAO, glow alleen op de monding en de tracer, en lichte mist vanaf ongeveer 35 m. Muren en vloeren krijgen de shader world_paint: slijtage en een simpel patroon, procedureel, geen foto. Nieuwe instelling Graphics: Low, Medium, High. Alleen beeld: de collision en NET_VERSION 0.3.4 blijven hetzelfde.</td></tr>
     </tbody>
   </table>
 </section>
@@ -602,6 +607,7 @@
     <li><label><input type="checkbox"> Geen merk, geen skin, geen geweer buiten de zes, geen verdieping boven het dak.</label></li>
     <li><label><input type="checkbox"> De verf is cartoony: vlakke kleur, harde vorm. De verhoudingen blijven menselijk.</label></li>
     <li><label><input type="checkbox"> Het kan in Townhouses, Foundry of Rooftops staan zonder een nieuwe rendertruc.</label></li>
+    <li><label><input type="checkbox"> Op Graphics Low is het even leesbaar als op High.</label></li>
   </ul>
   <p class="src">Getallen uit <span class="id">scripts/player.gd</span>, <span class="id">project.godot</span>, <span class="id">data/weapons/</span>, <span class="id">scripts/weapon.gd</span> (<span class="id">fit_model</span>), <span class="id">scenes/maps/townhouses.tscn</span>, <span class="id">tools/gen_foundry.py</span>, <span class="id">tools/gen_rooftops.py</span>, <span class="id">tools/gen_quay.py</span>, <span class="id">assets/ui/icon_*.svg</span>. Versie 0.3.0. Wijzigt de code, dan wijzigt deze pagina mee.</p>
 </section>
