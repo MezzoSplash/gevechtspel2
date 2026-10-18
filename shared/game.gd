@@ -142,6 +142,7 @@ var fov := 90.0 # hip fire. Weapon ADS fov stays absolute so a scope does not sc
 var render_scale := 1.0 # 3D buffer only (Viewport.scaling_3d_scale). HUD stays at the window size.
 var msaa := 2 # Viewport.MSAA: 0 off, 1 = 2x, 2 = 4x, 3 = 8x. Matches project.godot msaa_3d=2 (4x).
 var show_fps := true
+var gfx_quality := 2 # Gfx.LOW/MEDIUM/HIGH: sky stays, SSAO/glow/fog/world paint scale down
 var invert_y := false
 var preferred_team := 0 # 0 Blue, 1 Orange — chosen in the menu
 var pending_names: Dictionary = {} # peer_id → name, filled before spawn if the client RPCs first
@@ -2218,6 +2219,7 @@ func load_settings() -> void:
 		render_scale = _snap_scale(float(cfg.get_value("video", "render_scale", 1.0)))
 		msaa = clampi(int(cfg.get_value("video", "msaa", 2)), 0, 3)
 		show_fps = bool(cfg.get_value("hud", "show_fps", true))
+		gfx_quality = clampi(int(cfg.get_value("video", "quality", 2)), 0, 2)
 	apply_audio()
 	var size_before := window_size
 	apply_display()
@@ -2249,6 +2251,7 @@ func save_settings() -> void:
 	cfg.set_value("video", "render_scale", render_scale)
 	cfg.set_value("video", "msaa", msaa)
 	cfg.set_value("hud", "show_fps", show_fps)
+	cfg.set_value("video", "quality", gfx_quality)
 	cfg.save("user://settings.cfg")
 
 
@@ -2407,6 +2410,12 @@ func set_render_scale(v: float) -> void:
 	save_settings()
 
 
+func set_gfx_quality(v: int) -> void:
+	gfx_quality = clampi(v, 0, 2)
+	apply_render()
+	save_settings()
+
+
 func set_msaa(v: int) -> void:
 	msaa = clampi(v, 0, 3)
 	apply_render()
@@ -2525,6 +2534,10 @@ func apply_render() -> void:
 	var want_msaa := msaa as Viewport.MSAA
 	if root.msaa_3d != want_msaa:
 		root.msaa_3d = want_msaa
+	Gfx.apply_global(gfx_quality)
+	var main := root.get_node_or_null(^"Main")
+	if main and "map_node" in main:
+		Gfx.apply_map(main.map_node, gfx_quality)
 
 
 func _snap_fps(v: int) -> int:
