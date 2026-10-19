@@ -76,6 +76,7 @@ var _net_vel := Vector3.ZERO
 var _has_net := false
 var _tilt_node: Node3D
 var _pivot: Node3D
+var _kick_t := 0.0 # s left in which a blast push counts as airborne even on the floor
 var _prev_body_vel := Vector3.ZERO
 var _floor_up := Vector3.UP
 var authority_sim := false # server (or offline) body: damage and the blast happen here
@@ -376,9 +377,19 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## Blast push (Knockback). Lifts the car off the floor for a moment so the upward part is kept.
+func add_kick(imp: Vector3) -> void:
+	if _ended:
+		return
+	velocity += imp
+	_kick_t = 0.25
+	_tilt_v += Vector2(-imp.y * 0.3, imp.x * 0.05)
+
+
 func _step(delta: float) -> void:
 	_read_controls(delta)
-	var on_floor := is_on_floor()
+	_kick_t = maxf(_kick_t - delta, 0.0)
+	var on_floor := is_on_floor() and _kick_t <= 0.0
 	var up := get_floor_normal() if on_floor else Vector3.UP
 	var g := get_gravity()
 	var v := velocity
@@ -566,6 +577,7 @@ func _blast(pos: Vector3) -> void:
 			continue
 		var dmg := BLAST_DAMAGE * (1.0 - dist / BLAST_RADIUS)
 		p.apply_hit(p.global_position + Vector3(0, 1, 0), Vector3.UP, dmg, false, owner_peer, &"rcxd", 1.0, pos)
+	Knockback.blast(pos, BLAST_RADIUS, Knockback.RCXD_POWER, owner_peer, owner_team, self)
 
 
 func _blast_reaches(pos: Vector3, p: Player) -> bool:

@@ -188,9 +188,70 @@ func _process(delta: float) -> void:
 		bob.y = absf(sin(_bob_t * 2.0)) * 0.01 * speed_factor
 	_ads_k = move_toward(_ads_k, 1.0 if (_ads and not def.ads_hides_model) else 0.0, delta / ADS_TIME)
 	var rest := _view_rest.lerp(_ads_pose(), smoothstep(0.0, 1.0, _ads_k))
-	position = rest + _kick_offset + bob * (1.0 - _ads_k * 0.7)
-	_tick_melee_pose(delta, _kick_offset + bob)
+	var sway := _tick_sway(delta)
+	position = rest + _kick_offset + bob * (1.0 - _ads_k * 0.7) + sway
+	rotation.y = _sway_rot.y
+	rotation.z = _sway_rot.z
+	_tick_melee_pose(delta, _kick_offset + bob + sway)
 	_tick_throw_pose(delta)
+
+
+# Viewmodel sway: the gun lags behind mouse turns and dips on landing. A spring, visual only:
+# the camera and mouse look are untouched. Game.view_sway: 0 off, 1 reduced (40%), 2 full.
+const SWAY_LOOK := 0.0035 # m of lag per rad/s of look speed
+const SWAY_MAX := 0.045 # m, per axis
+const SWAY_ROLL := 0.9 # rad of tilt per m of sideways lag
+const SWAY_SPRING := 90.0
+const SWAY_DAMP := 11.0
+const LAND_MIN_SPEED := 4.5 # m/s downwards that causes a dip
+const LAND_DIP := 0.12 # m/s of downward kick per m/s of fall speed
+const SWAY_ADS := 0.15 # share of the sway left while aiming down sights
+
+var _sway_p := Vector3.ZERO
+var _sway_v := Vector3.ZERO
+var _sway_rot := Vector3.ZERO
+var _sway_last_yaw := 0.0
+var _sway_last_pitch := 0.0
+var _sway_init := false
+var _sway_fall := 0.0
+
+
+func _tick_sway(delta: float) -> Vector3:
+	var pl := owner as Player
+	var k: float = [0.0, 0.4, 1.0][clampi(Game.view_sway, 0, 2)]
+	if pl == null or k <= 0.0 or delta <= 0.0:
+		_sway_p = Vector3.ZERO
+		_sway_v = Vector3.ZERO
+		_sway_rot = Vector3.ZERO
+		_sway_init = false
+		return Vector3.ZERO
+	var yaw := pl.rotation.y
+	var pitch := pl.head.rotation.x
+	if not _sway_init:
+		_sway_last_yaw = yaw
+		_sway_last_pitch = pitch
+		_sway_init = true
+	var yaw_rate := clampf(wrapf(yaw - _sway_last_yaw, -PI, PI) / delta, -25.0, 25.0)
+	var pitch_rate := clampf((pitch - _sway_last_pitch) / delta, -25.0, 25.0)
+	_sway_last_yaw = yaw
+	_sway_last_pitch = pitch
+	# Landing: remember the fall speed while airborne, dip on the frame it ends.
+	if not pl.is_on_floor():
+		_sway_fall = minf(pl.velocity.y, _sway_fall)
+	else:
+		if _sway_fall < -LAND_MIN_SPEED:
+			_sway_v.y -= (-_sway_fall) * LAND_DIP
+		_sway_fall = 0.0
+	var ads := 1.0 - _ads_k * (1.0 - SWAY_ADS)
+	var target := Vector3(yaw_rate * SWAY_LOOK, -pitch_rate * SWAY_LOOK, 0.0)
+	target.x = clampf(target.x, -SWAY_MAX, SWAY_MAX)
+	target.y = clampf(target.y, -SWAY_MAX, SWAY_MAX)
+	_sway_v += ((target - _sway_p) * SWAY_SPRING - _sway_v * SWAY_DAMP) * delta
+	_sway_p += _sway_v * delta
+	_sway_p.y = clampf(_sway_p.y, -0.09, 0.05)
+	var out := _sway_p * k * ads
+	_sway_rot = Vector3(0.0, -out.x * 2.0, -out.x * SWAY_ROLL)
+	return out
 
 
 func melee_ready() -> bool:
@@ -673,6 +734,8 @@ func _try_fire() -> void:
 ## True means the shared quad would double the SMG flash, so the caller leaves that quad off.
 func play_fire_sfx() -> bool:
 	var model_flash := false
+	if def != null and def.id != &"revolver" and def.id != &"knife":
+		PhysFx.eject(self, def.id, muzzle.position)
 	if def != null and _view_models.has(def.id):
 		model_flash = play_model_shot(_view_models[def.id], 1.0, def.fire_rate)
 	if fire_sfx == null or fire_sfx.stream == null:

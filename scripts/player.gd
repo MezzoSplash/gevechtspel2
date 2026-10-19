@@ -130,6 +130,9 @@ var _obs_speed := 0.0 # smoothed ground speed from position deltas (server's vie
 var _jump_buffer := 0.0
 var _surf_normal := Vector3.ZERO # last steep ramp touched (Vector3.ZERO: none)
 var _surf_t := 0.0
+var _kb_t := 0.0 # seconds of blast-push left: ground friction is low so the push carries
+const KB_TIME := 0.45
+const KB_FRICTION := 1.2 # ground friction while pushed (normal is Quake-style, much higher)
 var _carry_t := 0.0 # seconds of surf-speed retention left (local sim only)
 var _was_surfing := false
 var _strip_cd: Dictionary = {} # strip name -> seconds until this pawn can take it again
@@ -458,6 +461,17 @@ static func paint_body(mat: StandardMaterial3D, team: int) -> void:
 	mat.emission_energy_multiplier = 0.7
 
 
+## Blast push (Knockback). Runs on the machine that simulates this pawn.
+func add_knockback(imp: Vector3) -> void:
+	if is_dead:
+		return
+	velocity += imp
+	_kb_t = KB_TIME
+	_sliding = false
+	if is_local() and camera:
+		camera.add_kick(1.4, randf_range(-0.8, 0.8), 3.0)
+
+
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
 ## `headshot_mult` comes from the gun's WeaponDef (rifle 3.6, sniper 2.0, SMG 1.5, other guns 1.6).
 ## Grenades pass allow_headshot false. The test uses the drawn head, not a height band.
@@ -520,6 +534,8 @@ func apply_hurt_state(new_hp: float, killed: bool, from_pos: Vector3 = Vector3.I
 			hurt_sfx.play()
 		health_changed.emit(hp, MAX_HP)
 	if killed:
+		if not is_local():
+			PhysFx.tumble(self, from_pos)
 		_die()
 
 
@@ -669,6 +685,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var chatting := Game.chat_open or Game.play_locked() or Game.rc_view
 	_carry_t = maxf(_carry_t - delta, 0.0)
+	_kb_t = maxf(_kb_t - delta, 0.0)
 	_tick_strip_cd(delta)
 	if Game.rc_view:
 		_sliding = false
@@ -727,6 +744,9 @@ func _physics_process(delta: float) -> void:
 	if jumped or not on_floor:
 		# The jump tick is already air: no ground friction, so sprint speed carries into the jump.
 		horiz = _air_accelerate(horiz, wish, WALK_SPEED * minf(wish.length(), 1.0), delta)
+	elif _kb_t > 0.0:
+		horiz = _friction_amount(horiz, delta, KB_FRICTION)
+		horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL * 0.5, delta)
 	elif _carry_t > 0.0:
 		# Held keys keep the surf speed. No keys: brake, so the next shot is a choice.
 		var carry_friction := CARRY_FRICTION if wish.length_squared() > 0.04 else CARRY_RELEASE_FRICTION
