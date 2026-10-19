@@ -76,13 +76,14 @@ func _check_rc() -> int:
 	var car := RcXd.new()
 	car.owner_team = 0
 	add_child(car)
-	var body := car.get_node("Body") as Node3D
+	var body := car.get_node("Tilt/Body") as Node3D
 	var front := body.find_child("Front_Axle_001", true, false) as Node3D
 	var rear := body.find_child("Rear_Axle_001", true, false) as Node3D
 	var bounds := _aabb(body)
 	print("rc front z ", front.global_position.z, " rear z ", rear.global_position.z)
 	print("rc bounds y ", bounds.position.y, " .. ", bounds.position.y + bounds.size.y, " size ", bounds.size)
-	var mark := car.get_child(car.get_child_count() - 1) as MeshInstance3D
+	var tilt := car.get_node("Tilt") as Node3D
+	var mark := tilt.get_child(tilt.get_child_count() - 1) as MeshInstance3D
 	print("mark y ", mark.position.y)
 	var bad := 0
 	if front.global_position.z >= -0.05:

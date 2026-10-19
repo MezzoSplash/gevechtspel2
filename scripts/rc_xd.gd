@@ -2,11 +2,47 @@ class_name RcXd
 extends CharacterBody3D
 ## RC-XD killstreak. The server body is the one that drives, takes damage, and explodes.
 ## The driver's machine also runs a local copy so the wheel does not wait on ping.
-## Other clients only follow synced poses. One car per player.
+## Other clients follow synced poses, smoothed. One car per player.
+##
+## Arcade handling: the mouse (and A/D) set where the driver wants to go (`_wish`), raw and
+## instant, and the camera looks there. The car itself has inertia: throttle ramps, it brakes
+## before it reverses, steers faster with speed, grips sideways but slides a little in a hard
+## turn, keeps its speed off a kicker, bounces on landing and off walls. All of it is a plain
+## integration on CharacterBody3D, the same on the server and in the driver's prediction.
 
-const SPEED := 10.0
-const REVERSE := 6.0
-const TURN_RATE := 2.2 # rad/s added by A/D; the mouse sets yaw directly, raw
+# Engine
+const SPEED := 11.0 # top speed forward, m/s
+const REVERSE := 6.0 # top speed backwards
+const ACCEL := 16.0 # m/s² from standstill; fades to 0 at SPEED
+const REVERSE_ACCEL := 11.0
+const BRAKE := 30.0 # throttle against the roll
+const COAST := 4.5 # rolling drag with no throttle
+# Steering: heading chases _wish
+const TURN_STAND := 1.6 # rad/s when standing still (it can pivot, slowly)
+const TURN_MAX := 3.8 # rad/s once moving
+const TURN_FULL_SPEED := 4.0 # m/s at which TURN_MAX is reached
+const TURN_HIGH_LOSS := 0.25 # share of TURN_MAX lost at top speed
+const TURN_GAIN := 7.0 # rad/s per rad of error
+const TURN_ACCEL := 20.0 # rad/s²: the wheel ramps, no instant snap
+const TURN_RATE := 2.2 # rad/s that A/D add to the wish
+# Grip
+const GRIP := 34.0 # m/s² that kill sideways speed
+const DRIFT := 0.6 # share of GRIP lost at full lock and top speed: a short slide
+# Air, landing, walls
+const SLOPE_PULL := 0.7 # share of gravity along a slope (rolls down ramps)
+const LAND_BOUNCE := 0.28 # share of a hard landing that bounces back up
+const LAND_MIN := 3.5 # m/s downwards before it bounces
+const WALL_BOUNCE := 0.35 # share of the impact speed that bounces off a wall
+const WALL_KEEP := 0.85 # share of the speed along the wall that survives a hit
+const WALL_MIN := 2.0 # m/s into the wall before it bounces
+# Body (visual only: the hitbox stays upright)
+const TILT_PITCH := 0.010 # rad of nose up per m/s² of forward accel
+const TILT_ROLL := 0.012 # rad of roll per m/s² of sideways accel
+const TILT_MAX := 0.16
+const SPRING := 140.0
+const DAMP := 13.0
+const SMOOTH := 18.0 # 1/s: how fast other clients' copies chase the synced pose
+const CORRECT_M := 0.6 # driver copy: blend toward the server above this
 const LIFE := 25.0
 const MAX_HP := 48.0 # two rifle hits (34)
 const BLAST_RADIUS := 4.5
@@ -26,7 +62,22 @@ var owner_team := 0
 var net_id := 0
 var hp := MAX_HP
 var life := LIFE
-var yaw := 0.0
+var yaw := 0.0 # heading of the car (what is synced)
+var _wish := 0.0 # driver's aim: mouse + A/D. The camera looks here; the car turns toward it.
+var _turn := 0.0 # current yaw rate, rad/s
+var _tilt := Vector2.ZERO # pitch, roll (body only)
+var _tilt_v := Vector2.ZERO
+var _bob := 0.0 # body height offset after a landing
+var _bob_v := 0.0
+var _prev_vel := Vector3.ZERO
+var _was_floor := true
+var _net_pos := Vector3.ZERO
+var _net_vel := Vector3.ZERO
+var _has_net := false
+var _tilt_node: Node3D
+var _pivot: Node3D
+var _prev_body_vel := Vector3.ZERO
+var _floor_up := Vector3.UP
 var authority_sim := false # server (or offline) body: damage and the blast happen here
 var predict := false # driver's client copy, when they are not the server
 var _pitch := 0.0
@@ -184,6 +235,8 @@ func _ready() -> void:
 	if _local_driver():
 		_add_camera()
 	rotation.y = yaw
+	_wish = yaw
+	_net_pos = global_position
 
 
 func _exit_tree() -> void:
@@ -198,20 +251,30 @@ func apply_remote_input(yaw_in: float, throttle_in: float) -> void:
 	_input_age = 0.0
 
 
-func apply_net_pose(pos: Vector3, yaw_in: float, life_in: float) -> void:
+func apply_net_pose(pos: Vector3, yaw_in: float, life_in: float, vel_in := Vector3.ZERO) -> void:
 	if _ended:
 		return
 	if predict:
 		life = life_in
-		if global_position.distance_to(pos) > SNAP_M:
+		var off := global_position.distance_to(pos)
+		if off > SNAP_M:
 			global_position = pos
 			yaw = yaw_in
 			rotation.y = yaw
-			velocity = Vector3.ZERO
+			velocity = vel_in
+			_turn = 0.0
+		elif off > CORRECT_M:
+			# Drifted apart (a wall, a bump): pull back gently so it does not snap.
+			global_position = global_position.lerp(pos, 0.25)
+			velocity = velocity.lerp(vel_in, 0.25)
 		return
-	global_position = pos
+	if not _has_net:
+		global_position = pos
+		rotation.y = yaw_in
+	_has_net = true
+	_net_pos = pos
+	_net_vel = vel_in
 	yaw = yaw_in
-	rotation.y = yaw
 
 
 func apply_hp(value: float) -> void:
@@ -278,8 +341,16 @@ func _physics_process(delta: float) -> void:
 	elif predict:
 		_step(delta)
 		_send_input(delta)
+	else:
+		_follow(delta)
+	_animate_body(delta)
 	if _local_driver():
 		_show_hud()
+
+
+func _process(_delta: float) -> void:
+	if _cam and not _ended:
+		_aim_camera()
 
 
 func _input(event: InputEvent) -> void:
@@ -295,11 +366,9 @@ func _input(event: InputEvent) -> void:
 		if Game.invert_y:
 			look_y = -look_y
 		var sens := Player.MOUSE_SENS * Game.mouse_sens
-		yaw -= motion.relative.x * sens
+		_wish -= motion.relative.x * sens
 		_pitch = clampf(_pitch - look_y * sens, PITCH_MIN, PITCH_MAX)
-		rotation.y = yaw
-		if _cam:
-			_cam.rotation.x = _pitch
+		_aim_camera()
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("fire"):
@@ -309,18 +378,85 @@ func _input(event: InputEvent) -> void:
 
 func _step(delta: float) -> void:
 	_read_controls(delta)
-	var rate := SPEED if _throttle >= 0.0 else REVERSE
-	var wish := -global_transform.basis.z * _throttle * rate
-	velocity.x = wish.x
-	velocity.z = wish.z
-	if is_on_floor():
-		velocity.y = -1.0
+	var on_floor := is_on_floor()
+	var up := get_floor_normal() if on_floor else Vector3.UP
+	var g := get_gravity()
+	var v := velocity
+	# Steering: the wheel ramps toward the wish, faster with speed, a bit slower flat out.
+	var fwd_flat := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	var v_long := v.dot(fwd_flat)
+	var speed := absf(v_long)
+	var rate := lerpf(TURN_STAND, TURN_MAX, clampf(speed / TURN_FULL_SPEED, 0.0, 1.0))
+	rate *= 1.0 - TURN_HIGH_LOSS * clampf(speed / SPEED, 0.0, 1.0)
+	if not on_floor:
+		rate *= 0.35 # a little air control, no full steering in the air
+	var want := clampf(wrapf(_wish - yaw, -PI, PI) * TURN_GAIN, -rate, rate)
+	_turn = move_toward(_turn, want, TURN_ACCEL * delta)
+	yaw = wrapf(yaw + _turn * delta, -PI, PI)
+	fwd_flat = Vector3(-sin(yaw), 0.0, -cos(yaw))
+	if on_floor:
+		# Drive along the floor plane.
+		var fwd := (fwd_flat - up * fwd_flat.dot(up)).normalized()
+		var side := up.cross(fwd).normalized()
+		v -= up * v.dot(up)
+		var vf := v.dot(fwd)
+		var vs := v.dot(side)
+		if _throttle > 0.05:
+			if vf < -0.3:
+				vf = move_toward(vf, 0.0, BRAKE * _throttle * delta)
+			else:
+				vf = move_toward(vf, SPEED * _throttle, ACCEL * _throttle * (1.0 - clampf(vf / SPEED, 0.0, 1.0) * 0.6) * delta)
+		elif _throttle < -0.05:
+			if vf > 0.3:
+				vf = move_toward(vf, 0.0, BRAKE * -_throttle * delta)
+			else:
+				vf = move_toward(vf, REVERSE * _throttle, REVERSE_ACCEL * -_throttle * delta)
+		else:
+			vf = move_toward(vf, 0.0, COAST * delta)
+		var slide := DRIFT * clampf(absf(_turn) / TURN_MAX, 0.0, 1.0) * clampf(absf(vf) / SPEED, 0.0, 1.0)
+		vs = move_toward(vs, 0.0, GRIP * (1.0 - slide) * delta)
+		v = fwd * vf + side * vs
+		# Gravity along the slope, plus a light push into the floor so it stays put on flat ground.
+		var g_slope := g - up * g.dot(up)
+		v += g_slope * SLOPE_PULL * delta
+		if v.dot(Vector3.UP) <= 0.0:
+			v -= up * 0.5
 	else:
-		velocity.y += float(get_gravity().y) * delta
+		v += g * delta
+	velocity = v
+	var before := velocity
 	move_and_slide()
+	_bump(before)
+	var now_floor := is_on_floor()
+	if now_floor and not _was_floor and _prev_vel.y < -LAND_MIN:
+		# Hard landing: a small hop back up and a kick in the body.
+		velocity.y = -_prev_vel.y * LAND_BOUNCE
+		_bob_v -= absf(_prev_vel.y) * 0.25
+		_tilt_v.x -= absf(_prev_vel.y) * 0.12
+	_was_floor = now_floor
+	_prev_vel = velocity
 	rotation.x = 0.0
 	rotation.z = 0.0
 	rotation.y = yaw
+
+
+## Walls: bounce back a little instead of a dead stop. Floors and ramps are left alone.
+func _bump(before: Vector3) -> void:
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var n := c.get_normal()
+		if absf(n.y) > 0.6:
+			continue
+		var into := -before.dot(n)
+		if into < WALL_MIN:
+			continue
+		var along := before - n * before.dot(n)
+		along.y = velocity.y
+		velocity = Vector3(along.x * WALL_KEEP, along.y, along.z * WALL_KEEP) + n * into * WALL_BOUNCE
+		_tilt_v.y += signf(n.dot(global_basis.x)) * into * 0.15
+		_tilt_v.x += into * 0.08
+		_turn *= 0.3
+		break
 
 
 func _read_controls(delta: float) -> void:
@@ -328,13 +464,61 @@ func _read_controls(delta: float) -> void:
 		if _detonating or Game.pause_open or Game.play_locked() or Game.chat_open:
 			_throttle = 0.0
 			return
-		yaw += Input.get_axis("move_right", "move_left") * TURN_RATE * delta
+		_wish += Input.get_axis("move_right", "move_left") * TURN_RATE * delta
 		var forward := Input.get_action_strength("move_forward")
 		var back := Input.get_action_strength("move_back")
 		_throttle = clampf(forward - back, -1.0, 1.0)
 		return
-	yaw = _net_yaw
+	_wish = _net_yaw
 	_throttle = 0.0 if _input_age > INPUT_STALE else _net_throttle
+
+
+## Other clients: chase the synced pose (and run ahead on its velocity) instead of hopping 20×/s.
+func _follow(delta: float) -> void:
+	if not _has_net:
+		return
+	_net_pos += _net_vel * delta
+	var k := 1.0 - exp(-SMOOTH * delta)
+	var prev := global_position
+	global_position = global_position.lerp(_net_pos, k)
+	rotation.y = lerp_angle(rotation.y, yaw, k)
+	velocity = (global_position - prev) / maxf(delta, 0.0001)
+
+
+## Pitch on throttle and brake, roll in a turn, a bob after landing. Body only.
+func _animate_body(delta: float) -> void:
+	if _tilt_node == null or delta <= 0.0:
+		return
+	var accel := (velocity - _prev_body_vel) / delta
+	_prev_body_vel = velocity
+	var basis_now := Basis(Vector3.UP, rotation.y)
+	var fwd := -basis_now.z
+	var right := basis_now.x
+	var a_long := clampf(accel.dot(fwd), -40.0, 40.0)
+	var a_side := clampf(accel.dot(right), -40.0, 40.0)
+	var target := Vector2(
+		clampf(a_long * TILT_PITCH, -TILT_MAX, TILT_MAX),
+		clampf(a_side * TILT_ROLL, -TILT_MAX, TILT_MAX))
+	_tilt_v += ((target - _tilt) * SPRING - _tilt_v * DAMP) * delta
+	_tilt += _tilt_v * delta
+	_bob_v += (-_bob * SPRING - _bob_v * DAMP) * delta
+	_bob = clampf(_bob + _bob_v * delta, -0.12, 0.12)
+	# Lie on the floor under the car (ramps), in the car's own yaw frame.
+	var up := Vector3.UP
+	if authority_sim or predict:
+		if is_on_floor():
+			up = get_floor_normal()
+	else:
+		var q := PhysicsRayQueryParameters3D.create(global_position, global_position + Vector3.DOWN * (HEIGHT * 0.5 + 0.35))
+		q.collision_mask = 1
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty():
+			up = hit.normal
+	var local_up := basis_now.inverse() * up
+	_floor_up = _floor_up.lerp(local_up, 1.0 - exp(-12.0 * delta)).normalized()
+	var align := Basis(Quaternion(Vector3.UP, _floor_up))
+	_tilt_node.basis = align * Basis.from_euler(Vector3(_tilt.x, 0.0, _tilt.y))
+	_tilt_node.position.y = _bob
 
 
 func _send_input(delta: float) -> void:
@@ -344,7 +528,7 @@ func _send_input(delta: float) -> void:
 	if _send_t > 0.0:
 		return
 	_send_t = SEND_DT
-	Game.rc_drive.rpc_id(1, net_id, yaw, _throttle)
+	Game.rc_drive.rpc_id(1, net_id, _wish, _throttle)
 
 
 func _publish_pose(delta: float) -> void:
@@ -354,7 +538,7 @@ func _publish_pose(delta: float) -> void:
 	if _send_t > 0.0:
 		return
 	_send_t = SEND_DT
-	Game.sync_rc_pose.rpc(net_id, global_position, yaw, life)
+	Game.sync_rc_pose.rpc(net_id, global_position, yaw, life, velocity)
 
 
 func _detonate() -> void:
@@ -365,7 +549,7 @@ func _detonate() -> void:
 	if authority_sim:
 		shutdown(true)
 	elif predict and Game.is_networked():
-		Game.rc_drive.rpc_id(1, net_id, yaw, 0.0)
+		Game.rc_drive.rpc_id(1, net_id, _wish, 0.0)
 		Game.rc_detonate.rpc_id(1, net_id)
 
 
@@ -402,15 +586,26 @@ func _push_hp() -> void:
 
 
 func _add_camera() -> void:
+	# The camera swings on a pivot that follows the wish (raw mouse); the car turns under it.
+	_pivot = Node3D.new()
+	_pivot.name = "RcCamPivot"
+	add_child(_pivot)
 	_cam = Camera3D.new()
 	_cam.name = "RcCam"
 	_cam.fov = 80.0
 	# Behind the low RCExplody body. The old spot sat over the roof and showed only the fenders.
 	_cam.position = Vector3(0.0, 0.55, 0.85)
-	add_child(_cam)
+	_pivot.add_child(_cam)
 	_cam.current = true
 	Game.rc_view = true
 	_show_hud()
+
+
+func _aim_camera() -> void:
+	if _pivot:
+		_pivot.rotation.y = wrapf(_wish - rotation.y, -PI, PI)
+	if _cam:
+		_cam.rotation.x = _pitch
 
 
 func _drop_camera() -> void:
@@ -437,10 +632,13 @@ func _show_hud() -> void:
 ## RCExplody faces +Z. The car and its camera look down -Z, so the mesh is turned around.
 ## Scaled onto the existing hitbox: shots still use WIDTH / HEIGHT / LENGTH.
 func _build_body() -> void:
+	_tilt_node = Node3D.new()
+	_tilt_node.name = "Tilt"
+	add_child(_tilt_node)
 	var model := BODY_SCENE.instantiate() as Node3D
 	model.name = "Body"
 	model.rotation.y = PI
-	add_child(model)
+	_tilt_node.add_child(model)
 	var bounds := _mesh_bounds(model)
 	var span := maxf(bounds.size.z, 0.05)
 	model.scale = Vector3.ONE * (LENGTH / span)
@@ -486,7 +684,7 @@ func _add_team_mark(top_y: float) -> void:
 	mark.material_override = mat
 	mark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mark.position = Vector3(0.0, top_y - 0.005, 0.0)
-	add_child(mark)
+	_tilt_node.add_child(mark)
 
 
 func _local_driver() -> bool:
