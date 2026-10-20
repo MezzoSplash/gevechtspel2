@@ -734,6 +734,7 @@ func _try_fire() -> void:
 ## True means the shared quad would double the SMG flash, so the caller leaves that quad off.
 func play_fire_sfx() -> bool:
 	var model_flash := false
+	_mark_shot()
 	if def != null and def.id != &"revolver" and def.id != &"knife":
 		PhysFx.eject(self, def.id, muzzle.position)
 	if def != null and _view_models.has(def.id):
@@ -744,6 +745,15 @@ func play_fire_sfx() -> bool:
 	fire_sfx.pitch_scale = randf_range(0.95, 1.05)
 	fire_sfx.play()
 	return model_flash
+
+
+## Every machine plays this for every shot it sees, so the minimap can flash the shooter.
+func _mark_shot() -> void:
+	var n: Node = get_parent()
+	while n and not (n is Player):
+		n = n.get_parent()
+	if n:
+		(n as Player).last_shot_ms = Time.get_ticks_msec()
 
 
 func bot_try_fire() -> bool:

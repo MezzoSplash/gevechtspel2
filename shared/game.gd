@@ -73,7 +73,7 @@ const NAME_MAX := 24
 ## 0.3.6: RC-XD physics. rc_drive's yaw is now the aim, sync_rc_pose carries velocity, and the
 ## driver's prediction must match the server's handling. Blast knockback adds sync_knockback and
 ## sync_rc_kick. 0.3.5 and older cannot join.
-const NET_VERSION := "0.3.6"
+const NET_VERSION := "0.3.7"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -1095,9 +1095,9 @@ func sync_team_kills(blue: int, orange: int) -> void:
 	team_kills = [blue, orange]
 
 
-const STREAK_AT := 3 # radar
+const STREAK_AT := 3 # UAV
 const RCXD_AT := 5
-const RADAR_TIME := 4.0
+const RADAR_TIME := 25.0 # UAV: enemies on the minimap this long (BO2 is ~30 s)
 const CHARGE_RADAR := 1
 const CHARGE_RCXD := 2
 
@@ -1321,8 +1321,8 @@ func _apply_rc_announce(team: int, by_name: String, by_peer: int) -> void:
 	hud.show_rc_event(by_name, team, friendly)
 
 
-## Team radar (UAV): every machine hears about it; the activator's team gets the markers,
-## the other team only the "enemy radar" cue. Markers follow the pawns (Player._process), so
+## UAV: every machine hears about it; the activator's team gets enemies on the minimap,
+## the other team only the "enemy radar" cue. The minimap reads the live pawns, so
 ## enemies that respawn during the radar show up too. FFA: only the activator gets markers
 ## (of everyone else); all others get the "enemy radar" cue.
 func _grant_radar(peer_id: int) -> void:
