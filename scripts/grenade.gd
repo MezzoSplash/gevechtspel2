@@ -88,6 +88,7 @@ func _explode() -> void:
 			continue
 		var dmg := MAX_DAMAGE * (1.0 - dist / RADIUS)
 		p.apply_hit(p.global_position + Vector3(0, 1, 0), Vector3.UP, dmg, false, thrower_id, &"grenade", 1.0, pos)
+	Knockback.blast(pos, RADIUS, Knockback.GRENADE_POWER, thrower_id, thrower_team)
 	# The listen-server host needs the boom too (the RPC skips the server). Headless has nobody to show it to.
 	if not Game.is_dedicated:
 		Grenade.play_boom(pos)

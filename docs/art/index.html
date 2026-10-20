@@ -430,7 +430,7 @@
     <li>Elke verdieping heeft twee wegen omhoog. Eén trap is een fuik. Naast elke surf is een loopweg. Een surf gooit je niet over de buitenmuur.</li>
     <li>De map is spiegelbaar noord-zuid. Een asymmetrie mag, als beide kanten dezelfde soorten gevechten hebben: een shotgun-hoek, een geweer-straat, een sniper-kier.</li>
     <li>Bots lopen dezelfde collision als spelers. Een shortcut alleen voor de speler bestaat niet.</li>
-    <li>Niets beweegt. Geen deur die dichtgaat, geen lift, geen rijdende bus. Bewegen is al het spel.</li>
+    <li>Niets beweegt. Geen deur die dichtgaat, geen lift, geen rijdende bus. Bewegen is al het spel. Dat gaat over de map: wat de speler raakt blijft op zijn plek. Bewegend beeld zonder gevolg mag wel: een val bij de dood, hulzen, het wapen dat meewiegt. Dat is alleen op de eigen machine, heeft geen collision en is begrensd.</li>
   </ul>
   <p>Kade is die vierde plek: een dok, zelfde verf en hetzelfde licht. Het dak daar is 10 m, hoger dan de andere daken, omdat de surf van hoog naar laag moet. Een volgende plek blijft in deze wereld: schoolplein, parkeerterrein. Geen nieuw klimaat en geen nieuw decennium.</p>
 </section>
@@ -571,6 +571,7 @@
       <tr><td>0.2.20</td><td>Foundry krijgt de loopramps naar het loodsdak op 7.3 m, de brug over de lichtstraat, en de twee surframps op de westmuur. De grote deuren blijven open. Bots lopen de ramp op als er iemand op het dak staat. De collision is anders dan in 0.2.19, dus server en clients zijn allebei 0.2.20.</td></tr>
       <tr><td>0.3.0</td><td>Kade. Ongeveer 90 × 120 m, dok op 0 m, kade op 4 m, loodsdak op 10 m. Surfs van het dak naar de kade en van de kade het dok in, door het midden, plus een vlakke oversteek. Een holle kwartcirkel met straal 14 m, van 10 m naar 4 m, aan beide kanten het dok in, met een recht aanloop- en uitloopstuk. Een stalen loopplank van de kade naar het dak aan de noordoosthoek, ongeveer 24°, zodat je de bocht weer pakt. Trap en een smalle straatramp die op het dak aansluit, voor de bots, met de voet vrij van de muur. De collision is nieuw, dus server en clients zijn allebei 0.3.0. Geen ARM-build meer: alleen Windows en Linux x86_64.</td></tr>
       <tr><td>0.3.5</td><td>Kade krijgt een bewolkte lucht die het ambient geeft, AgX, zachte zonneschaduw in vier splits, lichte SSAO, glow alleen op de monding en de tracer, en lichte mist vanaf ongeveer 35 m. Muren en vloeren krijgen de shader world_paint: slijtage en een simpel patroon, procedureel, geen foto. Nieuwe instelling Graphics: Low, Medium, High. Alleen beeld: de collision en NET_VERSION 0.3.4 blijven hetzelfde.</td></tr>
+      <tr><td>0.3.6</td><td>Natuurkunde die goed voelt. De RC-XD heeft traagheid, stuurt naar de muis toe, glijdt een beetje en stuitert op muren. Frag en RC-XD duwen spelers en auto's weg, met afstand en een plafond, minder bij je eigen knal. Een speler die doodgaat valt om, weg van de bron, en vervaagt. Hulzen vallen uit het wapen (niet op Graphics Low). Het wapen wiegt mee met de muis en zakt bij een landing, in Settings uit te zetten. NET_VERSION 0.3.6.</td></tr>
     </tbody>
   </table>
 </section>
