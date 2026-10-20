@@ -34,7 +34,7 @@ Godot 4.7.2 is expected at `~/.local/bin/godot` (portable binary, not the distro
 - **RMB** sniper scope, or SMG iron sights (small zoom, tighter spread)
 - **G** frag grenade, **F** throwing knife (whatever your class's grenade slot holds, 3 per life)
 - **E** melee: weapon bash, 2 m reach, 50 damage (two hits kill), once per 0.8 s
-- **Up/Down** pick a streak slot, **Enter** uses it. A streak you earned stays until you use it, the next round starts, or you leave to the menu. Dying resets only the counter toward the next one. Radar is the first slot, after 3 kills in one life: your whole team sees the enemies for 4 seconds, and the other team hears "Enemy radar online"; in Free For All only you see everyone else. RC-XD is the second slot, after 5 kills in one life: you drive a small explosive car from its camera (WASD and mouse; **LMB** detonates). Your body stays where you left it.
+- **Up/Down** pick a streak slot, **Enter** uses it. A streak you earned stays until you use it, the next round starts, or you leave to the menu. Dying resets only the counter toward the next one. UAV is the first slot, after 3 kills in one life: for 25 seconds your whole team sees every enemy as a red dot on the minimap (top left), and the other team hears "Enemy radar online"; in Free For All only you see everyone else. Without a UAV the minimap shows you, your teammates and the map, and an enemy only for a moment where they fire. RC-XD is the second slot, after 5 kills in one life: you drive a small explosive car from its camera (WASD and mouse; **LMB** detonates). Your body stays where you left it.
 - **T** chat (Enter sends, Esc cancels)
 - **Esc** pause menu (resume, change class, settings, leave, quit)
 - **Tab** scoreboard

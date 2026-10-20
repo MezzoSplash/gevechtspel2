@@ -115,7 +115,7 @@ var _capsule: CapsuleShape3D
 var _spawn_protect := 0.0
 var _bot_brain
 var _body_mat: StandardMaterial3D
-var _radar_mark: MeshInstance3D
+var last_shot_ms := -100000 # ticks of this pawn's last shot seen here (minimap red dot)
 var _sliding := false
 var _slide_t := 0.0
 var _slide_dir := Vector3.FORWARD
@@ -227,8 +227,6 @@ func _ready() -> void:
 		_bot_brain.setup(self, get_node_or_null("NavigationAgent3D") as NavigationAgent3D)
 	if is_bot:
 		call_deferred("_apply_bot_loadout")
-	_radar_mark = _make_radar_mark()
-	add_child(_radar_mark)
 	if is_local():
 		_whoosh = AudioStreamPlayer.new()
 		_whoosh.stream = WHOOSH
@@ -238,47 +236,8 @@ func _ready() -> void:
 	call_deferred("_configure_control")
 
 
-func _make_radar_mark() -> MeshInstance3D:
-	var mesh := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.18
-	sphere.height = 0.36
-	mesh.mesh = sphere
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.no_depth_test = true
-	mat.emission_enabled = true
-	mat.emission = Color(1, 0.35, 0.2)
-	mat.emission_energy_multiplier = 3.0
-	mesh.material_override = mat
-	mesh.position = Vector3(0, 2.35, 0)
-	mesh.visible = false
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	return mesh
-
-
-## Team radar: on this machine, while Game.radar_left runs, every living pawn not on
-## Game.radar_team shows its marker (FFA: every other pawn; only the activator's machine has
-## radar_left). Machines without a running radar keep them hidden.
-func _update_radar_mark() -> void:
-	if _radar_mark == null:
-		return
-	var hostile := team_id != Game.radar_team or Game.is_ffa()
-	var on := Game.radar_left > 0.0 and not is_dead and hostile and not is_local()
-	if on == _radar_mark.visible:
-		return
-	if on:
-		var mat := _radar_mark.material_override as StandardMaterial3D
-		if mat:
-			var col: Color = team_color(team_id)
-			mat.albedo_color = col
-			mat.emission = col
-	_radar_mark.visible = on
-
-
 func _process(delta: float) -> void:
 	_update_nametag(delta)
-	_update_radar_mark()
 
 
 ## Server: what this peer picked (or the default). Owner: what the server last confirmed.
@@ -890,7 +849,7 @@ func apply_regen_hp(new_hp: float) -> void:
 
 
 ## Teammates keep their tag through walls (where is my team). Enemies only show it in line of sight,
-## so the tag is no wallhack and the radar streak is still the way to find them.
+## so the tag is no wallhack and the UAV streak (minimap) is still the way to find them.
 func _update_nametag(delta: float, force: bool = false) -> void:
 	if nametag == null or is_local():
 		return

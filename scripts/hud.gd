@@ -157,6 +157,9 @@ func bind_player(player: Player) -> void:
 	if player == null:
 		return
 	_player = player
+	var mm := get_node_or_null("Minimap") as Minimap
+	if mm:
+		mm.player = player
 	_local_peer_id = player.peer_id
 	if not player.health_changed.is_connected(_on_health):
 		player.health_changed.connect(_on_health)
@@ -444,10 +447,10 @@ func show_radar_event(by_name: String, team: int, friendly: bool) -> void:
 		_radar_left = maxf(_radar_left, Game.radar_left)
 		_refresh_streak_ui()
 		_play_announcer("res://assets/sounds/radar_friendly.wav")
-		show_popup("RADAR", _POPUP_FRIENDLY, by_name, team)
+		show_popup("UAV", _POPUP_FRIENDLY, by_name, team)
 	else:
 		_play_announcer("res://assets/sounds/radar_enemy.wav")
-		show_popup("ENEMY RADAR", _POPUP_HOSTILE, by_name, team)
+		show_popup("ENEMY UAV", _POPUP_HOSTILE, by_name, team)
 
 
 ## RC-XD switched on. Own team gets the plain title. The other team gets the enemy title. No voice line.
