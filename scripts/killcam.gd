@@ -186,8 +186,8 @@ func note_trick(trick_id: int, victim_peer_id: int) -> void:
 		_trick_wait[victim_peer_id] = trick_id
 
 
-func note_boom(pos: Vector3) -> void:
-	_note("boom", pos)
+func note_boom(pos: Vector3, heavy := false) -> void:
+	_note("boom", pos, heavy)
 
 
 func _note(kind: String, a: Variant = null, b: Variant = null, c: Variant = null, d: Variant = null) -> void:
@@ -453,7 +453,7 @@ func _run_events(to_t: float, speed: float) -> void:
 						_sfx_head.play()
 					_sfx_kill.play()
 			"boom":
-				Grenade.play_boom(e[2])
+				Grenade.play_boom(e[2], e.size() > 3 and bool(e[3]))
 
 
 func _replay_fire(peer_id: int, weapon_id: StringName, speed: float, is_killer: bool) -> void:

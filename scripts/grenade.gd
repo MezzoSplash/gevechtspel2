@@ -9,6 +9,8 @@ const RADIUS := 5.5
 const MAX_DAMAGE := 165.0
 const BOUNCE := 0.42
 const MASK := 1 | 2 | 4 # world, pawns, RC-XD (layer 4)
+const BOOM_SFX := preload("res://assets/sounds/grenade_boom.wav")
+const RC_BOOM_SFX := preload("res://assets/sounds/rcxd_boom.wav")
 
 var thrower_id := 0
 var thrower_team := 0
@@ -113,8 +115,9 @@ func _thrower() -> Player:
 
 
 ## Local-only FX: flash, light, boom, and outward tracer shards.
-static func play_boom(pos: Vector3) -> void:
-	Game.killcam.note_boom(pos)
+## `heavy` is the RC-XD blast: its own clip, louder, and it carries farther than a frag.
+static func play_boom(pos: Vector3, heavy := false) -> void:
+	Game.killcam.note_boom(pos, heavy)
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null or tree.current_scene == null:
 		return
@@ -142,10 +145,11 @@ static func play_boom(pos: Vector3) -> void:
 	scene.add_child(flash)
 	flash.global_position = pos
 	var sfx := AudioStreamPlayer3D.new()
-	sfx.stream = load("res://assets/sounds/grenade_boom.wav")
+	sfx.stream = RC_BOOM_SFX if heavy else BOOM_SFX
 	sfx.bus = "SFX"
-	sfx.unit_size = 10.0
-	sfx.max_distance = 90.0 # a boom carries over the whole arena, muffled by the distance filter
+	sfx.volume_db = 4.0 if heavy else 0.0
+	sfx.unit_size = 16.0 if heavy else 10.0
+	sfx.max_distance = 110.0 if heavy else 90.0 # a boom carries over the whole arena, muffled by the distance filter
 	sfx.attenuation_filter_cutoff_hz = 3000.0
 	scene.add_child(sfx)
 	sfx.global_position = pos

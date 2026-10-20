@@ -22,6 +22,8 @@ They were trimmed, mixed to mono, faded and normalized with `tools/build_sfx.py`
 | `step.wav`, `step_1.wav` … `step_4.wav` | Kenney *Impact Sounds* `footstep_concrete_000…004.ogg` | Kenney (kenney.nl) | CC0 |
 | `hurt.wav` | Kenney *Impact Sounds* `impactPunch_medium_000.ogg` | Kenney | CC0 |
 | `grenade_boom.wav` | Kenney *Sci-fi Sounds* `explosionCrunch_001.ogg` + `lowFrequency_explosion_000.ogg` | Kenney | CC0 |
+| `rcxd_boom.wav` | Synthesized in `tools/build_sfx.py` (falling boom, speaker overtones, crunch and a short crack) | this project | CC0 |
+| `rcxd_drive.wav` | Synthesized in `tools/build_sfx.py` (looping electric motor and two gear meshes) | this project | CC0 |
 | `melee_hit.wav` | Kenney *Impact Sounds* `impactPunch_heavy_001.ogg` + `impactPlate_light_002.ogg` | Kenney | CC0 |
 | `trickshot.wav` | Kenney *Interface Sounds* `maximize_005.ogg` (rising sweep) + `confirmation_002.ogg` (chime, plus an octave-up copy), mixed and saturated in `tools/build_sfx.py` | Kenney | CC0 |
 | `melee_swing.wav` | Synthesized in `tools/build_sfx.py` (band-passed noise whoosh) | this project | CC0 |

@@ -77,6 +77,101 @@ def write(name, y):
         w.writeframes((y * 32767).astype("<i2").tobytes())
     print(f"{name:22s} {len(y)/SR:.2f}s {os.path.getsize(OUT+name)}B")
 
+
+def rc_boom():
+    # Heavier than grenade_boom, and still a blast on small speakers: the body sits around
+    # 60–180 Hz instead of a subsonic sine. Distortion on the sub throws harmonics upward.
+    # The tail is still going at one second, which is how long the driver's camera holds.
+    dur = 1.75
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    rng = np.random.default_rng(41)
+    attack = np.minimum(t / 0.0022, 1.0)
+    # Lands near 70 Hz so the tail is still a boom, not a subsonic rumble.
+    freq = 70.0 + 90.0 * np.exp(-t / 0.20)
+    phase = 2 * np.pi * np.cumsum(freq) / SR
+    sub = np.tanh(2.6 * np.sin(phase)) * attack * np.exp(-t / 0.46)
+    # Overtones of that sub, highpassed, so a small speaker still hears the size.
+    speaker = filt(np.tanh(4.2 * np.sin(phase)) * attack * np.exp(-t / 0.34), "highpass=f=110,lowpass=f=520")
+    punch_f = 120.0 + 60.0 * np.exp(-t / 0.10)
+    punch_p = 2 * np.pi * np.cumsum(punch_f) / SR
+    punch = np.tanh(2.4 * np.sin(punch_p)) * attack * np.exp(-t / 0.26)
+    crunch_f = 240.0 + 260.0 * np.exp(-t / 0.04)
+    crunch_p = 2 * np.pi * np.cumsum(crunch_f) / SR
+    crunch = np.tanh(3.0 * np.sin(crunch_p)) * attack * np.exp(-t / 0.05)
+    crunch_n = filt(rng.standard_normal(n) * attack * np.exp(-t / 0.09), "highpass=f=180,lowpass=f=1100")
+    crack = filt(rng.standard_normal(n) * np.exp(-t / 0.008) * np.minimum(t / 0.0005, 1.0),
+                 "highpass=f=1200,lowpass=f=7500")
+    late = np.clip((t - 0.05) / 0.02, 0, 1) * np.exp(-np.maximum(t - 0.05, 0) / 0.30)
+    grit = filt(rng.standard_normal(n) * late, "highpass=f=300,lowpass=f=3400")
+    y = (0.72 * norm(sub, 0) + 0.70 * norm(speaker, 0) + 0.64 * norm(punch, 0)
+         + 0.42 * norm(crunch, 0) + 0.40 * norm(crunch_n, 0) + 0.36 * norm(crack, 0)
+         + 0.16 * norm(grit, 0))
+    y = np.tanh(1.35 * y) / np.tanh(1.35)
+    write("rcxd_boom.wav", norm(shape(y, dur, hold=0.50, floor_db=-48, pre=0.001), -1.0))
+
+
+def rc_drive():
+    # Seamless 0.5 s loop. 100 Hz lands on an integer sample period (441 samples), and 0.5 s is
+    # exactly 50 of those, so every harmonic loops. Two gear meshes (6 and 11 teeth) beat once
+    # per revolution. Noise grit is crossfaded over one revolution so the join does not click.
+    f0 = 100.0
+    cyc = SR // int(f0)
+    n = cyc * 50
+    total = n + cyc
+    t = np.arange(total) / SR
+    ph = 2 * np.pi * f0 * t
+
+    def partials(mult, weights):
+        z = np.zeros(total)
+        for k, w in weights:
+            z += (w / k) * np.sin(mult * k * ph)
+        return np.tanh(1.7 * z)
+
+    motor = partials(1, ((1, 1.0), (2, 0.28), (3, 0.62), (5, 0.30), (7, 0.14)))
+    motor *= 0.80 + 0.20 * (0.5 + 0.5 * np.sin(ph))
+    # A little periodic FM keeps the mesh from sounding like a static synth tone.
+    gear = np.tanh(1.9 * (
+        np.sin(6 * ph + 0.22 * np.sin(ph))
+        + 0.55 * np.sin(12 * ph + 0.22 * np.sin(ph))
+        + 0.32 * np.sin(18 * ph)
+        + 0.18 * np.sin(24 * ph)))
+    pinion = np.tanh(1.6 * (
+        np.sin(11 * ph) + 0.45 * np.sin(22 * ph) + 0.22 * np.sin(33 * ph)))
+    chip = np.exp(14.0 * (np.cos(ph) - 1.0))
+    gear = gear * (0.72 + 0.28 * chip)
+    ring = np.sin(19 * ph) * (0.35 + 0.65 * np.maximum(gear, 0.0))
+    rng = np.random.default_rng(17)
+    grit = filt(rng.standard_normal(total), "highpass=f=1600,lowpass=f=6500")
+    grit *= 0.30 + 0.70 * (0.5 + 0.5 * gear)
+    y = (0.34 * norm(motor, 0) + 0.70 * norm(gear, 0) + 0.46 * norm(pinion, 0)
+         + 0.22 * norm(ring, 0) + 0.14 * norm(grit, 0))
+    w = 0.5 - 0.5 * np.cos(np.pi * np.linspace(0.0, 1.0, cyc))
+    out = y[:n].copy()
+    out[:cyc] = y[:cyc] * w + y[n:n + cyc] * (1.0 - w)
+    out -= out.mean()
+    out = norm(out, -3.0)
+    # The wrap has to be no steeper than a tooth edge already in the loop. A broken crossfade
+    # jumps harder than anything inside the clip.
+    jump = abs(float(out[0] - out[-1]))
+    steps = np.abs(np.diff(out))
+    print(f"  drive loop jump {jump:.5f}  median step {float(np.median(steps)):.5f}  max {float(steps.max()):.5f}")
+    if jump > float(steps.max()) * 1.25:
+        raise SystemExit("rcxd_drive.wav loop clicks")
+    write("rcxd_drive.wav", out)
+
+
+def rc_sounds():
+    rc_boom()
+    rc_drive()
+
+
+# These two are synthesized here. A partial run must not load the Kenney tree or rewrite the radar lines.
+if ONLY and ONLY <= {"rcxd_boom.wav", "rcxd_drive.wav"}:
+    rc_sounds()
+    raise SystemExit(0)
+
+
 def gun(src, name, length, hold, drive, peak_db=-1.0):
     x = load(FF + src)
     s = max(onset(x) - int(0.003 * SR), 0)
@@ -225,3 +320,4 @@ def knife_hit():
 
 knife_throw()
 knife_hit()
+rc_sounds()

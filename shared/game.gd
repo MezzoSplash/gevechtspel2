@@ -73,6 +73,8 @@ const NAME_MAX := 24
 ## 0.3.6: RC-XD physics. rc_drive's yaw is now the aim, sync_rc_pose carries velocity, and the
 ## driver's prediction must match the server's handling. Blast knockback adds sync_knockback and
 ## sync_rc_kick. 0.3.5 and older cannot join.
+## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
+## 0.3.6 and older cannot join.
 const NET_VERSION := "0.3.7"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
@@ -1279,7 +1281,7 @@ func sync_rc_end(net_id: int, pos: Vector3, exploded: bool) -> void:
 	if car:
 		car.client_end(exploded, pos)
 	elif exploded and not is_dedicated:
-		Grenade.play_boom(pos)
+		Grenade.play_boom(pos, true)
 
 
 @rpc("authority", "reliable")

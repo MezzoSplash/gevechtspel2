@@ -17,6 +17,10 @@ func _ready() -> void:
 
 
 func _box(pos: Vector3, size: Vector3, rot_x := 0.0) -> void:
+	_box_basis(pos, Basis(Vector3.RIGHT, rot_x), size)
+
+
+func _box_basis(pos: Vector3, basis: Basis, size: Vector3) -> void:
 	var b := StaticBody3D.new()
 	b.collision_layer = 1
 	var s := CollisionShape3D.new()
@@ -25,8 +29,7 @@ func _box(pos: Vector3, size: Vector3, rot_x := 0.0) -> void:
 	s.shape = shape
 	b.add_child(s)
 	add_child(b)
-	b.rotation.x = rot_x
-	b.global_position = pos
+	b.global_transform = Transform3D(basis, pos)
 
 
 func _run() -> void:
@@ -43,6 +46,15 @@ func _run() -> void:
 	await _drive(2, Vector3(0, 0.3, -40), [[3.0, 0.0, 1.0]])
 	# run 3: off the kicker
 	await _drive(3, Vector3(40, 0.3, 8), [[3.0, 0.0, 1.0]])
+	# run 4: full throttle down a 30° ramp. The floor flatten used to leave the
+	# uphill part of the ground stick behind, so this crawl stayed under 1 m/s.
+	var angle := deg_to_rad(30.0)
+	var basis := Basis(Vector3(-1, 0, 0), Vector3(0, cos(angle), sin(angle)), Vector3(0, sin(angle), -cos(angle)))
+	var length := 24.0
+	var low := Vector3(70, 0, 0)
+	var mid := low + basis.z * (length * 0.5) - basis.y * 0.2
+	_box_basis(mid, basis, Vector3(6.0, 0.4, length))
+	await _drive(4, low + basis.z * 14.0 + basis.y * 0.6, [[1.8, PI, 1.0]], PI)
 	var f := FileAccess.open(out, FileAccess.WRITE)
 	f.store_line("t,run,x,y,z,speed,heading,yaw_rate,on_floor")
 	for r in rows:
@@ -52,12 +64,12 @@ func _run() -> void:
 	get_tree().quit(1 if fails else 0)
 
 
-func _drive(run: int, start: Vector3, plan: Array) -> void:
+func _drive(run: int, start: Vector3, plan: Array, yaw_in := 0.0) -> void:
 	var car := RcXd.new()
 	car.authority_sim = true
 	car.owner_peer = -99
 	car.net_id = 9000 + run
-	car.yaw = 0.0
+	car.yaw = yaw_in
 	add_child(car)
 	car.global_position = start
 	car.life = 999.0
@@ -92,6 +104,8 @@ func _drive(run: int, start: Vector3, plan: Array) -> void:
 		run, max_speed, end_speed, max_y, air, car.global_position])
 	if max_speed < 5.0:
 		_fail("run %d: never got going" % run)
+	if run == 4 and max_speed < 8.0:
+		_fail("run %d: ramp cut speed to %.2f m/s" % [run, max_speed])
 	if car.global_position.y < -1.0:
 		_fail("run %d: fell through the floor" % run)
 	car.shutdown(false)

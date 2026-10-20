@@ -45,8 +45,9 @@ const SMOOTH := 18.0 # 1/s: how fast other clients' copies chase the synced pose
 const CORRECT_M := 0.6 # driver copy: blend toward the server above this
 const LIFE := 25.0
 const MAX_HP := 48.0 # two rifle hits (34)
-const BLAST_RADIUS := 4.5
-const BLAST_DAMAGE := 140.0
+const BLAST_RADIUS := 8.0
+const BLAST_DAMAGE := 220.0 # 100 HP out to about 4.4 m at the chest. 140 / 4.5 m only killed at their feet.
+const VIEW_HOLD := 1.0 # the driver's camera stays on the blast this long
 const SNAP_M := 2.0
 const SEND_DT := 0.05
 const WIDTH := 0.7
@@ -55,7 +56,14 @@ const LENGTH := 1.1
 const PITCH_MIN := -0.45
 const PITCH_MAX := 0.40
 const BODY_SCENE := preload("res://assets/gadgets/RCExplody.glb")
+const DRIVE_SFX := preload("res://assets/sounds/rcxd_drive.wav")
 const INPUT_STALE := 0.25 # s without a packet: the remote car coasts to a stop
+# Gear whine. Pitch follows speed; a bit of throttle revs it before the car rolls.
+const MOTOR_IDLE_PITCH := 0.74
+const MOTOR_FULL_PITCH := 1.58
+const MOTOR_IDLE_DB := -18.0
+const MOTOR_FULL_DB := -5.0
+const MOTOR_DRIVER_DB := 2.5 # the camera sits inside unit_size, so the driver needs a little extra
 
 var owner_peer := 0
 var owner_team := 0
@@ -88,8 +96,12 @@ var _net_throttle := 0.0
 var _input_age := 0.0
 var _send_t := 0.0
 var _ended := false
+var _lingering := false # camera is held on a blast; the body is already gone
 var _detonating := false # click is in: stop driving while the server blast catches up
 var _cam: Camera3D
+var _motor: AudioStreamPlayer3D
+var _motor_pitch := MOTOR_IDLE_PITCH
+var _motor_db := MOTOR_IDLE_DB
 
 
 ## Authority only. False if this player already has a car or there is no scene to put it in.
@@ -170,7 +182,12 @@ static func abort_for(peer: int) -> void:
 static func abort_all() -> void:
 	for n in _cars():
 		var c := n as RcXd
-		if c == null or c._ended:
+		if c == null:
+			continue
+		if c._lingering:
+			c.cut_view()
+			continue
+		if c._ended:
 			continue
 		if c.authority_sim:
 			c.shutdown(false)
@@ -189,7 +206,15 @@ static func release_view() -> void:
 		local.make_active_camera()
 	for n in _cars():
 		var c := n as RcXd
-		if c and c.predict and not c.authority_sim and not c._ended:
+		if c == null:
+			continue
+		if c._lingering:
+			# Death already took the view back. Drop the held camera without stealing it again.
+			c._lingering = false
+			if c._cam:
+				c._cam.current = false
+			c.queue_free()
+		elif c.predict and not c.authority_sim and not c._ended:
 			c.dismiss_visual()
 
 
@@ -233,6 +258,7 @@ func _ready() -> void:
 	shape.shape = box
 	add_child(shape)
 	_build_body()
+	_add_motor()
 	if _local_driver():
 		_add_camera()
 	rotation.y = yaw
@@ -297,6 +323,7 @@ func dismiss_visual() -> void:
 	if _ended:
 		return
 	_ended = true
+	_stop_motor()
 	_drop_camera()
 	queue_free()
 
@@ -306,25 +333,116 @@ func shutdown(splash: bool) -> void:
 	if _ended:
 		return
 	_ended = true
+	_stop_motor()
 	var pos := global_position
-	_drop_camera()
 	if authority_sim and splash:
 		_blast(pos)
 		if not Game.is_dedicated:
-			Grenade.play_boom(pos)
+			Grenade.play_boom(pos, true)
 	if authority_sim and _rpc_live():
 		Game.mark_rc_done(net_id)
 		Game.sync_rc_end.rpc(net_id, pos, splash)
-	queue_free()
+	_close(splash)
 
 
 func client_end(exploded: bool, pos: Vector3) -> void:
 	if _ended:
 		return
 	_ended = true
-	_drop_camera()
+	_stop_motor()
 	if exploded and not Game.is_dedicated:
-		Grenade.play_boom(pos)
+		Grenade.play_boom(pos, true)
+	_close(exploded)
+
+
+## Free the car. A blast keeps the driver's camera for VIEW_HOLD so the kill is visible.
+func _close(exploded: bool) -> void:
+	collision_layer = 0
+	collision_mask = 0
+	if _tilt_node:
+		_tilt_node.visible = false
+	if exploded and _cam and _local_driver() and not Game.is_dedicated:
+		_lingering = true
+		var hud := _hud()
+		if hud:
+			hud.set_rc_drive(false, 0.0, 0.0)
+		get_tree().create_timer(VIEW_HOLD).timeout.connect(_end_linger)
+		return
+	_drop_camera()
+	queue_free()
+
+
+func _end_linger() -> void:
+	if not _lingering or not is_inside_tree():
+		return
+	_lingering = false
+	# Death or a round change may already have given the view back.
+	if Game.rc_view:
+		_drop_camera()
+	elif _cam:
+		_cam.current = false
+	queue_free()
+
+
+## Gear whine on every machine except the dedicated server. One car per player, so one loop.
+func _add_motor() -> void:
+	if Game.is_dedicated:
+		return
+	var stream := DRIVE_SFX.duplicate() as AudioStreamWAV
+	if stream == null:
+		return
+	# Imported with looping off, so loop_end stays 0. Enabling the mode alone wraps at
+	# sample 0 and the player stays silent. The end has to be the whole clip.
+	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	stream.loop_begin = 0
+	stream.loop_end = int(stream.mix_rate * stream.get_length())
+	var motor := AudioStreamPlayer3D.new()
+	motor.name = "Motor"
+	motor.stream = stream
+	motor.bus = "SFX"
+	motor.unit_size = 5.0
+	motor.max_distance = 32.0
+	motor.attenuation_filter_cutoff_hz = 3500.0
+	motor.volume_db = MOTOR_IDLE_DB
+	motor.pitch_scale = MOTOR_IDLE_PITCH
+	add_child(motor)
+	motor.play()
+	_motor = motor
+
+
+func _stop_motor() -> void:
+	if _motor == null:
+		return
+	_motor.stop()
+	_motor = null
+
+
+## Speed spins the gears. Throttle revs them before the car actually moves (follow copies have none).
+func _tick_motor(delta: float) -> void:
+	if _motor == null:
+		return
+	var horiz := Vector2(velocity.x, velocity.z).length()
+	var drive := clampf(maxf(horiz / SPEED, absf(_throttle) * 0.55), 0.0, 1.15)
+	var blend := clampf(drive, 0.0, 1.0)
+	var want_pitch := lerpf(MOTOR_IDLE_PITCH, MOTOR_FULL_PITCH, blend)
+	if drive > 1.0:
+		want_pitch += (drive - 1.0) * 0.18
+	var want_db := lerpf(MOTOR_IDLE_DB, MOTOR_FULL_DB, blend)
+	if _local_driver():
+		want_db += MOTOR_DRIVER_DB
+	var k := 1.0 - exp(-9.0 * delta)
+	_motor_pitch = lerpf(_motor_pitch, want_pitch, k)
+	_motor_db = lerpf(_motor_db, want_db, k)
+	_motor.pitch_scale = _motor_pitch
+	_motor.volume_db = _motor_db
+
+
+## Round end, killcam, leave: the held camera does not outlive the match.
+func cut_view() -> void:
+	if not _lingering:
+		return
+	_lingering = false
+	_drop_camera()
 	queue_free()
 
 
@@ -345,6 +463,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_follow(delta)
 	_animate_body(delta)
+	_tick_motor(delta)
 	if _local_driver():
 		_show_hud()
 
@@ -393,6 +512,9 @@ func _step(delta: float) -> void:
 	var up := get_floor_normal() if on_floor else Vector3.UP
 	var g := get_gravity()
 	var v := velocity
+	# Slope speed before the floor stick. Empty unless this step drove on the floor.
+	var slope_v := Vector3.ZERO
+	var had_slope := false
 	# Steering: the wheel ramps toward the wish, faster with speed, a bit slower flat out.
 	var fwd_flat := Vector3(-sin(yaw), 0.0, -cos(yaw))
 	var v_long := v.dot(fwd_flat)
@@ -430,6 +552,10 @@ func _step(delta: float) -> void:
 		# Gravity along the slope, plus a light push into the floor so it stays put on flat ground.
 		var g_slope := g - up * g.dot(up)
 		v += g_slope * SLOPE_PULL * delta
+		# The stick is only for this move. move_and_slide then drops world-Y, and the
+		# uphill part of the stick would be all that is left of a descent.
+		slope_v = v
+		had_slope = true
 		if v.dot(Vector3.UP) <= 0.0:
 			v -= up * 0.5
 	else:
@@ -437,8 +563,10 @@ func _step(delta: float) -> void:
 	velocity = v
 	var before := velocity
 	move_and_slide()
-	_bump(before)
+	var bumped := _bump(before)
 	var now_floor := is_on_floor()
+	if had_slope and now_floor and not bumped:
+		_keep_slope_speed(slope_v, fwd_flat, before)
 	if now_floor and not _was_floor and _prev_vel.y < -LAND_MIN:
 		# Hard landing: a small hop back up and a kick in the body.
 		velocity.y = -_prev_vel.y * LAND_BOUNCE
@@ -452,7 +580,8 @@ func _step(delta: float) -> void:
 
 
 ## Walls: bounce back a little instead of a dead stop. Floors and ramps are left alone.
-func _bump(before: Vector3) -> void:
+## True when a wall took the hit, so the caller does not paste the pre-hit speed back.
+func _bump(before: Vector3) -> bool:
 	for i in get_slide_collision_count():
 		var c := get_slide_collision(i)
 		var n := c.get_normal()
@@ -467,7 +596,28 @@ func _bump(before: Vector3) -> void:
 		_tilt_v.y += signf(n.dot(global_basis.x)) * into * 0.15
 		_tilt_v.x += into * 0.08
 		_turn *= 0.3
-		break
+		return true
+	return false
+
+
+## move_and_slide drops world-Y whenever velocity is not pointing up. On a ramp that
+## shortens the along-slope speed to its flat part, and the floor stick's uphill
+## component stays in that flat part, so the next frame brakes as if the wheels
+## were in mud. Write the slope speed back. A wall that actually stole horizontal
+## speed keeps that loss.
+func _keep_slope_speed(wish: Vector3, heading: Vector3, before: Vector3) -> void:
+	var n := get_floor_normal()
+	var fwd := heading - n * heading.dot(n)
+	if fwd.length_squared() < 0.0001:
+		return
+	fwd = fwd.normalized()
+	var side := n.cross(fwd).normalized()
+	var scale := 1.0
+	var before_h := Vector2(before.x, before.z).length()
+	var got_h := Vector2(velocity.x, velocity.z).length()
+	if before_h > 0.4 and got_h < before_h - 0.15:
+		scale = got_h / before_h
+	velocity = (fwd * wish.dot(fwd) + side * wish.dot(side)) * scale
 
 
 func _read_controls(delta: float) -> void:
