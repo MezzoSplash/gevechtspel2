@@ -69,8 +69,10 @@ const NAME_MAX := 24
 ## Checked in the ENet auth step (main.gd). Bump with each release that changes RPCs or sync,
 ## when a new map id ships, and when map collision changes: each machine moves on its own mesh.
 ## Old clients get a clear "version mismatch" instead of a silent wrong map.
-## 0.3.4 is the Quay rework (side lanes, offices, gantry, roof screens, new spawns). 0.3.3 and older cannot join.
-const NET_VERSION := "0.3.4"
+## 0.3.4 is the Quay rework (side lanes, offices, gantry, roof screens, new spawns).
+## 0.3.6: RC-XD physics. rc_drive's yaw is now the aim, sync_rc_pose carries velocity, and the
+## driver's prediction must match the server's handling. 0.3.5 and older cannot join.
+const NET_VERSION := "0.3.6"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -1210,7 +1212,7 @@ func mark_rc_done(net_id: int) -> void:
 	_rc_done[net_id] = true
 
 
-## Driver's yaw and throttle. The server car is the one that explodes.
+## Driver's aim (where the car should head; it turns toward it) and throttle. The server car is the one that explodes.
 @rpc("any_peer", "unreliable")
 func rc_drive(net_id: int, yaw_in: float, throttle_in: float) -> void:
 	if not multiplayer.is_server():
@@ -1242,12 +1244,12 @@ func sync_rc_spawn(net_id: int, peer: int, team: int, pos: Vector3, yaw_in: floa
 
 
 @rpc("authority", "unreliable")
-func sync_rc_pose(net_id: int, pos: Vector3, yaw_in: float, life_in: float) -> void:
+func sync_rc_pose(net_id: int, pos: Vector3, yaw_in: float, life_in: float, vel_in: Vector3) -> void:
 	if multiplayer.is_server() or _rc_done.has(net_id):
 		return
 	var car := RcXd.by_id(net_id)
 	if car:
-		car.apply_net_pose(pos, yaw_in, life_in)
+		car.apply_net_pose(pos, yaw_in, life_in, vel_in)
 
 
 @rpc("authority", "reliable")
