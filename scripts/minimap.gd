@@ -8,12 +8,15 @@ extends Control
 
 const RANGE := 34.0 # metres from centre to the edge
 const SHOT_SHOW_MS := 1400 # an enemy shot stays as a red dot this long
+const FADE_MS := 1000 # lost contact: the dot stays at its last known spot and fades this long
 const UAV_SWEEP := 2.0 # seconds per UAV sweep line turn
 
 var _map_ref: WeakRef = weakref(null)
 var _floors: Array[PackedVector2Array] = []
 var _walls: Array[PackedVector2Array] = []
 var _sweep := 0.0
+var _seen := {} # instance id -> last world XZ while the enemy was on the map
+var _ghosts := {} # instance id -> {pos: Vector2 (world XZ), lost: int (ticks ms)}
 var player: Player # local pawn; HUD sets this through bind_player
 
 
@@ -95,17 +98,23 @@ func _draw() -> void:
 		var a := _sweep * TAU
 		draw_line(c, c + Vector2(cos(a), sin(a)) * r * 1.5, Color(1, 0.86, 0.35, 0.35), 3.0)
 	var now := Time.get_ticks_msec()
+	var marks := {}
 	for n in get_tree().get_nodes_in_group("player"):
 		var p := n as Player
-		if p == null or p == me or p.is_dead:
+		if p == null or p == me:
 			continue
-		var pos: Vector2 = to_px.call(Vector2(p.global_position.x, p.global_position.z))
-		match mark_for(p, me, uav, now):
-			MARK_FRIEND:
-				_draw_arrow(pos, p.global_rotation.y - yaw, 6.0, Player.team_color(p.team_id).lightened(0.25))
-			MARK_ENEMY:
-				draw_circle(pos, 5.0, Color(0.95, 0.18, 0.15))
-				draw_arc(pos, 5.0, 0, TAU, 16, Color(0, 0, 0, 0.8), 1.5)
+		var m := mark_for(p, me, uav, now)
+		var wp := Vector2(p.global_position.x, p.global_position.z)
+		if m == MARK_FRIEND:
+			_draw_arrow(to_px.call(wp), p.global_rotation.y - yaw, 6.0, Player.team_color(p.team_id).lightened(0.25))
+		elif m == MARK_ENEMY:
+			marks[p.get_instance_id()] = wp
+	track_contacts(marks, now)
+	for id in _ghosts:
+		var g: Dictionary = _ghosts[id]
+		_draw_enemy(to_px.call(g.pos), ghost_alpha(int(g.lost), now))
+	for id in marks:
+		_draw_enemy(to_px.call(marks[id]), 1.0)
 	_draw_arrow(c, 0.0, 8.0, Color(1, 0.92, 0.55))
 	_draw_frame(r)
 	if uav:
@@ -116,6 +125,32 @@ func _draw() -> void:
 ## World XZ relative to `origin`, turned so a pawn with `yaw` looks up (-Y on screen). Metres.
 static func to_local_map(p: Vector2, origin: Vector2, yaw: float) -> Vector2:
 	return Transform2D(yaw, Vector2.ZERO) * (p - origin)
+
+
+## `visible`: instance id -> world XZ of enemies shown this frame. Enemies that were shown
+## last frame and are not now (UAV over, shot dot expired, died, left) become ghosts at their
+## last known spot; ghosts older than FADE_MS go. Seen again: the ghost is dropped.
+func track_contacts(visible: Dictionary, now: int) -> void:
+	for id in _seen:
+		if not visible.has(id):
+			_ghosts[id] = {"pos": _seen[id], "lost": now}
+	for id in visible:
+		_ghosts.erase(id)
+	for id in _ghosts.keys():
+		if now - int(_ghosts[id].lost) >= FADE_MS:
+			_ghosts.erase(id)
+	_seen = visible.duplicate()
+
+
+static func ghost_alpha(lost_ms: int, now: int) -> float:
+	return clampf(1.0 - float(now - lost_ms) / FADE_MS, 0.0, 1.0)
+
+
+func _draw_enemy(pos: Vector2, a: float) -> void:
+	if a <= 0.0:
+		return
+	draw_circle(pos, 5.0, Color(0.95, 0.18, 0.15, a))
+	draw_arc(pos, 5.0, 0, TAU, 16, Color(0, 0, 0, 0.8 * a), 1.5)
 
 
 const MARK_NONE := 0

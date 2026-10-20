@@ -80,6 +80,21 @@ func _run() -> void:
 	Game.mode = Game.MODE_FFA
 	_ok(Minimap.mark_for(mate, me, false, now) == Minimap.MARK_NONE, "FFA: no teammates")
 	Game.mode = 0
+	# Fade: lost contact leaves a ghost at the last spot that fades over FADE_MS.
+	var mm := Minimap.new()
+	add_child(mm)
+	mm.set_process(false)
+	mm.track_contacts({1: Vector2(3, 4), 2: Vector2(5, 6)}, 1000)
+	mm.track_contacts({2: Vector2(5, 7)}, 1100) # 1 lost (UAV over / died)
+	_ok(mm._ghosts.has(1) and mm._ghosts[1].pos == Vector2(3, 4), "lost enemy leaves a ghost at the last spot")
+	_ok(not mm._ghosts.has(2), "still visible enemy is no ghost")
+	_ok(is_equal_approx(Minimap.ghost_alpha(1100, 1600), 0.5), "half faded after half the time")
+	mm.track_contacts({1: Vector2(9, 9)}, 1500) # 1 back, 2 lost
+	_ok(not mm._ghosts.has(1) and mm._ghosts.has(2), "seen again drops the ghost")
+	mm.track_contacts({1: Vector2(9, 9)}, 1500 + Minimap.FADE_MS)
+	_ok(not mm._ghosts.has(2), "ghost gone after FADE_MS")
+	_ok(Minimap.ghost_alpha(0, Minimap.FADE_MS) == 0.0, "alpha 0 at the end")
+	mm.queue_free()
 	var ahead := Minimap.to_local_map(Vector2(-10, 20), Vector2(0, 20), PI * 0.5)
 	_ok(ahead.y < -9.9 and absf(ahead.x) < 0.01, "facing -X: a pawn 10 m to -X is straight up (%s)" % ahead)
 	var right := Minimap.to_local_map(Vector2(5, 0), Vector2.ZERO, 0.0)
