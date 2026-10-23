@@ -433,6 +433,14 @@ func add_knockback(imp: Vector3) -> void:
 		camera.add_shake(1.4, randf_range(-0.8, 0.8), 3.0)
 
 
+## Maps over a drop (Skyline) set metadata kill_y on the map root: falling under it is a suicide.
+func _check_kill_y() -> void:
+	if is_dead or global_position.y >= Game.map_kill_y:
+		return
+	_spawn_protect = 0.0
+	apply_hit(global_position, Vector3.UP, 10000.0, false, peer_id, &"fall")
+
+
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
 ## `headshot_mult` comes from the gun's WeaponDef (rifle 3.6, sniper 2.0, SMG 1.5, other guns 1.6).
 ## Grenades pass allow_headshot false. The test uses the drawn head, not a height band.
@@ -631,6 +639,7 @@ func _physics_process(delta: float) -> void:
 	_spawn_protect = maxf(_spawn_protect - delta, 0.0)
 	if Game._is_match_authority():
 		_tick_style_track(delta)
+		_check_kill_y()
 	if is_bot:
 		if Game.is_networked() and not multiplayer.is_server():
 			_apply_remote_visual()

@@ -121,6 +121,7 @@ var radar_team := -1 # team whose radar is running here; its enemies get markers
 var radar_peer := 0 # FFA: who activated the radar running here (only that machine gets markers)
 var mode := MODE_TDM # server-owned; clients get it with sync_match_config
 var map_id: StringName = Maps.DEFAULT
+var map_kill_y := -INF # from the map root's metadata kill_y; pawns under it die (player.gd)
 var mouse_sens := 1.0 # multiplier on Player.MOUSE_SENS (settings)
 var ads_sens := 0.45 # extra multiplier while aiming down sights / scoped
 var last_map: StringName = Maps.DEFAULT # menu's last pick (settings.cfg [match])

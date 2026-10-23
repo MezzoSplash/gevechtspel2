@@ -1,0 +1,1976 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://shaders/world_paint.gdshader" id="1_paint"]
+
+[sub_resource type="ProceduralSkyMaterial" id="Sky_mat"]
+sky_top_color = Color(0.30, 0.42, 0.62, 1)
+sky_horizon_color = Color(0.82, 0.72, 0.62, 1)
+sky_curve = 0.1
+ground_bottom_color = Color(0.22, 0.24, 0.27, 1)
+ground_horizon_color = Color(0.7, 0.64, 0.58, 1)
+sun_angle_max = 20.0
+sun_curve = 0.2
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("Sky_mat")
+radiance_size = 1
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 2
+sky = SubResource("Sky")
+ambient_light_source = 3
+ambient_light_color = Color(0.58, 0.6, 0.66, 1)
+ambient_light_sky_contribution = 0.8
+ambient_light_energy = 0.8
+reflected_light_source = 2
+tonemap_mode = 4
+tonemap_exposure = 1.05
+tonemap_white = 6.0
+ssao_enabled = true
+ssao_radius = 1.2
+ssao_intensity = 1.6
+ssao_power = 1.4
+ssao_detail = 0.4
+ssao_light_affect = 0.15
+glow_enabled = true
+glow_intensity = 0.5
+glow_strength = 0.9
+glow_bloom = 0.0
+glow_blend_mode = 1
+glow_hdr_threshold = 1.2
+fog_enabled = true
+fog_mode = 1
+fog_light_color = Color(0.7, 0.68, 0.66, 1)
+fog_density = 0.45
+fog_sky_affect = 0.0
+fog_depth_begin = 40.0
+fog_depth_end = 200.0
+fog_depth_curve = 1.4
+adjustment_enabled = true
+adjustment_contrast = 1.06
+adjustment_saturation = 1.08
+
+[sub_resource type="ShaderMaterial" id="Mat_brick"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.55, 0.33, 0.24, 1)
+shader_parameter/roughness = 0.85
+shader_parameter/pattern = 1
+shader_parameter/wear = 0.08
+shader_parameter/line_dark = 0.38
+shader_parameter/grain = 0.03
+
+[sub_resource type="ShaderMaterial" id="Mat_roof"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.33, 0.35, 0.34, 1)
+shader_parameter/roughness = 0.9
+shader_parameter/pattern = 4
+shader_parameter/wear = 0.08
+shader_parameter/line_dark = 0.25
+shader_parameter/grain = 0.04
+
+[sub_resource type="ShaderMaterial" id="Mat_plaster"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.62, 0.58, 0.5, 1)
+shader_parameter/roughness = 0.86
+shader_parameter/pattern = 2
+shader_parameter/wear = 0.07
+shader_parameter/line_dark = 0.18
+shader_parameter/grain = 0.03
+
+[sub_resource type="ShaderMaterial" id="Mat_tar"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.2, 0.21, 0.22, 1)
+shader_parameter/roughness = 0.94
+shader_parameter/pattern = 5
+shader_parameter/wear = 0.1
+shader_parameter/line_dark = 0
+shader_parameter/grain = 0.05
+
+[sub_resource type="ShaderMaterial" id="Mat_brick_dark"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.38, 0.26, 0.22, 1)
+shader_parameter/roughness = 0.86
+shader_parameter/pattern = 1
+shader_parameter/wear = 0.08
+shader_parameter/line_dark = 0.38
+shader_parameter/grain = 0.03
+
+[sub_resource type="ShaderMaterial" id="Mat_concrete"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.44, 0.44, 0.42, 1)
+shader_parameter/roughness = 0.88
+shader_parameter/pattern = 2
+shader_parameter/wear = 0.09
+shader_parameter/line_dark = 0.3
+shader_parameter/grain = 0.035
+
+[sub_resource type="ShaderMaterial" id="Mat_plank"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.46, 0.34, 0.22, 1)
+shader_parameter/roughness = 0.85
+shader_parameter/pattern = 3
+shader_parameter/wear = 0.1
+shader_parameter/line_dark = 0.3
+shader_parameter/grain = 0.04
+
+[sub_resource type="ShaderMaterial" id="Mat_steel"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.28, 0.31, 0.35, 1)
+shader_parameter/roughness = 0.55
+shader_parameter/pattern = 0
+shader_parameter/wear = 0.07
+shader_parameter/line_dark = 0
+shader_parameter/grain = 0.025
+
+[sub_resource type="ShaderMaterial" id="Mat_hazard"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.8, 0.63, 0.14, 1)
+shader_parameter/roughness = 0.75
+shader_parameter/pattern = 0
+shader_parameter/wear = 0.06
+shader_parameter/line_dark = 0
+shader_parameter/grain = 0.02
+
+[sub_resource type="ShaderMaterial" id="Mat_team_blue"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.27, 0.46, 0.66, 1)
+shader_parameter/roughness = 0.82
+shader_parameter/pattern = 2
+shader_parameter/wear = 0.06
+shader_parameter/line_dark = 0.22
+shader_parameter/grain = 0.02
+
+[sub_resource type="ShaderMaterial" id="Mat_team_orange"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.74, 0.44, 0.18, 1)
+shader_parameter/roughness = 0.82
+shader_parameter/pattern = 2
+shader_parameter/wear = 0.06
+shader_parameter/line_dark = 0.22
+shader_parameter/grain = 0.02
+
+[sub_resource type="ShaderMaterial" id="Mat_ac"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.62, 0.64, 0.66, 1)
+shader_parameter/roughness = 0.62
+shader_parameter/pattern = 3
+shader_parameter/wear = 0.06
+shader_parameter/line_dark = 0.25
+shader_parameter/grain = 0.02
+
+[sub_resource type="ShaderMaterial" id="Mat_sky_b"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.44, 0.36, 0.32, 1)
+shader_parameter/roughness = 0.85
+shader_parameter/pattern = 1
+shader_parameter/wear = 0.06
+shader_parameter/line_dark = 0.3
+shader_parameter/grain = 0.02
+
+[sub_resource type="ShaderMaterial" id="Mat_sky_c"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.52, 0.54, 0.56, 1)
+shader_parameter/roughness = 0.8
+shader_parameter/pattern = 2
+shader_parameter/wear = 0.05
+shader_parameter/line_dark = 0.2
+shader_parameter/grain = 0.02
+
+[sub_resource type="ShaderMaterial" id="Mat_sky_a"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.36, 0.4, 0.46, 1)
+shader_parameter/roughness = 0.85
+shader_parameter/pattern = 2
+shader_parameter/wear = 0.06
+shader_parameter/line_dark = 0.25
+shader_parameter/grain = 0.02
+
+[sub_resource type="ShaderMaterial" id="Mat_street"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.17, 0.18, 0.19, 1)
+shader_parameter/roughness = 0.95
+shader_parameter/pattern = 5
+shader_parameter/wear = 0.1
+shader_parameter/line_dark = 0
+shader_parameter/grain = 0.05
+
+[sub_resource type="StandardMaterial3D" id="Mat_glow"]
+albedo_color = Color(1, 0.82, 0.55, 1)
+emission_enabled = true
+emission = Color(1, 0.78, 0.5, 1)
+emission_energy_multiplier = 1.6
+
+[sub_resource type="BoxMesh" id="BM_0"]
+size = Vector3(17.8112, 72.8706, 10.8692)
+
+[sub_resource type="BoxMesh" id="BM_1"]
+size = Vector3(11.0314, 49.253, 15.0181)
+
+[sub_resource type="BoxMesh" id="BM_2"]
+size = Vector3(14.7602, 33.7266, 21.7151)
+
+[sub_resource type="BoxMesh" id="BM_3"]
+size = Vector3(18.184, 75.6964, 11.2367)
+
+[sub_resource type="BoxMesh" id="BM_4"]
+size = Vector3(19.3267, 103.8753, 15.5872)
+
+[sub_resource type="BoxMesh" id="BM_5"]
+size = Vector3(16.3024, 88.3556, 20.5016)
+
+[sub_resource type="BoxMesh" id="BM_6"]
+size = Vector3(11.9795, 104.6616, 14.1047)
+
+[sub_resource type="BoxMesh" id="BM_7"]
+size = Vector3(14.2021, 93.7514, 15.9601)
+
+[sub_resource type="BoxMesh" id="BM_8"]
+size = Vector3(17.9698, 86.1194, 10.728)
+
+[sub_resource type="BoxMesh" id="BM_9"]
+size = Vector3(18.5995, 57.7604, 20.6445)
+
+[sub_resource type="BoxMesh" id="BM_10"]
+size = Vector3(14.6914, 36.4465, 20.4571)
+
+[sub_resource type="BoxMesh" id="BM_11"]
+size = Vector3(14.9836, 100.7354, 14.3053)
+
+[sub_resource type="BoxMesh" id="BM_12"]
+size = Vector3(19.9731, 52.5545, 12.1881)
+
+[sub_resource type="BoxMesh" id="BM_13"]
+size = Vector3(21.4027, 89.1828, 17.8596)
+
+[sub_resource type="BoxMesh" id="BM_14"]
+size = Vector3(19.5745, 61.9183, 14.7085)
+
+[sub_resource type="BoxMesh" id="BM_15"]
+size = Vector3(14.0806, 30.0187, 10.6309)
+
+[sub_resource type="BoxMesh" id="BM_16"]
+size = Vector3(17.6129, 78.1823, 21.4656)
+
+[sub_resource type="BoxMesh" id="BM_17"]
+size = Vector3(11.2263, 51.1806, 14.1116)
+
+[sub_resource type="BoxMesh" id="BM_18"]
+size = Vector3(18.2808, 90.6514, 20.9697)
+
+[sub_resource type="BoxMesh" id="BM_19"]
+size = Vector3(13.1334, 43.3634, 14.4004)
+
+[sub_resource type="BoxMesh" id="BM_20"]
+size = Vector3(19.6729, 89.1898, 19.82)
+
+[sub_resource type="BoxMesh" id="BM_21"]
+size = Vector3(13.1101, 106.5212, 18.3103)
+
+[sub_resource type="BoxMesh" id="BM_22"]
+size = Vector3(21.6942, 38.1726, 10.9665)
+
+[sub_resource type="BoxMesh" id="BM_23"]
+size = Vector3(10.0229, 57.5206, 20.9104)
+
+[sub_resource type="BoxMesh" id="BM_24"]
+size = Vector3(15.2071, 36.94, 17.6301)
+
+[sub_resource type="BoxMesh" id="BM_25"]
+size = Vector3(10.3306, 67.2283, 17.0897)
+
+[sub_resource type="BoxMesh" id="BM_26"]
+size = Vector3(10.1709, 81.974, 21.6507)
+
+[sub_resource type="BoxMesh" id="BM_27"]
+size = Vector3(12.3377, 32.2395, 20.4869)
+
+[sub_resource type="BoxMesh" id="BM_28"]
+size = Vector3(20.0103, 89.1938, 10.7309)
+
+[sub_resource type="BoxMesh" id="BM_29"]
+size = Vector3(19.9257, 40.4611, 20.538)
+
+[sub_resource type="BoxMesh" id="BM_30"]
+size = Vector3(19.3125, 41.3247, 11.7976)
+
+[sub_resource type="BoxMesh" id="BM_31"]
+size = Vector3(16.2202, 92.7418, 16.6653)
+
+[sub_resource type="BoxMesh" id="BM_32"]
+size = Vector3(10.5064, 66.1741, 11.1729)
+
+[sub_resource type="BoxMesh" id="BM_33"]
+size = Vector3(17.3503, 70.9729, 16.0666)
+
+[sub_resource type="BoxMesh" id="BM_34"]
+size = Vector3(21.3062, 74.7611, 13.1151)
+
+[sub_resource type="BoxMesh" id="BM_35"]
+size = Vector3(15.3054, 49.2511, 10.8706)
+
+[sub_resource type="BoxMesh" id="BM_36"]
+size = Vector3(17.9231, 100.6266, 11.7157)
+
+[sub_resource type="BoxMesh" id="BM_37"]
+size = Vector3(19.9893, 64.5217, 11.9376)
+
+[sub_resource type="BoxMesh" id="BM_38"]
+size = Vector3(16.6486, 31.4466, 15.2855)
+
+[sub_resource type="BoxMesh" id="BM_39"]
+size = Vector3(21.6604, 51.2451, 11.2574)
+
+[sub_resource type="BoxMesh" id="BM_40"]
+size = Vector3(19.8373, 84.0779, 20.1951)
+
+[sub_resource type="BoxMesh" id="BM_41"]
+size = Vector3(18.2585, 35.7931, 15.1038)
+
+[sub_resource type="BoxMesh" id="BM_42"]
+size = Vector3(20.2747, 99.022, 10.7995)
+
+[sub_resource type="BoxMesh" id="BM_43"]
+size = Vector3(21.2575, 50.9516, 21.6306)
+
+[sub_resource type="BoxMesh" id="BM_44"]
+size = Vector3(18.0659, 94.2943, 13.2463)
+
+[sub_resource type="BoxMesh" id="BM_45"]
+size = Vector3(15.6971, 38.5025, 21.2157)
+
+[sub_resource type="BoxMesh" id="BM_46"]
+size = Vector3(420, 1, 420)
+
+[sub_resource type="BoxMesh" id="GM_0"]
+size = Vector3(11.1314, 0.5, 15.1181)
+
+[sub_resource type="BoxMesh" id="GM_1"]
+size = Vector3(11.1314, 0.5, 15.1181)
+
+[sub_resource type="BoxMesh" id="GM_2"]
+size = Vector3(11.1314, 0.5, 15.1181)
+
+[sub_resource type="BoxMesh" id="GM_3"]
+size = Vector3(14.8602, 0.5, 21.8151)
+
+[sub_resource type="BoxMesh" id="GM_4"]
+size = Vector3(18.284, 0.5, 11.3367)
+
+[sub_resource type="BoxMesh" id="GM_5"]
+size = Vector3(18.284, 0.5, 11.3367)
+
+[sub_resource type="BoxMesh" id="GM_6"]
+size = Vector3(18.284, 0.5, 11.3367)
+
+[sub_resource type="BoxMesh" id="GM_7"]
+size = Vector3(19.4267, 0.5, 15.6872)
+
+[sub_resource type="BoxMesh" id="GM_8"]
+size = Vector3(12.0795, 0.5, 14.2047)
+
+[sub_resource type="BoxMesh" id="GM_9"]
+size = Vector3(12.0795, 0.5, 14.2047)
+
+[sub_resource type="BoxMesh" id="GM_10"]
+size = Vector3(12.0795, 0.5, 14.2047)
+
+[sub_resource type="BoxMesh" id="GM_11"]
+size = Vector3(18.6995, 0.5, 20.7445)
+
+[sub_resource type="BoxMesh" id="GM_12"]
+size = Vector3(18.6995, 0.5, 20.7445)
+
+[sub_resource type="BoxMesh" id="GM_13"]
+size = Vector3(18.6995, 0.5, 20.7445)
+
+[sub_resource type="BoxMesh" id="GM_14"]
+size = Vector3(14.7914, 0.5, 20.5571)
+
+[sub_resource type="BoxMesh" id="GM_15"]
+size = Vector3(14.7914, 0.5, 20.5571)
+
+[sub_resource type="BoxMesh" id="GM_16"]
+size = Vector3(15.0836, 0.5, 14.4053)
+
+[sub_resource type="BoxMesh" id="GM_17"]
+size = Vector3(20.0731, 0.5, 12.2881)
+
+[sub_resource type="BoxMesh" id="GM_18"]
+size = Vector3(20.0731, 0.5, 12.2881)
+
+[sub_resource type="BoxMesh" id="GM_19"]
+size = Vector3(19.6745, 0.5, 14.8085)
+
+[sub_resource type="BoxMesh" id="GM_20"]
+size = Vector3(19.6745, 0.5, 14.8085)
+
+[sub_resource type="BoxMesh" id="GM_21"]
+size = Vector3(14.1806, 0.5, 10.7309)
+
+[sub_resource type="BoxMesh" id="GM_22"]
+size = Vector3(14.1806, 0.5, 10.7309)
+
+[sub_resource type="BoxMesh" id="GM_23"]
+size = Vector3(17.7129, 0.5, 21.5656)
+
+[sub_resource type="BoxMesh" id="GM_24"]
+size = Vector3(17.7129, 0.5, 21.5656)
+
+[sub_resource type="BoxMesh" id="GM_25"]
+size = Vector3(11.3263, 0.5, 14.2116)
+
+[sub_resource type="BoxMesh" id="GM_26"]
+size = Vector3(13.2334, 0.5, 14.5004)
+
+[sub_resource type="BoxMesh" id="GM_27"]
+size = Vector3(13.2334, 0.5, 14.5004)
+
+[sub_resource type="BoxMesh" id="GM_28"]
+size = Vector3(13.2334, 0.5, 14.5004)
+
+[sub_resource type="BoxMesh" id="GM_29"]
+size = Vector3(19.7729, 0.5, 19.92)
+
+[sub_resource type="BoxMesh" id="GM_30"]
+size = Vector3(19.7729, 0.5, 19.92)
+
+[sub_resource type="BoxMesh" id="GM_31"]
+size = Vector3(21.7942, 0.5, 11.0665)
+
+[sub_resource type="BoxMesh" id="GM_32"]
+size = Vector3(10.1229, 0.5, 21.0104)
+
+[sub_resource type="BoxMesh" id="GM_33"]
+size = Vector3(10.1229, 0.5, 21.0104)
+
+[sub_resource type="BoxMesh" id="GM_34"]
+size = Vector3(10.1229, 0.5, 21.0104)
+
+[sub_resource type="BoxMesh" id="GM_35"]
+size = Vector3(15.3071, 0.5, 17.7301)
+
+[sub_resource type="BoxMesh" id="GM_36"]
+size = Vector3(15.3071, 0.5, 17.7301)
+
+[sub_resource type="BoxMesh" id="GM_37"]
+size = Vector3(10.4306, 0.5, 17.1897)
+
+[sub_resource type="BoxMesh" id="GM_38"]
+size = Vector3(10.4306, 0.5, 17.1897)
+
+[sub_resource type="BoxMesh" id="GM_39"]
+size = Vector3(10.4306, 0.5, 17.1897)
+
+[sub_resource type="BoxMesh" id="GM_40"]
+size = Vector3(12.4377, 0.5, 20.5869)
+
+[sub_resource type="BoxMesh" id="GM_41"]
+size = Vector3(20.0257, 0.5, 20.638)
+
+[sub_resource type="BoxMesh" id="GM_42"]
+size = Vector3(17.4503, 0.5, 16.1666)
+
+[sub_resource type="BoxMesh" id="GM_43"]
+size = Vector3(17.4503, 0.5, 16.1666)
+
+[sub_resource type="BoxMesh" id="GM_44"]
+size = Vector3(17.4503, 0.5, 16.1666)
+
+[sub_resource type="BoxMesh" id="GM_45"]
+size = Vector3(15.4054, 0.5, 10.9706)
+
+[sub_resource type="BoxMesh" id="GM_46"]
+size = Vector3(15.4054, 0.5, 10.9706)
+
+[sub_resource type="BoxMesh" id="GM_47"]
+size = Vector3(18.0231, 0.5, 11.8157)
+
+[sub_resource type="BoxMesh" id="GM_48"]
+size = Vector3(20.0893, 0.5, 12.0376)
+
+[sub_resource type="BoxMesh" id="GM_49"]
+size = Vector3(20.0893, 0.5, 12.0376)
+
+[sub_resource type="BoxMesh" id="GM_50"]
+size = Vector3(16.7486, 0.5, 15.3855)
+
+[sub_resource type="BoxMesh" id="GM_51"]
+size = Vector3(16.7486, 0.5, 15.3855)
+
+[sub_resource type="BoxMesh" id="GM_52"]
+size = Vector3(19.9373, 0.5, 20.2951)
+
+[sub_resource type="BoxMesh" id="GM_53"]
+size = Vector3(19.9373, 0.5, 20.2951)
+
+[sub_resource type="BoxMesh" id="GM_54"]
+size = Vector3(19.9373, 0.5, 20.2951)
+
+[sub_resource type="BoxMesh" id="GM_55"]
+size = Vector3(20.3747, 0.5, 10.8995)
+
+[sub_resource type="BoxMesh" id="GM_56"]
+size = Vector3(20.3747, 0.5, 10.8995)
+
+[sub_resource type="BoxMesh" id="GM_57"]
+size = Vector3(20.3747, 0.5, 10.8995)
+
+[sub_resource type="BoxMesh" id="GM_58"]
+size = Vector3(21.3575, 0.5, 21.7306)
+
+[sub_resource type="BoxMesh" id="GM_59"]
+size = Vector3(21.3575, 0.5, 21.7306)
+
+[sub_resource type="BoxMesh" id="GM_60"]
+size = Vector3(18.1659, 0.5, 13.3463)
+
+[sub_resource type="BoxMesh" id="GM_61"]
+size = Vector3(15.7971, 0.5, 21.3157)
+
+[sub_resource type="BoxMesh" id="GM_62"]
+size = Vector3(15.7971, 0.5, 21.3157)
+
+[node name="Skyline" type="Node3D"]
+metadata/kill_y = -3
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766, -0.4545, 0.4545, 0, 0.7071, 0.7071, -0.6428, -0.5417, 0.5417, 8, 30, 10)
+light_energy = 1.2
+light_color = Color(1, 0.9, 0.78, 1)
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_normal_bias = 1.2
+shadow_blur = 1.4
+directional_shadow_split_1 = 0.08
+directional_shadow_split_2 = 0.22
+directional_shadow_split_3 = 0.5
+directional_shadow_blend_splits = true
+directional_shadow_max_distance = 120.0
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
+
+[node name="Arena" type="CSGCombiner3D" parent="."]
+use_collision = true
+collision_layer = 1
+collision_mask = 0
+
+[node name="Spawn_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 11.98, 0)
+polygon = PackedVector2Array(-16, -36, 16, -36, 16, -46, -16, -46)
+depth = 41.98
+material = SubResource("Mat_brick")
+
+[node name="SpawnRoof_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.85, 41)
+size = Vector3(32, 0.3, 10)
+material = SubResource("Mat_roof")
+
+[node name="Spawn_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 11.98, 0)
+polygon = PackedVector2Array(-16, 46, 16, 46, 16, 36, -16, 36)
+depth = 41.98
+material = SubResource("Mat_brick")
+
+[node name="SpawnRoof_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.85, -41)
+size = Vector3(32, 0.3, 10)
+material = SubResource("Mat_roof")
+
+[node name="Tower_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 11.98, 0)
+polygon = PackedVector2Array(-7, -20, 7, -20, 7, -31, -7, -31)
+depth = 41.98
+material = SubResource("Mat_plaster")
+
+[node name="TowerRoof_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.85, 25.5)
+size = Vector3(14, 0.3, 11)
+material = SubResource("Mat_tar")
+
+[node name="Tower_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 11.98, 0)
+polygon = PackedVector2Array(-7, 31, 7, 31, 7, 20, -7, 20)
+depth = 41.98
+material = SubResource("Mat_plaster")
+
+[node name="TowerRoof_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.85, -25.5)
+size = Vector3(14, 0.3, 11)
+material = SubResource("Mat_tar")
+
+[node name="WA_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 8.98, 0)
+polygon = PackedVector2Array(-28, -26, -21, -26, -21, -42, -28, -42)
+depth = 38.98
+material = SubResource("Mat_brick_dark")
+
+[node name="WARoof_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.5, 8.85, 34)
+size = Vector3(7, 0.3, 16)
+material = SubResource("Mat_roof")
+
+[node name="WA_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 8.98, 0)
+polygon = PackedVector2Array(21, 42, 28, 42, 28, 26, 21, 26)
+depth = 38.98
+material = SubResource("Mat_brick_dark")
+
+[node name="WARoof_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.5, 8.85, -34)
+size = Vector3(7, 0.3, 16)
+material = SubResource("Mat_roof")
+
+[node name="WB_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 5.98, 0)
+polygon = PackedVector2Array(-28, -9.5, -19, -9.5, -19, -22, -28, -22)
+depth = 35.98
+material = SubResource("Mat_concrete")
+
+[node name="WBRoof_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23.5, 5.85, 15.75)
+size = Vector3(9, 0.3, 12.5)
+material = SubResource("Mat_tar")
+
+[node name="WB_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 5.98, 0)
+polygon = PackedVector2Array(19, 22, 28, 22, 28, 9.5, 19, 9.5)
+depth = 35.98
+material = SubResource("Mat_concrete")
+
+[node name="WBRoof_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23.5, 5.85, -15.75)
+size = Vector3(9, 0.3, 12.5)
+material = SubResource("Mat_tar")
+
+[node name="WM_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 3.98, 0)
+polygon = PackedVector2Array(-28, 5, -18, 5, -18, -5, -28, -5)
+depth = 33.98
+material = SubResource("Mat_brick")
+
+[node name="WMRoof_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23, 3.85, 0)
+size = Vector3(10, 0.3, 10)
+material = SubResource("Mat_roof")
+
+[node name="WM_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 3.98, 0)
+polygon = PackedVector2Array(18, 5, 28, 5, 28, -5, 18, -5)
+depth = 33.98
+material = SubResource("Mat_brick")
+
+[node name="WMRoof_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 3.85, 0)
+size = Vector3(10, 0.3, 10)
+material = SubResource("Mat_roof")
+
+[node name="EA_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 14.98, 0)
+polygon = PackedVector2Array(18, -24, 28, -24, 28, -36, 18, -36)
+depth = 44.98
+material = SubResource("Mat_concrete")
+
+[node name="EARoof_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 14.85, 30)
+size = Vector3(10, 0.3, 12)
+material = SubResource("Mat_roof")
+
+[node name="EA_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 14.98, 0)
+polygon = PackedVector2Array(-28, 36, -18, 36, -18, 24, -28, 24)
+depth = 44.98
+material = SubResource("Mat_concrete")
+
+[node name="EARoof_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23, 14.85, -30)
+size = Vector3(10, 0.3, 12)
+material = SubResource("Mat_roof")
+
+[node name="EB_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 8.98, 0)
+polygon = PackedVector2Array(17, -8, 28, -8, 28, -14, 17, -14)
+depth = 38.98
+material = SubResource("Mat_plaster")
+
+[node name="EBRoof_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22.5, 8.85, 11)
+size = Vector3(11, 0.3, 6)
+material = SubResource("Mat_tar")
+
+[node name="EB_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 8.98, 0)
+polygon = PackedVector2Array(-28, 14, -17, 14, -17, 8, -28, 8)
+depth = 38.98
+material = SubResource("Mat_plaster")
+
+[node name="EBRoof_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22.5, 8.85, -11)
+size = Vector3(11, 0.3, 6)
+material = SubResource("Mat_tar")
+
+[node name="Mid" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 5.98, 0)
+polygon = PackedVector2Array(-10, 10, 10, 10, 10, -10, -10, -10)
+depth = 35.98
+material = SubResource("Mat_brick_dark")
+
+[node name="MidRoof" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.85, 0)
+size = Vector3(20, 0.3, 20)
+material = SubResource("Mat_roof")
+
+[node name="MidBridge_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.8, 15)
+size = Vector3(6, 0.4, 10)
+material = SubResource("Mat_plank")
+
+[node name="MidBridge_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.8, -15)
+size = Vector3(6, 0.4, 10)
+material = SubResource("Mat_plank")
+
+[node name="MidBridgeBeamW_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.85, 5.1, 15)
+size = Vector3(0.3, 1, 10)
+material = SubResource("Mat_steel")
+
+[node name="MidBridgeBeamW_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.85, 5.1, -15)
+size = Vector3(0.3, 1, 10)
+material = SubResource("Mat_steel")
+
+[node name="MidBridgeBeamE_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.85, 5.1, 15)
+size = Vector3(0.3, 1, 10)
+material = SubResource("Mat_steel")
+
+[node name="MidBridgeBeamE_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.85, 5.1, -15)
+size = Vector3(0.3, 1, 10)
+material = SubResource("Mat_steel")
+
+[node name="TowerRoom_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.5, 25)
+size = Vector3(12, 5, 8)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="TowerRoom_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.5, -25)
+size = Vector3(12, 5, 8)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="TowerDoorN_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.3, 20.5)
+size = Vector3(3, 2.6, 1.6)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="TowerDoorN_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.3, -20.5)
+size = Vector3(3, 2.6, 1.6)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="TowerDoorE_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.5, 7.3, 24)
+size = Vector3(1.6, 2.6, 3)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="TowerDoorE_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.5, 7.3, -24)
+size = Vector3(1.6, 2.6, 3)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="TowerHatch_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 11.5, 26.8)
+size = Vector3(3, 1.6, 4.4)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="TowerHatch_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 11.5, -26.8)
+size = Vector3(3, 1.6, 4.4)
+operation = 2
+material = SubResource("Mat_concrete")
+
+[node name="TowerStair_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.7809, 0.6247, 0, -0.6247, 0.7809, -4.5, 8.8829, 25.3437)
+size = Vector3(3, 0.3, 9.6047)
+material = SubResource("Mat_concrete")
+
+[node name="TowerStair_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 0.7809, 0.6247, 0, 0.6247, -0.7809, 4.5, 8.8829, -25.3437)
+size = Vector3(3, 0.3, 9.6047)
+material = SubResource("Mat_concrete")
+
+[node name="TowerStairFoot_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 5.97, 21.4)
+size = Vector3(3, 0.06, 0.4)
+material = SubResource("Mat_hazard")
+
+[node name="TowerStairFoot_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 5.97, -21.4)
+size = Vector3(3, 0.06, 0.4)
+material = SubResource("Mat_hazard")
+
+[node name="TowerCrateA_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 6.55, 26.6)
+size = Vector3(1.8, 1.1, 2)
+material = SubResource("Mat_plank")
+
+[node name="TowerCrateA_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4, 6.55, -26.6)
+size = Vector3(1.8, 1.1, 2)
+material = SubResource("Mat_plank")
+
+[node name="TowerCrateB_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 6.55, 23.8)
+size = Vector3(1.6, 1.1, 1.6)
+material = SubResource("Mat_plank")
+
+[node name="TowerCrateB_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 6.55, -23.8)
+size = Vector3(1.6, 1.1, 1.6)
+material = SubResource("Mat_plank")
+
+[node name="TowerLedgeE_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 5.85, 24)
+size = Vector3(2, 0.3, 5)
+material = SubResource("Mat_steel")
+
+[node name="TowerLedgeE_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 5.85, -24)
+size = Vector3(2, 0.3, 5)
+material = SubResource("Mat_steel")
+
+[node name="TowerSign_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.3, 22.6)
+size = Vector3(3.2, 2.6, 1.2)
+material = SubResource("Mat_steel")
+
+[node name="TowerSign_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.3, -22.6)
+size = Vector3(3.2, 2.6, 1.2)
+material = SubResource("Mat_steel")
+
+[node name="TowerTank_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 13.2, 26)
+size = Vector3(3, 2.4, 3)
+material = SubResource("Mat_plank")
+
+[node name="TowerTank_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 13.2, -26)
+size = Vector3(3, 2.4, 3)
+material = SubResource("Mat_plank")
+
+[node name="TowerHatchRailN_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 12.45, 24.45)
+size = Vector3(3, 0.9, 0.3)
+material = SubResource("Mat_steel")
+
+[node name="TowerHatchRailN_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 12.45, -24.45)
+size = Vector3(3, 0.9, 0.3)
+material = SubResource("Mat_steel")
+
+[node name="SpawnBack_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.6, 45.7)
+size = Vector3(32, 1.2, 0.6)
+material = SubResource("Mat_team_blue")
+
+[node name="SpawnBack_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.6, -45.7)
+size = Vector3(32, 1.2, 0.6)
+material = SubResource("Mat_team_orange")
+
+[node name="SpawnSideW_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.8, 12.5, 43.5)
+size = Vector3(0.4, 1, 5)
+material = SubResource("Mat_brick")
+
+[node name="SpawnSideW_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.8, 12.5, -43.5)
+size = Vector3(0.4, 1, 5)
+material = SubResource("Mat_brick")
+
+[node name="SpawnSideE_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.8, 12.5, 42.5)
+size = Vector3(0.4, 1, 7)
+material = SubResource("Mat_brick")
+
+[node name="SpawnSideE_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.8, 12.5, -42.5)
+size = Vector3(0.4, 1, 7)
+material = SubResource("Mat_brick")
+
+[node name="SpawnBaffleW_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.1, 13.1, 35.9)
+size = Vector3(7.8, 2.2, 0.6)
+material = SubResource("Mat_team_blue")
+
+[node name="SpawnBaffleW_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.1, 13.1, -35.9)
+size = Vector3(7.8, 2.2, 0.6)
+material = SubResource("Mat_team_orange")
+
+[node name="SpawnBaffleE_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.1, 13.1, 35.9)
+size = Vector3(7.8, 2.2, 0.6)
+material = SubResource("Mat_team_blue")
+
+[node name="SpawnBaffleE_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.1, 13.1, -35.9)
+size = Vector3(7.8, 2.2, 0.6)
+material = SubResource("Mat_team_orange")
+
+[node name="SpawnJog_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.1, 37.9)
+size = Vector3(6, 2.2, 0.6)
+material = SubResource("Mat_concrete")
+
+[node name="SpawnJog_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.1, -37.9)
+size = Vector3(6, 2.2, 0.6)
+material = SubResource("Mat_concrete")
+
+[node name="SpawnAC_W_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.5, 12.6, 37.8)
+size = Vector3(2, 1.2, 1.6)
+material = SubResource("Mat_ac")
+
+[node name="SpawnAC_W_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 12.6, -37.8)
+size = Vector3(2, 1.2, 1.6)
+material = SubResource("Mat_ac")
+
+[node name="SpawnAC_E_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, 12.6, 37.8)
+size = Vector3(2, 1.2, 1.6)
+material = SubResource("Mat_ac")
+
+[node name="SpawnAC_E_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.5, 12.6, -37.8)
+size = Vector3(2, 1.2, 1.6)
+material = SubResource("Mat_ac")
+
+[node name="SpawnBridge_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.85, 33.5)
+size = Vector3(2.5, 0.3, 5)
+material = SubResource("Mat_plank")
+
+[node name="SpawnBridge_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.85, -33.5)
+size = Vector3(2.5, 0.3, 5)
+material = SubResource("Mat_plank")
+
+[node name="SpawnBridgeEdgeN_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.97, 31.125)
+size = Vector3(2.5, 0.06, 0.25)
+material = SubResource("Mat_hazard")
+
+[node name="SpawnBridgeEdgeN_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11.97, -31.125)
+size = Vector3(2.5, 0.06, 0.25)
+material = SubResource("Mat_hazard")
+
+[node name="WestStair_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(0, -0.5145, 0.8575, 0, 0.8575, 0.5145, -1, 0, 0, -18.4228, 10.3714, 38.6)
+size = Vector3(2.8, 0.3, 5.831)
+material = SubResource("Mat_concrete")
+
+[node name="WestStair_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(0, 0.5145, -0.8575, 0, 0.8575, 0.5145, 1, 0, 0, 18.4228, 10.3714, -38.6)
+size = Vector3(2.8, 0.3, 5.831)
+material = SubResource("Mat_concrete")
+
+[node name="WestPlank_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.8, 0.6, 0, -0.6, 0.8, -25.1, 7.38, 24.09)
+size = Vector3(2.2, 0.3, 5)
+material = SubResource("Mat_plank")
+
+[node name="WestPlank_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 0.8, 0.6, 0, 0.6, -0.8, 25.1, 7.38, -24.09)
+size = Vector3(2.2, 0.3, 5)
+material = SubResource("Mat_plank")
+
+[node name="WestRamp_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.9138, 0.4061, 0, -0.4061, 0.9138, -26.3, 4.8629, 7.3109)
+size = Vector3(2.2, 0.3, 4.9244)
+material = SubResource("Mat_concrete")
+
+[node name="WestRamp_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 0.9138, 0.4061, 0, 0.4061, -0.9138, 26.3, 4.8629, -7.3109)
+size = Vector3(2.2, 0.3, 4.9244)
+material = SubResource("Mat_concrete")
+
+[node name="CrossPlank_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(0, -0.2425, 0.9701, 0, 0.9701, 0.2425, -1, 0, 0, -13.9636, 4.8545, 0)
+size = Vector3(2.2, 0.3, 8.2462)
+material = SubResource("Mat_plank")
+
+[node name="CrossPlank_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(0, 0.2425, -0.9701, 0, 0.9701, 0.2425, 1, 0, 0, 13.9636, 4.8545, 0)
+size = Vector3(2.2, 0.3, 8.2462)
+material = SubResource("Mat_plank")
+
+[node name="WA_Tank_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25.5, 10.3, 34.5)
+size = Vector3(3, 2.6, 3)
+material = SubResource("Mat_plank")
+
+[node name="WA_Tank_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25.5, 10.3, -34.5)
+size = Vector3(3, 2.6, 3)
+material = SubResource("Mat_plank")
+
+[node name="WA_Vent_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22.75, 9.55, 29)
+size = Vector3(1.5, 1.1, 2)
+material = SubResource("Mat_ac")
+
+[node name="WA_Vent_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22.75, 9.55, -29)
+size = Vector3(1.5, 1.1, 2)
+material = SubResource("Mat_ac")
+
+[node name="WB_AC1_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 6.6, 14.9)
+size = Vector3(2, 1.2, 1.8)
+material = SubResource("Mat_ac")
+
+[node name="WB_AC1_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 6.6, -14.9)
+size = Vector3(2, 1.2, 1.8)
+material = SubResource("Mat_ac")
+
+[node name="WB_AC2_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26.5, 6.6, 18.25)
+size = Vector3(2, 1.2, 1.5)
+material = SubResource("Mat_ac")
+
+[node name="WB_AC2_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.5, 6.6, -18.25)
+size = Vector3(2, 1.2, 1.5)
+material = SubResource("Mat_ac")
+
+[node name="WM_Wall_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23, 4.6, 0)
+size = Vector3(2, 1.2, 5)
+material = SubResource("Mat_brick")
+
+[node name="WM_Wall_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23, 4.6, 0)
+size = Vector3(2, 1.2, 5)
+material = SubResource("Mat_brick")
+
+[node name="WM_Edge_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27.8, 4.45, 0)
+size = Vector3(0.4, 0.9, 10)
+material = SubResource("Mat_brick")
+
+[node name="WM_Edge_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27.8, 4.45, 0)
+size = Vector3(0.4, 0.9, 10)
+material = SubResource("Mat_brick")
+
+[node name="FireLanding_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.9, 11.85, 35.5)
+size = Vector3(2.2, 0.3, 3)
+material = SubResource("Mat_steel")
+
+[node name="FireLanding_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.9, 11.85, -35.5)
+size = Vector3(2.2, 0.3, 3)
+material = SubResource("Mat_steel")
+
+[node name="FireEscape_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 0.9191, 0.3939, 0, 0.3939, -0.9191, 16.9, 13.3621, 30.4409)
+size = Vector3(2.2, 0.3, 7.6158)
+material = SubResource("Mat_steel")
+
+[node name="FireEscape_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.9191, 0.3939, 0, -0.3939, 0.9191, -16.9, 13.3621, -30.4409)
+size = Vector3(2.2, 0.3, 7.6158)
+material = SubResource("Mat_steel")
+
+[node name="FireTop_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.9, 14.85, 26.1)
+size = Vector3(2.2, 0.3, 1.8)
+material = SubResource("Mat_steel")
+
+[node name="FireTop_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.9, 14.85, -26.1)
+size = Vector3(2.2, 0.3, 1.8)
+material = SubResource("Mat_steel")
+
+[node name="FireRail_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.7, 12.5, 31.4)
+size = Vector3(0.2, 1, 8.8)
+material = SubResource("Mat_steel")
+
+[node name="FireRail_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -15.7, 12.5, -31.4)
+size = Vector3(0.2, 1, 8.8)
+material = SubResource("Mat_steel")
+
+[node name="FireStrut0_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.05, -9.15, 27.65)
+size = Vector3(0.3, 41.7, 0.3)
+material = SubResource("Mat_steel")
+
+[node name="FireStrut0_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.05, -9.15, -27.65)
+size = Vector3(0.3, 41.7, 0.3)
+material = SubResource("Mat_steel")
+
+[node name="FireStrut1_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.05, -9.15, 31.15)
+size = Vector3(0.3, 41.7, 0.3)
+material = SubResource("Mat_steel")
+
+[node name="FireStrut1_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.05, -9.15, -31.15)
+size = Vector3(0.3, 41.7, 0.3)
+material = SubResource("Mat_steel")
+
+[node name="FireStrut2_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.05, -9.15, 34.65)
+size = Vector3(0.3, 41.7, 0.3)
+material = SubResource("Mat_steel")
+
+[node name="FireStrut2_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.05, -9.15, -34.65)
+size = Vector3(0.3, 41.7, 0.3)
+material = SubResource("Mat_steel")
+
+[node name="EastStair_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.8575, 0.5145, 0, -0.5145, 0.8575, 20.2, 11.8714, 19.0772)
+size = Vector3(2.4, 0.3, 11.6619)
+material = SubResource("Mat_concrete")
+
+[node name="EastStair_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 0.8575, 0.5145, 0, 0.5145, -0.8575, -20.2, 11.8714, -19.0772)
+size = Vector3(2.4, 0.3, 11.6619)
+material = SubResource("Mat_concrete")
+
+[node name="EA_LipW_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.7, 15.5, 24.2)
+size = Vector3(6.6, 1, 0.4)
+material = SubResource("Mat_concrete")
+
+[node name="EA_LipW_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.7, 15.5, -24.2)
+size = Vector3(6.6, 1, 0.4)
+material = SubResource("Mat_concrete")
+
+[node name="EA_Vent_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24.75, 15.65, 30)
+size = Vector3(2.5, 1.3, 2)
+material = SubResource("Mat_ac")
+
+[node name="EA_Vent_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24.75, 15.65, -30)
+size = Vector3(2.5, 1.3, 2)
+material = SubResource("Mat_ac")
+
+[node name="EA_Antenna_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.75, 17, 34.75)
+size = Vector3(0.5, 4, 0.5)
+material = SubResource("Mat_steel")
+
+[node name="EA_Antenna_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -26.75, 17, -34.75)
+size = Vector3(0.5, 4, 0.5)
+material = SubResource("Mat_steel")
+
+[node name="EastPlank_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(0, -0.3939, 0.9191, 0, 0.9191, 0.3939, -1, 0, 0, 13.5591, 7.3621, 9)
+size = Vector3(2, 0.3, 7.6158)
+material = SubResource("Mat_plank")
+
+[node name="EastPlank_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(0, 0.3939, -0.9191, 0, 0.9191, 0.3939, 1, 0, 0, -13.5591, 7.3621, -9)
+size = Vector3(2, 0.3, 7.6158)
+material = SubResource("Mat_plank")
+
+[node name="EB_AC_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 9.6, 11)
+size = Vector3(2, 1.2, 2)
+material = SubResource("Mat_ac")
+
+[node name="EB_AC_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -24, 9.6, -11)
+size = Vector3(2, 1.2, 2)
+material = SubResource("Mat_ac")
+
+[node name="Kiosk" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.3, 0)
+size = Vector3(4, 2.6, 4)
+material = SubResource("Mat_brick")
+
+[node name="KioskRoof" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.7, 0)
+size = Vector3(4.8, 0.2, 4.8)
+material = SubResource("Mat_steel")
+
+[node name="MidAC1_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 6.6, 4.8)
+size = Vector3(2, 1.2, 1.6)
+material = SubResource("Mat_ac")
+
+[node name="MidAC1_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 6.6, -4.8)
+size = Vector3(2, 1.2, 1.6)
+material = SubResource("Mat_ac")
+
+[node name="MidAC2_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.4, 6.6, 3.4)
+size = Vector3(2, 1.2, 1.6)
+material = SubResource("Mat_ac")
+
+[node name="MidAC2_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.4, 6.6, -3.4)
+size = Vector3(2, 1.2, 1.6)
+material = SubResource("Mat_ac")
+
+[node name="MidWall_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.75, 6.55, -2.9)
+size = Vector3(3.5, 1.1, 0.6)
+material = SubResource("Mat_concrete")
+
+[node name="MidWall_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.75, 6.55, 2.9)
+size = Vector3(3.5, 1.1, 0.6)
+material = SubResource("Mat_concrete")
+
+[node name="Backdrop" type="Node3D" parent="."]
+
+[node name="Tower00" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4196, 6.4353, 104.2695)
+cast_shadow = 0
+mesh = SubResource("BM_0")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower01" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.8567, -5.3735, 107.1395)
+cast_shadow = 0
+mesh = SubResource("BM_1")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower02" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.5549, -13.1367, 128.0082)
+cast_shadow = 0
+mesh = SubResource("BM_2")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower03" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7869, 7.8482, 122.1209)
+cast_shadow = 0
+mesh = SubResource("BM_3")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower04" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 52.7729, 21.9377, 112.396)
+cast_shadow = 0
+mesh = SubResource("BM_4")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower05" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 63.5394, 14.1778, 106.5274)
+cast_shadow = 0
+mesh = SubResource("BM_5")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower06" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70.4794, 22.3308, 92.7784)
+cast_shadow = 0
+mesh = SubResource("BM_6")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower07" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 76.0118, 16.8757, 64.8456)
+cast_shadow = 0
+mesh = SubResource("BM_7")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower08" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 89.3338, 13.0597, 53.5251)
+cast_shadow = 0
+mesh = SubResource("BM_8")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower09" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 91.8513, -1.1198, 39.834)
+cast_shadow = 0
+mesh = SubResource("BM_9")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower10" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 83.4277, -11.7767, 26.6444)
+cast_shadow = 0
+mesh = SubResource("BM_10")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower11" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 87.5882, 20.3677, 3.6167)
+cast_shadow = 0
+mesh = SubResource("BM_11")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower12" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 72.6585, -3.7228, -7.931)
+cast_shadow = 0
+mesh = SubResource("BM_12")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower13" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 118.0467, 14.5914, -25.8203)
+cast_shadow = 0
+mesh = SubResource("BM_13")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower14" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 112.4307, 0.9592, -56.3456)
+cast_shadow = 0
+mesh = SubResource("BM_14")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower15" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 73.1691, -14.9907, -45.617)
+cast_shadow = 0
+mesh = SubResource("BM_15")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower16" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 77.5424, 9.0912, -66.5307)
+cast_shadow = 0
+mesh = SubResource("BM_16")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower17" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56.3557, -4.4097, -67.8923)
+cast_shadow = 0
+mesh = SubResource("BM_17")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower18" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54.917, 15.3257, -95.9023)
+cast_shadow = 0
+mesh = SubResource("BM_18")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower19" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54.0515, -8.3183, -125.0429)
+cast_shadow = 0
+mesh = SubResource("BM_19")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower20" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42.1896, 14.5949, -144.4916)
+cast_shadow = 0
+mesh = SubResource("BM_20")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower21" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27.616, 23.2606, -107.7039)
+cast_shadow = 0
+mesh = SubResource("BM_21")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower22" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.4407, -10.9137, -117.7178)
+cast_shadow = 0
+mesh = SubResource("BM_22")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower23" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.14, -1.2397, -136.9723)
+cast_shadow = 0
+mesh = SubResource("BM_23")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower24" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.904, -11.53, -156.174)
+cast_shadow = 0
+mesh = SubResource("BM_24")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower25" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30.1015, 3.6142, -159.8288)
+cast_shadow = 0
+mesh = SubResource("BM_25")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower26" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32.022, 10.987, -94.1487)
+cast_shadow = 0
+mesh = SubResource("BM_26")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower27" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -61.9118, -13.8803, -143.1404)
+cast_shadow = 0
+mesh = SubResource("BM_27")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower28" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -63.1855, 14.5969, -104.1592)
+cast_shadow = 0
+mesh = SubResource("BM_28")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower29" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -75.7997, -9.7695, -85.9907)
+cast_shadow = 0
+mesh = SubResource("BM_29")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower30" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -88.1497, -9.3376, -75.8871)
+cast_shadow = 0
+mesh = SubResource("BM_30")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower31" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -80.3742, 16.3709, -53.1526)
+cast_shadow = 0
+mesh = SubResource("BM_31")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower32" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -76.7324, 3.087, -40.3308)
+cast_shadow = 0
+mesh = SubResource("BM_32")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower33" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -95.4472, 5.4865, -20.3949)
+cast_shadow = 0
+mesh = SubResource("BM_33")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower34" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -120.5374, 7.3806, -7.5517)
+cast_shadow = 0
+mesh = SubResource("BM_34")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower35" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -78.9292, -5.3744, 3.2706)
+cast_shadow = 0
+mesh = SubResource("BM_35")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower36" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -110.1975, 20.3133, 24.5283)
+cast_shadow = 0
+mesh = SubResource("BM_36")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower37" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -119.665, 2.2609, 54.8154)
+cast_shadow = 0
+mesh = SubResource("BM_37")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Tower38" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64.34, -14.2767, 45.5178)
+cast_shadow = 0
+mesh = SubResource("BM_38")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower39" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -91.2613, -4.3774, 92.2612)
+cast_shadow = 0
+mesh = SubResource("BM_39")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower40" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -85.7555, 12.0389, 97.2184)
+cast_shadow = 0
+mesh = SubResource("BM_40")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower41" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -49.9632, -12.1034, 73.1275)
+cast_shadow = 0
+mesh = SubResource("BM_41")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower42" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.9448, 19.511, 86.5244)
+cast_shadow = 0
+mesh = SubResource("BM_42")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower43" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -49.0242, -4.5242, 129.5292)
+cast_shadow = 0
+mesh = SubResource("BM_43")
+surface_material_override/0 = SubResource("Mat_sky_a")
+
+[node name="Tower44" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28.8683, 17.1472, 119.6708)
+cast_shadow = 0
+mesh = SubResource("BM_44")
+surface_material_override/0 = SubResource("Mat_sky_b")
+
+[node name="Tower45" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.8449, -10.7487, 106.1221)
+cast_shadow = 0
+mesh = SubResource("BM_45")
+surface_material_override/0 = SubResource("Mat_sky_c")
+
+[node name="Street" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -30.5, 0)
+cast_shadow = 0
+mesh = SubResource("BM_46")
+surface_material_override/0 = SubResource("Mat_street")
+
+[node name="Glow01_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.8567, -9.4077, 107.1395)
+cast_shadow = 0
+mesh = SubResource("GM_0")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow01_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.8567, -6.7141, 107.1395)
+cast_shadow = 0
+mesh = SubResource("GM_1")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow01_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.8567, 4.2352, 107.1395)
+cast_shadow = 0
+mesh = SubResource("GM_2")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow02_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.5549, -8.1662, 128.0082)
+cast_shadow = 0
+mesh = SubResource("GM_3")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow03_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7869, 26.141, 122.1209)
+cast_shadow = 0
+mesh = SubResource("GM_4")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow03_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7869, 19.9901, 122.1209)
+cast_shadow = 0
+mesh = SubResource("GM_5")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow03_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.7869, 22.2649, 122.1209)
+cast_shadow = 0
+mesh = SubResource("GM_6")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow04_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 52.7729, 46.2909, 112.396)
+cast_shadow = 0
+mesh = SubResource("GM_7")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow06_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70.4794, 11.0997, 92.7784)
+cast_shadow = 0
+mesh = SubResource("GM_8")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow06_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70.4794, 38.7566, 92.7784)
+cast_shadow = 0
+mesh = SubResource("GM_9")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow06_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70.4794, 52.0549, 92.7784)
+cast_shadow = 0
+mesh = SubResource("GM_10")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow09_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 91.8513, -6.0639, 39.834)
+cast_shadow = 0
+mesh = SubResource("GM_11")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow09_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 91.8513, -7.911, 39.834)
+cast_shadow = 0
+mesh = SubResource("GM_12")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow09_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 91.8513, 14.6216, 39.834)
+cast_shadow = 0
+mesh = SubResource("GM_13")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow10_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 83.4277, 0.4642, 26.6444)
+cast_shadow = 0
+mesh = SubResource("GM_14")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow10_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 83.4277, -0.8208, 26.6444)
+cast_shadow = 0
+mesh = SubResource("GM_15")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow11_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 87.5882, 13.64, 3.6167)
+cast_shadow = 0
+mesh = SubResource("GM_16")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow12_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 72.6585, 6.0207, -7.931)
+cast_shadow = 0
+mesh = SubResource("GM_17")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow12_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 72.6585, -2.3965, -7.931)
+cast_shadow = 0
+mesh = SubResource("GM_18")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow14_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 112.4307, -6.2087, -56.3456)
+cast_shadow = 0
+mesh = SubResource("GM_19")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow14_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 112.4307, -6.0351, -56.3456)
+cast_shadow = 0
+mesh = SubResource("GM_20")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow15_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 73.1691, -9.3605, -45.617)
+cast_shadow = 0
+mesh = SubResource("GM_21")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow15_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 73.1691, -18.3325, -45.617)
+cast_shadow = 0
+mesh = SubResource("GM_22")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow16_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 77.5424, 40.0675, -66.5307)
+cast_shadow = 0
+mesh = SubResource("GM_23")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow16_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 77.5424, 17.4015, -66.5307)
+cast_shadow = 0
+mesh = SubResource("GM_24")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow17_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56.3557, -6.3101, -67.8923)
+cast_shadow = 0
+mesh = SubResource("GM_25")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow19_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54.0515, -6.9604, -125.0429)
+cast_shadow = 0
+mesh = SubResource("GM_26")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow19_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54.0515, -9.5033, -125.0429)
+cast_shadow = 0
+mesh = SubResource("GM_27")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow19_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54.0515, 4.5316, -125.0429)
+cast_shadow = 0
+mesh = SubResource("GM_28")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow20_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42.1896, 18.6584, -144.4916)
+cast_shadow = 0
+mesh = SubResource("GM_29")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow20_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42.1896, 2.638, -144.4916)
+cast_shadow = 0
+mesh = SubResource("GM_30")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow22_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.4407, -6.5063, -117.7178)
+cast_shadow = 0
+mesh = SubResource("GM_31")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow23_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.14, -6.0745, -136.9723)
+cast_shadow = 0
+mesh = SubResource("GM_32")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow23_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.14, 2.424, -136.9723)
+cast_shadow = 0
+mesh = SubResource("GM_33")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow23_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.14, 12.6412, -136.9723)
+cast_shadow = 0
+mesh = SubResource("GM_34")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow24_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.904, -1.9683, -156.174)
+cast_shadow = 0
+mesh = SubResource("GM_35")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow24_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.904, -15.3457, -156.174)
+cast_shadow = 0
+mesh = SubResource("GM_36")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow25_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30.1015, 29.7773, -159.8288)
+cast_shadow = 0
+mesh = SubResource("GM_37")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow25_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30.1015, 17.8328, -159.8288)
+cast_shadow = 0
+mesh = SubResource("GM_38")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow25_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30.1015, 6.4864, -159.8288)
+cast_shadow = 0
+mesh = SubResource("GM_39")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow27_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -61.9118, -5.1748, -143.1404)
+cast_shadow = 0
+mesh = SubResource("GM_40")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow29_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -75.7997, 3.5844, -85.9907)
+cast_shadow = 0
+mesh = SubResource("GM_41")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow33_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -95.4472, 15.6574, -20.3949)
+cast_shadow = 0
+mesh = SubResource("GM_42")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow33_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -95.4472, 13.5007, -20.3949)
+cast_shadow = 0
+mesh = SubResource("GM_43")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow33_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -95.4472, 31.5921, -20.3949)
+cast_shadow = 0
+mesh = SubResource("GM_44")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow35_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -78.9292, 8.4732, 3.2706)
+cast_shadow = 0
+mesh = SubResource("GM_45")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow35_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -78.9292, 11.5366, 3.2706)
+cast_shadow = 0
+mesh = SubResource("GM_46")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow36_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -110.1975, 27.2607, 24.5283)
+cast_shadow = 0
+mesh = SubResource("GM_47")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow37_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -119.665, -0.471, 54.8154)
+cast_shadow = 0
+mesh = SubResource("GM_48")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow37_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -119.665, 3.8861, 54.8154)
+cast_shadow = 0
+mesh = SubResource("GM_49")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow38_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64.34, -10.1338, 45.5178)
+cast_shadow = 0
+mesh = SubResource("GM_50")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow38_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64.34, -17.8818, 45.5178)
+cast_shadow = 0
+mesh = SubResource("GM_51")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow40_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -85.7555, 41.9324, 97.2184)
+cast_shadow = 0
+mesh = SubResource("GM_52")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow40_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -85.7555, 25.8132, 97.2184)
+cast_shadow = 0
+mesh = SubResource("GM_53")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow40_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -85.7555, 31.8166, 97.2184)
+cast_shadow = 0
+mesh = SubResource("GM_54")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow42_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.9448, 27.4098, 86.5244)
+cast_shadow = 0
+mesh = SubResource("GM_55")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow42_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.9448, 54.5138, 86.5244)
+cast_shadow = 0
+mesh = SubResource("GM_56")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow42_2" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -37.9448, 38.517, 86.5244)
+cast_shadow = 0
+mesh = SubResource("GM_57")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow43_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -49.0242, 5.4506, 129.5292)
+cast_shadow = 0
+mesh = SubResource("GM_58")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow43_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -49.0242, 2.7159, 129.5292)
+cast_shadow = 0
+mesh = SubResource("GM_59")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow44_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28.8683, 41.0219, 119.6708)
+cast_shadow = 0
+mesh = SubResource("GM_60")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow45_0" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.8449, -4.9638, 106.1221)
+cast_shadow = 0
+mesh = SubResource("GM_61")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Glow45_1" type="MeshInstance3D" parent="Backdrop"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.8449, 2.2959, 106.1221)
+cast_shadow = 0
+mesh = SubResource("GM_62")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="TowerRoom_B" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.6, 25)
+light_color = Color(1, 0.84, 0.66, 1)
+light_energy = 0.9
+omni_range = 11
+shadow_enabled = false
+
+[node name="TowerRoom_O" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.6, -25)
+light_color = Color(1, 0.84, 0.66, 1)
+light_energy = 0.9
+omni_range = 11
+shadow_enabled = false
+
+[node name="StairLight_B" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 11, 23)
+light_color = Color(1, 0.84, 0.66, 1)
+light_energy = 0.5
+omni_range = 7
+shadow_enabled = false
+
+[node name="StairLight_O" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 11, -23)
+light_color = Color(1, 0.84, 0.66, 1)
+light_energy = 0.5
+omni_range = 7
+shadow_enabled = false
+
+[node name="SpawnLamp_B" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 15, 41)
+light_color = Color(0.75, 0.85, 1, 1)
+light_energy = 0.35
+omni_range = 14
+shadow_enabled = false
+
+[node name="SpawnLamp_O" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 15, -41)
+light_color = Color(0.75, 0.85, 1, 1)
+light_energy = 0.35
+omni_range = 14
+shadow_enabled = false
+
+[node name="FireLamp_B" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 16.6, 30)
+light_color = Color(1, 0.84, 0.66, 1)
+light_energy = 0.5
+omni_range = 8
+shadow_enabled = false
+
+[node name="FireLamp_O" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 16.6, -30)
+light_color = Color(1, 0.84, 0.66, 1)
+light_energy = 0.5
+omni_range = 8
+shadow_enabled = false
+
+[node name="MidLamp" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9.6, 0)
+light_color = Color(1, 0.84, 0.66, 1)
+light_energy = 0.45
+omni_range = 13
+shadow_enabled = false

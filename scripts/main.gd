@@ -166,6 +166,7 @@ func _load_map(id: StringName, bake: bool) -> void:
 		var scene := load(str(Maps.info(id).scene)) as PackedScene
 		map_node = scene.instantiate() as Node3D
 		world.add_child(map_node)
+		Game.map_kill_y = float(map_node.get_meta(&"kill_y", -INF))
 		if not Game.display_headless():
 			Gfx.apply_global(Game.gfx_quality)
 			Gfx.apply_map(map_node, Game.gfx_quality)
