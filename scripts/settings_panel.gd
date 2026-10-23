@@ -3,7 +3,7 @@ extends ScrollContainer
 ## Used in the main menu and the pause menu. Built in code so both stay the same screen.
 
 const _LABEL_W := 130.0
-const _SECTION := Color(0.93, 0.78, 0.42)
+const _SECTION := Color(1.0, 0.72, 0.22)
 const _HINT := Color(0.7, 0.74, 0.8)
 
 var _name_edit: LineEdit
@@ -37,6 +37,8 @@ func _ready() -> void:
 	follow_focus = true
 	custom_minimum_size.x = 520
 	($Body as Control).custom_minimum_size.x = 500
+	if theme == null:
+		theme = load("res://ui/menu_theme.tres") as Theme
 	_build()
 	refresh()
 	visibility_changed.connect(func() -> void:
@@ -64,7 +66,7 @@ func _fit_height() -> void:
 	# Hidden on the first frame the minimum can still be 0. A floor keeps the list from collapsing.
 	if want < 40.0:
 		want = 480.0
-	var avail := get_viewport().get_visible_rect().size.y - 150.0
+	var avail := get_viewport().get_visible_rect().size.y - 210.0
 	var h := minf(want, maxf(avail, 280.0))
 	custom_minimum_size.y = h
 	custom_maximum_size = Vector2(520.0, h)
@@ -327,21 +329,31 @@ func _set_pair(ctl: Array, v: float) -> void:
 func _title(body: Node) -> void:
 	var l := Label.new()
 	l.text = "SETTINGS"
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 22)
+	l.theme_type_variation = &"TitleLabel"
 	body.add_child(l)
 
 
 func _section(body: Node, title: String) -> void:
 	var gap := Control.new()
-	gap.custom_minimum_size = Vector2(0, 6)
+	gap.custom_minimum_size = Vector2(0, 10)
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(gap)
+	# Amber caption with a thin rule running to the right edge.
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
 	var l := Label.new()
 	l.text = title
-	l.add_theme_font_size_override("font_size", 15)
+	l.theme_type_variation = &"SectionLabel"
 	l.add_theme_color_override("font_color", _SECTION)
-	body.add_child(l)
+	head.add_child(l)
+	var rule := ColorRect.new()
+	rule.color = Color(_SECTION.r, _SECTION.g, _SECTION.b, 0.25)
+	rule.custom_minimum_size = Vector2(0, 1)
+	rule.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rule.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(rule)
+	body.add_child(head)
 
 
 func _hint(body: Node, text: String) -> void:
@@ -351,19 +363,25 @@ func _hint(body: Node, text: String) -> void:
 	hint.custom_minimum_size = Vector2(500, 0)
 	hint.custom_maximum_size = Vector2(500, -1) # width cap only; -1 = no max on that axis
 	hint.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	hint.add_theme_font_size_override("font_size", 13)
+	hint.theme_type_variation = &"HintLabel"
 	hint.add_theme_color_override("font_color", _HINT)
 	body.add_child(hint)
 
 
 func _row(body: Node, label_text: String) -> HBoxContainer:
+	# Each setting sits on its own faint strip, like a modern shooter options list.
+	var strip := PanelContainer.new()
+	strip.theme_type_variation = &"SettingRow"
+	strip.custom_minimum_size = Vector2(0, 40)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	var l := Label.new()
 	l.text = label_text
 	l.custom_minimum_size = Vector2(_LABEL_W, 0)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(l)
-	body.add_child(row)
+	strip.add_child(row)
+	body.add_child(strip)
 	return row
 
 
