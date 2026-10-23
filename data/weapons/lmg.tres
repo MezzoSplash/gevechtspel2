@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/weapon_def.gd" id="1_weapon"]
+[ext_resource type="AudioStream" path="res://assets/sounds/lmg_fire.wav" id="2_fire"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"lmg"
+display_name = "LMG"
+fire_rate = 8.5
+damage = 26.0
+headshot_multiplier = 1.8
+spread_deg = 0.55
+kick_pitch_deg = 0.42
+kick_yaw_deg = 0.32
+kick_fov = 1.0
+range_m = 160.0
+mag_size = 100
+reload_time = 4.2
+tracer_width = 0.024
+fire_sound = ExtResource("2_fire")
+pellet_count = 1
+automatic = true
+falloff_start_m = 20.0
+falloff_end_m = 50.0
+falloff_min_mult = 0.6
+move_speed_mult = 0.86
+move_spread_scale = 1.25
+ads_fov = 70.0
+ads_spread_mult = 0.5
+ads_time = 0.3

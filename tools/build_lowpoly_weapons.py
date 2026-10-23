@@ -114,3 +114,39 @@ scene("knife", [
     ("Handle", "box", "wrap", (0.10, 0.016, 0.026), (-0.085, 0.0, 0.0), Z),
     ("Pommel", "cyl", "accent", (0.016, 0.014, 8), (-0.14, 0.0, 0.0), Z),
 ])
+# LMG: long receiver, box mag under it, bipod folded under the barrel, carry handle.
+# "Front_Sight" (underscore) so Weapon.fit_model finds it and ADS lines it up.
+scene("lmg", [
+    ("Receiver", "box", "metal", (0.36, 0.085, 0.06), (0.0, 0.0, 0.0), Z),
+    ("FeedCover", "box", "dark", (0.20, 0.02, 0.062), (0.02, 0.052, 0.0), Z),
+    ("Barrel", "cyl", "dark", (0.017, 0.30, 10), (0.32, 0.01, 0.0), Z),
+    ("Shroud", "box", "metal", (0.16, 0.05, 0.05), (0.24, 0.005, 0.0), Z),
+    ("Muzzle", "cyl", "metal", (0.024, 0.05, 8), (0.48, 0.01, 0.0), Z),
+    ("BoxMag", "box", "accent", (0.11, 0.10, 0.07), (0.03, -0.09, 0.0), Z),
+    ("Grip", "box", "dark", (0.045, 0.10, 0.045), (-0.10, -0.08, 0.0), (0, 0, -14)),
+    ("TriggerGuard", "box", "metal", (0.06, 0.008, 0.014), (-0.06, -0.05, 0.0), Z),
+    ("Stock", "box", "dark", (0.18, 0.06, 0.045), (-0.27, -0.01, 0.0), Z),
+    ("ButtPlate", "box", "metal", (0.02, 0.09, 0.05), (-0.37, -0.02, 0.0), Z),
+    ("Handle", "box", "dark", (0.10, 0.015, 0.02), (0.08, 0.10, 0.0), Z),
+    ("HandlePostF", "box", "dark", (0.015, 0.04, 0.02), (0.125, 0.08, 0.0), Z),
+    ("HandlePostR", "box", "dark", (0.015, 0.04, 0.02), (0.035, 0.08, 0.0), Z),
+    ("BipodL", "box", "metal", (0.16, 0.01, 0.01), (0.30, -0.025, 0.02), Z),
+    ("BipodR", "box", "metal", (0.16, 0.01, 0.01), (0.30, -0.025, -0.02), Z),
+    ("Front_Sight", "box", "accent", (0.012, 0.035, 0.01), (0.40, 0.045, 0.0), Z),
+    ("RearSight", "box", "dark", (0.02, 0.03, 0.03), (-0.13, 0.06, 0.0), Z),
+])
+# Slug shotgun: pump gun with a rifled barrel and a rail sight; wood furniture tells it from the GLB.
+scene("slug", [
+    ("Receiver", "box", "metal", (0.20, 0.07, 0.05), (0.0, 0.0, 0.0), Z),
+    ("Barrel", "cyl", "dark", (0.02, 0.40, 10), (0.30, 0.018, 0.0), Z),
+    ("MagTube", "cyl", "metal", (0.016, 0.30, 8), (0.24, -0.02, 0.0), Z),
+    ("Pump", "box", "wood", (0.13, 0.04, 0.05), (0.22, -0.025, 0.0), Z),
+    ("Muzzle", "cyl", "metal", (0.025, 0.03, 8), (0.50, 0.018, 0.0), Z),
+    ("Rail", "box", "dark", (0.16, 0.012, 0.02), (0.0, 0.042, 0.0), Z),
+    ("Grip", "box", "wood", (0.05, 0.08, 0.045), (-0.12, -0.05, 0.0), (0, 0, -25)),
+    ("Stock", "box", "wood", (0.22, 0.06, 0.045), (-0.25, -0.03, 0.0), (0, 0, 6)),
+    ("ButtPad", "box", "dark", (0.02, 0.085, 0.05), (-0.365, -0.045, 0.0), (0, 0, 6)),
+    ("TriggerGuard", "box", "metal", (0.05, 0.008, 0.012), (-0.05, -0.045, 0.0), Z),
+    ("Front_Sight", "box", "accent", (0.012, 0.03, 0.01), (0.46, 0.05, 0.0), Z),
+    ("RearSight", "box", "dark", (0.02, 0.03, 0.03), (-0.06, 0.058, 0.0), Z),
+])

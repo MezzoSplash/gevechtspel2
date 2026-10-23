@@ -167,6 +167,10 @@ static func weapon_blurb(id: StringName) -> String:
 			extra = " · moves 8% faster · iron sights (RMB)"
 		&"revolver":
 			extra = " · 2 body / 1 head"
+		&"lmg":
+			extra = " · moves 14% slower · slow iron sights (RMB)"
+		&"slug":
+			extra = " · one slug, 2 body / 1 head up close"
 		&"sniper":
 			extra = " · scope (RMB)"
 	return "%s: %s dmg · %d rpm · %d rounds · %.1fs reload%s" % [

@@ -98,8 +98,8 @@ const CHAIN_WINDOW := 8.0 # seconds between trick kills that still chain
 const CHAIN_STEP := 0.25
 const CHAIN_MAX := 2.0
 # Grenade kills: no tricks. The throwing knife has its own (YEET) and is in neither list.
-const GUNS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver"]
-const MOVE_WEAPONS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"melee"]
+const GUNS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"lmg", &"slug"]
+const MOVE_WEAPONS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"lmg", &"slug", &"melee"]
 
 
 ## Which tricks a kill was. `c` (all optional):

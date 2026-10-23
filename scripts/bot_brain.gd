@@ -9,6 +9,8 @@ const SHOTGUN_FIGHT := 6.0
 const RIFLE_FIGHT := 13.0
 const PISTOL_FIGHT := 9.0
 const SNIPER_FIGHT := 18.0 # keep range; one shot then a long pause
+const LMG_FIGHT := 22.0 # holds a lane at mid range, slow to strafe
+const SLUG_FIGHT := 14.0 # closer than the rifle, farther than the pellet shotgun
 const SMG_FIGHT := 8.0 # SMG: falls off after 12 m, so it closes in like a light shotgun
 const REVOLVER_FIGHT := 12.0
 const STRAFE_SPEED := 6.2
@@ -498,6 +500,10 @@ func _fight_range() -> float:
 			return SMG_FIGHT
 		&"revolver":
 			return REVOLVER_FIGHT
+		&"lmg":
+			return LMG_FIGHT
+		&"slug":
+			return SLUG_FIGHT
 		_:
 			return RIFLE_FIGHT
 
@@ -525,6 +531,12 @@ func _try_shoot(enemy: Player) -> void:
 			&"revolver":
 				_burst_left = 1 # deliberate single shots, a beat between them
 				_burst_pause = randf_range(0.5, 0.85)
+			&"lmg":
+				_burst_left = randi_range(8, 16) # long sustained bursts, it has 100 rounds
+				_burst_pause = randf_range(0.3, 0.6)
+			&"slug":
+				_burst_left = 1
+				_burst_pause = randf_range(0.8, 1.2)
 			_:
 				_burst_left = randi_range(2, 5)
 				_burst_pause = randf_range(0.35, 0.85)

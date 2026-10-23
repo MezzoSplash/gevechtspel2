@@ -30,6 +30,8 @@ extends Resource
 @export var ads_spread_mult: float = 1.0
 ## Sniper scope: the viewmodel hides while aiming (iron sights keep it).
 @export var ads_hides_model: bool = false
+## Seconds to bring iron sights up (0.09 = SMG snap; the LMG is heavy).
+@export var ads_time: float = 0.09
 
 
 ## Linear falloff after start_m. If end <= start, damage is constant (no dropoff).

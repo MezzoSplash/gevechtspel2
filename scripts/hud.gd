@@ -86,6 +86,8 @@ const _FEED_ICONS := {
 	&"revolver": preload("res://assets/ui/icon_revolver.svg"),
 	&"knife": preload("res://assets/ui/icon_knife.svg"),
 	&"melee": preload("res://assets/ui/icon_melee.svg"),
+	&"lmg": preload("res://assets/ui/icon_lmg.svg"),
+	&"slug": preload("res://assets/ui/icon_slug.svg"),
 	&"rcxd": preload("res://assets/ui/icon_rcxd.svg"),
 	&"fall": preload("res://assets/ui/icon_fall.svg"), # kill_y (map drop), see player._check_kill_y
 }

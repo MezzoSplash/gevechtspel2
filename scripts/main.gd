@@ -930,7 +930,7 @@ func _bot_pawn_count() -> int:
 	return n
 
 
-## loadout = abs(id) % 6 → armory index: rifle / pistol / shotgun / sniper / smg / revolver.
+## loadout = abs(id) % 8 → armory index: rifle / pistol / shotgun / sniper / smg / revolver / lmg / slug.
 func _spawn_bot(team: int) -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return

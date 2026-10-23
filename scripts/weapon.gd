@@ -12,6 +12,8 @@ const LOADOUT: Array[WeaponDef] = [
 	preload("res://data/weapons/sniper.tres"),
 	preload("res://data/weapons/smg.tres"), # v0.2.18: append only, killcam frames store the index
 	preload("res://data/weapons/revolver.tres"),
+	preload("res://data/weapons/lmg.tres"), # v0.3.9
+	preload("res://data/weapons/slug.tres"),
 ]
 
 @export var def: WeaponDef
@@ -25,6 +27,8 @@ const MODEL_SCENES := {
 	&"sniper": preload("res://assets/weapons/sniper.glb"), # slot 4; two body / one head
 	&"smg": preload("res://assets/weapons/smg/weapon_smg.tscn"), # sqorchtech viewmodel, fire clip + muzzle particles
 	&"revolver": preload("res://assets/weapons/revolver.tscn"),
+	&"lmg": preload("res://assets/weapons/lmg.tscn"), # low-poly, tools/build_lowpoly_weapons.py
+	&"slug": preload("res://assets/weapons/slug.tscn"),
 }
 ## Throwing knife: in hand for the F throw, and the flying/stuck projectile.
 const KNIFE_SCENE := preload("res://assets/weapons/knife.tscn")
@@ -186,7 +190,7 @@ func _process(delta: float) -> void:
 	if speed_factor > 0.08:
 		bob.x = sin(_bob_t) * 0.012 * speed_factor
 		bob.y = absf(sin(_bob_t * 2.0)) * 0.01 * speed_factor
-	_ads_k = move_toward(_ads_k, 1.0 if (_ads and not def.ads_hides_model) else 0.0, delta / ADS_TIME)
+	_ads_k = move_toward(_ads_k, 1.0 if (_ads and not def.ads_hides_model) else 0.0, delta / maxf(def.ads_time, 0.01))
 	var rest := _view_rest.lerp(_ads_pose(), smoothstep(0.0, 1.0, _ads_k))
 	var sway := _tick_sway(delta)
 	position = rest + _kick_offset + bob * (1.0 - _ads_k * 0.7) + sway
@@ -591,6 +595,12 @@ static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dicti
 		&"revolver":
 			root = Vector3(0.19, -0.15, -0.30)
 			length = 0.30
+		&"lmg":
+			root = Vector3(0.23, -0.19, -0.30)
+			length = 0.62
+		&"slug":
+			root = Vector3(0.22, -0.18, -0.30)
+			length = 0.54
 		&"knife":
 			root = Vector3(0.19, -0.15, -0.30)
 			length = 0.25
@@ -773,14 +783,14 @@ func _fire() -> void:
 	# Carry at most one frame of overshoot, so a held trigger fires at the real rate at any fps.
 	var frame := maxf(get_process_delta_time(), get_physics_process_delta_time())
 	_cooldown = maxf(_cooldown, -frame) + 1.0 / def.fire_rate
-	var kick_z := 0.055 if def.id != &"shotgun" else 0.09
+	var kick_z := 0.09 if def.id == &"shotgun" or def.id == &"slug" else 0.055
 	_kick_offset += Vector3(0.0, 0.0, kick_z)
 	_kick_offset.y += randf_range(-0.008, 0.004)
-	_flash_left = 0.06 if def.id == &"shotgun" else 0.045
+	_flash_left = 0.06 if def.id == &"shotgun" or def.id == &"slug" else 0.045
 	var model_flash := play_fire_sfx()
 	muzzle_flash.visible = not model_flash
 	muzzle_light.visible = true
-	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" else 4.5
+	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" or def.id == &"slug" else 4.5
 
 	var shooter := owner as Player
 	Game.killcam.note_fire(shooter.peer_id if shooter else 0, def.id)
@@ -806,6 +816,10 @@ func _fire() -> void:
 			spread_mult *= 2.0
 		elif def.id == &"revolver":
 			spread_mult *= 1.7
+		elif def.id == &"lmg":
+			spread_mult *= 2.2
+		elif def.id == &"slug":
+			spread_mult *= 1.6
 		else:
 			spread_mult *= 2.4
 	# One seed for the tracers here and the hit rays on the server, so they line up.
@@ -899,7 +913,7 @@ func _crosshair_punch() -> float:
 	var p := owner as Player
 	if p and p.is_sprinting:
 		return 1.6 if def.move_spread_scale >= 1.0 else 1.2
-	if def.id == &"shotgun":
+	if def.id == &"shotgun" or def.id == &"slug":
 		return 2.2
 	if def.id == &"revolver":
 		return 1.8

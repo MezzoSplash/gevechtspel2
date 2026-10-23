@@ -121,13 +121,13 @@ func _mesh_for(kind: StringName) -> Mesh:
 	if not _casing_mesh.has(kind):
 		var m := BoxMesh.new()
 		match kind:
-			&"shotgun": m.size = Vector3(0.02, 0.02, 0.055)
+			&"shotgun", &"slug": m.size = Vector3(0.02, 0.02, 0.055)
 			&"sniper": m.size = Vector3(0.016, 0.016, 0.07)
 			&"pistol", &"smg": m.size = Vector3(0.010, 0.010, 0.026)
 			_: m.size = Vector3(0.012, 0.012, 0.04)
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.75, 0.15, 0.12) if kind == &"shotgun" else Color(0.82, 0.62, 0.24)
-		mat.metallic = 0.0 if kind == &"shotgun" else 0.6
+		mat.albedo_color = Color(0.75, 0.15, 0.12) if kind == &"shotgun" or kind == &"slug" else Color(0.82, 0.62, 0.24)
+		mat.metallic = 0.0 if kind == &"shotgun" or kind == &"slug" else 0.6
 		mat.roughness = 0.45
 		m.material = mat
 		_casing_mesh[kind] = m
