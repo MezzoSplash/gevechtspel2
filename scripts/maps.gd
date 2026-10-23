@@ -5,7 +5,7 @@ extends RefCounted
 ## Blue (team 0) spawns at +Z and faces -Z; Orange at -Z faces +Z. FFA spawns face the map centre.
 
 const DEFAULT := &"townhouses"
-const ORDER: Array[StringName] = [&"townhouses", &"foundry", &"rooftops", &"quay"]
+const ORDER: Array[StringName] = [&"townhouses", &"foundry", &"rooftops", &"quay", &"skyline"]
 
 const INFO := {
 	&"townhouses": {
@@ -87,6 +87,29 @@ const INFO := {
 			Vector3(-24, 10, 38), Vector3(24, 10, -38),
 			Vector3(24, 10, 26), Vector3(-24, 10, -26),
 			Vector3(-8, 0, 6), Vector3(8, 0, -6),
+		],
+	},
+	&"skyline": {
+		"name": "Skyline",
+		"blurb": "City rooftops from 4 to 15 m: stairs, planks, a fire escape and a tower stairwell.",
+		"scene": "res://scenes/maps/skyline.tscn",
+		"menu_cam": [Vector3(46, 40, 66), Vector3(0, 6, 0)],
+		# Spawn roof at y 12 (x -16..16, z 36..46), behind the baffles and the jog. Half-turn for Orange.
+		"team_spawns": [
+			[Vector3(-13, 12, 40), Vector3(-8, 12, 40), Vector3(-3.4, 12, 40), Vector3(3.4, 12, 40), Vector3(8, 12, 40), Vector3(13, 12, 40), Vector3(-13, 12, 43.4), Vector3(-8, 12, 43.4), Vector3(-3.4, 12, 43.4), Vector3(3.4, 12, 43.4), Vector3(8, 12, 43.4), Vector3(13, 12, 43.4)],
+			[Vector3(13, 12, -40), Vector3(8, 12, -40), Vector3(3.4, 12, -40), Vector3(-3.4, 12, -40), Vector3(-8, 12, -40), Vector3(-13, 12, -40), Vector3(13, 12, -43.4), Vector3(8, 12, -43.4), Vector3(3.4, 12, -43.4), Vector3(-3.4, 12, -43.4), Vector3(-8, 12, -43.4), Vector3(-13, 12, -43.4)],
+		],
+		# Half-turn pairs: spawn roofs, WA, WB, WM/EM, EA perch, EB, Mid, tower roof, tower room.
+		"ffa_spawns": [
+			Vector3(-13, 12, 41), Vector3(13, 12, -41),
+			Vector3(-24.5, 9, 39), Vector3(24.5, 9, -39),
+			Vector3(-22, 6, 12), Vector3(22, 6, -12),
+			Vector3(-25, 4, -1), Vector3(25, 4, 1),
+			Vector3(22, 15, 33), Vector3(-22, 15, -33),
+			Vector3(26, 9, 9.2), Vector3(-26, 9, -9.2),
+			Vector3(4, 6, 8), Vector3(-4, 6, -8),
+			Vector3(-1, 12, 28.5), Vector3(1, 12, -28.5),
+			Vector3(2, 6, 23), Vector3(-2, 6, -23),
 		],
 	},
 }
