@@ -811,7 +811,7 @@ func _local_name() -> String:
 	var p := _local_player()
 	if p:
 		return p.display_name
-	return Game.player_name
+	return Game.local_resolved_name()
 
 
 func _on_hit(killed: bool, headshot: bool) -> void:

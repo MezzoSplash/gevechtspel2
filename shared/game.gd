@@ -363,6 +363,16 @@ func unique_name(peer_id: int, n: String) -> String:
 	return n
 
 
+## Our name as the server resolved it (e.g. "Gianni (2)"), else the typed one.
+func local_resolved_name() -> String:
+	var me := multiplayer.get_unique_id() if is_networked() else 1
+	if scores.has(me):
+		return str(scores[me].get("name", player_name))
+	if lobby.has(me):
+		return str(lobby[me].get("name", player_name))
+	return player_name
+
+
 func weapon_def(weapon_id: StringName) -> WeaponDef:
 	return WEAPON_DEFS.get(weapon_id) as WeaponDef
 
