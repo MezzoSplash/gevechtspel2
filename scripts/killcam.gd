@@ -71,7 +71,7 @@ func _ui_sound(path: String, db: float) -> AudioStreamPlayer:
 	var s := AudioStreamPlayer.new()
 	s.stream = load(path)
 	s.volume_db = db
-	s.bus = "SFX"
+	s.bus = "UI"
 	add_child(s)
 	return s
 

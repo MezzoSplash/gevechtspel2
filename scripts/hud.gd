@@ -126,6 +126,8 @@ func _ready() -> void:
 	Game.killcam.finished.connect(_on_killcam_finished)
 	reload_label.visible = false
 	fps_label.visible = Game.show_fps
+	Game.hud_settings_changed.connect(_apply_hud_settings)
+	_apply_hud_settings()
 	death_layer.visible = false
 	scoreboard_container.visible = false
 	scoreboard_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -138,7 +140,7 @@ func _ready() -> void:
 	for slot in _streak_slots:
 		_add_streak_frame(slot)
 	_announcer = AudioStreamPlayer.new()
-	_announcer.bus = "SFX"
+	_announcer.bus = "UI"
 	_announcer.volume_db = -2.0
 	add_child(_announcer)
 	_refresh_streak_ui()
@@ -149,6 +151,15 @@ func _ready() -> void:
 		chat_input.text_submitted.connect(_on_chat_submit)
 		chat_input.gui_input.connect(_on_chat_gui_input)
 	call_deferred("bind_player", null)
+
+
+func _apply_hud_settings() -> void:
+	var mm := get_node_or_null("Minimap") as Control
+	if mm:
+		mm.visible = Game.show_minimap
+	if kill_feed:
+		kill_feed.visible = Game.show_killfeed
+	queue_redraw()
 
 
 func bind_player(player: Player) -> void:
@@ -937,7 +948,7 @@ func _build_trick_popup() -> void:
 	_trick.add_child(_trick_sub)
 	_trick_sfx = AudioStreamPlayer.new()
 	_trick_sfx.stream = _TRICK_SFX
-	_trick_sfx.bus = "SFX"
+	_trick_sfx.bus = "UI"
 	_trick_sfx.volume_db = -3.0
 	add_child(_trick_sfx)
 
@@ -1173,17 +1184,24 @@ func _draw() -> void:
 	var player := _player if is_instance_valid(_player) else null
 	if player:
 		stance = maxf(player.spread_multiplier() - 1.0, 0.0) * 5.0
-	var gap := (2.0 if _sniper_ads else 5.0) + _fire_punch * 7.0 + stance
-	var length := 8.0
-	var col := Color(0.95, 0.95, 0.95, 0.92)
-	var thick := 2.0
+	var sz := Game.crosshair_size
+	var gap := ((2.0 if _sniper_ads else 5.0) + _fire_punch * 7.0 + stance) * sz
+	var length := 8.0 * sz
+	var col := Game.crosshair_rgb()
+	col.a = 0.92
+	var thick := maxf(2.0 * sqrt(sz), 1.0)
+	var style := Game.crosshair_style # 0 cross+dot, 1 cross, 2 dot, 3 circle
 	# Hip-firing the sniper is unguided. Zoom (and every other gun) keeps the bars.
 	if not _sniper_hip:
-		_bar(c + Vector2(gap, 0), Vector2(length, 0), col, thick)
-		_bar(c + Vector2(-gap, 0), Vector2(-length, 0), col, thick)
-		_bar(c + Vector2(0, gap), Vector2(0, length), col, thick)
-		_bar(c + Vector2(0, -gap), Vector2(0, -length), col, thick)
-		draw_circle(c, 1.4, col)
+		if style <= 1:
+			_bar(c + Vector2(gap, 0), Vector2(length, 0), col, thick)
+			_bar(c + Vector2(-gap, 0), Vector2(-length, 0), col, thick)
+			_bar(c + Vector2(0, gap), Vector2(0, length), col, thick)
+			_bar(c + Vector2(0, -gap), Vector2(0, -length), col, thick)
+		elif style == 3:
+			draw_arc(c, gap + length * 0.5, 0.0, TAU, 40, col, thick, true)
+		if style != 1:
+			draw_circle(c, (2.2 if style == 2 else 1.4) * sz, col)
 		if _sniper_ads:
 			draw_arc(c, 22.0, 0.0, TAU, 48, Color(0.05, 0.05, 0.05, 0.45), 2.0, true)
 

@@ -169,6 +169,7 @@ func _load_map(id: StringName, bake: bool) -> void:
 		if not Game.display_headless():
 			Gfx.apply_global(Game.gfx_quality)
 			Gfx.apply_map(map_node, Game.gfx_quality)
+			Game.apply_shadows(map_node)
 		_loaded_map = id
 		_nav_baked_for = &""
 		if Game.impacts:

@@ -409,7 +409,8 @@ func _apply_team_visual() -> void:
 static func team_color(team: int) -> Color:
 	if Game.is_ffa():
 		return FFA_COLOR
-	return TEAM_COLORS[clampi(team, 0, TEAM_COLORS.size() - 1)]
+	var pal: Array = Game.COLORBLIND_TEAMS[Game.colorblind] if Game.colorblind > 0 else TEAM_COLORS
+	return pal[clampi(team, 0, pal.size() - 1)]
 
 
 ## Team colour on a body material. Also used for the killcam ghosts.
@@ -429,7 +430,7 @@ func add_knockback(imp: Vector3) -> void:
 	_kb_t = KB_TIME
 	_sliding = false
 	if is_local() and camera:
-		camera.add_kick(1.4, randf_range(-0.8, 0.8), 3.0)
+		camera.add_shake(1.4, randf_range(-0.8, 0.8), 3.0)
 
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
@@ -488,7 +489,7 @@ func apply_hurt_state(new_hp: float, killed: bool, from_pos: Vector3 = Vector3.I
 	if is_local() and from_pos.is_finite():
 		damage_from.emit(from_pos)
 	if is_local():
-		camera.add_kick(0.85, randf_range(-0.35, 0.35), 2.2)
+		camera.add_shake(0.85, randf_range(-0.35, 0.35), 2.2)
 		if hurt_sfx.stream:
 			hurt_sfx.pitch_scale = randf_range(0.92, 1.08)
 			hurt_sfx.play()

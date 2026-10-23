@@ -23,7 +23,13 @@ func hip_fov() -> float:
 func add_kick(pitch_deg: float, yaw_deg: float, fov_amt: float) -> void:
 	_kick.x += deg_to_rad(pitch_deg)
 	_kick.y += deg_to_rad(yaw_deg)
-	fov = minf(fov + fov_amt, _base_fov() + 8.0)
+	fov = minf(fov + fov_amt * Game.shake_scale(), _base_fov() + 8.0)
+
+
+## Hits, knockback, melee: pure feel, so Settings → Reduce camera shake scales all of it.
+func add_shake(pitch_deg: float, yaw_deg: float, fov_amt: float) -> void:
+	var k := Game.shake_scale()
+	add_kick(pitch_deg * k, yaw_deg * k, fov_amt)
 
 
 func _process(delta: float) -> void:
