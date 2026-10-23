@@ -29,6 +29,9 @@ var _bot_boxes: Array[SpinBox] = []
 var _map_blurbs: Array[Label] = []
 var _lobby_info: Label
 var _filling_match := false
+var _screen := "home"
+var _fade: Tween
+const _BACK_TO := {"solo": "home", "mp": "home", "settings": "home", "classes": "home"}
 
 
 func _ready() -> void:
@@ -69,6 +72,11 @@ func _ready() -> void:
 	_lobby_info.add_theme_color_override("font_color", Color(1.0, 0.84, 0.42))
 	$Center/Lobby.add_child(_lobby_info)
 	$Center/Lobby.move_child(_lobby_info, $Center/Lobby/Title.get_index() + 1)
+	for c in $Center.get_children():
+		var screen := c as Control
+		screen.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		screen.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_hook_hover_focus(self)
 	set_match_choice(Game.last_map, Game.last_mode)
 	set_team(0)
 	if solo_name:
@@ -268,7 +276,93 @@ func set_lobby_match_info(map_id: StringName, mode: int) -> void:
 	)
 
 
+## Mouse hover moves keyboard/pad focus too, so there is only ever one highlighted entry.
+func _hook_hover_focus(n: Node) -> void:
+	for c in n.get_children():
+		if c is BaseButton:
+			var b := c as BaseButton
+			b.mouse_entered.connect(func() -> void:
+				if b.is_visible_in_tree() and not b.disabled and b.focus_mode != Control.FOCUS_NONE:
+					b.grab_focus()
+			)
+		_hook_hover_focus(c)
+
+
+## Card behind every screen but Home; it follows the screen's rect (screens are plain VBoxes).
+func _process(_delta: float) -> void:
+	var card := $Card as Panel
+	var cur := _current_screen()
+	card.visible = visible and cur != null and _screen != "home"
+	if card.visible:
+		var r := cur.get_global_rect().grow_individual(28, 24, 28, 24)
+		card.global_position = r.position
+		card.size = r.size
+		card.modulate.a = cur.modulate.a
+
+
+func _current_screen() -> Control:
+	match _screen:
+		"home": return $Center/Home
+		"solo": return $Center/Solo
+		"mp": return $Center/Mp
+		"settings": return $Center/Settings
+		"lobby": return $Center/Lobby
+		"classes": return class_editor
+	return null
+
+
+## Esc / pad B steps back one screen (lobby needs the explicit Leave button).
+func _unhandled_input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or not _BACK_TO.has(_screen):
+		return
+	if event.is_action_pressed("ui_cancel"):
+		show_screen(_BACK_TO[_screen])
+		get_viewport().set_input_as_handled()
+
+
+func _focus_first(n: Node) -> bool:
+	for c in n.get_children():
+		var ctl := c as Control
+		if ctl == null or not ctl.visible:
+			continue
+		if (ctl is BaseButton or ctl is Range or ctl is LineEdit) and ctl.focus_mode == Control.FOCUS_ALL \
+				and not (ctl is BaseButton and (ctl as BaseButton).disabled):
+			ctl.grab_focus()
+			return true
+		if _focus_first(ctl):
+			return true
+	return false
+
+
+func _enter_screen() -> void:
+	var cur := _current_screen()
+	if cur == null:
+		return
+	if _fade and _fade.is_valid():
+		_fade.kill()
+	cur.modulate.a = 0.0
+	_fade = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_fade.tween_property(cur, "modulate:a", 1.0, 0.18)
+	if is_visible_in_tree():
+		# Home focuses its first entry; other screens their first button so pad users can start right away.
+		var first: Control = null
+		if _screen == "home":
+			first = $Center/Home/SoloButton
+		elif _screen == "solo":
+			first = $Center/Solo/PlayButton
+		elif _screen == "mp":
+			first = $Center/Mp/HostButton
+		elif _screen == "settings":
+			first = null
+		if first and first.is_visible_in_tree():
+			first.grab_focus()
+		else:
+			_focus_first(cur)
+
+
 func show_screen(id: String) -> void:
+	var changed := id != _screen
+	_screen = id
 	$Center/Home.visible = id == "home"
 	$Center/Solo.visible = id == "solo"
 	$Center/Mp.visible = id == "mp"
@@ -284,6 +378,8 @@ func show_screen(id: String) -> void:
 		mp_name.text = solo_name.text
 	elif id == "settings" and settings_panel and settings_panel.has_method("refresh"):
 		settings_panel.refresh.call_deferred()
+	if changed or id == "home":
+		_enter_screen.call_deferred()
 
 
 ## "v0.2.15" from project.godot application/config/version: the one place the release bump sets

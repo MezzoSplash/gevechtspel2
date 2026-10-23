@@ -62,6 +62,8 @@ func hide_for_overlay() -> void:
 func _show_buttons() -> void:
 	buttons.visible = true
 	settings_wrap.visible = false
+	# Keyboard / pad: start on Resume so Enter or A works straight away.
+	($Center/Buttons/ResumeButton as Control).grab_focus.call_deferred()
 
 
 func _show_settings() -> void:
@@ -70,3 +72,4 @@ func _show_settings() -> void:
 	# Next frame: OptionButton.clear during the show/layout pass SIGSEGVs Godot 4.7.
 	if settings_panel and settings_panel.has_method("refresh"):
 		settings_panel.refresh.call_deferred()
+	($SettingsWrap/BackButton as Control).grab_focus.call_deferred()
