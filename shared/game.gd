@@ -18,6 +18,7 @@ signal round_freeze_changed(frozen: bool)
 signal intermission_started
 ## Fired when the saved profile name changes, so the menu fields stay in sync.
 signal local_name_changed(n: String)
+signal hud_settings_changed # crosshair, minimap, killfeed, colourblind palette
 
 const DEFAULT_PORT := 7777
 const SHOT_MASK := 1 | 2 | 4 # world | players | leftover dummy layer
@@ -147,6 +148,17 @@ var fov := 90.0 # hip fire. Weapon ADS fov stays absolute so a scope does not sc
 var render_scale := 1.0 # 3D buffer only (Viewport.scaling_3d_scale). HUD stays at the window size.
 var msaa := 2 # Viewport.MSAA: 0 off, 1 = 2x, 2 = 4x, 3 = 8x. Matches project.godot msaa_3d=2 (4x).
 var show_fps := true
+var music_vol := 1.0
+var ui_vol := 1.0
+var shadow_quality := 0 # SHADOWS_AUTO follows Graphics; then Off/Low/Medium/High
+var crosshair_color := 0 # index into CROSSHAIR_COLORS
+var crosshair_style := 0 # CROSSHAIR_STYLES
+var crosshair_size := 1.0 # 0.5 .. 2.0
+var show_minimap := true
+var show_killfeed := true
+var colorblind := 0 # COLORBLIND_NAMES
+var reduce_shake := false
+var _saved_keys: Dictionary = {} # action -> "k:<physical keycode>" / "m:<mouse button>" from settings.cfg
 var view_sway := 2 # viewmodel sway and landing dip: 0 off, 1 reduced, 2 full (visual only)
 var gfx_quality := 2 # Gfx.LOW/MEDIUM/HIGH: sky stays, SSAO/glow/fog/world paint scale down
 var invert_y := false
@@ -2207,12 +2219,18 @@ func _ready() -> void:
 	load_settings()
 	_bind_inputs()
 	_round_music = AudioStreamPlayer.new()
-	_round_music.bus = "Master"
+	_round_music.bus = "Music"
 	_round_music.stream = load("res://assets/sounds/round_start.wav")
 	add_child(_round_music)
 
 
 func _ensure_sfx_bus() -> void:
+	for bus_name in ["Music", "UI"]:
+		if AudioServer.get_bus_index(bus_name) == -1:
+			var b := AudioServer.bus_count
+			AudioServer.add_bus()
+			AudioServer.set_bus_name(b, bus_name)
+			AudioServer.set_bus_send(b, "Master")
 	if AudioServer.get_bus_index("SFX") != -1:
 		return
 	var i := AudioServer.bus_count
@@ -2229,6 +2247,31 @@ func _ensure_sfx_bus() -> void:
 	var limiter := AudioEffectHardLimiter.new()
 	limiter.ceiling_db = -0.5
 	AudioServer.add_bus_effect(AudioServer.get_bus_index("Master"), limiter)
+
+
+const SHADOW_NAMES := ["Auto (Graphics)", "Off", "Low", "Medium", "High"]
+const CROSSHAIR_COLOR_NAMES := ["White", "Green", "Yellow", "Cyan", "Magenta", "Red"]
+const CROSSHAIR_COLORS := [
+	Color(0.95, 0.95, 0.95), Color(0.3, 1.0, 0.35), Color(1.0, 0.92, 0.25),
+	Color(0.3, 0.95, 1.0), Color(1.0, 0.35, 0.95), Color(1.0, 0.3, 0.25),
+]
+const CROSSHAIR_STYLES := ["Cross + dot", "Cross", "Dot", "Circle"]
+const COLORBLIND_NAMES := ["Off", "Red/green (blue vs yellow)", "Blue/yellow (teal vs red)"]
+## Team A, team B per colourblind mode. Mode 0 is Player.TEAM_COLORS.
+const COLORBLIND_TEAMS := [
+	[Color(0.25, 0.55, 0.95), Color(0.92, 0.38, 0.22)],
+	[Color(0.2, 0.45, 1.0), Color(1.0, 0.85, 0.1)],
+	[Color(0.1, 0.8, 0.75), Color(0.95, 0.15, 0.3)],
+]
+## Rebindable gameplay actions, in menu order. toggle_mouse (Esc / pause) stays fixed.
+const REBIND_ACTIONS := [
+	["move_forward", "Forward"], ["move_back", "Back"], ["move_left", "Left"], ["move_right", "Right"],
+	["jump", "Jump"], ["sprint", "Sprint"], ["crouch", "Crouch / slide"],
+	["fire", "Fire"], ["zoom", "Aim"], ["reload", "Reload"], ["switch_weapon", "Switch weapon"],
+	["weapon_1", "Weapon 1"], ["weapon_2", "Weapon 2"], ["weapon_3", "Weapon 3"], ["weapon_4", "Weapon 4"],
+	["melee", "Melee"], ["grenade", "Grenade"], ["throw_knife", "Throwing knife"],
+	["use_streak", "Use streak"], ["chat", "Chat"],
+]
 
 
 ## Reads user://settings.cfg. Missing keys keep the defaults, so an older file (audio + mouse
@@ -2267,6 +2310,20 @@ func load_settings() -> void:
 		show_fps = bool(cfg.get_value("hud", "show_fps", true))
 		gfx_quality = clampi(int(cfg.get_value("video", "quality", 2)), 0, 2)
 		view_sway = clampi(int(cfg.get_value("video", "view_sway", 2)), 0, 2)
+		music_vol = clampf(float(cfg.get_value("audio", "music", 1.0)), 0.0, 1.0)
+		ui_vol = clampf(float(cfg.get_value("audio", "ui", 1.0)), 0.0, 1.0)
+		shadow_quality = clampi(int(cfg.get_value("video", "shadows", 0)), 0, SHADOW_NAMES.size() - 1)
+		crosshair_color = clampi(int(cfg.get_value("hud", "crosshair_color", 0)), 0, CROSSHAIR_COLORS.size() - 1)
+		crosshair_style = clampi(int(cfg.get_value("hud", "crosshair_style", 0)), 0, CROSSHAIR_STYLES.size() - 1)
+		crosshair_size = clampf(float(cfg.get_value("hud", "crosshair_size", 1.0)), 0.5, 2.0)
+		show_minimap = bool(cfg.get_value("hud", "minimap", true))
+		show_killfeed = bool(cfg.get_value("hud", "killfeed", true))
+		colorblind = clampi(int(cfg.get_value("access", "colorblind", 0)), 0, COLORBLIND_NAMES.size() - 1)
+		reduce_shake = bool(cfg.get_value("access", "reduce_shake", false))
+		_saved_keys = {}
+		if cfg.has_section("keys"):
+			for a in cfg.get_section_keys("keys"):
+				_saved_keys[a] = str(cfg.get_value("keys", a, ""))
 	apply_audio()
 	var size_before := window_size
 	apply_display()
@@ -2300,6 +2357,18 @@ func save_settings() -> void:
 	cfg.set_value("hud", "show_fps", show_fps)
 	cfg.set_value("video", "quality", gfx_quality)
 	cfg.set_value("video", "view_sway", view_sway)
+	cfg.set_value("audio", "music", music_vol)
+	cfg.set_value("audio", "ui", ui_vol)
+	cfg.set_value("video", "shadows", shadow_quality)
+	cfg.set_value("hud", "crosshair_color", crosshair_color)
+	cfg.set_value("hud", "crosshair_style", crosshair_style)
+	cfg.set_value("hud", "crosshair_size", crosshair_size)
+	cfg.set_value("hud", "minimap", show_minimap)
+	cfg.set_value("hud", "killfeed", show_killfeed)
+	cfg.set_value("access", "colorblind", colorblind)
+	cfg.set_value("access", "reduce_shake", reduce_shake)
+	for a in _saved_keys:
+		cfg.set_value("keys", a, _saved_keys[a])
 	cfg.save("user://settings.cfg")
 
 
@@ -2396,6 +2465,99 @@ func set_sfx_vol(v: float) -> void:
 func apply_audio() -> void:
 	_set_bus_linear("Master", master_vol)
 	_set_bus_linear("SFX", sfx_vol)
+	_set_bus_linear("Music", music_vol)
+	_set_bus_linear("UI", ui_vol)
+
+
+func set_music_vol(v: float) -> void:
+	music_vol = clampf(v, 0.0, 1.0)
+	apply_audio()
+	save_settings()
+
+
+func set_ui_vol(v: float) -> void:
+	ui_vol = clampf(v, 0.0, 1.0)
+	apply_audio()
+	save_settings()
+
+
+func set_shadow_quality(v: int) -> void:
+	shadow_quality = clampi(v, 0, SHADOW_NAMES.size() - 1)
+	apply_render()
+	save_settings()
+
+
+func set_crosshair(color_i: int, style_i: int, size_v: float) -> void:
+	crosshair_color = clampi(color_i, 0, CROSSHAIR_COLORS.size() - 1)
+	crosshair_style = clampi(style_i, 0, CROSSHAIR_STYLES.size() - 1)
+	crosshair_size = clampf(size_v, 0.5, 2.0)
+	save_settings()
+	hud_settings_changed.emit()
+
+
+func set_show_minimap(on: bool) -> void:
+	show_minimap = on
+	save_settings()
+	hud_settings_changed.emit()
+
+
+func set_show_killfeed(on: bool) -> void:
+	show_killfeed = on
+	save_settings()
+	hud_settings_changed.emit()
+
+
+## Repaints every pawn so the new palette shows at once.
+func set_colorblind(v: int) -> void:
+	colorblind = clampi(v, 0, COLORBLIND_NAMES.size() - 1)
+	save_settings()
+	if is_inside_tree():
+		for n in get_tree().get_nodes_in_group("player"):
+			if n.has_method("_apply_team_visual"):
+				n._apply_team_visual()
+	hud_settings_changed.emit()
+
+
+func set_reduce_shake(on: bool) -> void:
+	reduce_shake = on
+	save_settings()
+
+
+## Camera shake and FOV punch multiplier. Recoil that moves the aim is not scaled.
+func shake_scale() -> float:
+	return 0.25 if reduce_shake else 1.0
+
+
+func crosshair_rgb() -> Color:
+	return CROSSHAIR_COLORS[crosshair_color]
+
+
+## Shadow override on top of Gfx. Auto leaves Gfx's choice alone.
+func apply_shadows(map: Node) -> void:
+	if shadow_quality == 0:
+		if map:
+			for sun in map.find_children("*", "DirectionalLight3D", true, false):
+				var l := sun as DirectionalLight3D
+				if l.has_meta(&"shadow_base"):
+					l.shadow_enabled = bool(l.get_meta(&"shadow_base"))
+		return
+	match shadow_quality:
+		2:
+			RenderingServer.directional_shadow_atlas_set_size(2048, false)
+			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
+		3:
+			RenderingServer.directional_shadow_atlas_set_size(4096, true)
+			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW)
+		4:
+			RenderingServer.directional_shadow_atlas_set_size(8192, true)
+			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH)
+	if map == null:
+		return
+	for sun in map.find_children("*", "DirectionalLight3D", true, false):
+		var l := sun as DirectionalLight3D
+		if not l.has_meta(&"shadow_base"):
+			l.set_meta(&"shadow_base", l.shadow_enabled)
+		l.shadow_enabled = shadow_quality != 1 and bool(l.get_meta(&"shadow_base"))
 
 
 func set_show_fps(on: bool) -> void:
@@ -2590,8 +2752,11 @@ func apply_render() -> void:
 		root.msaa_3d = want_msaa
 	Gfx.apply_global(gfx_quality)
 	var main := root.get_node_or_null(^"Main")
+	var map_node: Node = null
 	if main and "map_node" in main:
-		Gfx.apply_map(main.map_node, gfx_quality)
+		map_node = main.map_node
+		Gfx.apply_map(map_node, gfx_quality)
+	apply_shadows(map_node)
 
 
 func _snap_fps(v: int) -> int:
@@ -2638,6 +2803,89 @@ func _bind_inputs() -> void:
 	_key("sprint", KEY_SHIFT)
 	_key("crouch", KEY_CTRL)
 	_key("crouch", KEY_C)
+	for a in _saved_keys:
+		var ev := _event_from_code(str(_saved_keys[a]))
+		if ev != null and InputMap.has_action(a):
+			InputMap.action_erase_events(a)
+			InputMap.action_add_event(a, ev)
+
+
+func _event_code(ev: InputEvent) -> String:
+	if ev is InputEventKey:
+		var k := ev as InputEventKey
+		return "k:%d" % (k.physical_keycode if k.physical_keycode != 0 else k.keycode)
+	if ev is InputEventMouseButton:
+		return "m:%d" % (ev as InputEventMouseButton).button_index
+	return ""
+
+
+func _event_from_code(code: String) -> InputEvent:
+	var parts := code.split(":")
+	if parts.size() != 2 or not parts[1].is_valid_int():
+		return null
+	if parts[0] == "k":
+		var k := InputEventKey.new()
+		k.physical_keycode = int(parts[1]) as Key
+		return k
+	if parts[0] == "m":
+		var m := InputEventMouseButton.new()
+		m.button_index = int(parts[1]) as MouseButton
+		return m
+	return null
+
+
+## Shown on the rebind buttons, e.g. "W" or "Mouse 1 / C".
+func binding_text(action: String) -> String:
+	var out: PackedStringArray = []
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			var k := ev as InputEventKey
+			var code := k.physical_keycode if k.physical_keycode != 0 else k.keycode
+			var shown := code if display_headless() else DisplayServer.keyboard_get_keycode_from_physical(code)
+			out.append(OS.get_keycode_string(shown))
+		elif ev is InputEventMouseButton:
+			var b := (ev as InputEventMouseButton).button_index
+			out.append({MOUSE_BUTTON_LEFT: "Mouse L", MOUSE_BUTTON_RIGHT: "Mouse R", MOUSE_BUTTON_MIDDLE: "Mouse M"}.get(b, "Mouse %d" % b))
+	return " / ".join(out) if not out.is_empty() else "—"
+
+
+## One key or mouse button per action. If another rebindable action already uses it, that action
+## gets this one's old binding (swap). Returns the swapped action's label, or "".
+func rebind(action: String, ev: InputEvent) -> String:
+	var code := _event_code(ev)
+	if code == "" or not InputMap.has_action(action):
+		return ""
+	var old := InputMap.action_get_events(action)
+	var swapped := ""
+	for pair in REBIND_ACTIONS:
+		var other: String = pair[0]
+		if other == action:
+			continue
+		for oe in InputMap.action_get_events(other):
+			if _event_code(oe) == code:
+				InputMap.action_erase_event(other, oe)
+				if not old.is_empty():
+					InputMap.action_add_event(other, old[0])
+				_saved_keys[other] = _first_code(other)
+				swapped = pair[1]
+	InputMap.action_erase_events(action)
+	InputMap.action_add_event(action, _event_from_code(code))
+	_saved_keys[action] = code
+	save_settings()
+	return swapped
+
+
+func _first_code(action: String) -> String:
+	var evs := InputMap.action_get_events(action)
+	return _event_code(evs[0]) if not evs.is_empty() else ""
+
+
+func reset_bindings() -> void:
+	_saved_keys.clear()
+	for pair in REBIND_ACTIONS:
+		InputMap.action_erase_events(pair[0])
+	_bind_inputs()
+	save_settings()
 
 
 func _key(action: String, keycode: Key) -> void:

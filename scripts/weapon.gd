@@ -276,7 +276,7 @@ func play_melee() -> void:
 		_melee_swing_sfx.pitch_scale = randf_range(0.93, 1.07)
 		_melee_swing_sfx.play()
 	if _is_local() and camera:
-		camera.add_kick(-1.2, randf_range(-0.6, 0.6), -4.0)
+		camera.add_shake(-1.2, randf_range(-0.6, 0.6), -4.0)
 
 
 func play_melee_hit() -> void:

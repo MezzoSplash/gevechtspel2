@@ -176,17 +176,17 @@ attenuation_filter_cutoff_hz = 4000.0
 [node name="HitSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("6_hit")
 volume_db = -6.0
-bus = "SFX"
+bus = "UI"
 
 [node name="HeadSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("7_head")
 volume_db = -5.0
-bus = "SFX"
+bus = "UI"
 
 [node name="KillSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("8_kill")
 volume_db = -3.0
-bus = "SFX"
+bus = "UI"
 
 [node name="EmptySfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("9_empty")

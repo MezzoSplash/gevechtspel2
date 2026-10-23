@@ -1,5 +1,5 @@
 extends ScrollContainer
-## Name, video, mouse, audio and the FPS counter. Writes user://settings.cfg through Game.
+## Tabs: Game, Graphics, Controls, Audio, HUD, Access. Writes user://settings.cfg through Game.
 ## Used in the main menu and the pause menu. Built in code so both stay the same screen.
 
 const _LABEL_W := 130.0
@@ -28,6 +28,25 @@ var _master_val: Label
 var _sfx: HSlider
 var _sfx_val: Label
 var _show_fps: CheckBox
+var _music: HSlider
+var _music_val: Label
+var _ui: HSlider
+var _ui_val: Label
+var _shadows: OptionButton
+var _xh_color: OptionButton
+var _xh_style: OptionButton
+var _xh_size: HSlider
+var _xh_size_val: Label
+var _minimap: CheckBox
+var _killfeed: CheckBox
+var _colorblind: OptionButton
+var _shake: CheckBox
+var _bind_buttons: Dictionary = {} # action -> Button
+var _bind_note: Label
+var _waiting_action := "" # rebind: next key / mouse button goes here
+var _tab_buttons: Array[Button] = []
+var _pages: Array[VBoxContainer] = []
+const _TABS := ["Game", "Graphics", "Controls", "Audio", "HUD", "Access"]
 var _filling := false
 
 
@@ -96,14 +115,47 @@ func refresh() -> void:
 	_master.set_value_no_signal(Game.master_vol * 100.0)
 	_sfx.set_value_no_signal(Game.sfx_vol * 100.0)
 	_show_fps.set_pressed_no_signal(Game.show_fps)
+	_music.set_value_no_signal(Game.music_vol * 100.0)
+	_ui.set_value_no_signal(Game.ui_vol * 100.0)
+	_select_quiet(_shadows, Game.shadow_quality)
+	_select_quiet(_xh_color, Game.crosshair_color)
+	_select_quiet(_xh_style, Game.crosshair_style)
+	_xh_size.set_value_no_signal(Game.crosshair_size * 100.0)
+	_xh_size_val.text = "%d%%" % roundi(Game.crosshair_size * 100.0)
+	_minimap.set_pressed_no_signal(Game.show_minimap)
+	_killfeed.set_pressed_no_signal(Game.show_killfeed)
+	_select_quiet(_colorblind, Game.colorblind)
+	_shake.set_pressed_no_signal(Game.reduce_shake)
+	_refresh_bindings()
 	_refresh_audio_labels()
 	_filling = false
 	_fit_height()
 
 
 func _build() -> void:
-	var body := $Body
-	_title(body)
+	var root := $Body
+	_title(root)
+	var bar := GridContainer.new() # 3 × 2 so six tabs fit the 500 px column
+	bar.columns = 3
+	bar.add_theme_constant_override("h_separation", 4)
+	bar.add_theme_constant_override("v_separation", 4)
+	var group := ButtonGroup.new()
+	root.add_child(bar)
+	for i in _TABS.size():
+		var b := Button.new()
+		b.text = _TABS[i]
+		b.toggle_mode = true
+		b.button_group = group
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(show_tab.bind(i))
+		bar.add_child(b)
+		_tab_buttons.append(b)
+		var page := VBoxContainer.new()
+		page.add_theme_constant_override("separation", 8)
+		root.add_child(page)
+		_pages.append(page)
+
+	var body := _pages[0] # Game
 	_section(body, "NAME")
 	_name_edit = _line_edit(_row(body, "Name"))
 	_name_edit.placeholder_text = "Player"
@@ -111,7 +163,12 @@ func _build() -> void:
 	_name_edit.text_changed.connect(_on_name)
 	_name_edit.focus_exited.connect(_commit_name)
 	_name_edit.text_submitted.connect(func(_t: String) -> void: _commit_name())
-	_section(body, "VIDEO")
+	_section(body, "VIEW")
+	_sway = _options(_row(body, "Weapon sway"), ["Off", "Reduced", "Full"])
+	_sway.item_selected.connect(_on_sway)
+
+	body = _pages[1] # Graphics
+	_section(body, "DISPLAY")
 	_window_opt = _options(_row(body, "Window"), ["Windowed", "Borderless", "Fullscreen"])
 	_window_opt.item_selected.connect(_on_window_mode)
 	_res_opt = _options(_row(body, "Resolution"), [])
@@ -126,6 +183,7 @@ func _build() -> void:
 	_fov = _slider(fov_row, Game.FOV_MIN, Game.FOV_MAX, 1)
 	_fov_val = _value_label(fov_row)
 	_fov.value_changed.connect(_on_fov)
+	_section(body, "QUALITY")
 	var scale_row := _row(body, "Render scale")
 	_scale = _slider(scale_row, 50, 100, 5)
 	_scale_val = _value_label(scale_row)
@@ -134,28 +192,163 @@ func _build() -> void:
 	_msaa.item_selected.connect(_on_msaa)
 	_quality = _options(_row(body, "Graphics"), Gfx.NAMES)
 	_quality.item_selected.connect(_on_quality)
-	_sway = _options(_row(body, "Weapon sway"), ["Off", "Reduced", "Full"])
-	_sway.item_selected.connect(_on_sway)
-	_hint(body, "VSync follows the monitor. Max FPS is an extra cap; Unlimited means no cap. Borderless uses the monitor's resolution. Render scale changes the 3D image only. Graphics Low drops SSAO, glow, fog and wall detail for the most FPS.")
+	_shadows = _options(_row(body, "Shadows"), Game.SHADOW_NAMES)
+	_shadows.item_selected.connect(func(i: int) -> void:
+		if not _filling:
+			Game.set_shadow_quality(i)
+	)
+	_hint(body, "VSync follows the monitor. Max FPS is an extra cap; Unlimited means no cap. Borderless uses the monitor's resolution. Render scale changes the 3D image only. Graphics Low drops SSAO, glow, fog and wall detail for the most FPS. Shadows Auto follows Graphics.")
+
+	body = _pages[2] # Controls
 	_section(body, "MOUSE")
 	_sens = _number_row(body, "Mouse", Game.MOUSE_SENS_MIN, Game.MOUSE_SENS_MAX, 0.05, Game.set_mouse_sens)
 	_ads = _number_row(body, "Aim / scope", Game.ADS_SENS_MIN, Game.ADS_SENS_MAX, 0.05, Game.set_ads_sens)
 	_invert = _check(_row(body, "Invert Y"))
 	_invert.toggled.connect(_on_invert)
 	_hint(body, "Mouse: 1.00 = default. Aim / scope multiplies it while aiming (default 0.45).")
-	_section(body, "AUDIO")
+	_section(body, "KEYS")
+	for pair in Game.REBIND_ACTIONS:
+		var action: String = pair[0]
+		var b := Button.new()
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(_start_rebind.bind(action))
+		_row(body, pair[1]).add_child(b)
+		_bind_buttons[action] = b
+	var reset := Button.new()
+	reset.text = "Reset keys to default"
+	reset.pressed.connect(func() -> void:
+		_waiting_action = ""
+		Game.reset_bindings()
+		_bind_note.text = "Keys reset to default."
+		_refresh_bindings()
+	)
+	body.add_child(reset)
+	_bind_note = Label.new()
+	_bind_note.theme_type_variation = &"HintLabel"
+	_bind_note.add_theme_color_override("font_color", _HINT)
+	_bind_note.text = "Click a key, then press the new key or mouse button. Esc cancels. A key already in use swaps places."
+	_bind_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_bind_note.custom_minimum_size = Vector2(500, 0)
+	body.add_child(_bind_note)
+
+	body = _pages[3] # Audio
+	_section(body, "VOLUME")
 	var master_row := _row(body, "Master")
 	_master = _slider(master_row, 0, 100, 1)
 	_master_val = _value_label(master_row)
 	_master.value_changed.connect(_on_master)
-	var sfx_row := _row(body, "SFX")
+	var sfx_row := _row(body, "Effects")
 	_sfx = _slider(sfx_row, 0, 100, 1)
 	_sfx_val = _value_label(sfx_row)
 	_sfx.value_changed.connect(_on_sfx)
-	_section(body, "HUD")
+	var music_row := _row(body, "Music")
+	_music = _slider(music_row, 0, 100, 1)
+	_music_val = _value_label(music_row)
+	_music.value_changed.connect(func(v: float) -> void:
+		if not _filling:
+			Game.set_music_vol(v / 100.0)
+			_refresh_audio_labels()
+	)
+	var ui_row := _row(body, "UI")
+	_ui = _slider(ui_row, 0, 100, 1)
+	_ui_val = _value_label(ui_row)
+	_ui.value_changed.connect(func(v: float) -> void:
+		if not _filling:
+			Game.set_ui_vol(v / 100.0)
+			_refresh_audio_labels()
+	)
+	_hint(body, "Effects: guns, steps, explosions. Music: round start. UI: hit markers, announcer, killcam.")
+
+	body = _pages[4] # HUD
+	_section(body, "CROSSHAIR")
+	_xh_color = _options(_row(body, "Colour"), Game.CROSSHAIR_COLOR_NAMES)
+	_xh_style = _options(_row(body, "Style"), Game.CROSSHAIR_STYLES)
+	var xs_row := _row(body, "Size")
+	_xh_size = _slider(xs_row, 50, 200, 10)
+	_xh_size_val = _value_label(xs_row)
+	_xh_color.item_selected.connect(func(_i: int) -> void: _apply_crosshair())
+	_xh_style.item_selected.connect(func(_i: int) -> void: _apply_crosshair())
+	_xh_size.value_changed.connect(func(_v: float) -> void: _apply_crosshair())
+	_section(body, "SHOW")
+	_minimap = _check(_row(body, "Minimap"))
+	_minimap.toggled.connect(func(on: bool) -> void:
+		if not _filling:
+			Game.set_show_minimap(on)
+	)
+	_killfeed = _check(_row(body, "Kill feed"))
+	_killfeed.toggled.connect(func(on: bool) -> void:
+		if not _filling:
+			Game.set_show_killfeed(on)
+	)
 	_show_fps = _check(_row(body, "FPS counter"))
 	_show_fps.toggled.connect(_on_show_fps)
-	_hint(body, "Saved on this PC. Applies immediately, and again the next time you start the game.")
+
+	body = _pages[5] # Access
+	_section(body, "ACCESSIBILITY")
+	_colorblind = _options(_row(body, "Colourblind"), Game.COLORBLIND_NAMES)
+	_colorblind.item_selected.connect(func(i: int) -> void:
+		if not _filling:
+			Game.set_colorblind(i)
+	)
+	_shake = _check(_row(body, "Less shake"))
+	_shake.toggled.connect(func(on: bool) -> void:
+		if not _filling:
+			Game.set_reduce_shake(on)
+	)
+	_hint(body, "Colourblind changes the team colours on bodies, name tags, scoreboard, feed and minimap. Less shake cuts hit, blast and melee camera shake and the FOV punch to a quarter; gun recoil stays.")
+	_hint(root, "Saved on this PC. Applies immediately, and again the next time you start the game.")
+	show_tab(0)
+
+
+func show_tab(i: int) -> void:
+	_waiting_action = ""
+	for j in _pages.size():
+		_pages[j].visible = j == i
+		_tab_buttons[j].set_pressed_no_signal(j == i)
+	_refresh_bindings()
+	_fit_height.call_deferred()
+
+
+func _apply_crosshair() -> void:
+	if _filling:
+		return
+	_xh_size_val.text = "%d%%" % roundi(_xh_size.value)
+	Game.set_crosshair(_xh_color.selected, _xh_style.selected, _xh_size.value / 100.0)
+
+
+func _start_rebind(action: String) -> void:
+	_refresh_bindings()
+	_waiting_action = action
+	(_bind_buttons[action] as Button).text = "Press a key…"
+
+
+func _refresh_bindings() -> void:
+	for a in _bind_buttons:
+		(_bind_buttons[a] as Button).text = Game.binding_text(a)
+
+
+func _input(event: InputEvent) -> void:
+	if _waiting_action == "" or not is_visible_in_tree():
+		return
+	var ok := false
+	if event is InputEventKey and event.pressed and not event.echo:
+		ok = true
+		if (event as InputEventKey).physical_keycode == KEY_ESCAPE:
+			_waiting_action = ""
+			_refresh_bindings()
+			get_viewport().set_input_as_handled()
+			return
+	elif event is InputEventMouseButton and event.pressed:
+		var b := (event as InputEventMouseButton).button_index
+		ok = b != MOUSE_BUTTON_WHEEL_UP and b != MOUSE_BUTTON_WHEEL_DOWN
+	if not ok:
+		return
+	get_viewport().set_input_as_handled()
+	var action := _waiting_action
+	_waiting_action = ""
+	var swapped := Game.rebind(action, event)
+	_bind_note.text = ("Swapped with %s." % swapped) if swapped != "" else "Saved."
+	_refresh_bindings()
 
 
 func _on_name(t: String) -> void:
@@ -313,6 +506,8 @@ func _select_quiet(opt: OptionButton, index: int) -> void:
 func _refresh_audio_labels() -> void:
 	_master_val.text = "%d%%" % roundi(Game.master_vol * 100.0)
 	_sfx_val.text = "%d%%" % roundi(Game.sfx_vol * 100.0)
+	_music_val.text = "%d%%" % roundi(Game.music_vol * 100.0)
+	_ui_val.text = "%d%%" % roundi(Game.ui_vol * 100.0)
 
 
 func _fps_text(v: int) -> String:
