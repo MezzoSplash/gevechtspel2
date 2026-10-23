@@ -158,6 +158,15 @@ shader_parameter/wear = 0.06
 shader_parameter/line_dark = 0.25
 shader_parameter/grain = 0.02
 
+[sub_resource type="ShaderMaterial" id="Mat_surf"]
+shader = ExtResource("1_paint")
+shader_parameter/albedo = Color(0.36, 0.42, 0.48, 1)
+shader_parameter/roughness = 0.62
+shader_parameter/pattern = 0
+shader_parameter/wear = 0.04
+shader_parameter/line_dark = 0
+shader_parameter/grain = 0.015
+
 [sub_resource type="ShaderMaterial" id="Mat_sky_b"]
 shader = ExtResource("1_paint")
 shader_parameter/albedo = Color(0.44, 0.36, 0.32, 1)
@@ -529,6 +538,16 @@ size = Vector3(15.7971, 0.5, 21.3157)
 
 [sub_resource type="BoxMesh" id="GM_62"]
 size = Vector3(15.7971, 0.5, 21.3157)
+
+[sub_resource type="BoxMesh" id="Mesh_line"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_line"]
+albedo_color = Color(0.78, 0.62, 0.14, 1)
+roughness = 0.45
+emission_enabled = true
+emission = Color(0.9, 0.72, 0.2, 1)
+emission_energy_multiplier = 0.45
 
 [node name="Skyline" type="Node3D"]
 metadata/kill_y = -3
@@ -1249,6 +1268,102 @@ material = SubResource("Mat_concrete")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.75, 6.55, 2.9)
 size = Vector3(3.5, 1.1, 0.6)
 material = SubResource("Mat_concrete")
+
+[node name="SurfStreet_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0.9921, 0.1251, 0, -0.1251, 0.9921, -13, 9, 34)
+polygon = PackedVector2Array(-3.3, 0, 3.3, 0, 0, 5.25)
+depth = 23.1821
+material = SubResource("Mat_surf")
+
+[node name="SurfStreet_BKickA" type="CSGBox3D" parent="Arena/SurfStreet_B"]
+transform = Transform3D(1, 0, 0, 0, 0.766, -0.6428, 0, 0.6428, 0.766, 0, 7.6604, 6.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="SurfStreet_BKickB" type="CSGBox3D" parent="Arena/SurfStreet_B"]
+transform = Transform3D(1, 0, 0, 0, 0.766, 0.6428, 0, -0.6428, 0.766, 0, 7.6604, -29.61)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="SurfStreet_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(-1, 0, 0, 0, 0.9921, 0.1251, 0, 0.1251, -0.9921, 13, 9, -34)
+polygon = PackedVector2Array(-3.3, 0, 3.3, 0, 0, 5.25)
+depth = 23.1821
+material = SubResource("Mat_surf")
+
+[node name="SurfStreet_OKickA" type="CSGBox3D" parent="Arena/SurfStreet_O"]
+transform = Transform3D(1, 0, 0, 0, 0.766, -0.6428, 0, 0.6428, 0.766, 0, 7.6604, 6.4279)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="SurfStreet_OKickB" type="CSGBox3D" parent="Arena/SurfStreet_O"]
+transform = Transform3D(1, 0, 0, 0, 0.766, 0.6428, 0, -0.6428, 0.766, 0, 7.6604, -29.61)
+operation = 2
+size = Vector3(8, 20, 30)
+material = SubResource("Mat_surf")
+
+[node name="SurfDeck_B" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 5.98, 0)
+polygon = PackedVector2Array(-18, -2, -10, -2, -10, -10.5, -18, -10.5)
+depth = 35.98
+material = SubResource("Mat_brick_dark")
+
+[node name="SurfDeckRoof_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 5.85, 6.25)
+size = Vector3(8, 0.3, 8.5)
+material = SubResource("Mat_roof")
+
+[node name="SurfDeck_O" type="CSGPolygon3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 5.98, 0)
+polygon = PackedVector2Array(10, 10.5, 18, 10.5, 18, 2, 10, 2)
+depth = 35.98
+material = SubResource("Mat_brick_dark")
+
+[node name="SurfDeckRoof_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 5.85, -6.25)
+size = Vector3(8, 0.3, 8.5)
+material = SubResource("Mat_roof")
+
+[node name="SurfDeckEdge_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 5.97, 10.35)
+size = Vector3(8, 0.06, 0.3)
+material = SubResource("Mat_hazard")
+
+[node name="SurfDeckEdge_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 5.97, -10.35)
+size = Vector3(8, 0.06, 0.3)
+material = SubResource("Mat_hazard")
+
+[node name="SurfDeckLip_B" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17.8, 6.45, 6.25)
+size = Vector3(0.4, 0.9, 8.5)
+material = SubResource("Mat_brick")
+
+[node name="SurfDeckLip_O" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17.8, 6.45, -6.25)
+size = Vector3(0.4, 0.9, 8.5)
+material = SubResource("Mat_brick")
+
+[node name="SurfStreet_BStrip" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(-4, 0, 0, 0, 5.45, 0, 0, 0, -3, -13, 8.525, 9.5)
+
+[node name="Mark" type="MeshInstance3D" parent="SurfStreet_BStrip"]
+transform = Transform3D(1, 0, 0, 0, 0.0055, 0, 0, 0, 0.1167, 0, -0.4596, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
+
+[node name="SurfStreet_OStrip" type="Node3D" parent="." groups=["speed_strip"]]
+transform = Transform3D(4, 0, 0, 0, 5.45, 0, 0, 0, 3, 13, 8.525, -9.5)
+
+[node name="Mark" type="MeshInstance3D" parent="SurfStreet_OStrip"]
+transform = Transform3D(1, 0, 0, 0, 0.0055, 0, 0, 0, 0.1167, 0, -0.4596, -0.4417)
+mesh = SubResource("Mesh_line")
+surface_material_override/0 = SubResource("Mat_line")
+cast_shadow = 0
 
 [node name="Backdrop" type="Node3D" parent="."]
 

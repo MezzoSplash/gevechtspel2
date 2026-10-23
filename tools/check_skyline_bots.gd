@@ -18,7 +18,7 @@ func _ready() -> void:
 		_deaths[weapon_id] = int(_deaths.get(weapon_id, 0)) + 1
 	)
 	var levels := {}
-	for t in 6:
+	for t in 12:
 		await get_tree().create_timer(5.0).timeout
 		var ys: PackedStringArray = []
 		for n in get_tree().get_nodes_in_group("player"):
