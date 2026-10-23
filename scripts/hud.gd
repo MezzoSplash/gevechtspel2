@@ -851,10 +851,6 @@ func _on_killcam_finished() -> void:
 		_on_round_ended(0, _round_end_winner, {})
 
 
-func show_round_end(winner_name: String, scores: Dictionary) -> void:
-	_on_round_ended(0, winner_name, scores)
-
-
 func show_intermission() -> void:
 	_intermission_timer = 10.0
 	intermission_label.text = "INTERMISSION - NEXT ROUND SOON"

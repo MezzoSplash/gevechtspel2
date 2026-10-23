@@ -42,4 +42,4 @@ They were trimmed, mixed to mono, faded and normalized with `tools/build_sfx.py`
 
 The revolver and throwing-knife models (`assets/weapons/revolver.tscn`, `knife.tscn`) are low-poly boxes and cylinders built for this project by `tools/build_lowpoly_weapons.py` (CC0). The SMG viewmodel (`assets/weapons/smg/weapon_smg.tscn`, with its fire clip and muzzle flash) and the RC-XD mesh (`assets/gadgets/RCExplody.glb`) are by sqorchtech.
 
-The other files in `assets/sounds/` (hit, headshot, kill, empty click, land, slide, reload, the older announcer lines `radar_online` / `radar_standby` / `round_starting`, round music) are not from these packs; the gun clicks and ticks come from `tools/gen_sounds.py`.
+The other files in `assets/sounds/` (hit, headshot, kill, empty click, land, slide, reload, the older announcer lines `radar_standby` / `round_starting`, round music) are not from these packs; the gun clicks and ticks come from `tools/gen_sounds.py`.
