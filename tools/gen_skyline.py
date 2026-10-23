@@ -25,6 +25,8 @@ import math
 import os
 import random
 
+import speed_strip
+
 OUT = os.path.join(os.path.dirname(__file__), "..", "scenes", "maps", "skyline.tscn")
 
 BASE = -30.0       # street level, far below every roof
@@ -44,6 +46,7 @@ PAINT = {
     "team_blue": (2, 0.06, 0.22, 0.02),
     "team_orange": (2, 0.06, 0.22, 0.02),
     "ac": (3, 0.06, 0.25, 0.02),
+    "surf": (0, 0.04, 0.0, 0.015),
     "street": (5, 0.10, 0.0, 0.05),
     "sky_a": (2, 0.06, 0.25, 0.02),
     "sky_b": (1, 0.06, 0.30, 0.02),
@@ -62,6 +65,7 @@ MATS = {
     "team_blue": ((0.27, 0.46, 0.66), 0.82),
     "team_orange": ((0.74, 0.44, 0.18), 0.82),
     "ac": ((0.62, 0.64, 0.66), 0.62),
+    "surf": ((0.36, 0.42, 0.48), 0.62),
     "street": ((0.17, 0.18, 0.19), 0.95),
     "sky_a": ((0.36, 0.40, 0.46), 0.85),
     "sky_b": ((0.44, 0.36, 0.32), 0.85),
@@ -274,6 +278,64 @@ box_h("MidAC1", 4.0, 6.0, 6.0, 7.2, 4.0, 5.6, "ac")
 box_h("MidAC2", -7.4, -5.4, 6.0, 7.2, 2.6, 4.2, "ac")
 box_h("MidWall", 5.0, 8.5, 6.0, 7.1, -3.2, -2.6, "concrete")
 
+# ================================================================ surf (street gap, west of the tower)
+# Free-standing double wedge over the gap between the west lane (x <= -19) and the tower (x >= -7).
+# Same ~58 deg faces and 5.25 m face height as the other maps' surf triangle, 40 deg kickers at
+# both ends. It runs from beside the spawn roof (high end z 34) down a ~7 deg pitch to a new deck
+# that widens Mid to the west (y 6), where a speed strip keeps the exit speed. Ridge x -13; the
+# Orange copy is the half-turn. Faces are far over the 45 deg walk / 46 deg nav limits, the ridge
+# is a line, so bots never path on it. Entry: drop off the spawn roof's west corner, or jump on
+# from WB (y 6) mid-run. Planks and stairs all stay.
+SURF_HALF = 3.3
+SURF_H = 5.25
+SURF_X = -13.0
+SURF_Z_HIGH = 34.0
+SURF_Z_LOW = 11.0
+SURF_TOE_LOW = 6.1
+SURF_TOE_HIGH = 9.0
+SURF_PITCH = math.atan2(SURF_TOE_HIGH - SURF_TOE_LOW, SURF_Z_HIGH - SURF_Z_LOW)
+SURF_LEN = (SURF_Z_HIGH - SURF_Z_LOW) / math.cos(SURF_PITCH)
+surf_strips = []
+
+
+def _kick_basis(deg, sign):
+    a = math.radians(deg)
+    c, s_ = math.cos(a), math.sin(a) * sign
+    return ((1, 0, 0), (0, c, s_), (0, -s_, c))
+
+
+def surf_wedge(name, x, z_high, sign):
+    """sign +1: runs toward -Z (Blue copy). sign -1: the half-turn."""
+    b = SURF_PITCH
+    if sign > 0:
+        Z = (0.0, math.sin(b), math.cos(b))
+        X = (1.0, 0.0, 0.0)
+    else:
+        Z = (0.0, math.sin(b), -math.cos(b))
+        X = (-1.0, 0.0, 0.0)
+    Y = (Z[1] * X[2] - Z[2] * X[1], Z[2] * X[0] - Z[0] * X[2], Z[0] * X[1] - Z[1] * X[0])
+    basis = (X, Y, Z)
+    poly = (-SURF_HALF, 0.0, SURF_HALF, 0.0, 0.0, SURF_H)
+    add(name, "CSGPolygon3D", xform(basis, (x, SURF_TOE_HIGH, z_high)),
+        ["polygon = PackedVector2Array(%s)" % ", ".join(fmt(v) for v in poly),
+         "depth = %s" % fmt(SURF_LEN)], "surf")
+    for kname, deg, ksign, zl in (("KickA", 40.0, 1, 0.0), ("KickB", 40.0, -1, -SURF_LEN)):
+        a = math.radians(deg)
+        zc = zl + (10.0 * math.sin(a) if ksign > 0 else -10.0 * math.sin(a))
+        add(name + kname, "CSGBox3D", xform(_kick_basis(deg, ksign), (0.0, 10.0 * math.cos(a), zc)),
+            ["operation = 2", "size = Vector3(8, 20, 30)"], "surf", parent="Arena/" + name)
+    low_z = z_high - sign * (SURF_Z_HIGH - SURF_Z_LOW)
+    surf_strips.append(speed_strip.make(
+        name + "Strip", (x, SURF_TOE_LOW, low_z), (0.0, -float(sign)), 6.0))
+
+
+surf_wedge("SurfStreet_B", SURF_X, SURF_Z_HIGH, 1)
+surf_wedge("SurfStreet_O", -SURF_X, -SURF_Z_HIGH, -1)
+# Exit deck: Mid widened west to x -18 (z 2..10.5), clear of the cross plank (|z| < 1.1).
+building_h("SurfDeck", -18, -10, 2, 10.5, 6.0, "brick_dark")
+box_h("SurfDeckEdge", -18.0, -10.0, 5.94, 6.0, 10.2, 10.5, "hazard")
+box_h("SurfDeckLip", -18.0, -17.6, 6.0, 6.9, 2.0, 10.5, "brick")
+
 # ================================================================ backdrop (no collision, not on the minimap)
 rng = random.Random(7)
 box_bd = []
@@ -324,6 +386,7 @@ def main():
         if b[3] not in mats:
             mats.append(b[3])
     out = ["[gd_scene format=3]", ""]
+    strip_res = speed_strip.resources()
     out += ['[ext_resource type="Shader" path="res://shaders/world_paint.gdshader" id="1_paint"]', ""]
     out += [
         # Late afternoon over the city: warm sun, blue-grey haze that swallows the far towers.
@@ -398,6 +461,7 @@ def main():
     for i, (name, c, s) in enumerate(glows):
         out += ['[sub_resource type="BoxMesh" id="GM_%d"]' % i,
                 "size = Vector3(%s, %s, %s)" % tuple(fmt(v) for v in s), ""]
+    out += strip_res
     out += ['[node name="Skyline" type="Node3D"]', "metadata/kill_y = %s" % fmt(KILL_Y), ""]
     out += ['[node name="WorldEnvironment" type="WorldEnvironment" parent="."]',
             'environment = SubResource("Env")', ""]
@@ -421,6 +485,7 @@ def main():
         out += ['[node name="%s" type="%s" parent="%s"]' % (name, typ, parent), "transform = %s" % xf]
         out += extras
         out += ['material = SubResource("Mat_%s")' % mat, ""]
+    out += speed_strip.nodes(surf_strips)
     out += ['[node name="Backdrop" type="Node3D" parent="."]', ""]
     for i, (name, c, s, m) in enumerate(backdrop):
         out += ['[node name="%s" type="MeshInstance3D" parent="Backdrop"]' % name,
@@ -445,6 +510,10 @@ def main():
         f.write("\n".join(out).rstrip("\n") + "\n")
     print("wrote %s (%d csg nodes, %d backdrop, %d lights)" % (
         os.path.normpath(OUT), len(nodes), len(backdrop) + len(glows), len(lights)))
+    print("  surf pitch %.1f deg, face %.1f deg, length %.1f m" % (
+        math.degrees(SURF_PITCH), math.degrees(math.atan2(SURF_H, SURF_HALF)), SURF_LEN))
+    for st in surf_strips:
+        print("  strip %s center %s" % (st["name"], tuple(round(v, 2) for v in st["center"])))
     for n, d in slopes:
         print("  slope %-12s %.1f deg" % (n, d))
     print("  team spawns:", team_spawns())
