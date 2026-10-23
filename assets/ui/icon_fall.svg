@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="32" viewBox="0 0 96 32">
+  <g fill="#ffffff">
+    <!-- roof edge the figure tumbles off -->
+    <rect x="18" y="3" width="20" height="5"/>
+    <rect x="34" y="3" width="4" height="27"/>
+    <!-- falling figure: head, body, arms up, legs apart -->
+    <circle cx="52" cy="8" r="4.5"/>
+    <polygon points="47,13 57,13 58,23 48,23"/>
+    <polygon points="47,14 41,6 44,4 50,13"/>
+    <polygon points="57,14 63,6 60,4 54,13"/>
+    <polygon points="48,22 53,22 49,31 44,30"/>
+    <polygon points="53,22 58,22 62,30 57,31"/>
+    <!-- down arrow -->
+    <rect x="70" y="3" width="6" height="15"/>
+    <polygon points="64,17 82,17 73,30"/>
+  </g>
+</svg>

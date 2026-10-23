@@ -87,6 +87,7 @@ const _FEED_ICONS := {
 	&"knife": preload("res://assets/ui/icon_knife.svg"),
 	&"melee": preload("res://assets/ui/icon_melee.svg"),
 	&"rcxd": preload("res://assets/ui/icon_rcxd.svg"),
+	&"fall": preload("res://assets/ui/icon_fall.svg"), # kill_y (map drop), see player._check_kill_y
 }
 const _FEED_MAX := 6
 const _FEED_LIFE := 5.0
