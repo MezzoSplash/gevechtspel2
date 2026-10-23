@@ -425,11 +425,11 @@ func _lobby_pick_team(team: int) -> void:
 		menu.set_team(team)
 	if Game.in_lobby and Game.is_networked():
 		if multiplayer.is_server():
-			Game.set_lobby_member(1, Game.player_name, team)
+			Game.set_lobby_member(1, Game.unique_name(1, Game.player_name), team)
 		else:
 			Game.request_lobby_team.rpc_id(1, team)
 	elif Game.in_lobby:
-		Game.set_lobby_member(1, Game.player_name, team)
+		Game.set_lobby_member(1, Game.unique_name(1, Game.player_name), team)
 
 
 func _disable_menu_camera() -> void:
@@ -696,7 +696,7 @@ func _spawn_player(peer_id: int, team: int = -1) -> void:
 	team = clampi(team, Game.TEAM_A, Game.TEAM_B)
 	var pos := _next_spawn(team)
 	var fallback: String = Game.player_name if peer_id == multiplayer.get_unique_id() else "Player"
-	var n: String = Game.take_pending_name(peer_id, fallback)
+	var n: String = Game.unique_name(peer_id, Game.take_pending_name(peer_id, fallback))
 	print("SERVER: Spawning player %d team %d at %s with name %s" % [peer_id, team, pos, n])
 	_add_pawn({"id": peer_id, "pos": pos, "yaw": Maps.spawn_yaw(pos, team, Game.is_ffa()), "n": n, "bot": false, "team": team})
 

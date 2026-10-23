@@ -326,6 +326,46 @@ func clean_name(n: String, fallback: String = "Player") -> String:
 	return n if n != "" else fallback
 
 
+## Server: `n` cleaned and made unique among connected players, bots and lobby rows,
+## case-insensitive. A taken name gets " (2)", " (3)", ... `peer_id`'s own current name never counts.
+func unique_name(peer_id: int, n: String) -> String:
+	n = clean_name(n)
+	var taken := {}
+	for other in scores:
+		if int(other) != peer_id:
+			taken[str(scores[other].get("name", "")).to_lower()] = true
+	for other in lobby:
+		if int(other) != peer_id:
+			taken[str(lobby[other].get("name", "")).to_lower()] = true
+	for other in pending_names:
+		if int(other) != peer_id:
+			taken[str(pending_names[other]).to_lower()] = true
+	for node in get_tree().get_nodes_in_group("player"):
+		var p := node as Player
+		if p != null and p.peer_id != peer_id:
+			taken[p.display_name.to_lower()] = true
+	if not taken.has(n.to_lower()):
+		return n
+	var i := 2
+	while true:
+		var suffix := " (%d)" % i
+		var cand := n.substr(0, NAME_MAX - suffix.length()).strip_edges() + suffix
+		if not taken.has(cand.to_lower()):
+			return cand
+		i += 1
+	return n
+
+
+## Our name as the server resolved it (e.g. "Gianni (2)"), else the typed one.
+func local_resolved_name() -> String:
+	var me := multiplayer.get_unique_id() if is_networked() else 1
+	if scores.has(me):
+		return str(scores[me].get("name", player_name))
+	if lobby.has(me):
+		return str(lobby[me].get("name", player_name))
+	return player_name
+
+
 func weapon_def(weapon_id: StringName) -> WeaponDef:
 	return WEAPON_DEFS.get(weapon_id) as WeaponDef
 
@@ -757,10 +797,10 @@ func notify_hit(killed: bool, headshot: bool) -> void:
 func submit_display_name(n: String, team: int = -1) -> void:
 	if not multiplayer.is_server():
 		return
-	n = clean_name(n)
 	var peer := multiplayer.get_remote_sender_id()
 	if peer == 0:
 		peer = multiplayer.get_unique_id()
+	n = unique_name(peer, n)
 	pending_names[peer] = n
 	if team == TEAM_A or team == TEAM_B:
 		pending_teams[peer] = team
@@ -2290,19 +2330,20 @@ func _push_live_name() -> void:
 				submit_display_name.rpc_id(1, player_name)
 				_retitle()
 			return
+	var n := unique_name(peer, player_name)
 	if in_lobby:
-		pending_names[peer] = player_name
+		pending_names[peer] = n
 		var team := preferred_team
 		if lobby.has(peer):
 			team = int(lobby[peer].get("team", team))
-		set_lobby_member(peer, player_name, team)
+		set_lobby_member(peer, n, team)
 		_retitle()
 		return
 	if player_for_peer(peer) != null or scores.has(peer):
 		if is_networked():
-			apply_display_name.rpc(peer, player_name)
+			apply_display_name.rpc(peer, n)
 		else:
-			apply_display_name(peer, player_name)
+			apply_display_name(peer, n)
 		_retitle()
 
 

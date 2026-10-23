@@ -307,7 +307,8 @@ func _configure_control() -> void:
 		body_mesh.visible = false
 		weapon.visible = true
 		nametag.visible = false
-		if Game.player_name != "":
+		# Online the server's (deduplicated) name from the spawn data wins.
+		if Game.player_name != "" and not Game.is_networked():
 			set_display_name(Game.player_name)
 		make_active_camera()
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
