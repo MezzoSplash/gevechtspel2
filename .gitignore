@@ -17,3 +17,4 @@ Thumbs.db
 Exportbuilds/
 gevechtspel0.1.0-server-arm64
 testmodels/
+__pycache__/

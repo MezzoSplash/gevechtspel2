@@ -382,7 +382,7 @@ func show_screen(id: String) -> void:
 		_enter_screen.call_deferred()
 
 
-## "v0.2.15" from project.godot application/config/version: the one place the release bump sets
+## "v0.3.7" from project.godot application/config/version: the one place the release bump sets
 ## the game version (export presets use the same number), so the menu cannot show a stale one.
 static func version_text() -> String:
 	var v := str(ProjectSettings.get_setting("application/config/version", "")).strip_edges()

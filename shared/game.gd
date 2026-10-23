@@ -184,13 +184,6 @@ func play_locked() -> bool:
 	return round_frozen or killcam_active
 
 
-func rpc_from_server() -> bool:
-	if is_offline:
-		return true
-	var id := multiplayer.get_remote_sender_id()
-	return id == 1 or id == 0
-
-
 ## Humans are named by peer id; bots are `bot1` with peer_id -1, etc.
 func player_for_peer(peer_id: int) -> Player:
 	if peer_id == 0:
@@ -1149,7 +1142,7 @@ var streak_earned: Dictionary = {} # peer -> bitmask already passed this life (s
 
 
 ## Humans only. Death clears this life's count, not a streak already earned.
-## 3 banks the radar, 5 banks the RC-XD. Each stays until Enter uses it,
+## 3 banks the UAV, 5 banks the RC-XD. Each stays until Enter uses it,
 ## or until start_round clears every charge for the next round.
 func _bump_streak(killer_peer_id: int, victim_peer_id: int) -> void:
 	if victim_peer_id > 0:
@@ -1196,8 +1189,8 @@ func _apply_streak_local(n: int, charges: int, earned: int) -> void:
 		hud.set_streak(n, charges, earned)
 
 
-## Slot 0 is the radar (3), slot 1 is the RC-XD (5). Using one spends only that charge.
-## Radar still spends if one is already running (time is not stacked).
+## Slot 0 is the UAV (3), slot 1 is the RC-XD (5). Using one spends only that charge.
+## UAV still spends if one is already running (time is not stacked).
 ## Freeze, killcam, death, or a car already out: the charge is kept.
 func try_activate_streak(peer_id: int, slot: int) -> void:
 	if not _is_match_authority():
@@ -1228,7 +1221,7 @@ func try_activate_streak(peer_id: int, slot: int) -> void:
 		_grant_radar(peer_id)
 
 
-## HUD calls this. Clients cannot grant their own radar.
+## HUD calls this. Clients cannot grant their own UAV.
 func request_use_streak(slot: int) -> void:
 	if is_networked() and not multiplayer.is_server():
 		request_streak.rpc_id(1, slot)
@@ -1639,16 +1632,6 @@ func _end_round_player(peer_id: int) -> void:
 	round_ended.emit(peer_id, winner_name, scores.duplicate())
 	if is_networked():
 		sync_round_end.rpc(peer_id, winner_name, scores.duplicate())
-
-
-func _end_round(winner_peer_id: int) -> void:
-	if is_ffa():
-		_end_round_player(winner_peer_id)
-		return
-	var team := 0
-	if scores.has(winner_peer_id):
-		team = int(scores[winner_peer_id].get("team", 0))
-	_end_round_team(team)
 
 
 func _end_round_team(team_id: int) -> void:
