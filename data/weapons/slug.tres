@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/weapon_def.gd" id="1_weapon"]
+[ext_resource type="AudioStream" path="res://assets/sounds/slug_fire.wav" id="2_fire"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"slug"
+display_name = "Slug Shotgun"
+fire_rate = 1.1
+damage = 85.0
+headshot_multiplier = 1.6
+spread_deg = 0.3
+kick_pitch_deg = 1.7
+kick_yaw_deg = 0.4
+kick_fov = 2.2
+range_m = 90.0
+mag_size = 5
+reload_time = 2.6
+tracer_width = 0.02
+fire_sound = ExtResource("2_fire")
+pellet_count = 1
+automatic = false
+falloff_start_m = 14.0
+falloff_end_m = 45.0
+falloff_min_mult = 0.45

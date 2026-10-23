@@ -5,7 +5,7 @@ extends RefCounted
 ## The grenade slot holds MAX_GRENADES throwables in any mix: frag grenades (G) and throwing knives (F).
 ## The wire loadout is the same dict without the name. The server checks it with `parse_loadout`.
 
-const PRIMARIES: Array[StringName] = [&"rifle", &"shotgun", &"sniper", &"smg"]
+const PRIMARIES: Array[StringName] = [&"rifle", &"shotgun", &"sniper", &"smg", &"lmg", &"slug"]
 ## The revolver is a sidearm option next to the pistol: slow and heavy-hitting against fast and forgiving.
 const SECONDARIES: Array[StringName] = [&"pistol", &"revolver"]
 const GRENADE_TYPES: Array[StringName] = [&"frag", &"knife"]
