@@ -167,8 +167,13 @@ def ramp(name, axis, a0, a1, lo, hi, y_lo, y_hi, mat, t=0.3):
         # local Z runs along X here; the box's long side must be local Z.
         size = (abs(a1 - a0), t, length)
     c = tuple(mid[i] - Y[i] * t / 2 for i in range(3))
+    # Ramps are not part of the Arena union: CSG cut their top into triangles with T-junctions
+    # where other boxes touched them, and the capsule caught on those inner edges (EastStair
+    # stopped players and bots dead mid-flight). Visual CSG without collision, plus one convex
+    # BoxShape3D per ramp: a single flat face with no inner edges to snag on.
     add(name, "CSGBox3D", xform(basis, c),
-        ["size = Vector3(%s, %s, %s)" % tuple(fmt(v) for v in size)], mat)
+        ["size = Vector3(%s, %s, %s)" % tuple(fmt(v) for v in size)], mat, parent="Ramps")
+    ramp_cols.append((name, xform(basis, c), size))
     return math.degrees(math.atan2(abs(dh), abs(dl)))
 
 
@@ -179,6 +184,7 @@ def ramp_h(name, axis, a0, a1, lo, hi, y_lo, y_hi, mat):
 
 
 slopes = []
+ramp_cols = []
 
 
 def light_h(name, pos, col, energy, rng):
@@ -462,6 +468,9 @@ def main():
         out += ['[sub_resource type="BoxMesh" id="GM_%d"]' % i,
                 "size = Vector3(%s, %s, %s)" % tuple(fmt(v) for v in s), ""]
     out += strip_res
+    for i, (name, xf, size) in enumerate(ramp_cols):
+        out += ['[sub_resource type="BoxShape3D" id="RS_%d"]' % i,
+                "size = Vector3(%s, %s, %s)" % tuple(fmt(v) for v in size), ""]
     out += ['[node name="Skyline" type="Node3D"]', "metadata/kill_y = %s" % fmt(KILL_Y), ""]
     out += ['[node name="WorldEnvironment" type="WorldEnvironment" parent="."]',
             'environment = SubResource("Env")', ""]
@@ -482,9 +491,21 @@ def main():
     out += ['[node name="Arena" type="CSGCombiner3D" parent="."]',
             "use_collision = true", "collision_layer = 1", "collision_mask = 0", ""]
     for name, typ, xf, extras, mat, parent in nodes:
+        if parent == "Ramps":
+            continue
         out += ['[node name="%s" type="%s" parent="%s"]' % (name, typ, parent), "transform = %s" % xf]
         out += extras
         out += ['material = SubResource("Mat_%s")' % mat, ""]
+    out += ['[node name="Ramps" type="CSGCombiner3D" parent="."]', "use_collision = false", ""]
+    for name, typ, xf, extras, mat, parent in nodes:
+        if parent != "Ramps":
+            continue
+        out += ['[node name="%s" type="%s" parent="Ramps"]' % (name, typ), "transform = %s" % xf]
+        out += extras + ['material = SubResource("Mat_%s")' % mat, ""]
+    out += ['[node name="RampColliders" type="StaticBody3D" parent="Arena"]', "collision_layer = 1", "collision_mask = 0", ""]
+    for i, (name, xf, size) in enumerate(ramp_cols):
+        out += ['[node name="%s" type="CollisionShape3D" parent="Arena/RampColliders"]' % name,
+                "transform = %s" % xf, 'shape = SubResource("RS_%d")' % i, ""]
     out += speed_strip.nodes(surf_strips)
     out += ['[node name="Backdrop" type="Node3D" parent="."]', ""]
     for i, (name, c, s, m) in enumerate(backdrop):
