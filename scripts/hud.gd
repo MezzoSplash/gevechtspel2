@@ -1056,7 +1056,7 @@ func _refresh_scoreboard() -> void:
 
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 16)
-	for title in ["#" if ffa else "TEAM", "NAME", "KILLS", "STYLE", "PING"]:
+	for title in ["#" if ffa else "TEAM", "NAME", "KILLS", "DEATHS", "K/D", "STYLE", "PING"]:
 		var h := Label.new()
 		h.text = title
 		h.add_theme_font_size_override("font_size", 16)
@@ -1092,6 +1092,15 @@ func _refresh_scoreboard() -> void:
 		kills_l.text = str(entry.kills)
 		kills_l.custom_minimum_size = Vector2(70, 0)
 		kills_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var deaths := int(entry.get("deaths", 0))
+		var deaths_l := Label.new()
+		deaths_l.text = str(deaths)
+		deaths_l.custom_minimum_size = Vector2(70, 0)
+		deaths_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var kd_l := Label.new()
+		kd_l.text = "%.2f" % (float(entry.kills) / float(maxi(deaths, 1)))
+		kd_l.custom_minimum_size = Vector2(70, 0)
+		kd_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		var style_l := Label.new()
 		var style_pts := int(entry.get("style", 0))
 		style_l.text = str(style_pts) if style_pts > 0 else "—"
@@ -1107,6 +1116,8 @@ func _refresh_scoreboard() -> void:
 		row.add_child(team_l)
 		row.add_child(name_l)
 		row.add_child(kills_l)
+		row.add_child(deaths_l)
+		row.add_child(kd_l)
 		row.add_child(style_l)
 		row.add_child(ping_l)
 		scoreboard_container.add_child(row)
