@@ -43,8 +43,10 @@ const DMG_DIR_MAX := 6
 const DMG_DIR_RADIUS := 118.0 # px from screen centre to the wedge
 const DMG_DIR_HALF := 0.36 # rad: half the wedge's arc (~20°)
 
-const _SLOT_IDLE := Color(0.08, 0.09, 0.11, 0.82)
-const _SLOT_ON := Color(0.18, 0.16, 0.08, 0.92)
+const _SLOT_IDLE := Color(0.06, 0.07, 0.09, 0.78)
+const _SLOT_ON := Color(0.12, 0.11, 0.07, 0.9)
+const HUD_ACCENT := Color(1.0, 0.84, 0.42) # gold: held weapon, selected streak, own scoreboard row
+const HUD_PANEL := Color(0.05, 0.06, 0.08, 0.78)
 var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # the local pawn's guns
 
 @onready var hint_label: Label = $Hint
@@ -139,6 +141,7 @@ func _ready() -> void:
 	if countdown_label:
 		countdown_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_style_bottom()
 	_refresh_weapon_slots()
 	for slot in _streak_slots:
 		_add_streak_frame(slot)
@@ -415,6 +418,69 @@ func set_weapon_index(index: int) -> void:
 	_refresh_weapon_slots()
 
 
+## Bottom HUD: rounded HP bar (track + fill), grenade/knife pill, outlined streak counter.
+func _style_bottom() -> void:
+	var bg := get_node_or_null("Bottom/HpWrap/HpBg") as ColorRect
+	if bg:
+		bg.color = Color(0.04, 0.05, 0.06, 0.8)
+		_skin(bg, 8)
+		_paint(bg, Color(0.04, 0.05, 0.06, 0.8))
+	if hp_fill:
+		_skin(hp_fill, 8)
+		_paint(hp_fill, Color(0.27, 0.82, 0.48, 0.95))
+		(hp_fill.get_node("Skin").get_theme_stylebox("panel") as StyleBoxFlat).border_width_top = 0
+	if grenade_label:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = HUD_PANEL
+		sb.set_corner_radius_all(12)
+		sb.content_margin_left = 14
+		sb.content_margin_right = 14
+		sb.content_margin_top = 3
+		sb.content_margin_bottom = 3
+		grenade_label.add_theme_stylebox_override("normal", sb)
+		grenade_label.add_theme_color_override("font_color", Color(0.9, 0.93, 0.96))
+		grenade_label.add_theme_font_size_override("font_size", 16)
+		grenade_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	if streak_label:
+		streak_label.add_theme_font_size_override("font_size", 14)
+
+
+## Rounded panel behind a ColorRect slot (a ColorRect has no corners or border). The rect itself
+## goes transparent; _paint recolours the panel. Same nodes and labels as before.
+func _skin(rect: ColorRect, radius: int = 8) -> void:
+	if rect == null or rect.get_node_or_null("Skin"):
+		return
+	var p := Panel.new()
+	p.name = "Skin"
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.show_behind_parent = true
+	p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = rect.color
+	sb.set_corner_radius_all(radius)
+	sb.anti_aliasing = true
+	p.add_theme_stylebox_override("panel", sb)
+	rect.add_child(p)
+	rect.move_child(p, 0)
+	rect.color = Color(0, 0, 0, 0)
+
+
+## `accent` draws a border (selection / held weapon); `top` thickens only the top edge.
+func _paint(rect: ColorRect, bg: Color, accent: Color = Color(0, 0, 0, 0), top: int = 0) -> void:
+	var p := rect.get_node_or_null("Skin") as Panel
+	if p == null:
+		rect.color = bg
+		return
+	var sb := p.get_theme_stylebox("panel") as StyleBoxFlat
+	sb.bg_color = bg
+	sb.border_color = accent if accent.a > 0.0 else Color(1, 1, 1, 0.07)
+	var w := 2 if accent.a > 0.0 else 1
+	sb.border_width_left = w
+	sb.border_width_right = w
+	sb.border_width_bottom = w
+	sb.border_width_top = maxi(w, top)
+
+
 func _refresh_weapon_slots() -> void:
 	if _slots.is_empty() or _slots[0] == null:
 		return
@@ -424,7 +490,8 @@ func _refresh_weapon_slots() -> void:
 		if not slot.visible:
 			continue
 		var on := i == _weapon_index
-		slot.color = _SLOT_ON if on else _SLOT_IDLE
+		_skin(slot)
+		_paint(slot, _SLOT_ON if on else _SLOT_IDLE, HUD_ACCENT if on else Color(0, 0, 0, 0), 3 if on else 0)
 		var name_l := slot.get_node("Name") as Label
 		var ammo_l := slot.get_node("Ammo") as Label
 		var key_l := slot.get_node_or_null("Key") as Label
@@ -644,13 +711,19 @@ func _refresh_streak_ui() -> void:
 		if name_l and i == 1:
 			var col := Color(1, 0.92, 0.55) if ready else Color(0.55, 0.58, 0.62)
 			name_l.add_theme_color_override("font_color", col)
+		_skin(slot)
+		var bg := Color(0.06, 0.07, 0.09, 0.6 if i > 0 else 0.78)
 		if ready:
-			slot.color = Color(0.35, 0.28, 0.08, 0.95) if selected else Color(0.22, 0.18, 0.06, 0.9)
+			bg = Color(0.3, 0.24, 0.07, 0.94) if selected else Color(0.2, 0.16, 0.05, 0.88)
 		elif selected:
-			slot.color = Color(0.16, 0.17, 0.2, 0.92)
-		else:
-			slot.color = Color(0.08, 0.09, 0.11, 0.55 if i > 0 else 0.82)
-		_set_streak_frame(slot, selected)
+			bg = Color(0.12, 0.13, 0.16, 0.9)
+		var edge := Color(0, 0, 0, 0)
+		if selected:
+			edge = HUD_ACCENT if ready else Color(0.92, 0.94, 0.97, 0.9)
+		elif ready:
+			edge = Color(HUD_ACCENT, 0.45)
+		_paint(slot, bg, edge)
+		_set_streak_frame(slot, false) # the rounded border replaces the old white bars
 
 
 ## Four thin bars. A ColorRect has no border, so the selection is drawn as children.
@@ -701,7 +774,7 @@ func _play_announcer(path: String) -> void:
 ## Grenade slot: frags on G, throwing knives on F (only shown when the class carries knives).
 func set_grenades(n: int, knives: int = 0) -> void:
 	if grenade_label:
-		grenade_label.text = "G  %d" % n if knives <= 0 else "G  %d    F  %d" % [n, knives]
+		grenade_label.text = "G   FRAG ×%d" % n if knives <= 0 else "G   FRAG ×%d      F   KNIFE ×%d" % [n, knives]
 
 
 func set_reloading(on: bool) -> void:
@@ -718,7 +791,10 @@ func _on_health(hp: float, max_hp: float) -> void:
 		hp_label.text = str(roundi(hp))
 	if hp_fill:
 		hp_fill.anchor_right = t
-		hp_fill.color = Color(0.92, 0.16, 0.12, 0.96) if t < 0.3 else Color(0.78, 0.12, 0.1, 0.95)
+		var fill := Color(0.92, 0.2, 0.16, 0.96) if t < 0.3 else Color(0.27, 0.82, 0.48, 0.95)
+		if t >= 0.3 and t < 0.6:
+			fill = Color(0.95, 0.72, 0.25, 0.95)
+		_paint(hp_fill, fill)
 
 
 func _on_died() -> void:
@@ -1147,9 +1223,6 @@ func _refresh_scoreboard() -> void:
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 10)
 	backdrop.add_child(body)
-	var sub := ("FREE FOR ALL  ·  first to %d" if ffa else "TEAM DEATHMATCH  ·  first to %d") % Game.win_kills()
-	body.add_child(_sb_label(sub, 15, SB_MUTED))
-	(body.get_child(0) as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if ffa:
 		body.add_child(_sb_panel("PLAYERS", "", Color(0.9, 0.9, 0.92), _scores, true))
 	else:

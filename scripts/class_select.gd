@@ -147,6 +147,7 @@ func _rebuild() -> void:
 		b.custom_minimum_size = Vector2(0, 46)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.add_theme_font_size_override("font_size", 18)
+		_style_button(b, i == Game.loadouts.queued_index)
 		var tag := ""
 		if i == Game.loadouts.queued_index:
 			tag = "   (next spawn)"
@@ -167,10 +168,20 @@ func _build() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
+	var card := PanelContainer.new()
+	var csb := _box(Color(0.05, 0.06, 0.08, 0.9), 12)
+	csb.content_margin_left = 22
+	csb.content_margin_right = 22
+	csb.content_margin_top = 18
+	csb.content_margin_bottom = 18
+	csb.border_color = Color(1.0, 0.84, 0.42)
+	csb.border_width_top = 3
+	card.add_theme_stylebox_override("panel", csb)
+	center.add_child(card)
 	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(560, 0)
+	box.custom_minimum_size = Vector2(600, 0)
 	box.add_theme_constant_override("separation", 10)
-	center.add_child(box)
+	card.add_child(box)
 	_title = Label.new()
 	_title.add_theme_font_size_override("font_size", 28)
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -191,4 +202,34 @@ func _build() -> void:
 	_back.text = "Back"
 	_back.custom_minimum_size = Vector2(0, 36)
 	_back.pressed.connect(_go_back)
+	_style_button(_back, false)
 	box.add_child(_back)
+
+
+func _box(col: Color, radius: int) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.set_corner_radius_all(radius)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	return sb
+
+
+## Same look as the scoreboard rows: dark rounded rows, gold edge on hover/focus and the queued class.
+func _style_button(b: Button, queued: bool) -> void:
+	var gold := Color(1.0, 0.84, 0.42)
+	var normal := _box(Color(0.1, 0.11, 0.14, 0.92), 8)
+	if queued:
+		normal.border_color = Color(gold, 0.6)
+		normal.border_width_left = 3
+	var hover := _box(Color(0.16, 0.15, 0.11, 0.96), 8)
+	hover.border_color = gold
+	hover.border_width_left = 3
+	var pressed := _box(Color(0.24, 0.2, 0.09, 0.98), 8)
+	b.add_theme_stylebox_override("normal", normal)
+	b.add_theme_stylebox_override("hover", hover)
+	b.add_theme_stylebox_override("focus", hover)
+	b.add_theme_stylebox_override("pressed", pressed)
+	b.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
+	b.add_theme_color_override("font_hover_color", gold)
+	b.add_theme_color_override("font_focus_color", gold)
