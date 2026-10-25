@@ -76,7 +76,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.3.9"
+const NET_VERSION := "0.3.10"
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -142,6 +142,8 @@ var lobby: Dictionary = {} # peer_id → {name, team}
 var master_vol := 1.0
 var sfx_vol := 1.0
 var player_name := "Player" # this launch. --name replaces it and must not be written back.
+const RECENT_SERVERS_MAX := 5
+var recent_servers: PackedStringArray = [] # "ip:port", newest first (settings.cfg [net] recent)
 var profile_name := "Player" # the name settings.cfg keeps across launches
 var window_mode := WINDOW_WINDOWED
 var window_size := Vector2i(1600, 900) # project.godot's window override; the first-run default
@@ -904,7 +906,7 @@ func _display_name_for(peer_id: int) -> String:
 
 func _apply_score(peer_id: int, kills: int, n: String, team: int = 0) -> void:
 	if not scores.has(peer_id):
-		scores[peer_id] = {"name": n, "kills": 0, "team": team, "style": 0}
+		scores[peer_id] = {"name": n, "kills": 0, "team": team, "style": 0, "deaths": 0}
 	scores[peer_id].kills = kills
 	scores[peer_id].name = n
 	scores[peer_id].team = team
@@ -1065,6 +1067,7 @@ func register_kill(
 ) -> void:
 	if not _is_match_authority():
 		return
+	_add_death(victim_peer_id)
 	if killer_peer_id == 0:
 		return
 	if killer_peer_id == victim_peer_id:
@@ -1586,6 +1589,22 @@ func style_king() -> Dictionary:
 	return best
 
 
+## Server: one more death on the victim's row (scoreboard K/D), synced to everyone.
+func _add_death(peer_id: int) -> void:
+	if not scores.has(peer_id):
+		return
+	var d := int(scores[peer_id].get("deaths", 0)) + 1
+	scores[peer_id].deaths = d
+	if is_networked():
+		sync_deaths.rpc(peer_id, d)
+
+
+@rpc("authority", "reliable")
+func sync_deaths(peer_id: int, deaths: int) -> void:
+	if scores.has(peer_id):
+		scores[peer_id].deaths = maxi(deaths, 0)
+
+
 ## `style` -1 keeps the row's style (only the round reset sends 0).
 @rpc("authority", "reliable")
 func sync_score(peer_id: int, score: int, n: String, team: int = 0, style: int = -1) -> void:
@@ -1618,6 +1637,7 @@ func sync_all_scores(scores_data: Array) -> void:
 		var team: int = int(entry.get("team", 0))
 		_apply_score(pid, kills, n, team)
 		scores[pid].style = maxi(int(entry.get("style", 0)), 0)
+		scores[pid].deaths = maxi(int(entry.get("deaths", 0)), 0)
 
 
 func _check_win_team(team_id: int) -> void:
@@ -1727,9 +1747,11 @@ func start_round() -> void:
 		sync_team_kills.rpc(0, 0)
 	for id in scores:
 		scores[id].style = 0
+		scores[id].deaths = 0
 		_apply_score(id, 0, str(scores[id].name), int(scores[id].get("team", 0)))
 		if is_networked() and multiplayer.is_server():
 			sync_score.rpc(id, 0, str(scores[id].name), int(scores[id].team), 0)
+			sync_deaths.rpc(id, 0)
 	_clear_round_streaks()
 
 
@@ -1874,6 +1896,7 @@ func get_scores() -> Array[Dictionary]:
 			"kills": scores[id].kills,
 			"team": int(scores[id].get("team", 0)),
 			"style": int(scores[id].get("style", 0)),
+			"deaths": int(scores[id].get("deaths", 0)),
 			"ping": int(pings.get(id, -1)),
 		})
 	out.sort_custom(_sort_scores)
@@ -2297,6 +2320,10 @@ func load_settings() -> void:
 		round_time = float(last_time_min * 60)
 		bot_count = last_bots
 		profile_name = clean_name(str(cfg.get_value("profile", "name", profile_name)))
+		recent_servers = PackedStringArray()
+		for e in cfg.get_value("net", "recent", PackedStringArray()):
+			if str(e).strip_edges() != "" and recent_servers.size() < RECENT_SERVERS_MAX:
+				recent_servers.append(str(e).strip_edges())
 		player_name = profile_name
 		window_mode = clampi(int(cfg.get_value("video", "window_mode", WINDOW_WINDOWED)), WINDOW_WINDOWED, WINDOW_FULLSCREEN)
 		var w := int(cfg.get_value("video", "width", window_size.x))
@@ -2349,6 +2376,7 @@ func save_settings() -> void:
 	cfg.set_value("match", "time_min", last_time_min)
 	cfg.set_value("match", "bots", last_bots)
 	cfg.set_value("profile", "name", profile_name)
+	cfg.set_value("net", "recent", recent_servers)
 	cfg.set_value("video", "window_mode", window_mode)
 	cfg.set_value("video", "width", window_size.x)
 	cfg.set_value("video", "height", window_size.y)
@@ -2934,3 +2962,14 @@ func hitstop(seconds: float = 0.05, scale: float = 0.22) -> void:
 	await get_tree().create_timer(seconds, true, false, true).timeout
 	Engine.time_scale = 1.0
 	_hitstopping = false
+
+
+## A successful connect puts "ip:port" on top of the recent list (deduped, capped) and saves.
+func remember_server(ip: String, port: int) -> void:
+	var key := "%s:%d" % [ip.strip_edges(), port]
+	var out := PackedStringArray([key])
+	for e in recent_servers:
+		if e != key and out.size() < RECENT_SERVERS_MAX:
+			out.append(e)
+	recent_servers = out
+	save_settings()

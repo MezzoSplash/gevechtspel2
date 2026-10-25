@@ -523,6 +523,8 @@ func _connect_to_server() -> void:
 
 func _on_connected_to_server() -> void:
 	print("CLIENT: Connected to server!")
+	Game.remember_server(menu.host_ip(), menu.host_port())
+	menu.refresh_recent_servers()
 	DisplayServer.window_set_title("Gevechtspel — %s" % Game.player_name)
 	Game.in_lobby = true
 	_open_lobby("Connected — waiting for host to start.")

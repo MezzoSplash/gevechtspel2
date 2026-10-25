@@ -53,6 +53,7 @@ func _ready() -> void:
 	$Center/Solo/BackButton.pressed.connect(func() -> void: show_screen("home"))
 	$Center/Mp/HostButton.pressed.connect(func() -> void: host_pressed.emit())
 	$Center/Mp/JoinRow/JoinButton.pressed.connect(func() -> void: connect_pressed.emit())
+	_build_recent_servers()
 	$Center/Mp/BackButton.pressed.connect(func() -> void: show_screen("home"))
 	$Center/Lobby/StartButton.pressed.connect(func() -> void: start_match_pressed.emit())
 	$Center/Lobby/LeaveButton.pressed.connect(func() -> void: lobby_leave_pressed.emit())
@@ -443,6 +444,43 @@ func _commit_name_fields() -> void:
 	if mp_name:
 		mp_name.text = Game.player_name
 	_applying_name = false
+
+
+var _recent_pick: OptionButton
+
+
+## "Recent servers" dropdown under the join row; picking one fills IP and port.
+func _build_recent_servers() -> void:
+	_recent_pick = OptionButton.new()
+	_recent_pick.name = "RecentServers"
+	_recent_pick.custom_minimum_size = Vector2(0, 32)
+	_recent_pick.item_selected.connect(_on_recent_picked)
+	var row: Node = $Center/Mp/JoinRow
+	row.get_parent().add_child(_recent_pick)
+	row.get_parent().move_child(_recent_pick, row.get_index() + 1)
+	refresh_recent_servers()
+
+
+func refresh_recent_servers() -> void:
+	if not _recent_pick:
+		return
+	_recent_pick.clear()
+	_recent_pick.add_item("Recent servers")
+	for e in Game.recent_servers:
+		_recent_pick.add_item(e)
+	_recent_pick.select(0)
+	_recent_pick.visible = Game.recent_servers.size() > 0
+
+
+func _on_recent_picked(idx: int) -> void:
+	if idx <= 0:
+		return
+	var e := _recent_pick.get_item_text(idx)
+	var cut := e.rfind(":")
+	if cut > 0:
+		set_host_ip(e.substr(0, cut))
+		set_host_port(int(e.substr(cut + 1)))
+	_recent_pick.select(0)
 
 
 func set_host_ip(ip: String) -> void:

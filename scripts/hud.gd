@@ -43,8 +43,10 @@ const DMG_DIR_MAX := 6
 const DMG_DIR_RADIUS := 118.0 # px from screen centre to the wedge
 const DMG_DIR_HALF := 0.36 # rad: half the wedge's arc (~20°)
 
-const _SLOT_IDLE := Color(0.08, 0.09, 0.11, 0.82)
-const _SLOT_ON := Color(0.18, 0.16, 0.08, 0.92)
+const _SLOT_IDLE := Color(0.06, 0.07, 0.09, 0.78)
+const _SLOT_ON := Color(0.12, 0.11, 0.07, 0.9)
+const HUD_ACCENT := Color(1.0, 0.84, 0.42) # gold: held weapon, selected streak, own scoreboard row
+const HUD_PANEL := Color(0.05, 0.06, 0.08, 0.78)
 var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # the local pawn's guns
 
 @onready var hint_label: Label = $Hint
@@ -139,6 +141,7 @@ func _ready() -> void:
 	if countdown_label:
 		countdown_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_style_bottom()
 	_refresh_weapon_slots()
 	for slot in _streak_slots:
 		_add_streak_frame(slot)
@@ -415,6 +418,69 @@ func set_weapon_index(index: int) -> void:
 	_refresh_weapon_slots()
 
 
+## Bottom HUD: rounded HP bar (track + fill), grenade/knife pill, outlined streak counter.
+func _style_bottom() -> void:
+	var bg := get_node_or_null("Bottom/HpWrap/HpBg") as ColorRect
+	if bg:
+		bg.color = Color(0.04, 0.05, 0.06, 0.8)
+		_skin(bg, 8)
+		_paint(bg, Color(0.04, 0.05, 0.06, 0.8))
+	if hp_fill:
+		_skin(hp_fill, 8)
+		_paint(hp_fill, Color(0.27, 0.82, 0.48, 0.95))
+		(hp_fill.get_node("Skin").get_theme_stylebox("panel") as StyleBoxFlat).border_width_top = 0
+	if grenade_label:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = HUD_PANEL
+		sb.set_corner_radius_all(12)
+		sb.content_margin_left = 14
+		sb.content_margin_right = 14
+		sb.content_margin_top = 3
+		sb.content_margin_bottom = 3
+		grenade_label.add_theme_stylebox_override("normal", sb)
+		grenade_label.add_theme_color_override("font_color", Color(0.9, 0.93, 0.96))
+		grenade_label.add_theme_font_size_override("font_size", 16)
+		grenade_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	if streak_label:
+		streak_label.add_theme_font_size_override("font_size", 14)
+
+
+## Rounded panel behind a ColorRect slot (a ColorRect has no corners or border). The rect itself
+## goes transparent; _paint recolours the panel. Same nodes and labels as before.
+func _skin(rect: ColorRect, radius: int = 8) -> void:
+	if rect == null or rect.get_node_or_null("Skin"):
+		return
+	var p := Panel.new()
+	p.name = "Skin"
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.show_behind_parent = true
+	p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = rect.color
+	sb.set_corner_radius_all(radius)
+	sb.anti_aliasing = true
+	p.add_theme_stylebox_override("panel", sb)
+	rect.add_child(p)
+	rect.move_child(p, 0)
+	rect.color = Color(0, 0, 0, 0)
+
+
+## `accent` draws a border (selection / held weapon); `top` thickens only the top edge.
+func _paint(rect: ColorRect, bg: Color, accent: Color = Color(0, 0, 0, 0), top: int = 0) -> void:
+	var p := rect.get_node_or_null("Skin") as Panel
+	if p == null:
+		rect.color = bg
+		return
+	var sb := p.get_theme_stylebox("panel") as StyleBoxFlat
+	sb.bg_color = bg
+	sb.border_color = accent if accent.a > 0.0 else Color(1, 1, 1, 0.07)
+	var w := 2 if accent.a > 0.0 else 1
+	sb.border_width_left = w
+	sb.border_width_right = w
+	sb.border_width_bottom = w
+	sb.border_width_top = maxi(w, top)
+
+
 func _refresh_weapon_slots() -> void:
 	if _slots.is_empty() or _slots[0] == null:
 		return
@@ -424,7 +490,8 @@ func _refresh_weapon_slots() -> void:
 		if not slot.visible:
 			continue
 		var on := i == _weapon_index
-		slot.color = _SLOT_ON if on else _SLOT_IDLE
+		_skin(slot)
+		_paint(slot, _SLOT_ON if on else _SLOT_IDLE, HUD_ACCENT if on else Color(0, 0, 0, 0), 3 if on else 0)
 		var name_l := slot.get_node("Name") as Label
 		var ammo_l := slot.get_node("Ammo") as Label
 		var key_l := slot.get_node_or_null("Key") as Label
@@ -644,13 +711,19 @@ func _refresh_streak_ui() -> void:
 		if name_l and i == 1:
 			var col := Color(1, 0.92, 0.55) if ready else Color(0.55, 0.58, 0.62)
 			name_l.add_theme_color_override("font_color", col)
+		_skin(slot)
+		var bg := Color(0.06, 0.07, 0.09, 0.6 if i > 0 else 0.78)
 		if ready:
-			slot.color = Color(0.35, 0.28, 0.08, 0.95) if selected else Color(0.22, 0.18, 0.06, 0.9)
+			bg = Color(0.3, 0.24, 0.07, 0.94) if selected else Color(0.2, 0.16, 0.05, 0.88)
 		elif selected:
-			slot.color = Color(0.16, 0.17, 0.2, 0.92)
-		else:
-			slot.color = Color(0.08, 0.09, 0.11, 0.55 if i > 0 else 0.82)
-		_set_streak_frame(slot, selected)
+			bg = Color(0.12, 0.13, 0.16, 0.9)
+		var edge := Color(0, 0, 0, 0)
+		if selected:
+			edge = HUD_ACCENT if ready else Color(0.92, 0.94, 0.97, 0.9)
+		elif ready:
+			edge = Color(HUD_ACCENT, 0.45)
+		_paint(slot, bg, edge)
+		_set_streak_frame(slot, false) # the rounded border replaces the old white bars
 
 
 ## Four thin bars. A ColorRect has no border, so the selection is drawn as children.
@@ -701,7 +774,7 @@ func _play_announcer(path: String) -> void:
 ## Grenade slot: frags on G, throwing knives on F (only shown when the class carries knives).
 func set_grenades(n: int, knives: int = 0) -> void:
 	if grenade_label:
-		grenade_label.text = "G  %d" % n if knives <= 0 else "G  %d    F  %d" % [n, knives]
+		grenade_label.text = "G   FRAG ×%d" % n if knives <= 0 else "G   FRAG ×%d      F   KNIFE ×%d" % [n, knives]
 
 
 func set_reloading(on: bool) -> void:
@@ -718,7 +791,10 @@ func _on_health(hp: float, max_hp: float) -> void:
 		hp_label.text = str(roundi(hp))
 	if hp_fill:
 		hp_fill.anchor_right = t
-		hp_fill.color = Color(0.92, 0.16, 0.12, 0.96) if t < 0.3 else Color(0.78, 0.12, 0.1, 0.95)
+		var fill := Color(0.92, 0.2, 0.16, 0.96) if t < 0.3 else Color(0.27, 0.82, 0.48, 0.95)
+		if t >= 0.3 and t < 0.6:
+			fill = Color(0.95, 0.72, 0.25, 0.95)
+		_paint(hp_fill, fill)
 
 
 func _on_died() -> void:
@@ -1034,82 +1110,133 @@ static func _ordinal(n: int) -> String:
 	return "%d%s" % [n, suffix]
 
 
+const SB_BG := Color(0.05, 0.06, 0.08, 0.82)
+const SB_ROW_A := Color(1, 1, 1, 0.035)
+const SB_ROW_B := Color(1, 1, 1, 0.0)
+const SB_ROW_SELF := Color(1.0, 0.84, 0.42, 0.16)
+const SB_MUTED := Color(0.62, 0.66, 0.72)
+const SB_COLS := [["NAME", 210], ["K", 52], ["D", 52], ["K/D", 62], ["STYLE", 66], ["PING", 58]]
+
+
+func _sb_box(col: Color, radius: int = 0, border: Color = Color(0, 0, 0, 0)) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.set_corner_radius_all(radius)
+	if border.a > 0.0:
+		sb.border_color = border
+		sb.border_width_top = 3
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	return sb
+
+
+func _sb_label(text: String, size: int, col: Color, width: int = 0, right: bool = false) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	if width > 0:
+		l.clip_text = true
+		l.custom_minimum_size = Vector2(width, 0)
+	if right:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return l
+
+
+## Column row (header or player). `values` follows SB_COLS; the name column stays left-aligned.
+func _sb_row(values: Array, size: int, col: Color, name_col: Color) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	for i in SB_COLS.size():
+		row.add_child(_sb_label(str(values[i]), size, name_col if i == 0 else col, SB_COLS[i][1], i > 0))
+	return row
+
+
+## One team (or the FFA field): coloured header with name + score, column headers, striped rows.
+func _sb_panel(title: String, score_text: String, team_col: Color, rows: Array, ffa: bool) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _sb_box(Color(0.09, 0.1, 0.13, 0.9), 8, team_col))
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	panel.add_child(v)
+	var head := HBoxContainer.new()
+	var t := _sb_label(title, 22, team_col)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(t)
+	head.add_child(_sb_label(score_text, 26, Color(0.95, 0.95, 0.97), 0, true))
+	v.add_child(head)
+	var cols := []
+	for c in SB_COLS:
+		cols.append(c[0])
+	var hdr := PanelContainer.new()
+	hdr.add_theme_stylebox_override("panel", _sb_box(Color(1, 1, 1, 0.0)))
+	hdr.add_child(_sb_row(cols, 13, SB_MUTED, SB_MUTED))
+	v.add_child(hdr)
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(1, 1, 1, 0.12))
+	v.add_child(sep)
+	var i := 0
+	for entry in rows:
+		var deaths := int(entry.get("deaths", 0))
+		var style_pts := int(entry.get("style", 0))
+		var ping_ms := int(entry.get("ping", -1))
+		var me: bool = entry.peer_id == _local_peer_id
+		var name_txt := str(entry.name)
+		if ffa:
+			name_txt = "%d.  %s" % [i + 1, name_txt]
+		var vals := [
+			name_txt, entry.kills, deaths, "%.2f" % (float(entry.kills) / float(maxi(deaths, 1))),
+			str(style_pts) if style_pts > 0 else "—", "—" if ping_ms < 0 else str(ping_ms),
+		]
+		var bg := SB_ROW_SELF if me else (SB_ROW_A if i % 2 == 0 else SB_ROW_B)
+		var rp := PanelContainer.new()
+		rp.add_theme_stylebox_override("panel", _sb_box(bg, 4))
+		var row := _sb_row(vals, 17, Color(0.88, 0.9, 0.93), Color(1.0, 0.9, 0.55) if me else Color(0.95, 0.95, 0.97))
+		if style_pts > 0:
+			(row.get_child(4) as Label).add_theme_color_override("font_color", TRICK_COLOR)
+		rp.add_child(row)
+		v.add_child(rp)
+		i += 1
+	if rows.is_empty():
+		v.add_child(_sb_label("No players", 15, SB_MUTED))
+	return panel
+
+
 func _refresh_scoreboard() -> void:
 	for c in scoreboard_container.get_children():
 		if c != _style_king:
 			c.queue_free()
 	_scores = Game.get_scores()
 	_scores.sort_custom(_sort_scores)
-
 	var ffa := Game.is_ffa()
-	var totals := Label.new()
-	totals.text = "BLUE %d    ORANGE %d  ·  first to %d" % [
-		Game.get_team_kills(Game.TEAM_A), Game.get_team_kills(Game.TEAM_B), Game.win_kills()
-	]
+
+	var backdrop := PanelContainer.new()
+	var bsb := _sb_box(SB_BG, 12)
+	bsb.content_margin_left = 18
+	bsb.content_margin_right = 18
+	bsb.content_margin_top = 14
+	bsb.content_margin_bottom = 16
+	backdrop.add_theme_stylebox_override("panel", bsb)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 10)
+	backdrop.add_child(body)
 	if ffa:
-		totals.text = "FREE FOR ALL  ·  first to %d" % Game.win_kills()
-	totals.add_theme_font_size_override("font_size", 22)
-	totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	scoreboard_container.add_child(totals)
+		body.add_child(_sb_panel("PLAYERS", "", Color(0.9, 0.9, 0.92), _scores, true))
+	else:
+		var teams := HBoxContainer.new()
+		teams.add_theme_constant_override("separation", 14)
+		for team_id in [Game.TEAM_A, Game.TEAM_B]:
+			var rows := _scores.filter(func(e: Dictionary) -> bool: return int(e.get("team", 0)) == team_id)
+			teams.add_child(_sb_panel(
+				Game.TEAM_NAMES[team_id], str(Game.get_team_kills(team_id)), Player.team_color(team_id), rows, false
+			))
+		body.add_child(teams)
+	scoreboard_container.add_child(backdrop)
 	if _style_king:
-		scoreboard_container.move_child(_style_king, totals.get_index() + 1)
-
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 16)
-	for title in ["#" if ffa else "TEAM", "NAME", "KILLS", "STYLE", "PING"]:
-		var h := Label.new()
-		h.text = title
-		h.add_theme_font_size_override("font_size", 16)
-		if title == "NAME":
-			h.custom_minimum_size = Vector2(180, 0)
-		elif title == "TEAM" or title == "#":
-			h.custom_minimum_size = Vector2(90, 0)
-		else:
-			h.custom_minimum_size = Vector2(70, 0)
-			h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		header.add_child(h)
-	scoreboard_container.add_child(header)
-
-	var place := 0
-	for entry in _scores:
-		place += 1
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 16)
-		var team_id := clampi(int(entry.get("team", 0)), 0, 1)
-		var team_col: Color = Player.team_color(team_id)
-		var team_l := Label.new()
-		team_l.text = ("%d." % place) if ffa else Game.TEAM_NAMES[team_id]
-		team_l.custom_minimum_size = Vector2(90, 0)
-		team_l.add_theme_color_override("font_color", team_col)
-		var name_l := Label.new()
-		name_l.text = entry.name
-		name_l.custom_minimum_size = Vector2(180, 0)
-		if entry.peer_id == _local_peer_id:
-			name_l.add_theme_color_override("font_color", Player.SELF_COLOR if ffa else Color(0.3, 1.0, 0.3))
-		else:
-			name_l.add_theme_color_override("font_color", team_col)
-		var kills_l := Label.new()
-		kills_l.text = str(entry.kills)
-		kills_l.custom_minimum_size = Vector2(70, 0)
-		kills_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		var style_l := Label.new()
-		var style_pts := int(entry.get("style", 0))
-		style_l.text = str(style_pts) if style_pts > 0 else "—"
-		style_l.custom_minimum_size = Vector2(70, 0)
-		style_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		if style_pts > 0:
-			style_l.add_theme_color_override("font_color", TRICK_COLOR)
-		var ping_l := Label.new()
-		var ping_ms := int(entry.get("ping", -1))
-		ping_l.text = "—" if ping_ms < 0 else str(ping_ms)
-		ping_l.custom_minimum_size = Vector2(70, 0)
-		ping_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		row.add_child(team_l)
-		row.add_child(name_l)
-		row.add_child(kills_l)
-		row.add_child(style_l)
-		row.add_child(ping_l)
-		scoreboard_container.add_child(row)
+		scoreboard_container.move_child(_style_king, backdrop.get_index())
 
 
 func _process(delta: float) -> void:
