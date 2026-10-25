@@ -1034,93 +1034,136 @@ static func _ordinal(n: int) -> String:
 	return "%d%s" % [n, suffix]
 
 
+const SB_BG := Color(0.05, 0.06, 0.08, 0.82)
+const SB_ROW_A := Color(1, 1, 1, 0.035)
+const SB_ROW_B := Color(1, 1, 1, 0.0)
+const SB_ROW_SELF := Color(1.0, 0.84, 0.42, 0.16)
+const SB_MUTED := Color(0.62, 0.66, 0.72)
+const SB_COLS := [["NAME", 210], ["K", 52], ["D", 52], ["K/D", 62], ["STYLE", 66], ["PING", 58]]
+
+
+func _sb_box(col: Color, radius: int = 0, border: Color = Color(0, 0, 0, 0)) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.set_corner_radius_all(radius)
+	if border.a > 0.0:
+		sb.border_color = border
+		sb.border_width_top = 3
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	return sb
+
+
+func _sb_label(text: String, size: int, col: Color, width: int = 0, right: bool = false) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	if width > 0:
+		l.clip_text = true
+		l.custom_minimum_size = Vector2(width, 0)
+	if right:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return l
+
+
+## Column row (header or player). `values` follows SB_COLS; the name column stays left-aligned.
+func _sb_row(values: Array, size: int, col: Color, name_col: Color) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	for i in SB_COLS.size():
+		row.add_child(_sb_label(str(values[i]), size, name_col if i == 0 else col, SB_COLS[i][1], i > 0))
+	return row
+
+
+## One team (or the FFA field): coloured header with name + score, column headers, striped rows.
+func _sb_panel(title: String, score_text: String, team_col: Color, rows: Array, ffa: bool) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _sb_box(Color(0.09, 0.1, 0.13, 0.9), 8, team_col))
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	panel.add_child(v)
+	var head := HBoxContainer.new()
+	var t := _sb_label(title, 22, team_col)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(t)
+	head.add_child(_sb_label(score_text, 26, Color(0.95, 0.95, 0.97), 0, true))
+	v.add_child(head)
+	var cols := []
+	for c in SB_COLS:
+		cols.append(c[0])
+	var hdr := PanelContainer.new()
+	hdr.add_theme_stylebox_override("panel", _sb_box(Color(1, 1, 1, 0.0)))
+	hdr.add_child(_sb_row(cols, 13, SB_MUTED, SB_MUTED))
+	v.add_child(hdr)
+	var sep := HSeparator.new()
+	sep.add_theme_color_override("separator", Color(1, 1, 1, 0.12))
+	v.add_child(sep)
+	var i := 0
+	for entry in rows:
+		var deaths := int(entry.get("deaths", 0))
+		var style_pts := int(entry.get("style", 0))
+		var ping_ms := int(entry.get("ping", -1))
+		var me: bool = entry.peer_id == _local_peer_id
+		var name_txt := str(entry.name)
+		if ffa:
+			name_txt = "%d.  %s" % [i + 1, name_txt]
+		var vals := [
+			name_txt, entry.kills, deaths, "%.2f" % (float(entry.kills) / float(maxi(deaths, 1))),
+			str(style_pts) if style_pts > 0 else "—", "—" if ping_ms < 0 else str(ping_ms),
+		]
+		var bg := SB_ROW_SELF if me else (SB_ROW_A if i % 2 == 0 else SB_ROW_B)
+		var rp := PanelContainer.new()
+		rp.add_theme_stylebox_override("panel", _sb_box(bg, 4))
+		var row := _sb_row(vals, 17, Color(0.88, 0.9, 0.93), Color(1.0, 0.9, 0.55) if me else Color(0.95, 0.95, 0.97))
+		if style_pts > 0:
+			(row.get_child(4) as Label).add_theme_color_override("font_color", TRICK_COLOR)
+		rp.add_child(row)
+		v.add_child(rp)
+		i += 1
+	if rows.is_empty():
+		v.add_child(_sb_label("No players", 15, SB_MUTED))
+	return panel
+
+
 func _refresh_scoreboard() -> void:
 	for c in scoreboard_container.get_children():
 		if c != _style_king:
 			c.queue_free()
 	_scores = Game.get_scores()
 	_scores.sort_custom(_sort_scores)
-
 	var ffa := Game.is_ffa()
-	var totals := Label.new()
-	totals.text = "BLUE %d    ORANGE %d  ·  first to %d" % [
-		Game.get_team_kills(Game.TEAM_A), Game.get_team_kills(Game.TEAM_B), Game.win_kills()
-	]
+
+	var backdrop := PanelContainer.new()
+	var bsb := _sb_box(SB_BG, 12)
+	bsb.content_margin_left = 18
+	bsb.content_margin_right = 18
+	bsb.content_margin_top = 14
+	bsb.content_margin_bottom = 16
+	backdrop.add_theme_stylebox_override("panel", bsb)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 10)
+	backdrop.add_child(body)
+	var sub := ("FREE FOR ALL  ·  first to %d" if ffa else "TEAM DEATHMATCH  ·  first to %d") % Game.win_kills()
+	body.add_child(_sb_label(sub, 15, SB_MUTED))
+	(body.get_child(0) as Label).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if ffa:
-		totals.text = "FREE FOR ALL  ·  first to %d" % Game.win_kills()
-	totals.add_theme_font_size_override("font_size", 22)
-	totals.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	scoreboard_container.add_child(totals)
+		body.add_child(_sb_panel("PLAYERS", "", Color(0.9, 0.9, 0.92), _scores, true))
+	else:
+		var teams := HBoxContainer.new()
+		teams.add_theme_constant_override("separation", 14)
+		for team_id in [Game.TEAM_A, Game.TEAM_B]:
+			var rows := _scores.filter(func(e: Dictionary) -> bool: return int(e.get("team", 0)) == team_id)
+			teams.add_child(_sb_panel(
+				Game.TEAM_NAMES[team_id], str(Game.get_team_kills(team_id)), Player.team_color(team_id), rows, false
+			))
+		body.add_child(teams)
+	scoreboard_container.add_child(backdrop)
 	if _style_king:
-		scoreboard_container.move_child(_style_king, totals.get_index() + 1)
-
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 16)
-	for title in ["#" if ffa else "TEAM", "NAME", "KILLS", "DEATHS", "K/D", "STYLE", "PING"]:
-		var h := Label.new()
-		h.text = title
-		h.add_theme_font_size_override("font_size", 16)
-		if title == "NAME":
-			h.custom_minimum_size = Vector2(180, 0)
-		elif title == "TEAM" or title == "#":
-			h.custom_minimum_size = Vector2(90, 0)
-		else:
-			h.custom_minimum_size = Vector2(70, 0)
-			h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		header.add_child(h)
-	scoreboard_container.add_child(header)
-
-	var place := 0
-	for entry in _scores:
-		place += 1
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 16)
-		var team_id := clampi(int(entry.get("team", 0)), 0, 1)
-		var team_col: Color = Player.team_color(team_id)
-		var team_l := Label.new()
-		team_l.text = ("%d." % place) if ffa else Game.TEAM_NAMES[team_id]
-		team_l.custom_minimum_size = Vector2(90, 0)
-		team_l.add_theme_color_override("font_color", team_col)
-		var name_l := Label.new()
-		name_l.text = entry.name
-		name_l.custom_minimum_size = Vector2(180, 0)
-		if entry.peer_id == _local_peer_id:
-			name_l.add_theme_color_override("font_color", Player.SELF_COLOR if ffa else Color(0.3, 1.0, 0.3))
-		else:
-			name_l.add_theme_color_override("font_color", team_col)
-		var kills_l := Label.new()
-		kills_l.text = str(entry.kills)
-		kills_l.custom_minimum_size = Vector2(70, 0)
-		kills_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		var deaths := int(entry.get("deaths", 0))
-		var deaths_l := Label.new()
-		deaths_l.text = str(deaths)
-		deaths_l.custom_minimum_size = Vector2(70, 0)
-		deaths_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		var kd_l := Label.new()
-		kd_l.text = "%.2f" % (float(entry.kills) / float(maxi(deaths, 1)))
-		kd_l.custom_minimum_size = Vector2(70, 0)
-		kd_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		var style_l := Label.new()
-		var style_pts := int(entry.get("style", 0))
-		style_l.text = str(style_pts) if style_pts > 0 else "—"
-		style_l.custom_minimum_size = Vector2(70, 0)
-		style_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		if style_pts > 0:
-			style_l.add_theme_color_override("font_color", TRICK_COLOR)
-		var ping_l := Label.new()
-		var ping_ms := int(entry.get("ping", -1))
-		ping_l.text = "—" if ping_ms < 0 else str(ping_ms)
-		ping_l.custom_minimum_size = Vector2(70, 0)
-		ping_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		row.add_child(team_l)
-		row.add_child(name_l)
-		row.add_child(kills_l)
-		row.add_child(deaths_l)
-		row.add_child(kd_l)
-		row.add_child(style_l)
-		row.add_child(ping_l)
-		scoreboard_container.add_child(row)
+		scoreboard_container.move_child(_style_king, backdrop.get_index())
 
 
 func _process(delta: float) -> void:
