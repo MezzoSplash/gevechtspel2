@@ -151,6 +151,7 @@ const QUERY_PORT_OFFSET := 1 # server info answers on UDP game port + 1 (7778 fo
 var last_server := ""
 var favorite_servers: PackedStringArray = PackedStringArray(DEFAULT_FAVORITES)
 var server_query: ServerQuery
+var freeze_grade: FreezeGrade
 var hosted_port := 0 # set while this process is a server; ServerQuery answers on hosted_port + 1
 var profile_name := "Player" # the name settings.cfg keeps across launches
 var window_mode := WINDOW_WINDOWED
@@ -1973,6 +1974,8 @@ func send_match_state(peer_id: int) -> void:
 
 ## Leave to menu: nothing from the old session may leak into the next one.
 func reset_session() -> void:
+	if freeze_grade:
+		freeze_grade.clear()
 	_tension_final = false
 	if _tension:
 		_tension.stop()
@@ -2419,6 +2422,9 @@ func _ready() -> void:
 	loadouts = Loadouts.new()
 	loadouts.name = "Loadouts"
 	add_child(loadouts)
+	freeze_grade = FreezeGrade.new()
+	freeze_grade.name = "FreezeGrade"
+	add_child(freeze_grade)
 	server_query = ServerQuery.new()
 	server_query.name = "ServerQuery"
 	add_child(server_query)
