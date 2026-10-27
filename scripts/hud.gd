@@ -1683,6 +1683,7 @@ func _bar(from: Vector2, delta: Vector2, col: Color, thick: float) -> void:
 
 const COMBO_COLOR := Color(1.0, 0.82, 0.3)
 const COMBO_WARN_COLOR := Color(0.95, 0.3, 0.25)
+const COMBO_FROZEN_COLOR := Color(0.45, 0.85, 1.0) # #89: surf holds the combo timer
 const COMBO_LANDED_COLOR := Color(0.45, 0.95, 0.5)
 var _combo_box: VBoxContainer
 var _combo_total: Label
@@ -1690,6 +1691,7 @@ var _combo_moves: Label
 var _combo_bar: ProgressBar
 var _combo_fill: StyleBoxFlat
 var _combo_left := 0.0
+var _combo_frozen := false
 var _combo_tw: Tween
 
 
@@ -1747,6 +1749,18 @@ func _on_combo_changed(points: int, multiplier: float, time_left: float, moves: 
 	_combo_box.visible = true
 	_combo_box.modulate.a = 1.0
 	var mult := String.num(multiplier, 1).trim_suffix(".0")
+	if state == "frozen":
+		# #89: surfing holds the timer; the bar stays put until the server sends "build" again.
+		_combo_frozen = true
+		_combo_left = time_left
+		_combo_bar.value = time_left
+		_combo_bar.visible = true
+		_combo_total.text = "%d  ×%s" % [points, mult]
+		_combo_total.add_theme_color_override("font_color", COMBO_FROZEN_COLOR)
+		_combo_fill.bg_color = COMBO_FROZEN_COLOR
+		_combo_moves.text = "%s  ·  SURF: TIMER HELD" % moves if moves != "" else "SURF: TIMER HELD"
+		return
+	_combo_frozen = false
 	if state == "build":
 		_combo_left = time_left
 		_combo_total.text = "%d  ×%s" % [points, mult]
@@ -1776,7 +1790,7 @@ func _on_combo_changed(points: int, multiplier: float, time_left: float, moves: 
 
 ## The server ends it (timeout / death / kill); the bar only shows the time it already said is left.
 func _tick_combo_ui(delta: float) -> void:
-	if _combo_box == null or not _combo_bar.visible or _combo_left <= 0.0:
+	if _combo_box == null or not _combo_bar.visible or _combo_left <= 0.0 or _combo_frozen:
 		return
 	_combo_left = maxf(_combo_left - delta, 0.0)
 	_combo_bar.value = _combo_left

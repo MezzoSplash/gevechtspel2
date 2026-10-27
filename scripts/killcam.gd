@@ -30,7 +30,11 @@ var _meta: Dictionary = {} # peer_id -> [name, team]
 var _clips: Dictionary = {} # victim peer_id -> their last death, kept for rounds that end on the clock
 var _pending_clips: Array = [] # [victim peer_id, death time]
 # Best trickshot of the round (Game.best_trick): the server flags each new best; we keep its replay here.
-var _trick_wait: Dictionary = {} # victim peer_id -> trick_id, until that victim's death is recorded
+var _trick_wait: Dictionary = {} # victim peer_id -> [trick_id, noted at], until that victim's death is recorded
+## #88: a wait older than this is stale (the death never came, or came first). Without the expiry a later,
+## ordinary death of the same victim was saved as the "best trickshot".
+const TRICK_WAIT_MAX := 1.0
+const TRICK_DEATH_BEFORE := 0.25 # a death this recent (s) before note_trick belongs to that trick
 var _trick_deaths: Array = [] # [trick_id, death time] waiting for POST before they are sliced
 var _trick_clip: Dictionary = {} # the sliced replay of the latest best trick ("trick_id" key)
 
@@ -174,16 +178,28 @@ func note_death(peer_id: int) -> void:
 	if _should_record():
 		_pending_clips.append([peer_id, _clock])
 		if _trick_wait.has(peer_id):
-			_trick_deaths.append([int(_trick_wait[peer_id]), _clock])
+			var w: Array = _trick_wait[peer_id]
 			_trick_wait.erase(peer_id)
+			if _clock - float(w[1]) <= TRICK_WAIT_MAX:
+				_trick_deaths.append([int(w[0]), _clock])
 	_note("death", peer_id)
 
 
 ## Game._apply_trick: this kill is the round's new best trickshot. Its victim's death comes right after
 ## (same tick on the server, the next reliable message on clients).
 func note_trick(trick_id: int, victim_peer_id: int) -> void:
-	if _should_record():
-		_trick_wait[victim_peer_id] = trick_id
+	if not _should_record():
+		return
+	# A new best replaces any older one still waiting: only the latest best is ever replayed.
+	_trick_wait.clear()
+	for i in range(_events.size() - 1, -1, -1):
+		var e: Array = _events[i]
+		if _clock - float(e[0]) > TRICK_DEATH_BEFORE:
+			break
+		if e[1] == "death" and int(e[2]) == victim_peer_id:
+			_trick_deaths.append([trick_id, float(e[0])]) # the death was recorded first
+			return
+	_trick_wait[victim_peer_id] = [trick_id, _clock]
 
 
 func note_boom(pos: Vector3, heavy := false) -> void:
@@ -729,7 +745,12 @@ func _build_overlay(info: Dictionary) -> void:
 	_draw.draw.connect(_on_draw.bind(_draw))
 	full.add_child(_draw)
 	var top := _bar(full, true)
-	var title := _label("BEST TRICKSHOT" if info.has("trick_id") else "FINAL KILLCAM", 34, Color(1, 1, 1))
+	var title_text := "FINAL KILLCAM"
+	if info.has("trick_id"):
+		title_text = "BEST TRICKSHOT"
+		if int(info.get("pts", 0)) > 0:
+			title_text += "  ·  %d STYLE" % int(info.pts)
+	var title := _label(title_text, 34, Color(1, 1, 1))
 	title.set_anchors_preset(Control.PRESET_FULL_RECT)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

@@ -13,7 +13,7 @@ MAPS=(townhouses foundry rooftops quay skyline)   # scripts/maps.gd ORDER
 # Ranges from shared/game.gd
 KILLS_MIN=5; KILLS_MAX=50; TIME_MIN=1; TIME_MAX=20; BOTS_MAX=16
 
-MAP=townhouses MODE=tdm BOTS=8 KILLS=25 TIME=10 PORT=7777 BIN="${GEVECHTSPEL_BIN:-}"
+MAP=townhouses MODE=tdm BOTS=8 SKILL=medium KILLS=25 TIME=10 PORT=7777 BIN="${GEVECHTSPEL_BIN:-}"
 # shellcheck disable=SC1090
 [[ -f "$CONF" ]] && source "$CONF"
 BIN="${GEVECHTSPEL_BIN:-$BIN}"
@@ -74,7 +74,7 @@ ask_yes() {
 }
 
 build_cmd() {
-	ARGS=(--server --port "$PORT" --map "$MAP" --mode "$MODE" --bots "$BOTS" --kills "$KILLS" --time "$TIME")
+	ARGS=(--server --port "$PORT" --map "$MAP" --mode "$MODE" --bots "$BOTS" --bot-difficulty "$SKILL" --kills "$KILLS" --time "$TIME")
 	if [[ -n "$BIN" ]]; then CMD=("$BIN" --headless -- "${ARGS[@]}")
 	else CMD=("$DIR/run.sh" --headless -- "${ARGS[@]}"); fi
 }
@@ -83,6 +83,7 @@ validate() {
 	[[ " ${MAPS[*]} " == *" $MAP "* ]] || die "unknown map '$MAP'"
 	[[ $MODE == tdm || $MODE == ffa || $MODE == style-tdm || $MODE == style-ffa ]] || die "mode must be tdm, ffa, style-tdm or style-ffa"
 	in_range "$BOTS" 0 "$BOTS_MAX" || die "bots must be 0-$BOTS_MAX"
+	[[ $SKILL == easy || $SKILL == medium || $SKILL == hard ]] || die "bot difficulty must be easy, medium or hard"
 	in_range "$KILLS" "$KILLS_MIN" "$KILLS_MAX" || die "kills must be $KILLS_MIN-$KILLS_MAX"
 	in_range "$TIME" "$TIME_MIN" "$TIME_MAX" || die "time must be $TIME_MIN-$TIME_MAX"
 	in_range "$PORT" 1 65534 || die "port must be 1-65534"
@@ -90,8 +91,8 @@ validate() {
 
 save_defaults() {
 	mkdir -p "$(dirname "$CONF")"
-	printf 'MAP=%q\nMODE=%q\nBOTS=%q\nKILLS=%q\nTIME=%q\nPORT=%q\nBIN=%q\n' \
-		"$MAP" "$MODE" "$BOTS" "$KILLS" "$TIME" "$PORT" "$BIN" > "$CONF"
+	printf 'MAP=%q\nMODE=%q\nBOTS=%q\nSKILL=%q\nKILLS=%q\nTIME=%q\nPORT=%q\nBIN=%q\n' \
+		"$MAP" "$MODE" "$BOTS" "$SKILL" "$KILLS" "$TIME" "$PORT" "$BIN" > "$CONF"
 	echo "Saved defaults to $CONF"
 }
 
@@ -127,6 +128,7 @@ if [[ "${1:-}" != "--defaults" ]]; then
 	MAP=$(ask_menu "Map" "$MAP" "${MAPS[@]}")
 	MODE=$(ask_menu "Mode (tdm = Team Deathmatch, ffa = Free for all, style-* = most style points wins)" "$MODE" tdm ffa style-tdm style-ffa)
 	BOTS=$(ask_num "Number of bots" "$BOTS" 0 "$BOTS_MAX")
+	SKILL=$(ask_menu "Bot difficulty (hard = how bots played up to v0.4.1)" "$SKILL" easy medium hard)
 	if [[ $MODE == style-* ]]; then
 		KILLS=$(ask_num "Style per minute in hundreds (25 = 2500/min, x the time limit)" "$KILLS" "$KILLS_MIN" "$KILLS_MAX")
 	else
@@ -139,7 +141,7 @@ validate
 build_cmd
 SUMMARY="Map:    $MAP
 Mode:   $MODE
-Bots:   $BOTS
+Bots:   $BOTS ($SKILL)
 Limit:  $KILLS$([[ $MODE == style-* ]] && echo " (x100 style points per minute)" || echo " kills")
 Time:   $TIME min
 Ports:  $PORT/udp (game), $((PORT+1))/udp (server list status)

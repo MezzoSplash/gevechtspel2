@@ -88,7 +88,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.4.1" # sync_combo RPC: a 0.4.0 peer must be refused
+const NET_VERSION := "0.4.2" # combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -143,6 +143,37 @@ var last_mode := MODE_TDM
 var last_kills := WIN_KILLS
 var last_time_min := 10
 var last_bots := BOT_COUNT_DEFAULT
+## #90 bot difficulty (server/offline only; bots run there). HARD is how bots played up to v0.4.1.
+const BOT_EASY := 0
+const BOT_MEDIUM := 1
+const BOT_HARD := 2
+const BOT_DIFFICULTY_IDS := ["easy", "medium", "hard"]
+const BOT_DIFFICULTY_NAMES := ["Easy", "Medium", "Hard"]
+## acquire: s before the first shot on a new target; wobble: × aim hand size; track: aim catch-up (1/s);
+## pause: × pause between bursts; nade: × grenade cooldown; streak: s before using an earned streak.
+const BOT_PROFILES := [
+	{"acquire": 0.75, "wobble": 2.3, "track": 5.0, "pause": 1.9, "nade": 2.5, "streak": 6.0},
+	{"acquire": 0.48, "wobble": 1.6, "track": 8.5, "pause": 1.4, "nade": 1.6, "streak": 3.0},
+	{"acquire": 0.28, "wobble": 1.0, "track": 14.0, "pause": 1.0, "nade": 1.0, "streak": 1.2},
+]
+var bot_difficulty := BOT_MEDIUM
+var last_bot_difficulty := BOT_MEDIUM
+
+
+func bot_profile() -> Dictionary:
+	return BOT_PROFILES[clampi(bot_difficulty, BOT_EASY, BOT_HARD)]
+
+
+## "easy" / "e" / "0" → BOT_EASY ... Unknown → -1.
+static func parse_bot_difficulty(raw: String) -> int:
+	var s := raw.strip_edges().to_lower()
+	if s in ["easy", "e", "0"]:
+		return BOT_EASY
+	if s in ["medium", "normal", "m", "1"]:
+		return BOT_MEDIUM
+	if s in ["hard", "h", "2"]:
+		return BOT_HARD
+	return -1
 var kill_limit := WIN_KILLS # this match: TDM team total, FFA personal
 var round_time := ROUND_TIME # this match, seconds
 var bot_count := BOT_COUNT_DEFAULT # this match: how many bot pawns to keep
@@ -1650,6 +1681,8 @@ func _detect_tricks(
 	killer_peer_id: int, victim_peer_id: int, weapon_id: StringName, headshot: bool = false
 ) -> Array[StringName]:
 	var none: Array[StringName] = []
+	if weapon_id == &"rcxd":
+		return Style.detect({"weapon": weapon_id}) # #87: the RC blast has no shot context, but is a style kill
 	if _shot_ctx.is_empty():
 		return none
 	var shooter := _shot_ctx.get("shooter") as Player
@@ -1746,6 +1779,7 @@ func _award_style(kill_info: Dictionary, tricks_in: Array[StringName]) -> void:
 	if is_best:
 		best_trick = kill_info.duplicate()
 		best_trick["pts"] = pts
+		best_trick["tags"] = Style.label(tricks) # #88: with COMBO, so a combo-landing best does not look like a plain kill
 		best_trick["trick_id"] = _trick_seq
 	var packed := Style.pack(tricks)
 	_apply_trick(k, int(kill_info.v), packed, pts, mult, total, _trick_seq, is_best)
@@ -1838,12 +1872,22 @@ func _tick_combos(delta: float) -> void:
 		return
 	for id in _combos.keys():
 		var c: Dictionary = _combos[id]
+		# #89: surfing holds the clock (a long surf is the trick, not a pause). The HUD shows it frozen.
+		var pawn := player_for_peer(int(id))
+		var surfing := pawn != null and not pawn.is_dead and pawn.style_surfing()
+		if surfing != bool(c.get("frozen", false)):
+			c["frozen"] = surfing
+			_send_combo(int(id), c, "build", 0) # "frozen" while c.frozen, see _send_combo
+		if surfing:
+			continue
 		c.t = float(c.t) - delta
 		if float(c.t) <= 0.0:
 			_combo_end(id, "bailed", 0)
 
 
 func _send_combo(peer_id: int, c: Dictionary, state: String, banked: int) -> void:
+	if state == "build" and bool(c.get("frozen", false)):
+		state = "frozen" # a move while surfing: new points, the timer is still held
 	var args := [int(c.get("pts", 0)), float(c.get("mult", 1.0)), maxf(float(c.get("t", 0.0)), 0.0), Combo.label(c), state, banked]
 	if not is_networked() or peer_id == multiplayer.get_unique_id():
 		_apply_combo(args)
@@ -2758,6 +2802,8 @@ func load_settings() -> void:
 		last_kills = clampi(int(cfg.get_value("match", "kills", default_kills_for(last_mode))), KILLS_MIN, KILLS_MAX)
 		last_time_min = clampi(int(cfg.get_value("match", "time_min", 10)), TIME_MIN_MINUTES, TIME_MAX_MINUTES)
 		last_bots = clampi(int(cfg.get_value("match", "bots", BOT_COUNT_DEFAULT)), 0, BOT_COUNT_MAX)
+		last_bot_difficulty = clampi(int(cfg.get_value("match", "bot_difficulty", BOT_MEDIUM)), BOT_EASY, BOT_HARD)
+		bot_difficulty = last_bot_difficulty
 		kill_limit = last_kills
 		round_time = float(last_time_min * 60)
 		bot_count = last_bots
@@ -2824,6 +2870,7 @@ func save_settings() -> void:
 	cfg.set_value("match", "kills", last_kills)
 	cfg.set_value("match", "time_min", last_time_min)
 	cfg.set_value("match", "bots", last_bots)
+	cfg.set_value("match", "bot_difficulty", last_bot_difficulty)
 	cfg.set_value("profile", "name", profile_name)
 	cfg.set_value("net", "recent", recent_servers)
 	cfg.set_value("net", "last", last_server)
@@ -2920,8 +2967,11 @@ func set_invert_y(on: bool) -> void:
 
 
 ## Menu choice for solo/host, remembered for next time.
-func remember_match_choice(m: StringName, md: int, kills: int = -1, time_min: int = -1, bots: int = -1) -> void:
+func remember_match_choice(m: StringName, md: int, kills: int = -1, time_min: int = -1, bots: int = -1, skill: int = -1) -> void:
 	last_map = m
+	if skill >= 0:
+		last_bot_difficulty = clampi(skill, BOT_EASY, BOT_HARD)
+		bot_difficulty = last_bot_difficulty
 	last_mode = md
 	if kills >= 0:
 		last_kills = clampi(kills, KILLS_MIN, KILLS_MAX)
