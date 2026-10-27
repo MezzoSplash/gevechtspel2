@@ -68,8 +68,8 @@ The server runs headless with `run-server.sh` (the first argument is the port):
 | `--port` | game port, default `7777` |
 | `--map` | `townhouses`, `foundry`, `rooftops`, `quay`, `skyline` |
 | `--mode` | `tdm`, `ffa`, `style-tdm` or `style-ffa` (most style points wins) |
-| `--kills` | 5–50 (style modes: limit in hundreds of style points, 30 = 3000) |
-| `--style` | style limit in points for style modes, 500–5000 |
+| `--kills` | 5–50 (style modes: style per minute in hundreds; 25 × 10 min = 25 000 to win) |
+| `--style` | style modes: total style to win, e.g. `25000` (turned into a per-minute rate) |
 | `--time` | round length in minutes, 1–20 |
 | `--bots` | 0–16 |
 

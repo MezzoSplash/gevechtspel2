@@ -128,7 +128,7 @@ if [[ "${1:-}" != "--defaults" ]]; then
 	MODE=$(ask_menu "Mode (tdm = Team Deathmatch, ffa = Free for all, style-* = most style points wins)" "$MODE" tdm ffa style-tdm style-ffa)
 	BOTS=$(ask_num "Number of bots" "$BOTS" 0 "$BOTS_MAX")
 	if [[ $MODE == style-* ]]; then
-		KILLS=$(ask_num "Style limit in hundreds (30 = 3000 style points)" "$KILLS" "$KILLS_MIN" "$KILLS_MAX")
+		KILLS=$(ask_num "Style per minute in hundreds (25 = 2500/min, x the time limit)" "$KILLS" "$KILLS_MIN" "$KILLS_MAX")
 	else
 		KILLS=$(ask_num "Kill limit" "$KILLS" "$KILLS_MIN" "$KILLS_MAX")
 	fi
@@ -140,7 +140,7 @@ build_cmd
 SUMMARY="Map:    $MAP
 Mode:   $MODE
 Bots:   $BOTS
-Limit:  $KILLS$([[ $MODE == style-* ]] && echo " (x100 style points)" || echo " kills")
+Limit:  $KILLS$([[ $MODE == style-* ]] && echo " (x100 style points per minute)" || echo " kills")
 Time:   $TIME min
 Ports:  $PORT/udp (game), $((PORT+1))/udp (server list status)
 

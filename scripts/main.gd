@@ -43,14 +43,16 @@ func _ready() -> void:
 	# Menu backdrop: the map you played last (or the one the server CLI asks for).
 	Game.map_id = args.map if args.map != &"" else Game.last_map
 	Game.mode = int(args.mode) if int(args.mode) >= 0 else Game.last_mode
-	if int(args.style) >= 0 and args.kills < 0:
-		args.kills = roundi(float(args.style) / float(Game.STYLE_UNIT)) # --style 3000 → limit 30 (×100)
 	if int(args.kills) < 0 and int(args.mode) >= 0 and bool(args.server):
 		args.kills = Game.default_kills_for(int(args.mode)) # --mode style-tdm alone gets 3000, not a saved kill limit
 	if int(args.kills) >= 0:
 		Game.last_kills = clampi(int(args.kills), Game.KILLS_MIN, Game.KILLS_MAX)
 	if int(args.time_min) >= 0:
 		Game.last_time_min = clampi(int(args.time_min), Game.TIME_MIN_MINUTES, Game.TIME_MAX_MINUTES)
+	if int(args.style) >= 0:
+		# --style 25000 is the total for the round: back to a per-minute rate (25 000 / 10 min / 100 = 25)
+		var rate := roundi(float(args.style) / float(Game.STYLE_UNIT * Game.last_time_min))
+		Game.last_kills = clampi(rate, Game.KILLS_MIN, Game.KILLS_MAX)
 	if int(args.bots) >= 0:
 		Game.last_bots = clampi(int(args.bots), 0, Game.BOT_COUNT_MAX)
 	Game.kill_limit = Game.last_kills
