@@ -11,6 +11,9 @@ func _ready() -> void:
 		menu.show_screen(id)
 		await get_tree().create_timer(0.5).timeout
 		await _grab("/tmp/menu_%s.png" % id)
+	menu.set_mp_tab(0)
+	await get_tree().create_timer(0.5).timeout
+	await _grab("/tmp/menu_mp_host.png")
 	get_tree().quit()
 
 

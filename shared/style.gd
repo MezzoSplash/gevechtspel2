@@ -17,6 +17,10 @@ extends RefCounted
 ## Revolver
 ##   QUICKDRAW       kill within QUICKDRAW_TIME after switching to the revolver
 ##   SIX SHOOTER     the SIX_KILLS-th kill from one cylinder (six rounds, no reload)
+## LMG
+##   MOW DOWN        the MOW_KILLS-th (and further) kill from one belt (100 rounds, no reload)
+## Slug shotgun
+##   SLUG SNIPE      slug kill at SLUG_SNIPE_M or farther: a shotgun doing a rifle's job
 ## Throwing knife
 ##   YEET            throwing-knife kill; YEET x2 (double points) if the thrower was airborne or surfing at the throw
 ## Any gun
@@ -46,6 +50,8 @@ const RUN_GUN := &"rungun"
 const HOSE := &"hose"
 const QUICKDRAW := &"quickdraw"
 const SIX_SHOOTER := &"sixshooter"
+const MOW := &"mowdown"
+const SLUG_SNIPE := &"slugsnipe"
 const YEET := &"yeet"
 const YEET_X2 := &"yeet2" # replaces YEET (500 = double)
 const LINE := &"line" # speed strip, not a kill
@@ -56,7 +62,7 @@ const LINE_X2 := &"line2" # a second strip inside the same carry window
 const POINTS := {
 	NOSCOPE: 100, SPIN: 250, AIRSHOT: 75, LONGSHOT: 50,
 	POINT_BLANK: 100, DOUBLE: 150, SPRAY: 150, HS_STREAK: 200, SURF: 150, DROP: 100,
-	RUN_GUN: 125, HOSE: 150, QUICKDRAW: 150, SIX_SHOOTER: 200, YEET: 250, YEET_X2: 500,
+	RUN_GUN: 125, HOSE: 150, QUICKDRAW: 150, SIX_SHOOTER: 200, MOW: 200, SLUG_SNIPE: 125, YEET: 250, YEET_X2: 500,
 	LINE: 100, LINE_X2: 200,
 }
 const LABELS := {
@@ -64,13 +70,14 @@ const LABELS := {
 	POINT_BLANK: "POINT BLANK", DOUBLE: "DOUBLE", SPRAY: "SPRAY TRANSFER", HS_STREAK: "HEADSHOT STREAK",
 	SURF: "SURF KILL", DROP: "DROP KILL",
 	RUN_GUN: "RUN & GUN", HOSE: "HOSE", QUICKDRAW: "QUICKDRAW", SIX_SHOOTER: "SIX SHOOTER",
+	MOW: "MOW DOWN", SLUG_SNIPE: "SLUG SNIPE",
 	YEET: "YEET", YEET_X2: "YEET ×2",
 	LINE: "LINE", LINE_X2: "LINE ×2",
 }
 ## Biggest first in popups and the kill feed.
 const ORDER: Array[StringName] = [
-	LINE_X2, LINE, YEET_X2, YEET, SPIN, HS_STREAK, SIX_SHOOTER, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
-	RUN_GUN, POINT_BLANK, DROP, AIRSHOT, LONGSHOT,
+	LINE_X2, LINE, YEET_X2, YEET, SPIN, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
+	SLUG_SNIPE, RUN_GUN, POINT_BLANK, DROP, AIRSHOT, LONGSHOT,
 ]
 
 const SPIN_DEG := 360.0
@@ -94,6 +101,8 @@ const HOSE_KILLS := 2
 const QUICKDRAW_TIME := 0.4 # s from the switch to the kill
 const QUICKDRAW_NET_SLACK := 0.1 # remote humans: the switch and the shot reach the server with some jitter
 const SIX_KILLS := 3
+const MOW_KILLS := 3 # a 100-round belt: three kills without reloading is a lane held
+const SLUG_SNIPE_M := 25.0 # slug bots fight at 14 m; the pellet shotgun is useless past ~10
 const CHAIN_WINDOW := 8.0 # seconds between trick kills that still chain
 const CHAIN_STEP := 0.25
 const CHAIN_MAX := 2.0
@@ -140,6 +149,10 @@ static func detect(c: Dictionary) -> Array[StringName]:
 			out.append(QUICKDRAW)
 		if int(c.get("mag_kills", 0)) >= SIX_KILLS:
 			out.append(SIX_SHOOTER)
+	if weapon == &"lmg" and int(c.get("mag_kills", 0)) >= MOW_KILLS:
+		out.append(MOW)
+	if weapon == &"slug" and float(c.get("dist", 0.0)) >= SLUG_SNIPE_M:
+		out.append(SLUG_SNIPE)
 	if weapon == &"knife":
 		out.append(YEET_X2 if bool(c.get("knife_air", false)) else YEET)
 	if MOVE_WEAPONS.has(weapon):
