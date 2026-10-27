@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tools/check_bot_kit.gd" id="1"]
+
+[node name="CheckBotKit" type="Node"]
+script = ExtResource("1")

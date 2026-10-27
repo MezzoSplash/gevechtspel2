@@ -175,8 +175,22 @@ var _regen_dirty: Dictionary = {} # peer_id -> hp changed by regen since the las
 var _regen_sync_t := 0.0
 var _hitstopping := false
 var _round_music: AudioStreamPlayer
+## Tension cues (Music bus): one build-up when a round goes live, one loop for the final stretch.
+## Every machine decides the final stretch itself from the synced clock and scores, so all hear it.
+const TENSION_TIME_LEFT := 30.0 # seconds left on the round clock
+const TENSION_KILLS_LEFT := 3 # leader (FFA player / TDM team) this close to kill_limit
+const TENSION_FADE := 1.2
+var menu_match := false # main.gd: the menu's background bot match stays quiet
+var _tension: AudioStreamPlayer
+var _tension_final := false # final cue already started this round
+var _tension_start_stream: AudioStream
+var _tension_final_stream: AudioStream
+var _tension_fade: Tween
+var _tension_live := false # last tick: a round was being played
 var _grenade_seq := 0
 var _grenade_visuals: Dictionary = {}
+var _grenade_pred_seq := 0
+var _grenade_predicted: Dictionary = {} # client seq → predicted Grenade (thrower only), until the server spawn adopts it
 var _grenade_done: Dictionary = {} # net_id → true once it exploded; late unreliable poses are ignored
 var _rc_seq := 0
 var _rc_done: Dictionary = {} # net_id → true once the car is gone; late poses must not move a ghost
@@ -460,7 +474,7 @@ func next_grenade_id() -> int:
 
 
 ## Authority only. Clients ask via request_grenade; the count RPC updates their HUD.
-func throw_grenade(thrower: Player, origin: Vector3, dir: Vector3) -> void:
+func throw_grenade(thrower: Player, origin: Vector3, dir: Vector3, client_seq := 0) -> void:
 	if thrower == null or thrower.is_dead or thrower.grenades <= 0 or play_locked():
 		return
 	if is_networked() and not multiplayer.is_server():
@@ -469,12 +483,23 @@ func throw_grenade(thrower: Player, origin: Vector3, dir: Vector3) -> void:
 	thrower._notify_grenades()
 	if is_networked():
 		sync_grenade_count.rpc(thrower.peer_id, thrower.grenades)
-	Grenade.launch(thrower, origin, dir)
+	Grenade.launch(thrower, origin, dir, client_seq)
+
+
+## Client prediction: the thrower sees their grenade leave the hand at once instead of a ping later.
+## `seq` ties it to the server's spawn RPC, which then adopts this copy.
+func predict_grenade(thrower: Player, origin: Vector3, dir: Vector3) -> int:
+	var scene := get_tree().current_scene
+	if scene == null or thrower == null:
+		return 0
+	_grenade_pred_seq += 1
+	_grenade_predicted[_grenade_pred_seq] = Grenade.spawn_visual(scene, origin, Grenade.initial_velocity(dir))
+	return _grenade_pred_seq
 
 
 ## Client throw. Server re-checks ammo, death, and freeze.
 @rpc("any_peer", "reliable")
-func request_grenade(origin: Vector3, dir: Vector3) -> void:
+func request_grenade(origin: Vector3, dir: Vector3, client_seq: int = 0) -> void:
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
@@ -483,7 +508,7 @@ func request_grenade(origin: Vector3, dir: Vector3) -> void:
 	var thrower := player_for_peer(peer)
 	if thrower == null or dir.length_squared() < 0.0001 or not origin_plausible(thrower, origin):
 		return
-	throw_grenade(thrower, origin, dir)
+	throw_grenade(thrower, origin, dir, client_seq)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -495,12 +520,23 @@ func sync_grenade_count(peer_id: int, n: int) -> void:
 	p._notify_grenades()
 
 
-## Visual copy on clients. Physics stays on the server grenade.
+## Visual copy on clients, flying on its own from the spawn velocity. Damage stays on the server grenade.
+## The thrower's own predicted copy is adopted instead of spawning a second one.
 @rpc("authority", "reliable")
-func sync_grenade_spawn(net_id: int, pos: Vector3) -> void:
+func sync_grenade_spawn(net_id: int, pos: Vector3, vel: Vector3, thrower_peer: int, client_seq: int) -> void:
 	if multiplayer.is_server() or _grenade_done.has(net_id):
 		return
-	_grenade_visual(net_id, pos)
+	if thrower_peer == multiplayer.get_unique_id() and _grenade_predicted.has(client_seq):
+		var pred = _grenade_predicted[client_seq]
+		_grenade_predicted.erase(client_seq)
+		if is_instance_valid(pred):
+			_grenade_visuals[net_id] = pred
+			return
+	var existing = _grenade_visuals.get(net_id)
+	if is_instance_valid(existing):
+		(existing as Grenade).velocity = vel # a pose beat the spawn here; give it the real arc
+		return
+	_grenade_visual(net_id, pos, vel)
 
 
 @rpc("authority", "unreliable")
@@ -508,9 +544,9 @@ func sync_grenade_pose(net_id: int, pos: Vector3) -> void:
 	# Unreliable can arrive after the reliable boom; that would leave a ghost grenade.
 	if multiplayer.is_server() or _grenade_done.has(net_id):
 		return
-	var g := _grenade_visual(net_id, pos)
+	var g := _grenade_visual(net_id, pos, Vector3.ZERO) as Grenade
 	if g:
-		g.global_position = pos
+		g.apply_net_pose(pos)
 
 
 ## Drop the flying mesh, then play the same boom the server already showed.
@@ -527,15 +563,13 @@ func sync_grenade_boom(pos: Vector3, net_id: int) -> void:
 	Grenade.play_boom(pos)
 
 
-func _grenade_visual(net_id: int, pos: Vector3) -> Node3D:
+func _grenade_visual(net_id: int, pos: Vector3, vel: Vector3) -> Node3D:
 	if _grenade_visuals.has(net_id) and is_instance_valid(_grenade_visuals[net_id]):
 		return _grenade_visuals[net_id]
-	var g := Grenade.new()
 	var scene := get_tree().current_scene
 	if scene == null:
 		return null
-	scene.add_child(g)
-	g.global_position = pos
+	var g := Grenade.spawn_visual(scene, pos, vel)
 	_grenade_visuals[net_id] = g
 	return g
 
@@ -862,6 +896,8 @@ func respawn_pawn(p: Player) -> void:
 	set_hp(p, Player.MAX_HP)
 	if loadouts:
 		loadouts.promote_pending(p)
+	if p.is_bot:
+		_reroll_bot_gun(p)
 	var xf := p._spawn_xform
 	if spawn_picker.is_valid():
 		xf = spawn_picker.call(p)
@@ -872,6 +908,21 @@ func respawn_pawn(p: Player) -> void:
 	else:
 		p._spawn_xform = xf
 		p.apply_respawn_state()
+
+
+## Bots get a new gun every life, so a match sees the whole armory instead of one gun per bot.
+## Everyone gets it through sync_weapon (by id); late joiners read loadout_index from the snapshot.
+func _reroll_bot_gun(p: Player) -> void:
+	var n := Weapon.LOADOUT.size()
+	if n < 2:
+		return
+	var i := randi_range(0, n - 2)
+	if i >= p.loadout_index:
+		i += 1 # never the same gun twice in a row
+	p.loadout_index = i
+	p._apply_bot_loadout()
+	if is_networked() and multiplayer.is_server():
+		sync_weapon.rpc(p.peer_id, String(Weapon.LOADOUT[i].id))
 
 
 ## `xform`: the spawn point the server picked (FFA picks a new one every time).
@@ -1159,15 +1210,15 @@ var streak_charges: Dictionary = {} # peer -> bitmask of streaks earned and not 
 var streak_earned: Dictionary = {} # peer -> bitmask already passed this life (stops a second copy)
 
 
-## Humans only. Death clears this life's count, not a streak already earned.
+## Humans and bots (bots have negative ids). Death clears this life's count, not a streak already earned.
 ## 3 banks the UAV, 5 banks the RC-XD. Each stays until Enter uses it,
 ## or until start_round clears every charge for the next round.
 func _bump_streak(killer_peer_id: int, victim_peer_id: int) -> void:
-	if victim_peer_id > 0:
+	if victim_peer_id != 0:
 		streak_progress[victim_peer_id] = 0
 		streak_earned[victim_peer_id] = 0
 		_push_streak(victim_peer_id)
-	if killer_peer_id <= 0:
+	if killer_peer_id == 0:
 		return
 	var n := int(streak_progress.get(killer_peer_id, 0))
 	if n < RCXD_AT:
@@ -1190,6 +1241,8 @@ func _push_streak(peer_id: int) -> void:
 	var n := int(streak_progress.get(peer_id, 0))
 	var charges := int(streak_charges.get(peer_id, 0))
 	var earned := int(streak_earned.get(peer_id, 0))
+	if peer_id < 0:
+		return # bot: its brain reads streak_charges on the server, no HUD to update
 	if not is_networked() or peer_id == multiplayer.get_unique_id():
 		_apply_streak_local(n, charges, earned)
 		return
@@ -1213,10 +1266,10 @@ func _apply_streak_local(n: int, charges: int, earned: int) -> void:
 func try_activate_streak(peer_id: int, slot: int) -> void:
 	if not _is_match_authority():
 		return
-	if play_locked() or peer_id <= 0:
+	if play_locked() or peer_id == 0:
 		return
 	var p := player_for_peer(peer_id)
-	if p == null or p.is_dead or p.is_bot:
+	if p == null or p.is_dead:
 		return
 	if RcXd.for_owner(peer_id) != null:
 		return
@@ -1700,6 +1753,7 @@ func set_round_frozen(on: bool) -> void:
 		play_round_sting()
 	else:
 		stop_round_sting()
+		play_tension(false) # freeze over, the round is live: build-up cue for everyone
 	if is_networked() and multiplayer.is_server():
 		sync_round_frozen.rpc(on)
 
@@ -1717,6 +1771,7 @@ func sync_round_frozen(on: bool) -> void:
 		play_round_sting()
 	else:
 		stop_round_sting()
+		play_tension(false) # freeze over, the round is live: build-up cue for everyone
 
 
 func play_round_sting() -> void:
@@ -1727,6 +1782,75 @@ func play_round_sting() -> void:
 func stop_round_sting() -> void:
 	if _round_music and _round_music.playing:
 		_round_music.stop()
+
+
+func _setup_tension_music() -> void:
+	_tension_start_stream = load("res://assets/sounds/music_round_start.wav")
+	var fin := load("res://assets/sounds/music_round_final.wav") as AudioStreamWAV
+	if fin:
+		fin = fin.duplicate() as AudioStreamWAV
+		fin.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		fin.loop_begin = 0
+		fin.loop_end = int(fin.get_length() * fin.mix_rate)
+	_tension_final_stream = fin
+	_tension = AudioStreamPlayer.new()
+	_tension.bus = "Music"
+	add_child(_tension)
+
+
+## `final`: the looping last-stretch cue; else the one-shot round-start build-up.
+func play_tension(final: bool) -> void:
+	if _tension == null or is_dedicated or menu_match or in_lobby:
+		return
+	if final:
+		_tension_final = true
+	else:
+		_tension_final = false
+	var stream := _tension_final_stream if final else _tension_start_stream
+	if stream == null:
+		return
+	if _tension_fade and _tension_fade.is_valid():
+		_tension_fade.kill()
+	_tension.volume_db = 0.0
+	_tension.stream = stream
+	_tension.play()
+
+
+func stop_tension() -> void:
+	if _tension == null or not _tension.playing:
+		return
+	if _tension_fade and _tension_fade.is_valid():
+		return
+	_tension_fade = create_tween()
+	_tension_fade.tween_property(_tension, "volume_db", -40.0, TENSION_FADE)
+	_tension_fade.tween_callback(_tension.stop)
+	_tension_fade.tween_callback(func() -> void: _tension.volume_db = 0.0)
+
+
+## Highest kill count that counts toward the limit: the leading team (TDM) or player (FFA).
+func leader_kills() -> int:
+	if not is_ffa():
+		return maxi(get_team_kills(TEAM_A), get_team_kills(TEAM_B))
+	var best := 0
+	for id in scores:
+		best = maxi(best, int(scores[id].get("kills", 0)))
+	return best
+
+
+func _tick_tension() -> void:
+	if _tension == null:
+		return
+	var live := _round_active and not round_frozen and not menu_match and not in_lobby
+	if _tension_live and not live:
+		_tension_final = false
+		stop_tension() # round over, killcam, leave: fade whatever cue is on
+	_tension_live = live
+	if not live or _tension_final:
+		return
+	var close_time := get_round_time_left() <= TENSION_TIME_LEFT
+	var close_kills := win_kills() - leader_kills() <= TENSION_KILLS_LEFT
+	if close_time or close_kills:
+		play_tension(true)
 
 
 func start_round() -> void:
@@ -1801,6 +1925,9 @@ func send_match_state(peer_id: int) -> void:
 
 ## Leave to menu: nothing from the old session may leak into the next one.
 func reset_session() -> void:
+	_tension_final = false
+	if _tension:
+		_tension.stop()
 	PhysFx.clear()
 	scores.clear()
 	pings.clear()
@@ -1848,6 +1975,7 @@ func reset_session() -> void:
 		if is_instance_valid(vis):
 			vis.queue_free()
 	_grenade_visuals.clear()
+	_grenade_predicted.clear()
 	_grenade_done.clear()
 	for g in get_tree().get_nodes_in_group("grenade"):
 		g.queue_free()
@@ -2077,6 +2205,7 @@ func _award_line(peer_id: int, strip_name: String) -> void:
 ## Listen-server: bots have MultiplayerSynchronizer off, so we push poses ourselves.
 func _physics_process(delta: float) -> void:
 	_tick_regen(delta)
+	_tick_tension()
 	_tick_lines(delta)
 	if radar_left > 0.0:
 		radar_left = maxf(radar_left - delta, 0.0)
@@ -2248,6 +2377,7 @@ func _ready() -> void:
 	_round_music.bus = "Music"
 	_round_music.stream = load("res://assets/sounds/round_start.wav")
 	add_child(_round_music)
+	_setup_tension_music()
 
 
 func _ensure_sfx_bus() -> void:

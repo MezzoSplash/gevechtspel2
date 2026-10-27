@@ -29,6 +29,9 @@ They were trimmed, mixed to mono, faded and normalized with `tools/build_sfx.py`
 | `melee_swing.wav` | Synthesized in `tools/build_sfx.py` (band-passed noise whoosh) | this project | CC0 |
 | `radar_friendly.wav`, `radar_enemy.wav`, `rcxd_ready.wav` | "Friendly radar online." / "Enemy radar online." / "RC-XD ready for deployment." spoken by the [Piper](https://github.com/rhasspy/piper) TTS, voice `en_US-ljspeech-high`, then radio-filtered in `tools/build_sfx.py` | voice: Bryce Beattie, trained on the LJ Speech dataset (Keith Ito, Linda Johnson) | voice model MIT, training data public domain; we release the clips as CC0 |
 
+
+Music cues `music_round_start.wav` (round goes live) and `music_round_final.wav` (looping, last 30 s or a leader 3 kills from the limit) are synthesized from scratch in `tools/gen_music.py` (no samples): this project, CC0.
+
 - The Free Firearm Sound Library: <https://opengameart.org/content/the-free-firearm-sound-library> ("Prepared SFX Library")
 - Kenney Impact Sounds: <https://kenney.nl/assets/impact-sounds>
 - Kenney Sci-fi Sounds: <https://kenney.nl/assets/sci-fi-sounds>
