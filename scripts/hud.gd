@@ -144,6 +144,7 @@ func _ready() -> void:
 		countdown_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_style_bottom()
+	_facelift_hud()
 	_refresh_weapon_slots()
 	for slot in _streak_slots:
 		_add_streak_frame(slot)
@@ -516,7 +517,7 @@ func _refresh_weapon_slots() -> void:
 			key_l.text = str(i + 1)
 		if name_l:
 			name_l.text = _slot_names[i]
-			_fit_label(name_l, slot.custom_minimum_size.x - 14.0, 18, 12)
+			_fit_label(name_l, slot.custom_minimum_size.x - 14.0, 16, 12)
 			name_l.modulate = Color(1, 0.92, 0.55) if on else Color(0.72, 0.74, 0.78)
 		if ammo_l:
 			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
@@ -709,12 +710,7 @@ func _build_popup() -> void:
 ## Left column: slot 0 radar (3), slot 1 RC-XD (5), slot 2 empty.
 ## The white frame is the arrow-key selection, not "ready". A gold box is a charge you still hold.
 func _refresh_streak_ui() -> void:
-	if streak_label:
-		# Counter stays while radar is live or the RC-XD is driving. Those already
-		# have a popup and a hint. Swapping this label hid STREAK n/5.
-		var goal := Game.RCXD_AT if (_streak_earned & Game.CHARGE_RADAR) != 0 else Game.STREAK_AT
-		streak_label.text = "STREAK %d/%d" % [_streak_n, goal]
-		streak_label.visible = true
+	_refresh_streak_extras()
 	for i in _streak_slots.size():
 		var slot := _streak_slots[i]
 		if slot == null:
@@ -790,9 +786,105 @@ func _play_announcer(path: String) -> void:
 
 
 ## Grenade slot: frags on G, throwing knives on F (only shown when the class carries knives).
+## Sits at the right end of the HP row (#65); the key letter is dimmer than the count.
 func set_grenades(n: int, knives: int = 0) -> void:
 	if grenade_label:
-		grenade_label.text = "G   FRAG ×%d" % n if knives <= 0 else "G   FRAG ×%d      F   KNIFE ×%d" % [n, knives]
+		grenade_label.text = "G  FRAG %d" % n if knives <= 0 else "G  FRAG %d    F  KNIFE %d" % [n, knives]
+
+
+var _streak_pips: HBoxContainer
+var _streak_costs: Array[Label] = []
+
+
+## #65: one HP row (bar + grenade/knife pill), even weapon slots, a scorestreak column with
+## kill pips and cost/ready tags. The key hint line at the top (over the clock) is gone;
+## the keys are in Settings > Controls.
+func _facelift_hud() -> void:
+	if hint_label:
+		hint_label.visible = false
+	_hint_timer = 0.0
+	var bottom := get_node_or_null("Bottom") as VBoxContainer
+	var wrap := get_node_or_null("Bottom/HpWrap") as Control
+	if bottom and wrap and grenade_label and wrap.get_parent() == bottom:
+		var row := HBoxContainer.new()
+		row.name = "HpRow"
+		row.add_theme_constant_override("separation", 8)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var at := wrap.get_index()
+		bottom.add_child(row)
+		bottom.move_child(row, at)
+		wrap.reparent(row, false)
+		wrap.custom_minimum_size = Vector2(0, 28)
+		wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grenade_label.reparent(row, false)
+		grenade_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		grenade_label.add_theme_font_size_override("font_size", 15)
+	if hp_label:
+		hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		hp_label.offset_left = 12.0
+		hp_label.add_theme_font_size_override("font_size", 17)
+		hp_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
+		hp_label.add_theme_constant_override("outline_size", 4)
+	# Scorestreak column: small caps title, then one pip per kill toward the next reward.
+	if streak_label:
+		streak_label.add_theme_font_size_override("font_size", 13)
+		streak_label.add_theme_color_override("font_color", Color(0.85, 0.88, 0.92))
+		streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_streak_pips = HBoxContainer.new()
+		_streak_pips.name = "Pips"
+		_streak_pips.add_theme_constant_override("separation", 4)
+		_streak_pips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var col := streak_label.get_parent()
+		col.add_child(_streak_pips)
+		col.move_child(_streak_pips, streak_label.get_index() + 1)
+		for i in Game.RCXD_AT:
+			var pip := Panel.new()
+			pip.custom_minimum_size = Vector2(20, 6)
+			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var sb := StyleBoxFlat.new()
+			sb.set_corner_radius_all(3)
+			sb.bg_color = Color(1, 1, 1, 0.14)
+			pip.add_theme_stylebox_override("panel", sb)
+			_streak_pips.add_child(pip)
+	for i in _streak_slots.size():
+		var slot := _streak_slots[i]
+		var cost: Label = null
+		if slot and i < 2:
+			cost = Label.new()
+			cost.name = "Cost"
+			cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cost.anchor_left = 0.0
+			cost.anchor_right = 1.0
+			cost.anchor_top = 1.0
+			cost.anchor_bottom = 1.0
+			cost.offset_top = -20.0
+			cost.offset_bottom = -4.0
+			cost.offset_right = -8.0
+			cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			cost.add_theme_font_size_override("font_size", 11)
+			slot.add_child(cost)
+		_streak_costs.append(cost)
+
+
+func _refresh_streak_extras() -> void:
+	if streak_label:
+		streak_label.text = "SCORESTREAK"
+	var goal := Game.RCXD_AT
+	if _streak_pips:
+		for i in _streak_pips.get_child_count():
+			var pip := _streak_pips.get_child(i) as Panel
+			var sb := pip.get_theme_stylebox("panel") as StyleBoxFlat
+			var lit := i < _streak_n
+			var mark := i == Game.STREAK_AT - 1 or i == goal - 1 # UAV and RC-XD steps
+			sb.bg_color = HUD_ACCENT if lit else (Color(1, 1, 1, 0.26) if mark else Color(1, 1, 1, 0.12))
+	for i in _streak_costs.size():
+		var c := _streak_costs[i]
+		if c == null:
+			continue
+		var bit := Game.CHARGE_RADAR if i == 0 else Game.CHARGE_RCXD
+		var is_ready := (_streak_charges & bit) != 0
+		c.text = "READY · ENTER" if is_ready else "%d KILLS" % (Game.STREAK_AT if i == 0 else Game.RCXD_AT)
+		c.add_theme_color_override("font_color", HUD_ACCENT if is_ready else Color(0.62, 0.66, 0.72, 0.85))
 
 
 func set_reloading(on: bool) -> void:
@@ -1190,7 +1282,7 @@ const SB_ROW_A := Color(1, 1, 1, 0.035)
 const SB_ROW_B := Color(1, 1, 1, 0.0)
 const SB_ROW_SELF := Color(1.0, 0.84, 0.42, 0.16)
 const SB_MUTED := Color(0.62, 0.66, 0.72)
-const SB_COLS := [["NAME", 210], ["K", 52], ["D", 52], ["K/D", 62], ["STYLE", 66], ["PING", 58]]
+const SB_COLS := [["#", 26], ["NAME", 200], ["K", 48], ["D", 48], ["K/D", 58], ["STYLE", 64], ["PING", 56]]
 
 
 func _sb_box(col: Color, radius: int = 0, border: Color = Color(0, 0, 0, 0)) -> StyleBoxFlat:
@@ -1225,7 +1317,7 @@ func _sb_row(values: Array, size: int, col: Color, name_col: Color) -> HBoxConta
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	for i in SB_COLS.size():
-		row.add_child(_sb_label(str(values[i]), size, name_col if i == 0 else col, SB_COLS[i][1], i > 0))
+		row.add_child(_sb_label(str(values[i]), size, name_col if i == 1 else col, SB_COLS[i][1], i > 1))
 	return row
 
 
@@ -1238,11 +1330,29 @@ func _sb_panel(title: String, score_text: String, team_col: Color, rows: Array, 
 	v.add_theme_constant_override("separation", 2)
 	panel.add_child(v)
 	var head := HBoxContainer.new()
-	var t := _sb_label(title, 22, team_col)
+	var t := _sb_label(title, 20, team_col)
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(t)
-	head.add_child(_sb_label(score_text, 26, Color(0.95, 0.95, 0.97), 0, true))
+	if score_text != "":
+		head.add_child(_sb_label(score_text, 26, Color(0.95, 0.95, 0.97), 0, true))
+		head.add_child(_sb_label("/ %d" % Game.win_kills(), 15, SB_MUTED, 0, true))
 	v.add_child(head)
+	if score_text != "":
+		# Team progress toward the kill limit, in the team colour.
+		var bar := ProgressBar.new()
+		bar.show_percentage = false
+		bar.custom_minimum_size = Vector2(0, 4)
+		bar.max_value = maxf(float(Game.win_kills()), 1.0)
+		bar.value = float(score_text.to_int())
+		var bg_sb := StyleBoxFlat.new()
+		bg_sb.bg_color = Color(1, 1, 1, 0.08)
+		bg_sb.set_corner_radius_all(2)
+		var fg_sb := StyleBoxFlat.new()
+		fg_sb.bg_color = team_col
+		fg_sb.set_corner_radius_all(2)
+		bar.add_theme_stylebox_override("background", bg_sb)
+		bar.add_theme_stylebox_override("fill", fg_sb)
+		v.add_child(bar)
 	var cols := []
 	for c in SB_COLS:
 		cols.append(c[0])
@@ -1259,25 +1369,60 @@ func _sb_panel(title: String, score_text: String, team_col: Color, rows: Array, 
 		var style_pts := int(entry.get("style", 0))
 		var ping_ms := int(entry.get("ping", -1))
 		var me: bool = entry.peer_id == _local_peer_id
-		var name_txt := str(entry.name)
-		if ffa:
-			name_txt = "%d.  %s" % [i + 1, name_txt]
+		var bot: bool = int(entry.peer_id) < 0
 		var vals := [
-			name_txt, entry.kills, deaths, "%.2f" % (float(entry.kills) / float(maxi(deaths, 1))),
-			str(style_pts) if style_pts > 0 else "—", "—" if ping_ms < 0 else str(ping_ms),
+			str(i + 1), str(entry.name), entry.kills, deaths, "%.2f" % (float(entry.kills) / float(maxi(deaths, 1))),
+			str(style_pts) if style_pts > 0 else "—", "BOT" if bot else ("—" if ping_ms < 0 else str(ping_ms)),
 		]
 		var bg := SB_ROW_SELF if me else (SB_ROW_A if i % 2 == 0 else SB_ROW_B)
 		var rp := PanelContainer.new()
-		rp.add_theme_stylebox_override("panel", _sb_box(bg, 4))
+		var rsb := _sb_box(bg, 6)
+		rsb.content_margin_top = 5
+		rsb.content_margin_bottom = 5
+		if me:
+			rsb.border_color = HUD_ACCENT
+			rsb.border_width_left = 3
+		rp.add_theme_stylebox_override("panel", rsb)
 		var row := _sb_row(vals, 17, Color(0.88, 0.9, 0.93), Color(1.0, 0.9, 0.55) if me else Color(0.95, 0.95, 0.97))
+		var rank := row.get_child(0) as Label
+		rank.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		rank.add_theme_font_size_override("font_size", 14)
+		rank.add_theme_color_override("font_color", HUD_ACCENT if (i == 0 and ffa) else SB_MUTED)
+		(row.get_child(2) as Label).add_theme_color_override("font_color", Color(1, 1, 1))
+		(row.get_child(3) as Label).add_theme_color_override("font_color", SB_MUTED)
+		var ping_l := row.get_child(6) as Label
+		ping_l.add_theme_font_size_override("font_size", 14)
+		if bot or ping_ms < 0:
+			ping_l.add_theme_color_override("font_color", Color(SB_MUTED, 0.7))
+		else:
+			ping_l.add_theme_color_override("font_color", Color(0.5, 0.85, 0.55) if ping_ms < 60 else (Color(0.95, 0.8, 0.35) if ping_ms < 120 else Color(0.95, 0.45, 0.4)))
 		if style_pts > 0:
-			(row.get_child(4) as Label).add_theme_color_override("font_color", TRICK_COLOR)
+			(row.get_child(5) as Label).add_theme_color_override("font_color", TRICK_COLOR)
 		rp.add_child(row)
 		v.add_child(rp)
 		i += 1
 	if rows.is_empty():
 		v.add_child(_sb_label("No players", 15, SB_MUTED))
 	return panel
+
+
+## Mode · map on the left, goal and clock on the right, gold rule under it (#66).
+func _sb_header(ffa: bool) -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	var h := HBoxContainer.new()
+	var left := _sb_label("%s  ·  %s" % [Game.mode_name().to_upper(), Maps.display_name(Game.map_id).to_upper()], 16, Color(0.95, 0.95, 0.97))
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(left)
+	var t := int(ceil(Game.get_round_time_left()))
+	var goal := "first to %d" % Game.win_kills() if ffa else "%d kills wins" % Game.win_kills()
+	h.add_child(_sb_label("%s  ·  %d:%02d" % [goal, t / 60, t % 60], 15, SB_MUTED, 0, true))
+	v.add_child(h)
+	var rule := ColorRect.new()
+	rule.custom_minimum_size = Vector2(0, 2)
+	rule.color = Color(HUD_ACCENT, 0.55)
+	v.add_child(rule)
+	return v
 
 
 func _refresh_scoreboard() -> void:
@@ -1298,8 +1443,9 @@ func _refresh_scoreboard() -> void:
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 10)
 	backdrop.add_child(body)
+	body.add_child(_sb_header(ffa))
 	if ffa:
-		body.add_child(_sb_panel("PLAYERS", "", Color(0.9, 0.9, 0.92), _scores, true))
+		body.add_child(_sb_panel("PLAYERS  ·  %d" % _scores.size(), "", Color(0.9, 0.9, 0.92), _scores, true))
 	else:
 		var teams := HBoxContainer.new()
 		teams.add_theme_constant_override("separation", 14)
