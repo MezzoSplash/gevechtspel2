@@ -76,7 +76,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.3.11-dev" # grenade RPCs changed: a 0.3.10 peer must be refused, not half-work
+const NET_VERSION := "0.3.12-dev" # grenade RPCs changed: a 0.3.10 peer must be refused, not half-work
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -322,6 +322,50 @@ func hp_of(p: Player) -> float:
 	if not net_hp.has(id):
 		net_hp[id] = Player.MAX_HP
 	return float(net_hp[id])
+
+
+## Authority: damage taken per life, by attacker (#64). victim -> attacker -> [damage, hits].
+var _dmg_log: Dictionary = {}
+
+
+func note_damage(attacker_peer: int, victim_peer: int, amount: float) -> void:
+	if attacker_peer == 0 or attacker_peer == victim_peer or amount <= 0.0:
+		return
+	var per: Dictionary = _dmg_log.get(victim_peer, {})
+	var e: Array = per.get(attacker_peer, [0.0, 0])
+	per[attacker_peer] = [float(e[0]) + amount, int(e[1]) + 1]
+	_dmg_log[victim_peer] = per
+
+
+## Authority, right after a kill: tell the (human) victim what the killer did to them this life
+## and what they did to the killer during the killer's current life.
+func send_death_report(killer_peer: int, victim_peer: int) -> void:
+	if killer_peer == 0 or killer_peer == victim_peer or victim_peer < 0:
+		return
+	var taken: Array = (_dmg_log.get(victim_peer, {}) as Dictionary).get(killer_peer, [0.0, 0])
+	var dealt: Array = (_dmg_log.get(killer_peer, {}) as Dictionary).get(victim_peer, [0.0, 0])
+	var name := _display_name_for(killer_peer)
+	if scores.has(killer_peer):
+		name = str(scores[killer_peer].name)
+	var killer := player_for_peer(killer_peer)
+	var left := hp_of(killer) if killer else 0.0
+	var args := [name, roundi(float(taken[0])), int(taken[1]), roundi(float(dealt[0])), int(dealt[1]), roundi(left)]
+	if not is_networked() or victim_peer == multiplayer.get_unique_id():
+		_show_death_report(args)
+	elif victim_peer in multiplayer.get_peers():
+		sync_death_report.rpc_id(victim_peer, args)
+
+
+@rpc("authority", "reliable")
+func sync_death_report(args: Array) -> void:
+	if args.size() >= 6:
+		_show_death_report(args)
+
+
+func _show_death_report(a: Array) -> void:
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	if hud:
+		hud.show_death_report(str(a[0]), int(a[1]), int(a[2]), int(a[3]), int(a[4]), int(a[5]))
 
 
 func set_hp(p: Player, value: float) -> void:
@@ -907,6 +951,7 @@ func broadcast_hurt(peer_id: int, new_hp: float, killed: bool, from_pos: Vector3
 func respawn_pawn(p: Player) -> void:
 	if p == null:
 		return
+	_dmg_log.erase(p.peer_id) # a new life: damage taken starts from zero
 	set_hp(p, Player.MAX_HP)
 	if loadouts:
 		loadouts.promote_pending(p)

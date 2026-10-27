@@ -462,11 +462,14 @@ func apply_hit(
 	var dmg := roundi(base_damage * (headshot_mult if headshot else 1.0))
 	if dmg > 0:
 		since_hurt = 0.0
-	var new_hp := maxf(Game.hp_of(self) - float(dmg), 0.0)
+	var old_hp := Game.hp_of(self)
+	var new_hp := maxf(old_hp - float(dmg), 0.0)
 	Game.set_hp(self, new_hp)
+	Game.note_damage(killer_peer_id, peer_id, old_hp - new_hp)
 	var killed := new_hp <= 0.0
 	if killed:
 		Game.register_kill(killer_peer_id, peer_id, weapon_id, headshot)
+		Game.send_death_report(killer_peer_id, peer_id)
 	if dmg <= 0:
 		source_pos = Vector3.INF
 	elif not source_pos.is_finite():
