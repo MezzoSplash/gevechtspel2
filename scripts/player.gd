@@ -578,7 +578,11 @@ func _try_throw_grenade() -> void:
 	var origin := camera.global_position + (-camera.global_basis.z) * 0.6
 	var dir := -camera.global_basis.z
 	if Game.is_networked() and not multiplayer.is_server():
-		Game.request_grenade.rpc_id(1, origin, dir)
+		# Show it now; the server still decides (count, death, freeze) and adopts this copy.
+		var seq := 0
+		if not Game.play_locked():
+			seq = Game.predict_grenade(self, origin, dir)
+		Game.request_grenade.rpc_id(1, origin, dir, seq)
 	else:
 		Game.throw_grenade(self, origin, dir)
 

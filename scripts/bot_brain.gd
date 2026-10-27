@@ -78,6 +78,23 @@ var _hunt_direct := false # flank point was useless; path to the enemy's feet
 var _path_live := false # a target has been handed to the agent this chase
 var _path_enemy := Vector3.ZERO # where the enemy stood when that path was built
 var _force_repath := false
+## Grenades: frags at mid range, a cooldown so they do not spam.
+const NADE_MIN := 7.0
+const NADE_MAX := 21.0
+const NADE_COOLDOWN_MIN := 7.0
+const NADE_COOLDOWN_MAX := 14.0
+const NADE_CHANCE := 0.35 # per fight check (every NADE_CHECK), when the range is right
+const NADE_CHECK := 0.6
+var _nade_cd := 3.0
+var _nade_check := 0.0
+## Scorestreaks: the same UAV (3) and RC-XD (5) the players earn. The RC is driven from here through
+## the car's public input (the same call a remote driver's packets use); rc_xd.gd is unchanged.
+const STREAK_USE_DELAY := 1.2 # beat between earning and using, so it reads as a choice
+const RC_BLOW_R := 2.6 # detonate this close to an enemy
+const RC_LAUNCH_MIN := 12.0 # only send the car at someone this far or farther (or out of sight)
+var _streak_wait := 0.0
+var _rc_repath := 0.0
+var _rc_point := Vector3.ZERO
 
 
 func setup(p: Player, nav: NavigationAgent3D) -> void:
@@ -107,12 +124,16 @@ func physics_tick(delta: float) -> void:
 		pawn.move_and_slide()
 		return
 	_burst_pause = maxf(_burst_pause - delta, 0.0)
+	_nade_cd = maxf(_nade_cd - delta, 0.0)
 	if not pawn.is_on_floor():
 		pawn.velocity.y += float(pawn.get_gravity().y) * delta
 	else:
 		pawn.velocity.y = 0.0
+	if _drive_rc(delta):
+		return
 	_track_stuck(delta)
 	var enemy := _pick_target(delta)
+	_tick_streaks(delta, enemy)
 	if enemy == null:
 		_in_fight = false
 		_acquire_left = ACQUIRE
@@ -313,8 +334,112 @@ func _fight(enemy: Player, delta: float) -> void:
 	_steer_to(pawn.global_position + wish, STRAFE_SPEED, delta, false)
 	if _acquire_left <= 0.0 and dist <= MELEE_R and Game.melee.swing(pawn):
 		return
+	if _acquire_left <= 0.0 and _try_grenade(enemy, dist, delta):
+		return
 	if _acquire_left <= 0.0 and dist <= fight_r + 4.0:
 		_try_shoot(enemy)
+
+
+## Frag at a visible enemy in mid range. The pitch is solved so the arc lands near them before the fuse.
+func _try_grenade(enemy: Player, dist: float, delta: float) -> bool:
+	_nade_check -= delta
+	if _nade_cd > 0.0 or pawn.grenades <= 0 or _nade_check > 0.0:
+		return false
+	_nade_check = NADE_CHECK
+	if dist < NADE_MIN or dist > NADE_MAX or randf() > NADE_CHANCE:
+		return false
+	var from := pawn.head.global_position
+	var to := enemy.global_position + Vector3(0.0, 0.4, 0.0)
+	var flat := Vector3(to.x - from.x, 0.0, to.z - from.z)
+	var d := flat.length()
+	if d < 0.5:
+		return false
+	var dy := to.y - from.y
+	var g := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	var best := INF
+	var best_pitch := 0.0
+	for k in 25:
+		var pitch := lerpf(-0.35, 0.9, float(k) / 24.0)
+		var h := Grenade.THROW_SPEED * cos(pitch)
+		var t := d / h
+		if t > Grenade.FUSE + 0.15:
+			continue
+		var vy := Grenade.THROW_SPEED * sin(pitch) + 4.0
+		var err := absf(vy * t - 0.5 * g * t * t - dy)
+		if err < best:
+			best = err
+			best_pitch = pitch
+	if best > 2.0:
+		return false
+	var dir := flat.normalized() * cos(best_pitch) + Vector3.UP * sin(best_pitch)
+	dir = (dir + Vector3(randf_range(-0.04, 0.04), 0.0, randf_range(-0.04, 0.04))).normalized()
+	_nade_cd = randf_range(NADE_COOLDOWN_MIN, NADE_COOLDOWN_MAX)
+	Game.throw_grenade(pawn, from + dir * 0.6, dir)
+	return true
+
+
+## Banked UAV: use it after a short beat. Banked RC-XD: send it when the target is far or hidden.
+func _tick_streaks(delta: float, enemy: Player) -> void:
+	var charges := int(Game.streak_charges.get(pawn.peer_id, 0))
+	if charges == 0:
+		_streak_wait = STREAK_USE_DELAY
+		return
+	_streak_wait = maxf(_streak_wait - delta, 0.0)
+	if _streak_wait > 0.0:
+		return
+	if (charges & Game.CHARGE_RADAR) != 0:
+		Game.try_activate_streak(pawn.peer_id, 0)
+		_streak_wait = STREAK_USE_DELAY
+		return
+	if (charges & Game.CHARGE_RCXD) != 0 and enemy != null:
+		var far := pawn.global_position.distance_to(enemy.global_position) >= RC_LAUNCH_MIN
+		if far or not _can_see(enemy):
+			Game.try_activate_streak(pawn.peer_id, 1)
+			_rc_repath = 0.0
+			_streak_wait = STREAK_USE_DELAY
+
+
+## While our car is out the pawn stands still (like a player in the RC view) and we steer the car
+## along the navmesh to the nearest enemy, then blow it up next to them.
+func _drive_rc(delta: float) -> bool:
+	var car := RcXd.for_owner(pawn.peer_id)
+	if car == null:
+		return false
+	pawn.velocity.x = 0.0
+	pawn.velocity.z = 0.0
+	pawn.move_and_slide()
+	var here := car.global_position
+	var best: Player = null
+	var best_d := INF
+	for n in pawn.get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p == null or p == pawn or p.is_dead or not Game.is_enemy(p, pawn):
+			continue
+		var dd := here.distance_to(p.global_position)
+		if dd < best_d:
+			best_d = dd
+			best = p
+	if best == null:
+		car.apply_remote_input(car.yaw, 0.0)
+		return true
+	if best_d <= RC_BLOW_R:
+		car.shutdown(true)
+		return true
+	_rc_repath -= delta
+	if _rc_repath <= 0.0 or here.distance_to(_rc_point) < 1.2:
+		_rc_repath = 0.4
+		_rc_point = best.global_position
+		if agent:
+			var path := NavigationServer3D.map_get_path(agent.get_navigation_map(), here, best.global_position, true)
+			for pt in path:
+				if Vector2(pt.x - here.x, pt.z - here.z).length() > 1.5:
+					_rc_point = pt
+					break
+	var to := _rc_point - here
+	var want_yaw := atan2(-to.x, -to.z) if Vector2(to.x, to.z).length() > 0.05 else car.yaw
+	var turn := absf(wrapf(want_yaw - car.yaw, -PI, PI))
+	car.apply_remote_input(want_yaw, 0.55 if turn > 1.2 else 1.0)
+	return true
 
 
 ## Point on a ring around the enemy at fight range. Y stays theirs so roofs still route up a ramp.

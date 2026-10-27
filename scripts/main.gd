@@ -280,6 +280,7 @@ func _parse_args() -> Dictionary:
 
 ## Match clock. Clients do not tick this; they get time/scores over RPC.
 func _process(delta: float) -> void:
+	Game.menu_match = _menu_match
 	if Game.in_lobby:
 		return
 	if not multiplayer.is_server() and not Game.is_offline:

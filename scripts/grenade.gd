@@ -1,6 +1,8 @@
 class_name Grenade
 extends Node3D
-## Server-simulated arc. Clients only follow synced positions.
+## Server-simulated arc; only the server grenade explodes and deals damage.
+## Clients run the same arc locally from the spawn velocity (the thrower starts it the moment
+## they press G) and only blend toward the server's occasional pose corrections.
 ## Splash ignores teammates. The thrower can still hurt themselves.
 
 const FUSE := 1.2
@@ -18,19 +20,49 @@ var velocity := Vector3.ZERO
 var _fuse := FUSE
 var _net_id := 0
 var _sync_t := 0.0
+## Client copy: simulates the same flight, never explodes; Game frees it on the server's boom.
+var visual := false
+var _net_pos := Vector3.ZERO
+var _has_net := false
+var _life := FUSE + 1.0 # a predicted throw the server refused frees itself after this
+
+const POSE_SYNC := 0.1 # server corrections per grenade (the client simulates in between)
+const SNAP_M := 2.5 # farther off than this: jump to the server pose
+const CORRECT := 10.0 # 1/s blend toward the server pose
 
 
-static func launch(thrower: Player, origin: Vector3, dir: Vector3) -> void:
+static func initial_velocity(dir: Vector3) -> Vector3:
+	return dir.normalized() * THROW_SPEED + Vector3.UP * 4.0
+
+
+## Client-side copy that flies on its own. `origin`/`vel` come from the thrower (prediction) or the spawn RPC.
+static func spawn_visual(scene: Node, origin: Vector3, vel: Vector3) -> Grenade:
+	var g := Grenade.new()
+	g.visual = true
+	g.velocity = vel
+	scene.add_child(g)
+	g.global_position = origin
+	return g
+
+
+func apply_net_pose(pos: Vector3) -> void:
+	_net_pos = pos
+	_has_net = true
+	if global_position.distance_to(pos) > SNAP_M:
+		global_position = pos
+
+
+static func launch(thrower: Player, origin: Vector3, dir: Vector3, client_seq := 0) -> void:
 	var g := Grenade.new()
 	g.thrower_id = thrower.peer_id
 	g.thrower_team = thrower.team_id
-	g.velocity = dir.normalized() * THROW_SPEED + Vector3.UP * 4.0
+	g.velocity = Grenade.initial_velocity(dir)
 	g._net_id = Game.next_grenade_id()
 	var root := thrower.get_tree().current_scene
 	root.add_child(g)
 	g.global_position = origin
 	if Game.is_networked():
-		Game.sync_grenade_spawn.rpc(g._net_id, origin)
+		Game.sync_grenade_spawn.rpc(g._net_id, origin, g.velocity, thrower.peer_id, client_seq)
 
 
 func _ready() -> void:
@@ -52,9 +84,34 @@ func _ready() -> void:
 
 ## Ray-step so it bounces instead of tunneling. Fuse is time, not first impact.
 func _physics_process(delta: float) -> void:
+	if visual:
+		_tick_visual(delta)
+		return
 	if Game.is_networked() and not multiplayer.is_server():
 		return
 	_fuse -= delta
+	_fly(delta)
+	if Game.is_networked():
+		_sync_t -= delta
+		if _sync_t <= 0.0:
+			_sync_t = POSE_SYNC
+			Game.sync_grenade_pose.rpc(_net_id, global_position)
+	if _fuse <= 0.0:
+		_explode()
+
+
+func _tick_visual(delta: float) -> void:
+	_life -= delta
+	if _life <= 0.0:
+		queue_free()
+		return
+	_fly(delta)
+	if _has_net:
+		# The server pose is from ~half a ping ago; a soft pull keeps bounces in step without hops.
+		global_position = global_position.lerp(_net_pos, clampf(CORRECT * delta, 0.0, 1.0) * 0.5)
+
+
+func _fly(delta: float) -> void:
 	var grav := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 	velocity.y -= grav * delta
 	var motion := velocity * delta
@@ -67,13 +124,8 @@ func _physics_process(delta: float) -> void:
 		velocity = velocity.bounce(hit.normal) * BOUNCE
 	else:
 		global_position += motion
-	if Game.is_networked():
-		_sync_t -= delta
-		if _sync_t <= 0.0:
-			_sync_t = 0.05
-			Game.sync_grenade_pose.rpc(_net_id, global_position)
-	if _fuse <= 0.0:
-		_explode()
+		if visual and _has_net:
+			_net_pos += motion # the correction target moves with the arc too
 
 
 ## Linear splash to 0 at RADIUS. 165 at the body is a kill; allow_headshot stays off.
