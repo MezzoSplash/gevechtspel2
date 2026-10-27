@@ -960,7 +960,7 @@ func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, 
 			v.add_child(h)
 		add_child(_death_report)
 	var v2 := _death_report.get_node("V")
-	(v2.get_node("Head") as Label).text = "KILLED BY  %s" % killer.to_upper()
+	(v2.get_node("Head") as Label).text = "KILLED BY %s" % " ".join(killer.strip_edges().to_upper().split(" ", false))
 	(v2.get_node("Taken/L") as Label).text = "Their damage to you"
 	(v2.get_node("Taken/R") as Label).text = "%d  ·  %d %s" % [taken, taken_hits, "hit" if taken_hits == 1 else "hits"]
 	(v2.get_node("Taken/R") as Label).add_theme_color_override("font_color", Color(0.95, 0.45, 0.4))
