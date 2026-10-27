@@ -563,9 +563,10 @@ func _reset_to_offline() -> void:
 
 ## Late join: defer so MultiplayerSpawner can replicate existing pawns first.
 func _on_peer_connected(id: int) -> void:
-	print("SERVER: Peer connected: %d" % id)
 	if not multiplayer.is_server():
+		print("CLIENT: Peer connected: %d" % id) # 1 is the host; others are fellow clients
 		return
+	print("SERVER: Peer connected: %d" % id)
 	if id == 1:
 		return
 	# Map + mode first, so the client loads the right arena before its pawn and the bots arrive.
