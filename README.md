@@ -70,6 +70,8 @@ The server runs headless with `run-server.sh` (the first argument is the port):
 | `--time` | round length in minutes, 1–20 |
 | `--bots` | 0–16 |
 
+**Guided setup:** `./server-menu.sh` walks you through map, mode, bots, kill limit, time limit and port, shows the exact command and starts the server. It uses the newest exported `gevechtspel-*-linux-x86_64` next to the script (or `GEVECHTSPEL_BIN=...`), otherwise it runs from source. It can save your choices as defaults (`./server-menu.sh --defaults` starts with them right away) and, after you confirm, install them as the `gevechtspel-server` systemd user service (the old service file is backed up first).
+
 **Ports (UDP):** the game uses `7777`. The server list reads status, ping and players on the game port + 1 (`7778`). To be reachable from outside your network, forward both ports on your router and open them in your firewall. Joining works without `7778`, but then the status doesn't show.
 
 To connect from the command line: `./run.sh -- --connect 1.2.3.4:7777 --name Friend`
