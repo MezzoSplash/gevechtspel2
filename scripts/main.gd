@@ -58,6 +58,10 @@ func _ready() -> void:
 	Game.kill_limit = Game.last_kills
 	Game.round_time = float(Game.last_time_min * 60)
 	Game.bot_count = Game.last_bots
+	if int(args.bot_difficulty) >= 0:
+		Game.last_bot_difficulty = int(args.bot_difficulty)
+	Game.bot_difficulty = Game.last_bot_difficulty
+	print("bots: %d, difficulty %s" % [Game.bot_count, Game.BOT_DIFFICULTY_IDS[Game.bot_difficulty]])
 	_load_map(Game.map_id, false)
 	if has_node("MenuCamera"):
 		$MenuCamera.current = true
@@ -230,7 +234,7 @@ func _bake_nav() -> void:
 
 
 func _parse_args() -> Dictionary:
-	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "style": -1, "time_min": -1, "bots": -1}
+	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "style": -1, "time_min": -1, "bots": -1, "bot_difficulty": -1}
 	var args := OS.get_cmdline_user_args()
 	var i := 0
 	while i < args.size():
@@ -284,6 +288,12 @@ func _parse_args() -> Dictionary:
 				i += 1
 				if i < args.size():
 					out.bots = int(args[i])
+			"--bot-difficulty":
+				i += 1
+				if i < args.size():
+					out.bot_difficulty = Game.parse_bot_difficulty(args[i])
+					if out.bot_difficulty < 0:
+						push_warning("--bot-difficulty: use easy, medium or hard (got %s)" % args[i])
 		i += 1
 	return out
 

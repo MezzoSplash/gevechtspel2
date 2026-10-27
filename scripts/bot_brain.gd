@@ -47,7 +47,7 @@ const SMG_AIM_TRACK := 9.0
 
 var pawn: Player
 var agent: NavigationAgent3D
-var _acquire_left := ACQUIRE
+var _acquire_left := ACQUIRE # set from Game.bot_profile() (#90) when a target is picked
 var _strafe_sign := 1.0
 var _strafe_hold := 0.0
 var _strafe_pause := 0.0
@@ -136,7 +136,7 @@ func physics_tick(delta: float) -> void:
 	_tick_streaks(delta, enemy)
 	if enemy == null:
 		_in_fight = false
-		_acquire_left = ACQUIRE
+		_acquire_left = float(Game.bot_profile().acquire)
 		if _stuck_pulse:
 			_pick_unstick()
 		_steer_to(_home, Player.WALK_SPEED, delta)
@@ -160,7 +160,7 @@ func physics_tick(delta: float) -> void:
 		_fight(enemy, delta)
 	else:
 		_in_fight = false
-		_acquire_left = ACQUIRE
+		_acquire_left = float(Game.bot_profile().acquire)
 		_hunt(enemy, delta)
 	_move(delta)
 
@@ -373,7 +373,7 @@ func _try_grenade(enemy: Player, dist: float, delta: float) -> bool:
 		return false
 	var dir := flat.normalized() * cos(best_pitch) + Vector3.UP * sin(best_pitch)
 	dir = (dir + Vector3(randf_range(-0.04, 0.04), 0.0, randf_range(-0.04, 0.04))).normalized()
-	_nade_cd = randf_range(NADE_COOLDOWN_MIN, NADE_COOLDOWN_MAX)
+	_nade_cd = randf_range(NADE_COOLDOWN_MIN, NADE_COOLDOWN_MAX) * float(Game.bot_profile().nade)
 	Game.throw_grenade(pawn, from + dir * 0.6, dir)
 	return true
 
@@ -382,21 +382,21 @@ func _try_grenade(enemy: Player, dist: float, delta: float) -> bool:
 func _tick_streaks(delta: float, enemy: Player) -> void:
 	var charges := int(Game.streak_charges.get(pawn.peer_id, 0))
 	if charges == 0:
-		_streak_wait = STREAK_USE_DELAY
+		_streak_wait = float(Game.bot_profile().streak)
 		return
 	_streak_wait = maxf(_streak_wait - delta, 0.0)
 	if _streak_wait > 0.0:
 		return
 	if (charges & Game.CHARGE_RADAR) != 0:
 		Game.try_activate_streak(pawn.peer_id, 0)
-		_streak_wait = STREAK_USE_DELAY
+		_streak_wait = float(Game.bot_profile().streak)
 		return
 	if (charges & Game.CHARGE_RCXD) != 0 and enemy != null:
 		var far := pawn.global_position.distance_to(enemy.global_position) >= RC_LAUNCH_MIN
 		if far or not _can_see(enemy):
 			Game.try_activate_streak(pawn.peer_id, 1)
 			_rc_repath = 0.0
-			_streak_wait = STREAK_USE_DELAY
+			_streak_wait = float(Game.bot_profile().streak)
 
 
 ## While our car is out the pawn stands still (like a player in the RC view) and we steer the car
@@ -586,7 +586,7 @@ func _tick_aim_wobble(enemy: Player, delta: float) -> void:
 	if _aim_err_t <= 0.0:
 		_aim_err_t = AIM_WOBBLE_REPICK
 		var dist := pawn.global_position.distance_to(enemy.global_position)
-		var r := AIM_WOBBLE_BASE + AIM_WOBBLE_PER_M * dist + AIM_WOBBLE_PER_SPEED * enemy._obs_speed
+		var r := (AIM_WOBBLE_BASE + AIM_WOBBLE_PER_M * dist + AIM_WOBBLE_PER_SPEED * enemy._obs_speed) * float(Game.bot_profile().wobble)
 		if _gun_id() == &"smg":
 			r *= SMG_WOBBLE_SCALE
 		if fresh:
@@ -603,7 +603,7 @@ func _tick_aim_wobble(enemy: Player, delta: float) -> void:
 	# Aim where the target really is (crouch lowers it), not at a fixed standing height.
 	# The crosshair follows the target a beat late: a fast strafe is harder to hit than standing still.
 	var goal := base + right * _aim_err.x + Vector3.UP * _aim_err.y
-	var track := SMG_AIM_TRACK if _gun_id() == &"smg" else AIM_TRACK
+	var track := (SMG_AIM_TRACK if _gun_id() == &"smg" else AIM_TRACK) * float(Game.bot_profile().track) / AIM_TRACK
 	_aim_track = goal if fresh else _aim_track.lerp(goal, 1.0 - exp(-track * delta))
 
 
@@ -665,6 +665,7 @@ func _try_shoot(enemy: Player) -> void:
 			_:
 				_burst_left = randi_range(2, 5)
 				_burst_pause = randf_range(0.35, 0.85)
+		_burst_pause *= float(Game.bot_profile().pause)
 	if pawn.weapon.bot_try_fire():
 		_burst_left -= 1
 

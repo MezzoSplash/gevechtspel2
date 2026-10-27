@@ -30,7 +30,7 @@ Gevechtspel is a multiplayer first-person shooter built in Godot 4. Matches are 
 ## Play
 
 1. Download the latest Windows or Linux build from [Releases](https://github.com/MezzoSplash/gevechtspel2/releases).
-2. Start the game and pick **Singleplayer** to play against bots, or **Multiplayer** to host or join.
+2. Start the game and pick **Singleplayer** to play against bots, or **Multiplayer** to host or join. Under **Bot skill** you pick Easy, Medium (default) or Hard; Hard is how the bots played up to v0.4.1.
 3. Everyone in a match needs the same version, including the server. If the versions don't match, the server turns you away with a message.
 
 ### Controls
@@ -59,7 +59,7 @@ The server runs headless with `run-server.sh` (the first argument is the port):
 
 ```bash
 ./run-server.sh 7777                                    # Townhouses, Team Deathmatch
-./run-server.sh 7777 --map skyline --mode ffa --bots 12
+./run-server.sh 7777 --map skyline --mode ffa --bots 12 --bot-difficulty hard
 ./run-server.sh 7777 --map quay --mode tdm --kills 30 --time 10 --bots 9
 ```
 
@@ -72,8 +72,9 @@ The server runs headless with `run-server.sh` (the first argument is the port):
 | `--style` | style modes: total style to win, e.g. `25000` (turned into a per-minute rate) |
 | `--time` | round length in minutes, 1–20 |
 | `--bots` | 0–16 |
+| `--bot-difficulty` | `easy`, `medium` (default) or `hard` (how bots played up to v0.4.1) |
 
-**Guided setup:** `./server-menu.sh` walks you through map, mode, bots, kill limit, time limit and port, shows the exact command and starts the server. It uses the newest exported `gevechtspel-*-linux-x86_64` next to the script (or `GEVECHTSPEL_BIN=...`), otherwise it runs from source. It can save your choices as defaults (`./server-menu.sh --defaults` starts with them right away) and, after you confirm, install them as the `gevechtspel-server` systemd user service (the old service file is backed up first).
+**Guided setup:** `./server-menu.sh` walks you through map, mode, bots, bot difficulty, kill limit, time limit and port, shows the exact command and starts the server. It uses the newest exported `gevechtspel-*-linux-x86_64` next to the script (or `GEVECHTSPEL_BIN=...`), otherwise it runs from source. It can save your choices as defaults (`./server-menu.sh --defaults` starts with them right away) and, after you confirm, install them as the `gevechtspel-server` systemd user service (the old service file is backed up first).
 
 **Ports (UDP):** the game uses `7777`. The server list reads status, ping and players on the game port + 1 (`7778`). To be reachable from outside your network, forward both ports on your router and open them in your firewall. Joining works without `7778`, but then the status doesn't show.
 

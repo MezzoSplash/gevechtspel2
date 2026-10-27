@@ -23,6 +23,8 @@ extends RefCounted
 ##   SLUG SNIPE      slug kill at SLUG_SNIPE_M or farther: a shotgun doing a rifle's job
 ## Throwing knife
 ##   YEET            throwing-knife kill; YEET x2 (double points) if the thrower was airborne or surfing at the throw
+## RC-XD (#87)
+##   RC-XD KILL      any kill with the RC-XD scorestreak: it is a style play, so it earns style
 ## Any gun
 ##   AIRSHOT         shooter or victim off the ground for at least AIR_MIN_TIME (steps/bumps never count)
 ##   LONGSHOT        at least LONGSHOT_M from the shooter's eye to the victim
@@ -67,6 +69,7 @@ const WALLJUMP := &"walljump"
 const DIVE := &"dive"
 const ROLL := &"roll"
 const WALL_TO_WALL := &"wall2wall" # not a kill (now a combo move, see Combo)
+const RCXD := &"rcxdkill" # #87: the RC-XD streak had no tricks, so in style modes its kills were worth nothing
 const COMBO := &"combo" # a landed combo rides on the kill's award; its points come from Combo, not POINTS
 
 ## A good rifle or shotgun play lands near a 360 noscope (250): a slide point blank double is
@@ -76,7 +79,7 @@ const POINTS := {
 	POINT_BLANK: 100, DOUBLE: 150, SPRAY: 150, HS_STREAK: 200, SURF: 150, DROP: 100,
 	RUN_GUN: 125, HOSE: 150, QUICKDRAW: 150, SIX_SHOOTER: 200, MOW: 200, SLUG_SNIPE: 125, YEET: 250, YEET_X2: 500,
 	LINE: 100, LINE_X2: 200,
-	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, WALL_TO_WALL: 75, COMBO: 0,
+	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, WALL_TO_WALL: 75, RCXD: 150, COMBO: 0,
 }
 const LABELS := {
 	NOSCOPE: "NOSCOPE", SPIN: "360 NOSCOPE", AIRSHOT: "AIRSHOT", LONGSHOT: "LONGSHOT",
@@ -87,11 +90,11 @@ const LABELS := {
 	YEET: "YEET", YEET_X2: "YEET ×2",
 	LINE: "LINE", LINE_X2: "LINE ×2",
 	WALLRUN: "WALLRUN KILL", WALLJUMP: "WALL JUMP KILL", DIVE: "DIVE KILL", ROLL: "ROLL KILL",
-	WALL_TO_WALL: "WALL TO WALL", COMBO: "COMBO",
+	WALL_TO_WALL: "WALL TO WALL", RCXD: "RC-XD KILL", COMBO: "COMBO",
 }
 ## Biggest first in popups and the kill feed.
 const ORDER: Array[StringName] = [
-	COMBO, LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, WALLJUMP, WALLRUN, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
+	COMBO, LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, WALLJUMP, WALLRUN, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF, RCXD,
 	SLUG_SNIPE, DIVE, RUN_GUN, POINT_BLANK, ROLL, DROP, AIRSHOT, LONGSHOT,
 ]
 const MOVE_RECENT := 0.3 # s: wallrun/dive state seen on the server this recently still counts (sync jitter)
@@ -125,7 +128,7 @@ const SLUG_SNIPE_M := 25.0 # slug bots fight at 14 m; the pellet shotgun is usel
 const CHAIN_WINDOW := 8.0 # seconds between trick kills that still chain
 const CHAIN_STEP := 0.25
 const CHAIN_MAX := 2.0
-# Grenade kills: no tricks. The throwing knife has its own (YEET) and is in neither list.
+# Grenade kills: no tricks. RC-XD kills get RCXD only. The throwing knife has its own (YEET) and is in neither list.
 const GUNS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"lmg", &"slug"]
 const MOVE_WEAPONS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"lmg", &"slug", &"melee"]
 
@@ -172,6 +175,8 @@ static func detect(c: Dictionary) -> Array[StringName]:
 		out.append(MOW)
 	if weapon == &"slug" and float(c.get("dist", 0.0)) >= SLUG_SNIPE_M:
 		out.append(SLUG_SNIPE)
+	if weapon == &"rcxd":
+		out.append(RCXD)
 	if weapon == &"knife":
 		out.append(YEET_X2 if bool(c.get("knife_air", false)) else YEET)
 	if MOVE_WEAPONS.has(weapon):

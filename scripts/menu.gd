@@ -26,6 +26,7 @@ var _mode_opts: Array[OptionButton] = []
 var _kill_boxes: Array[SpinBox] = []
 var _time_boxes: Array[SpinBox] = []
 var _bot_boxes: Array[SpinBox] = []
+var _skill_opts: Array[OptionButton] = [] # #90 bot difficulty, Solo + Host twins
 var _map_blurbs: Array[Label] = []
 var _lobby_info: Label
 var _filling_match := false
@@ -119,6 +120,12 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 	var kill_box := _make_spin(Game.KILLS_MIN, Game.KILLS_MAX, 1, "")
 	var time_box := _make_spin(Game.TIME_MIN_MINUTES, Game.TIME_MAX_MINUTES, 1, "min")
 	var bot_box := _make_spin(0, Game.BOT_COUNT_MAX, 1, "")
+	var skill_opt := OptionButton.new()
+	skill_opt.name = "BotSkillOption"
+	skill_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for n in Game.BOT_DIFFICULTY_NAMES:
+		skill_opt.add_item(n)
+	skill_opt.tooltip_text = "Bot aim, reaction and accuracy. Hard is how bots played up to v0.4.1."
 	var blurb := Label.new()
 	blurb.name = "MapBlurb"
 	blurb.add_theme_font_size_override("font_size", 14)
@@ -131,6 +138,7 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 		_labeled_row("KillsRow", "Kills", kill_box),
 		_labeled_row("TimeRow", "Time", time_box),
 		_labeled_row("BotsRow", "Bots", bot_box),
+		_labeled_row("BotSkillRow", "Bot skill", skill_opt),
 		blurb,
 	]
 	for i in rows.size():
@@ -141,6 +149,10 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 	_kill_boxes.append(kill_box)
 	_time_boxes.append(time_box)
 	_bot_boxes.append(bot_box)
+	_skill_opts.append(skill_opt)
+	skill_opt.item_selected.connect(func(i: int) -> void:
+		_sync_opts(_skill_opts, i)
+		_on_choice_changed())
 	_map_blurbs.append(blurb)
 	map_opt.item_selected.connect(func(i: int) -> void:
 		_sync_opts(_map_opts, i)
@@ -213,7 +225,7 @@ func _on_spin_changed(boxes: Array[SpinBox], v: float) -> void:
 func _on_choice_changed() -> void:
 	if _filling_match:
 		return
-	Game.remember_match_choice(selected_map(), selected_mode(), selected_kills(), selected_time_min(), selected_bots())
+	Game.remember_match_choice(selected_map(), selected_mode(), selected_kills(), selected_time_min(), selected_bots(), selected_bot_difficulty())
 	set_match_choice(selected_map(), selected_mode())
 	match_choice_changed.emit(selected_map(), selected_mode())
 
@@ -232,6 +244,8 @@ func set_match_choice(map_id: StringName, mode: int) -> void:
 		b.set_value_no_signal(Game.last_time_min)
 	for b in _bot_boxes:
 		b.set_value_no_signal(Game.last_bots)
+	for o in _skill_opts:
+		o.select(Game.last_bot_difficulty)
 	_filling_match = false
 	_refresh_match_blurb(mi, mo)
 	$Center/Solo/TeamRow.visible = not Game.is_ffa(mo)
@@ -258,8 +272,9 @@ func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
 	if Game.is_style_mode(mo):
 		rule = "first to %d style" % Game.style_limit_for(selected_kills(), float(selected_time_min() * 60))
 	for b in _map_blurbs:
-		b.text = "%s\n%s · %s or %d min · %d bots" % [
-			info.blurb, Game.mode_name(mo), rule, selected_time_min(), selected_bots()
+		b.text = "%s\n%s · %s or %d min · %d %s bots" % [
+			info.blurb, Game.mode_name(mo), rule, selected_time_min(), selected_bots(),
+			Game.BOT_DIFFICULTY_IDS[selected_bot_difficulty()]
 		]
 
 
@@ -291,6 +306,12 @@ func selected_bots() -> int:
 	if _bot_boxes.is_empty():
 		return Game.last_bots
 	return clampi(int(_bot_boxes[0].value), 0, Game.BOT_COUNT_MAX)
+
+
+func selected_bot_difficulty() -> int:
+	if _skill_opts.is_empty():
+		return Game.last_bot_difficulty
+	return clampi(_skill_opts[0].selected, Game.BOT_EASY, Game.BOT_HARD)
 
 
 ## Lobby header: what the server runs. FFA: one player list, no team buttons.
