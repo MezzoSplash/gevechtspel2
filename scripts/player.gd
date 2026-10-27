@@ -494,7 +494,7 @@ func apply_hit(
 	var killed := new_hp <= 0.0
 	if killed:
 		Game.register_kill(killer_peer_id, peer_id, weapon_id, headshot)
-		Game.send_death_report(killer_peer_id, peer_id)
+		Game.send_death_report(killer_peer_id, peer_id, weapon_id)
 	if dmg <= 0:
 		source_pos = Vector3.INF
 	elif not source_pos.is_finite():
