@@ -103,6 +103,15 @@ const TRICK_COLOR := Color(1.0, 0.78, 0.22) # trickshot gold: popup, feed tag, k
 const _TRICK_HOLD := 1.5
 const _TRICK_FADE := 0.45
 const _TRICK_SFX := preload("res://assets/sounds/trickshot.wav")
+## Combo SFX (original, tools/gen_combo_sfx.py). Local player only: the server sends combo state to its owner.
+const _COMBO_DING := preload("res://assets/sounds/combo_ding.wav")
+const _COMBO_SPECIAL := preload("res://assets/sounds/combo_special.wav")
+const _COMBO_LAND := preload("res://assets/sounds/combo_land.wav")
+const _COMBO_BAIL := preload("res://assets/sounds/combo_bail.wav")
+const COMBO_SPECIAL_MOVES := ["WALLRUN", "WALL JUMP", "WALL TO WALL", "DIVE", "ROLL"]
+const COMBO_SFX_GAP := 0.09 # s: moves closer than this share one sound (no machine-gun dings)
+const COMBO_PITCH_STEP := 0.06 # per MULT_STEP of multiplier
+const COMBO_PITCH_MAX := 1.8
 
 var _trick: VBoxContainer # big centred trickshot word for the shooter
 var _trick_title: Label
@@ -1691,6 +1700,10 @@ var _combo_moves: Label
 var _combo_bar: ProgressBar
 var _combo_fill: StyleBoxFlat
 var _combo_left := 0.0
+var _combo_sfx: AudioStreamPlayer
+var _combo_sfx_t := -10.0 # last combo sound (s, ticks)
+var _combo_last_pts := 0
+var combo_sfx_log: Array = [] # [kind, pitch] for the headless check
 var _combo_frozen := false
 var _combo_tw: Tween
 
@@ -1748,6 +1761,7 @@ func _on_combo_changed(points: int, multiplier: float, time_left: float, moves: 
 		_combo_tw.kill()
 	_combo_box.visible = true
 	_combo_box.modulate.a = 1.0
+	_combo_sound(points, multiplier, moves, state)
 	var mult := String.num(multiplier, 1).trim_suffix(".0")
 	if state == "frozen":
 		# #89: surfing holds the timer; the bar stays put until the server sends "build" again.
@@ -1786,6 +1800,38 @@ func _on_combo_changed(points: int, multiplier: float, time_left: float, moves: 
 	_combo_tw.tween_interval(1.2)
 	_combo_tw.tween_property(_combo_box, "modulate:a", 0.0, 0.5)
 	_combo_tw.tween_callback(func() -> void: _combo_box.visible = false)
+
+
+func _combo_sound(points: int, multiplier: float, moves: String, state: String) -> void:
+	var prev := _combo_last_pts
+	_combo_last_pts = points if state == "build" or state == "frozen" else 0
+	var kind := ""
+	var pitch := 1.0
+	if state == "landed":
+		kind = "land"
+	elif state == "bailed":
+		kind = "bail"
+	elif points > prev:
+		var last := moves.get_slice(" > ", moves.get_slice_count(" > ") - 1)
+		kind = "special" if last in COMBO_SPECIAL_MOVES else "ding"
+		pitch = minf(1.0 + COMBO_PITCH_STEP * (multiplier - Combo.MULT_START) / Combo.MULT_STEP, COMBO_PITCH_MAX)
+	if kind == "":
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if (kind == "ding" or kind == "special") and now - _combo_sfx_t < COMBO_SFX_GAP:
+		return
+	_combo_sfx_t = now
+	if _combo_sfx == null:
+		_combo_sfx = AudioStreamPlayer.new()
+		_combo_sfx.bus = "UI"
+		_combo_sfx.max_polyphony = 3
+		add_child(_combo_sfx)
+	var streams := {"ding": _COMBO_DING, "special": _COMBO_SPECIAL, "land": _COMBO_LAND, "bail": _COMBO_BAIL}
+	_combo_sfx.stream = streams[kind]
+	_combo_sfx.pitch_scale = pitch
+	_combo_sfx.volume_db = -6.0 if kind == "ding" else -3.0
+	_combo_sfx.play()
+	combo_sfx_log.append([kind, pitch])
 
 
 ## The server ends it (timeout / death / kill); the bar only shows the time it already said is left.
