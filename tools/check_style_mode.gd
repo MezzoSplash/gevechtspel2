@@ -29,7 +29,17 @@ func _ready() -> void:
 	_ok(menu.selected_mode() == Game.MODE_STYLE_FFA, "style FFA selectable")
 	var kb: SpinBox = menu._kill_boxes[0]
 	_ok(kb.suffix.contains("style") and (kb.get_parent().get_child(0) as Label).text == "Style", "limit row says Style")
-	# Style FFA, limit 5 (= 500 style), 3 bots.
+	# Limit scales with the round: rate ×100 × minutes. Defaults: FFA 25 000, TDM 40 000 in 10 min.
+	_ok(Game.style_limit_for(Game.STYLE_FFA_LIMIT, 600.0) == 25000 and Game.style_limit_for(Game.STYLE_TDM_LIMIT, 600.0) == 40000, "default limits 25 000 / 40 000 for 10 min")
+	_ok(Game.style_limit_for(25, 300.0) * 2 == Game.style_limit_for(25, 600.0), "limit doubles with twice the time")
+	var big := Combo.fresh()
+	for m in [Combo.SLIDE, Combo.DIVE, Combo.ROLL, Combo.WALLRUN, Combo.WALLJUMP, Combo.WALL_TO_WALL, Combo.SURF, Combo.AIR]:
+		Combo.add_move(big, m)
+	print("  one 8-move combo: %d × %.1f = %d" % [big.pts, big.mult, Combo.value(big)])
+	_ok(Combo.value(big) * 4 < Game.style_limit_for(Game.STYLE_FFA_LIMIT, 600.0), "a big combo is under a quarter of the FFA limit (no win in seconds)")
+	# Style FFA, rate 5 × 1 min (= 500 style), 3 bots.
+	for b in menu._time_boxes:
+		b.value = 1
 	for b in menu._kill_boxes:
 		b.value = 5
 	for b in menu._bot_boxes:

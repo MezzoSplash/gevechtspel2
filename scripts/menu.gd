@@ -242,7 +242,7 @@ func set_match_choice(map_id: StringName, mode: int) -> void:
 func _refresh_limit_labels(mo: int) -> void:
 	var style := Game.is_style_mode(mo)
 	for b in _kill_boxes:
-		b.suffix = "×100 style" if style else ""
+		b.suffix = "×100 style/min" if style else ""
 		var row := b.get_parent()
 		if row and row.get_child_count() > 0 and row.get_child(0) is Label:
 			(row.get_child(0) as Label).text = "Style" if style else "Kills"
@@ -256,7 +256,7 @@ func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
 	var info := Maps.info(Maps.ORDER[mi])
 	var rule := "first to %d kills" % selected_kills()
 	if Game.is_style_mode(mo):
-		rule = "first to %d style" % (selected_kills() * Game.STYLE_UNIT)
+		rule = "first to %d style" % Game.style_limit_for(selected_kills(), float(selected_time_min() * 60))
 	for b in _map_blurbs:
 		b.text = "%s\n%s · %s or %d min · %d bots" % [
 			info.blurb, Game.mode_name(mo), rule, selected_time_min(), selected_bots()

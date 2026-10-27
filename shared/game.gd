@@ -37,10 +37,13 @@ const MODE_STYLE_FFA := 3 # #82: FFA where the player with the most style points
 const MODE_LAST := MODE_STYLE_FFA
 const MODE_IDS := ["tdm", "ffa", "style-tdm", "style-ffa"]
 const MODE_NAMES := ["Team Deathmatch", "Free For All", "Style Team Deathmatch", "Style Free For All"]
-## Style modes reuse kill_limit as the score limit in units of STYLE_UNIT points (30 → 3000).
+## Style modes reuse kill_limit as a style RATE: STYLE_UNIT points per minute of round time, so the limit
+## grows with the round (FFA default 25 → 2500/min → 25 000 in 10 min). Measured: one landed combo is
+## ~1 000–6 000 (moves 30–120 each, up to ×6), bots alone make ~300–500/min; the old flat 2 000/3 000 ended
+## a match on the first big combo.
 const STYLE_UNIT := 100
-const STYLE_TDM_LIMIT := 30
-const STYLE_FFA_LIMIT := 20
+const STYLE_TDM_LIMIT := 40 # 4 000 style per minute for a team
+const STYLE_FFA_LIMIT := 25 # 2 500 style per minute for one player
 const FFA_WIN_KILLS := 20
 const KILLS_MIN := 5
 const KILLS_MAX := 50
@@ -275,8 +278,14 @@ func is_style_mode(m: int = -1) -> bool:
 
 
 ## Points needed to win: kills, or style points in style modes.
+static func style_limit_for(rate: int, round_sec: float) -> int:
+	return rate * STYLE_UNIT * maxi(roundi(round_sec / 60.0), 1)
+
+
 func score_limit() -> int:
-	return kill_limit * STYLE_UNIT if is_style_mode() else kill_limit
+	if is_style_mode():
+		return style_limit_for(kill_limit, round_time)
+	return kill_limit
 
 
 ## "kills" or "style" (HUD, scoreboard, menu blurbs).
@@ -2117,7 +2126,8 @@ func _tick_tension() -> void:
 	if _round_timer >= TENSION_START_LEN and _tension.playing and _tension.stream == _tension_start_stream:
 		stop_tension() # the build-up only covers the countdown and the first seconds of the round
 	var close_time := get_round_time_left() <= TENSION_TIME_LEFT
-	var close_kills := score_limit() - leader_kills() <= TENSION_KILLS_LEFT * (STYLE_UNIT if is_style_mode() else 1)
+	var close_left := roundi(score_limit() * 0.1) if is_style_mode() else TENSION_KILLS_LEFT # style: last 10%
+	var close_kills := score_limit() - leader_kills() <= close_left
 	if close_time or close_kills:
 		play_tension(true)
 
