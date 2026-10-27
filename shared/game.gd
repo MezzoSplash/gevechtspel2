@@ -76,7 +76,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.3.12" # grenade RPCs changed: a 0.3.10 peer must be refused, not half-work
+const NET_VERSION := "0.3.13-dev" # death report now carries the killer's weapon: a 0.3.12 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -194,6 +194,7 @@ var _round_music: AudioStreamPlayer
 const TENSION_TIME_LEFT := 30.0 # seconds left on the round clock
 const TENSION_KILLS_LEFT := 3 # leader (FFA player / TDM team) this close to kill_limit
 const TENSION_FADE := 1.2
+const TENSION_START_LEN := 5.0 # round seconds after which the start build-up fades out
 var menu_match := true # main.gd: the menu's background bot match stays quiet; the game boots into the menu
 var _tension: AudioStreamPlayer
 var _tension_final := false # final cue already started this round
@@ -346,7 +347,7 @@ func note_damage(attacker_peer: int, victim_peer: int, amount: float) -> void:
 
 ## Authority, right after a kill: tell the (human) victim what the killer did to them this life
 ## and what they did to the killer during the killer's current life.
-func send_death_report(killer_peer: int, victim_peer: int) -> void:
+func send_death_report(killer_peer: int, victim_peer: int, weapon_id: StringName = &"") -> void:
 	if killer_peer == 0 or killer_peer == victim_peer or victim_peer < 0:
 		return
 	var taken: Array = (_dmg_log.get(victim_peer, {}) as Dictionary).get(killer_peer, [0.0, 0])
@@ -356,7 +357,7 @@ func send_death_report(killer_peer: int, victim_peer: int) -> void:
 		name = str(scores[killer_peer].name)
 	var killer := player_for_peer(killer_peer)
 	var left := hp_of(killer) if killer else 0.0
-	var args := [name, roundi(float(taken[0])), int(taken[1]), roundi(float(dealt[0])), int(dealt[1]), roundi(left)]
+	var args := [name, roundi(float(taken[0])), int(taken[1]), roundi(float(dealt[0])), int(dealt[1]), roundi(left), weapon_display_name(weapon_id)]
 	if not is_networked() or victim_peer == multiplayer.get_unique_id():
 		_show_death_report(args)
 	elif victim_peer in multiplayer.get_peers():
@@ -365,14 +366,14 @@ func send_death_report(killer_peer: int, victim_peer: int) -> void:
 
 @rpc("authority", "reliable")
 func sync_death_report(args: Array) -> void:
-	if args.size() >= 6:
+	if args.size() >= 7:
 		_show_death_report(args)
 
 
 func _show_death_report(a: Array) -> void:
 	var hud := get_tree().get_first_node_in_group("hud") as Hud
 	if hud:
-		hud.show_death_report(str(a[0]), int(a[1]), int(a[2]), int(a[3]), int(a[4]), int(a[5]))
+		hud.show_death_report(str(a[0]), int(a[1]), int(a[2]), int(a[3]), int(a[4]), int(a[5]), str(a[6]).left(32))
 
 
 func set_hp(p: Player, value: float) -> void:
@@ -464,6 +465,23 @@ func local_resolved_name() -> String:
 
 func weapon_def(weapon_id: StringName) -> WeaponDef:
 	return WEAPON_DEFS.get(weapon_id) as WeaponDef
+
+
+const _KILL_SOURCE_NAMES := {
+	&"grenade": "Grenade", &"knife": "Throwing Knife", &"melee": "Knife", &"rcxd": "RC-XD", &"fall": "Fall",
+}
+
+
+## Name for a kill source as players see it: a gun's display_name, else grenade/knife/RC-XD/streaks.
+func weapon_display_name(weapon_id: StringName) -> String:
+	if weapon_id == &"":
+		return ""
+	var d := weapon_def(weapon_id)
+	if d:
+		return d.display_name
+	if _KILL_SOURCE_NAMES.has(weapon_id):
+		return str(_KILL_SOURCE_NAMES[weapon_id])
+	return String(weapon_id).replace("_", " ").capitalize()
 
 
 ## Client → server fire. Hits resolve here; tracers/sfx go back out via broadcast_shot_fx.
@@ -1819,9 +1837,9 @@ func set_round_frozen(on: bool) -> void:
 	round_freeze_changed.emit(on)
 	if on:
 		play_round_sting()
+		play_tension(false) # intermission over, countdown starts: build-up cue for everyone
 	else:
 		stop_round_sting()
-		play_tension(false) # freeze over, the round is live: build-up cue for everyone
 	if is_networked() and multiplayer.is_server():
 		sync_round_frozen.rpc(on)
 
@@ -1837,9 +1855,9 @@ func sync_round_frozen(on: bool) -> void:
 	round_freeze_changed.emit(on)
 	if on:
 		play_round_sting()
+		play_tension(false) # intermission over, countdown starts: build-up cue for everyone
 	else:
 		stop_round_sting()
-		play_tension(false) # freeze over, the round is live: build-up cue for everyone
 
 
 func play_round_sting() -> void:
@@ -1957,6 +1975,8 @@ func _tick_tension() -> void:
 	_tension_live = live
 	if not live or _tension_final:
 		return
+	if _round_timer >= TENSION_START_LEN and _tension.playing and _tension.stream == _tension_start_stream:
+		stop_tension() # the build-up only covers the countdown and the first seconds of the round
 	var close_time := get_round_time_left() <= TENSION_TIME_LEFT
 	var close_kills := win_kills() - leader_kills() <= TENSION_KILLS_LEFT
 	if close_time or close_kills:

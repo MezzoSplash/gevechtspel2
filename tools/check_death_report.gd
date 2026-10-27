@@ -25,9 +25,9 @@ func _ready() -> void:
 			me.global_position += Vector3(0, 0.01, 0) # stand still in the open; bots find us
 		if hud._death_report and hud._death_report.visible:
 			var v = hud._death_report.get_node("V")
-			print("report: %s | %s | %s" % [v.get_node("Head").text, v.get_node("Taken/R").text, v.get_node("Dealt/R").text])
+			print("report: %s | %s | %s | %s" % [v.get_node("Head").text, v.get_node("Weapon").text, v.get_node("Taken/R").text, v.get_node("Dealt/R").text])
 			var taken := int(str(v.get_node("Taken/R").text).split(" ")[0])
-			print("DEATH REPORT CHECK ", "OK" if taken >= 100 else "FAILED (taken %d)" % taken)
+			print("DEATH REPORT CHECK ", "OK" if taken >= 100 and str(v.get_node("Weapon").text).begins_with("with ") else "FAILED (taken %d)" % taken)
 			get_tree().quit()
 			return
 	print("DEATH REPORT CHECK FAILED (never died / no report)")

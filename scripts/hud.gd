@@ -372,15 +372,13 @@ func reset_session() -> void:
 	_refresh_streak_ui()
 
 
-## Freeze is the round start. The countdown and the "Round starting" line share that moment.
+## Freeze is the round start: show the countdown (the build-up music starts in Game).
 func _on_round_freeze(on: bool) -> void:
 	_freeze_left = Game.FREEZE_TIME if on else 0.0
 	if countdown_label:
 		countdown_label.visible = on
 		if on:
 			countdown_label.text = str(ceili(_freeze_left))
-	if on:
-		_play_announcer("res://assets/sounds/round_starting.wav")
 
 
 func punch_crosshair(amount: float = 1.0) -> void:
@@ -912,7 +910,7 @@ var _death_report_tw: Tween
 
 
 ## #64: "Killed by X" card under RESPAWNING, then it stays a few seconds into the next life.
-func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, dealt_hits: int, killer_hp: int) -> void:
+func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, dealt_hits: int, killer_hp: int, weapon: String = "") -> void:
 	if _death_report == null:
 		_death_report = PanelContainer.new()
 		_death_report.name = "DeathReport"
@@ -944,6 +942,12 @@ func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, 
 		head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		head.add_theme_font_size_override("font_size", 18)
 		v.add_child(head)
+		var wl := Label.new()
+		wl.name = "Weapon"
+		wl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		wl.add_theme_font_size_override("font_size", 15)
+		wl.add_theme_color_override("font_color", Color(0.85, 0.87, 0.9))
+		v.add_child(wl)
 		for row in ["Taken", "Dealt"]:
 			var h := HBoxContainer.new()
 			h.name = row
@@ -961,6 +965,9 @@ func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, 
 		add_child(_death_report)
 	var v2 := _death_report.get_node("V")
 	(v2.get_node("Head") as Label).text = "KILLED BY %s" % " ".join(killer.strip_edges().to_upper().split(" ", false))
+	var wlab := v2.get_node("Weapon") as Label
+	wlab.text = "with %s" % weapon.strip_edges().to_upper() if weapon.strip_edges() != "" else ""
+	wlab.visible = wlab.text != ""
 	(v2.get_node("Taken/L") as Label).text = "Their damage to you"
 	(v2.get_node("Taken/R") as Label).text = "%d  ·  %d %s" % [taken, taken_hits, "hit" if taken_hits == 1 else "hits"]
 	(v2.get_node("Taken/R") as Label).add_theme_color_override("font_color", Color(0.95, 0.45, 0.4))
