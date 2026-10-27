@@ -81,7 +81,7 @@ build_cmd() {
 
 validate() {
 	[[ " ${MAPS[*]} " == *" $MAP "* ]] || die "unknown map '$MAP'"
-	[[ $MODE == tdm || $MODE == ffa ]] || die "mode must be tdm or ffa"
+	[[ $MODE == tdm || $MODE == ffa || $MODE == style-tdm || $MODE == style-ffa ]] || die "mode must be tdm, ffa, style-tdm or style-ffa"
 	in_range "$BOTS" 0 "$BOTS_MAX" || die "bots must be 0-$BOTS_MAX"
 	in_range "$KILLS" "$KILLS_MIN" "$KILLS_MAX" || die "kills must be $KILLS_MIN-$KILLS_MAX"
 	in_range "$TIME" "$TIME_MIN" "$TIME_MAX" || die "time must be $TIME_MIN-$TIME_MAX"
@@ -125,9 +125,13 @@ find_bin
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 0; fi
 if [[ "${1:-}" != "--defaults" ]]; then
 	MAP=$(ask_menu "Map" "$MAP" "${MAPS[@]}")
-	MODE=$(ask_menu "Mode (tdm = Team Deathmatch, ffa = Free for all)" "$MODE" tdm ffa)
+	MODE=$(ask_menu "Mode (tdm = Team Deathmatch, ffa = Free for all, style-* = most style points wins)" "$MODE" tdm ffa style-tdm style-ffa)
 	BOTS=$(ask_num "Number of bots" "$BOTS" 0 "$BOTS_MAX")
-	KILLS=$(ask_num "Kill limit" "$KILLS" "$KILLS_MIN" "$KILLS_MAX")
+	if [[ $MODE == style-* ]]; then
+		KILLS=$(ask_num "Style limit in hundreds (30 = 3000 style points)" "$KILLS" "$KILLS_MIN" "$KILLS_MAX")
+	else
+		KILLS=$(ask_num "Kill limit" "$KILLS" "$KILLS_MIN" "$KILLS_MAX")
+	fi
 	TIME=$(ask_num "Time limit in minutes" "$TIME" "$TIME_MIN" "$TIME_MAX")
 	PORT=$(ask_num "UDP game port (status query uses port+1)" "$PORT" 1024 65534)
 fi
@@ -136,7 +140,7 @@ build_cmd
 SUMMARY="Map:    $MAP
 Mode:   $MODE
 Bots:   $BOTS
-Kills:  $KILLS
+Limit:  $KILLS$([[ $MODE == style-* ]] && echo " (x100 style points)" || echo " kills")
 Time:   $TIME min
 Ports:  $PORT/udp (game), $((PORT+1))/udp (server list status)
 

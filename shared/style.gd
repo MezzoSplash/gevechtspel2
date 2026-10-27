@@ -29,6 +29,12 @@ extends RefCounted
 ## Any gun or melee
 ##   SURF KILL       the shooter is surfing (on a ramp steeper than walkable) when the kill lands
 ##   DROP KILL       the shooter is falling, or landed within DROP_RECENT, after dropping DROP_M or more
+## Movement (#80/#81), any gun or melee:
+##   WALLRUN KILL    the shooter is wallrunning when the kill lands
+##   WALL JUMP KILL  the shooter wall jumped within WALLJUMP_RECENT and is still in the air
+##   DIVE KILL       the shooter is diving
+##   ROLL KILL       the shooter is rolling out of a dive (or just did, ROLL_RECENT)
+## Wall to wall (not a kill): a new wallrun within WALL_TO_WALL_WINDOW of a wall jump.
 ## Speed strip (not a kill, Game awards it from the pawn's position):
 ##   LINE            crossed a strip at Player.STRIP_SPEED or faster
 ##   LINE ×2         a different strip within Player.CARRY_TIME of that one
@@ -56,6 +62,11 @@ const YEET := &"yeet"
 const YEET_X2 := &"yeet2" # replaces YEET (500 = double)
 const LINE := &"line" # speed strip, not a kill
 const LINE_X2 := &"line2" # a second strip inside the same carry window
+const WALLRUN := &"wallrun"
+const WALLJUMP := &"walljump"
+const DIVE := &"dive"
+const ROLL := &"roll"
+const WALL_TO_WALL := &"wall2wall" # not a kill
 
 ## A good rifle or shotgun play lands near a 360 noscope (250): a slide point blank double is
 ## 100 + 150, a spray transfer 150 (x chain), the third headshot in a row 200.
@@ -64,6 +75,7 @@ const POINTS := {
 	POINT_BLANK: 100, DOUBLE: 150, SPRAY: 150, HS_STREAK: 200, SURF: 150, DROP: 100,
 	RUN_GUN: 125, HOSE: 150, QUICKDRAW: 150, SIX_SHOOTER: 200, MOW: 200, SLUG_SNIPE: 125, YEET: 250, YEET_X2: 500,
 	LINE: 100, LINE_X2: 200,
+	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, WALL_TO_WALL: 75,
 }
 const LABELS := {
 	NOSCOPE: "NOSCOPE", SPIN: "360 NOSCOPE", AIRSHOT: "AIRSHOT", LONGSHOT: "LONGSHOT",
@@ -73,12 +85,18 @@ const LABELS := {
 	MOW: "MOW DOWN", SLUG_SNIPE: "SLUG SNIPE",
 	YEET: "YEET", YEET_X2: "YEET ×2",
 	LINE: "LINE", LINE_X2: "LINE ×2",
+	WALLRUN: "WALLRUN KILL", WALLJUMP: "WALL JUMP KILL", DIVE: "DIVE KILL", ROLL: "ROLL KILL",
+	WALL_TO_WALL: "WALL TO WALL",
 }
 ## Biggest first in popups and the kill feed.
 const ORDER: Array[StringName] = [
-	LINE_X2, LINE, YEET_X2, YEET, SPIN, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
-	SLUG_SNIPE, RUN_GUN, POINT_BLANK, DROP, AIRSHOT, LONGSHOT,
+	LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, WALLJUMP, WALLRUN, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
+	SLUG_SNIPE, DIVE, RUN_GUN, POINT_BLANK, ROLL, DROP, AIRSHOT, LONGSHOT,
 ]
+const MOVE_RECENT := 0.3 # s: wallrun/dive state seen on the server this recently still counts (sync jitter)
+const WALLJUMP_RECENT := 1.2
+const ROLL_RECENT := 0.4
+const WALL_TO_WALL_WINDOW := 1.6 # s from a wall jump to the next wallrun (8 m gap at WALLJUMP_PUSH ≈ 1.2 s)
 
 const SPIN_DEG := 360.0
 const SPIN_WINDOW := 1.0 # seconds before the shot
@@ -156,12 +174,21 @@ static func detect(c: Dictionary) -> Array[StringName]:
 	if weapon == &"knife":
 		out.append(YEET_X2 if bool(c.get("knife_air", false)) else YEET)
 	if MOVE_WEAPONS.has(weapon):
+		if bool(c.get("walljump", false)):
+			out.append(WALLJUMP)
+		elif bool(c.get("wallrun", false)):
+			out.append(WALLRUN)
+		if bool(c.get("dive", false)):
+			out.append(DIVE)
+		elif bool(c.get("roll", false)):
+			out.append(ROLL)
 		if surf:
 			out.append(SURF)
 		if drop:
 			out.append(DROP)
 	if gun:
-		var shooter_air := float(c.get("shooter_air", 0.0)) >= AIR_MIN_TIME and not surf and not drop
+		var moved := bool(c.get("wallrun", false)) or bool(c.get("walljump", false)) or bool(c.get("dive", false))
+		var shooter_air := float(c.get("shooter_air", 0.0)) >= AIR_MIN_TIME and not surf and not drop and not moved
 		if shooter_air or float(c.get("victim_air", 0.0)) >= AIR_MIN_TIME:
 			out.append(AIRSHOT)
 		if float(c.get("dist", 0.0)) >= LONGSHOT_M:

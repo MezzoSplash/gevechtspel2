@@ -43,6 +43,10 @@ func _ready() -> void:
 	# Menu backdrop: the map you played last (or the one the server CLI asks for).
 	Game.map_id = args.map if args.map != &"" else Game.last_map
 	Game.mode = int(args.mode) if int(args.mode) >= 0 else Game.last_mode
+	if int(args.style) >= 0 and args.kills < 0:
+		args.kills = roundi(float(args.style) / float(Game.STYLE_UNIT)) # --style 3000 → limit 30 (×100)
+	if int(args.kills) < 0 and int(args.mode) >= 0 and bool(args.server):
+		args.kills = Game.default_kills_for(int(args.mode)) # --mode style-tdm alone gets 3000, not a saved kill limit
 	if int(args.kills) >= 0:
 		Game.last_kills = clampi(int(args.kills), Game.KILLS_MIN, Game.KILLS_MAX)
 	if int(args.time_min) >= 0:
@@ -224,7 +228,7 @@ func _bake_nav() -> void:
 
 
 func _parse_args() -> Dictionary:
-	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "time_min": -1, "bots": -1}
+	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "style": -1, "time_min": -1, "bots": -1}
 	var args := OS.get_cmdline_user_args()
 	var i := 0
 	while i < args.size():
@@ -261,11 +265,15 @@ func _parse_args() -> Dictionary:
 				if i < args.size():
 					out.mode = Game.parse_mode(args[i])
 					if out.mode < 0:
-						printerr("Unknown --mode '%s'. Use tdm or ffa." % args[i])
+						printerr("Unknown --mode '%s'. Use tdm, ffa, style-tdm or style-ffa." % args[i])
 			"--kills":
 				i += 1
 				if i < args.size():
 					out.kills = int(args[i])
+			"--style":
+				i += 1
+				if i < args.size():
+					out.style = int(args[i])
 			"--time":
 				i += 1
 				if i < args.size():

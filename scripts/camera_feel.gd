@@ -8,6 +8,8 @@ const BASE_FOV := 90.0 # fallback and the shipped default; the live hip FOV is G
 
 var _kick := Vector2.ZERO
 var extra_fov := 0.0
+var move_pitch := 0.0 # rad, set by the player: dive roll flip (#81)
+var move_roll := 0.0 # rad, set by the player: wallrun tilt (#80)
 var ads_fov := 0.0 # 0 = hip fire; sniper sets ~38
 
 
@@ -35,8 +37,9 @@ func add_shake(pitch_deg: float, yaw_deg: float, fov_amt: float) -> void:
 func _process(delta: float) -> void:
 	var k := 1.0 - exp(-RECOVER * delta)
 	_kick = _kick.lerp(Vector2.ZERO, k)
-	rotation.x = -_kick.x
+	rotation.x = -_kick.x + move_pitch
 	rotation.y = _kick.y
+	rotation.z = move_roll
 	fov = lerpf(fov, _base_fov() + extra_fov, 1.0 - exp(-FOV_RECOVER * delta))
 
 

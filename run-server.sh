@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a headless dedicated server from source (needs Godot, see run.sh).
-# Usage: ./run-server.sh [port] [--map townhouses|foundry|rooftops|quay|skyline] [--mode tdm|ffa]
-#                        [--bots 0-16] [--kills 5-50] [--time 1-20]
+# Usage: ./run-server.sh [port] [--map townhouses|foundry|rooftops|quay|skyline] [--mode tdm|ffa|style-tdm|style-ffa]
+#                        [--bots 0-16] [--kills 5-50] [--style 500-5000] [--time 1-20]
 # Default port 7777. The server list status query uses port + 1 (UDP).
 # For a guided setup (exported binary or source) use ./server-menu.sh
 set -euo pipefail

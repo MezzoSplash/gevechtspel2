@@ -1107,9 +1107,12 @@ func _on_score_changed(_peer_id: int, _score: int, _n: String) -> void:
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
 	if not Game.is_ffa() and int(a.get("team", 0)) != int(b.get("team", 0)):
 		return int(a.team) < int(b.team)
-	if a.kills == b.kills:
+	var key := Game.score_word()
+	if int(a.get(key, 0)) == int(b.get(key, 0)):
+		if key == "style" and a.kills != b.kills:
+			return a.kills > b.kills
 		return str(a.name) < str(b.name)
-	return a.kills > b.kills
+	return int(a.get(key, 0)) > int(b.get(key, 0))
 
 
 func _on_round_ended(winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
@@ -1253,6 +1256,8 @@ func _show_winner(winner_peer_id: int, winner_name: String) -> void:
 	if not Game.is_ffa():
 		accent = Player.team_color(clampi(winner_peer_id, Game.TEAM_A, Game.TEAM_B))
 		kicker = "YOUR TEAM WINS" if Game.local_team() == winner_peer_id else "WINNING TEAM"
+		if Game.is_style_mode():
+			kicker += "  ·  %d STYLE" % Game.team_score(clampi(winner_peer_id, Game.TEAM_A, Game.TEAM_B))
 	elif winner_peer_id != 0 and winner_peer_id == _local_peer_id:
 		kicker = "WINNER"
 		title = "YOU WIN"
@@ -1328,15 +1333,16 @@ func _refresh_standing() -> void:
 	var mine := 0
 	var best := 0
 	for i in board.size():
-		best = maxi(best, int(board[i].kills))
+		var sc := int(board[i].get(Game.score_word(), 0))
+		best = maxi(best, sc)
 		if int(board[i].peer_id) == _local_peer_id:
 			place = i + 1
-			mine = int(board[i].kills)
+			mine = sc
 	if place == 0:
 		_standing.text = "FREE FOR ALL"
 		return
 	var lead := "  ·  leader %d" % best if place > 1 else ("  ·  leading" if mine > 0 else "")
-	_standing.text = "%s  ·  %d / %d kills%s" % [_ordinal(place), mine, Game.win_kills(), lead]
+	_standing.text = "%s  ·  %d / %d %s%s" % [_ordinal(place), mine, Game.score_limit(), Game.score_word(), lead]
 	_standing.add_theme_color_override(
 		"font_color", Player.SELF_COLOR if place == 1 and mine > 0 else Color(0.92, 0.93, 0.95)
 	)
@@ -1413,14 +1419,14 @@ func _sb_panel(title: String, score_text: String, team_col: Color, rows: Array, 
 	head.add_child(t)
 	if score_text != "":
 		head.add_child(_sb_label(score_text, 26, Color(0.95, 0.95, 0.97), 0, true))
-		head.add_child(_sb_label("/ %d" % Game.win_kills(), 15, SB_MUTED, 0, true))
+		head.add_child(_sb_label("/ %d" % Game.score_limit(), 15, SB_MUTED, 0, true))
 	v.add_child(head)
 	if score_text != "":
 		# Team progress toward the kill limit, in the team colour.
 		var bar := ProgressBar.new()
 		bar.show_percentage = false
 		bar.custom_minimum_size = Vector2(0, 4)
-		bar.max_value = maxf(float(Game.win_kills()), 1.0)
+		bar.max_value = maxf(float(Game.score_limit()), 1.0)
 		bar.value = float(score_text.to_int())
 		var bg_sb := StyleBoxFlat.new()
 		bg_sb.bg_color = Color(1, 1, 1, 0.08)
@@ -1493,7 +1499,7 @@ func _sb_header(ffa: bool) -> Control:
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(left)
 	var t := int(ceil(Game.get_round_time_left()))
-	var goal := "first to %d" % Game.win_kills() if ffa else "%d kills wins" % Game.win_kills()
+	var goal := "first to %d %s" % [Game.score_limit(), Game.score_word()] if ffa else "%d %s wins" % [Game.score_limit(), Game.score_word()]
 	h.add_child(_sb_label("%s  ·  %d:%02d" % [goal, t / 60, t % 60], 15, SB_MUTED, 0, true))
 	v.add_child(h)
 	var rule := ColorRect.new()
@@ -1530,7 +1536,7 @@ func _refresh_scoreboard() -> void:
 		for team_id in [Game.TEAM_A, Game.TEAM_B]:
 			var rows := _scores.filter(func(e: Dictionary) -> bool: return int(e.get("team", 0)) == team_id)
 			teams.add_child(_sb_panel(
-				Game.TEAM_NAMES[team_id], str(Game.get_team_kills(team_id)), Player.team_color(team_id), rows, false
+				Game.TEAM_NAMES[team_id], str(Game.team_score(team_id)), Player.team_color(team_id), rows, false
 			))
 		body.add_child(teams)
 	scoreboard_container.add_child(backdrop)

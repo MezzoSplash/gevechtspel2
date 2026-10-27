@@ -220,7 +220,7 @@ func _on_choice_changed() -> void:
 
 func set_match_choice(map_id: StringName, mode: int) -> void:
 	var mi := maxi(Maps.ORDER.find(map_id), 0)
-	var mo := clampi(mode, Game.MODE_TDM, Game.MODE_FFA)
+	var mo := clampi(mode, Game.MODE_TDM, Game.MODE_LAST)
 	_filling_match = true
 	for o in _map_opts:
 		o.select(mi)
@@ -234,7 +234,18 @@ func set_match_choice(map_id: StringName, mode: int) -> void:
 		b.set_value_no_signal(Game.last_bots)
 	_filling_match = false
 	_refresh_match_blurb(mi, mo)
-	$Center/Solo/TeamRow.visible = mo != Game.MODE_FFA
+	$Center/Solo/TeamRow.visible = not Game.is_ffa(mo)
+	_refresh_limit_labels(mo)
+
+
+## #82: style modes reuse the Kills box as the style limit in hundreds (30 → 3000 style).
+func _refresh_limit_labels(mo: int) -> void:
+	var style := Game.is_style_mode(mo)
+	for b in _kill_boxes:
+		b.suffix = "×100 style" if style else ""
+		var row := b.get_parent()
+		if row and row.get_child_count() > 0 and row.get_child(0) is Label:
+			(row.get_child(0) as Label).text = "Style" if style else "Kills"
 
 
 func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
@@ -244,6 +255,8 @@ func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
 		mo = selected_mode()
 	var info := Maps.info(Maps.ORDER[mi])
 	var rule := "first to %d kills" % selected_kills()
+	if Game.is_style_mode(mo):
+		rule = "first to %d style" % (selected_kills() * Game.STYLE_UNIT)
 	for b in _map_blurbs:
 		b.text = "%s\n%s · %s or %d min · %d bots" % [
 			info.blurb, Game.mode_name(mo), rule, selected_time_min(), selected_bots()
@@ -259,7 +272,7 @@ func selected_map() -> StringName:
 func selected_mode() -> int:
 	if _mode_opts.is_empty():
 		return Game.MODE_TDM
-	return clampi(_mode_opts[0].selected, Game.MODE_TDM, Game.MODE_FFA)
+	return clampi(_mode_opts[0].selected, Game.MODE_TDM, Game.MODE_LAST)
 
 
 func selected_kills() -> int:
@@ -283,10 +296,10 @@ func selected_bots() -> int:
 ## Lobby header: what the server runs. FFA: one player list, no team buttons.
 func set_lobby_match_info(map_id: StringName, mode: int) -> void:
 	if _lobby_info:
-		_lobby_info.text = "%s  ·  %s  ·  first to %d  ·  %d min" % [
-			Maps.display_name(map_id), Game.mode_name(mode), Game.win_kills(), int(Game.round_time / 60.0)
+		_lobby_info.text = "%s  ·  %s  ·  first to %d %s  ·  %d min" % [
+			Maps.display_name(map_id), Game.mode_name(mode), Game.score_limit(), Game.score_word(), int(Game.round_time / 60.0)
 		]
-	var ffa := mode == Game.MODE_FFA
+	var ffa := Game.is_ffa(mode)
 	$Center/Lobby/TeamRow.visible = not ffa
 	$Center/Lobby/Teams/OrangeCol.visible = not ffa
 	var head := $Center/Lobby/Teams/BlueCol/Head as Label
