@@ -30,8 +30,15 @@ const TEAM_NAMES := ["BLUE", "ORANGE"]
 ## Match modes. Team ids stay in FFA (bot fill/balancing), but nobody is a teammate: use is_enemy().
 const MODE_TDM := 0
 const MODE_FFA := 1
-const MODE_IDS := ["tdm", "ffa"]
-const MODE_NAMES := ["Team Deathmatch", "Free For All"]
+const MODE_STYLE_TDM := 2 # #82: same teams as TDM, but the team with the most style points wins
+const MODE_STYLE_FFA := 3 # #82: FFA where the player with the most style points wins
+const MODE_LAST := MODE_STYLE_FFA
+const MODE_IDS := ["tdm", "ffa", "style-tdm", "style-ffa"]
+const MODE_NAMES := ["Team Deathmatch", "Free For All", "Style Team Deathmatch", "Style Free For All"]
+## Style modes reuse kill_limit as the score limit in units of STYLE_UNIT points (30 → 3000).
+const STYLE_UNIT := 100
+const STYLE_TDM_LIMIT := 30
+const STYLE_FFA_LIMIT := 20
 const FFA_WIN_KILLS := 20
 const KILLS_MIN := 5
 const KILLS_MAX := 50
@@ -76,7 +83,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.3.13" # death report carries the killer's weapon: a 0.3.12 peer must be refused
+const NET_VERSION := "0.3.14-dev" # move_fx/walljumps synced, style modes: a 0.3.13 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -254,8 +261,42 @@ func player_for_peer(peer_id: int) -> Player:
 	return null
 
 
-func is_ffa() -> bool:
-	return mode == MODE_FFA
+func is_ffa(m: int = -1) -> bool:
+	var mm := mode if m < 0 else m
+	return mm == MODE_FFA or mm == MODE_STYLE_FFA
+
+
+## #82: style points, not kills, decide the round.
+func is_style_mode(m: int = -1) -> bool:
+	var mm := mode if m < 0 else m
+	return mm == MODE_STYLE_TDM or mm == MODE_STYLE_FFA
+
+
+## Points needed to win: kills, or style points in style modes.
+func score_limit() -> int:
+	return kill_limit * STYLE_UNIT if is_style_mode() else kill_limit
+
+
+## "kills" or "style" (HUD, scoreboard, menu blurbs).
+func score_word() -> String:
+	return "style" if is_style_mode() else "kills"
+
+
+## What counts for a team: kills, or the summed style of its members in style modes.
+func team_score(team_id: int) -> int:
+	if not is_style_mode():
+		return get_team_kills(team_id)
+	var sum := 0
+	for id in scores:
+		if int(scores[id].get("team", 0)) == team_id:
+			sum += int(scores[id].get("style", 0))
+	return sum
+
+
+func player_score(peer_id: int) -> int:
+	if not scores.has(peer_id):
+		return 0
+	return int(scores[peer_id].get("style" if is_style_mode() else "kills", 0))
 
 
 func mode_name(m: int = -1) -> String:
@@ -265,6 +306,10 @@ func mode_name(m: int = -1) -> String:
 ## "ffa", "FFA", "free" or "2" → MODE_FFA. Unknown → -1.
 static func parse_mode(raw: String) -> int:
 	var s := raw.strip_edges().to_lower()
+	if s in ["style-tdm", "style_tdm", "styletdm", "style", "style-team", "3"]:
+		return MODE_STYLE_TDM
+	if s in ["style-ffa", "style_ffa", "styleffa", "4"]:
+		return MODE_STYLE_FFA
 	if s in ["tdm", "team", "teams", "team_deathmatch", "1"]:
 		return MODE_TDM
 	if s in ["ffa", "free", "freeforall", "free_for_all", "dm", "2"]:
@@ -277,7 +322,10 @@ func win_kills() -> int:
 
 
 func default_kills_for(m: int = -1) -> int:
-	return FFA_WIN_KILLS if (mode if m < 0 else m) == MODE_FFA else WIN_KILLS
+	var mm := mode if m < 0 else m
+	if is_style_mode(mm):
+		return STYLE_FFA_LIMIT if is_ffa(mm) else STYLE_TDM_LIMIT
+	return FFA_WIN_KILLS if is_ffa(mm) else WIN_KILLS
 
 
 ## Hostility for damage, bots, tags, and colours. FFA: everyone but yourself.
@@ -306,7 +354,7 @@ func sync_match_config(new_map: String, new_mode: int, kills: int = 0, time_sec:
 
 func set_match_config(new_map: StringName, new_mode: int, kills: int = -1, time_sec: float = -1.0, bots: int = -1) -> void:
 	map_id = new_map if Maps.has(new_map) else Maps.DEFAULT
-	mode = clampi(new_mode, MODE_TDM, MODE_FFA)
+	mode = clampi(new_mode, MODE_TDM, MODE_LAST)
 	kill_limit = clampi(kills if kills >= KILLS_MIN else last_kills, KILLS_MIN, KILLS_MAX)
 	round_time = time_sec if time_sec >= 60.0 else float(last_time_min * 60)
 	round_time = clampf(round_time, float(TIME_MIN_MINUTES * 60), float(TIME_MAX_MINUTES * 60))
@@ -1242,11 +1290,13 @@ func register_kill(
 		"k": killer_peer_id, "v": victim_peer_id, "kn": killer_name, "vn": victim_name,
 		"kt": team_id, "vt": victim_team, "w": String(weapon_id), "hs": headshot, "tags": tag,
 	}
+	if _round_active:
+		final_kill = kill_info # before the style award: a style-mode winning trick ends the round there
 	if not tricks.is_empty():
 		_award_style(kill_info, tricks)
-	if _round_active:
-		final_kill = kill_info
-	if is_ffa():
+	if is_style_mode():
+		pass # style modes end on style points (_check_style_win), never on kills
+	elif is_ffa():
 		_check_win_player(killer_peer_id)
 	else:
 		_check_win_team(team_id)
@@ -1637,6 +1687,10 @@ func _detect_tricks(
 		"since_draw": since_draw,
 		"quickdraw_slack": Style.QUICKDRAW_NET_SLACK if remote else 0.0,
 		"knife_air": bool(_shot_ctx.get("knife_air", false)),
+		"wallrun": shooter.style_wallrun(),
+		"walljump": shooter.style_walljump(),
+		"dive": shooter.style_dive(),
+		"roll": shooter.style_roll(),
 	})
 
 
@@ -1701,6 +1755,8 @@ func _apply_trick(
 	if is_best and killcam:
 		killcam.note_trick(trick_id, victim_peer_id)
 	trick_scored.emit(killer_peer_id, tricks, points, multiplier, total)
+	if _is_match_authority():
+		_check_style_win(killer_peer_id)
 	if scores.has(killer_peer_id):
 		score_changed.emit(killer_peer_id, int(scores[killer_peer_id].kills), str(scores[killer_peer_id].name))
 
@@ -1784,6 +1840,19 @@ func _check_win_team(team_id: int) -> void:
 		return
 	if get_team_kills(team_id) >= win_kills():
 		_end_round_team(team_id)
+
+
+## #82: in style modes the first team (TDM) or player (FFA) to score_limit() style points wins.
+func _check_style_win(peer_id: int) -> void:
+	if not is_style_mode() or not _round_active or not scores.has(peer_id):
+		return
+	if is_ffa():
+		if player_score(peer_id) >= score_limit():
+			_end_round_player(peer_id)
+		return
+	var t := int(scores[peer_id].get("team", 0))
+	if team_score(t) >= score_limit():
+		_end_round_team(t)
 
 
 ## FFA: first player to kill_limit wins the round.
@@ -1958,10 +2027,10 @@ func stop_tension() -> void:
 ## Highest kill count that counts toward the limit: the leading team (TDM) or player (FFA).
 func leader_kills() -> int:
 	if not is_ffa():
-		return maxi(get_team_kills(TEAM_A), get_team_kills(TEAM_B))
+		return maxi(team_score(TEAM_A), team_score(TEAM_B))
 	var best := 0
 	for id in scores:
-		best = maxi(best, int(scores[id].get("kills", 0)))
+		best = maxi(best, player_score(id))
 	return best
 
 
@@ -1978,7 +2047,7 @@ func _tick_tension() -> void:
 	if _round_timer >= TENSION_START_LEN and _tension.playing and _tension.stream == _tension_start_stream:
 		stop_tension() # the build-up only covers the countdown and the first seconds of the round
 	var close_time := get_round_time_left() <= TENSION_TIME_LEFT
-	var close_kills := win_kills() - leader_kills() <= TENSION_KILLS_LEFT
+	var close_kills := score_limit() - leader_kills() <= TENSION_KILLS_LEFT * (STYLE_UNIT if is_style_mode() else 1)
 	if close_time or close_kills:
 		play_tension(true)
 
@@ -2130,7 +2199,7 @@ func update_round_timer(delta: float) -> bool:
 
 
 func _get_leader() -> int:
-	if get_team_kills(TEAM_A) >= get_team_kills(TEAM_B):
+	if team_score(TEAM_A) >= team_score(TEAM_B):
 		return TEAM_A
 	return TEAM_B
 
@@ -2138,7 +2207,7 @@ func _get_leader() -> int:
 ## FFA leader: most kills; a tie goes to the name that sorts first (same order as the board).
 func top_player() -> int:
 	var board := get_scores()
-	if board.is_empty() or int(board[0].kills) <= 0:
+	if board.is_empty() or int(board[0].get(score_word(), 0)) <= 0:
 		return 0
 	return int(board[0].peer_id)
 
@@ -2166,9 +2235,12 @@ func get_scores() -> Array[Dictionary]:
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
 	if not is_ffa() and int(a.get("team", 0)) != int(b.get("team", 0)):
 		return int(a.team) < int(b.team)
-	if a.kills == b.kills:
+	var key := score_word()
+	if int(a.get(key, 0)) == int(b.get(key, 0)):
+		if key == "style" and a.kills != b.kills:
+			return a.kills > b.kills
 		return str(a.name) < str(b.name)
-	return a.kills > b.kills
+	return int(a.get(key, 0)) > int(b.get(key, 0))
 
 
 func get_round_time_left() -> float:
@@ -2309,6 +2381,21 @@ func _decay_line_clocks(delta: float) -> void:
 			gone.append(int(id))
 	for id in gone:
 		_line_chain.erase(id)
+
+
+## #80: a movement trick that is not a kill (WALL TO WALL). Same wire as LINE.
+func award_move_trick(peer_id: int, trick: StringName) -> void:
+	if not _is_match_authority() or not _round_active or not scores.has(peer_id):
+		return
+	var pts := int(Style.POINTS.get(trick, 0))
+	if pts <= 0:
+		return
+	var total := pts + int(scores[peer_id].get("style", 0))
+	_trick_seq += 1
+	var packed := Style.pack([trick])
+	_apply_trick(peer_id, 0, packed, pts, 1.0, total, _trick_seq, false)
+	if is_networked() and multiplayer.is_server():
+		sync_trick.rpc(peer_id, 0, packed, pts, 1.0, total, _trick_seq, false)
 
 
 ## Same wire as a trickshot, without the kill chain and without touching best_trick.
@@ -2583,7 +2670,7 @@ func load_settings() -> void:
 		invert_y = bool(cfg.get_value("input", "invert_y", false))
 		var m := StringName(str(cfg.get_value("match", "map", String(Maps.DEFAULT))))
 		last_map = m if Maps.has(m) else Maps.DEFAULT
-		last_mode = clampi(int(cfg.get_value("match", "mode", MODE_TDM)), MODE_TDM, MODE_FFA)
+		last_mode = clampi(int(cfg.get_value("match", "mode", MODE_TDM)), MODE_TDM, MODE_LAST)
 		last_kills = clampi(int(cfg.get_value("match", "kills", default_kills_for(last_mode))), KILLS_MIN, KILLS_MAX)
 		last_time_min = clampi(int(cfg.get_value("match", "time_min", 10)), TIME_MIN_MINUTES, TIME_MAX_MINUTES)
 		last_bots = clampi(int(cfg.get_value("match", "bots", BOT_COUNT_DEFAULT)), 0, BOT_COUNT_MAX)

@@ -133,6 +133,52 @@ var _surf_t := 0.0
 var _kb_t := 0.0 # seconds of blast-push left: ground friction is low so the push carries
 const KB_TIME := 0.45
 const KB_FRICTION := 1.2 # ground friction while pushed (normal is Quake-style, much higher)
+# --- Wallrun + wall jump (#80, Tony Hawk style) ---
+# In the air, holding sprint and forward, touching a near-vertical wall while moving along it fast:
+# glide along it for up to WALLRUN_TIME while slowly sinking. The same wall cannot be run again until
+# you touch the ground or another wall; jump kicks you off it. At most WALLRUN_PER_AIR runs per jump.
+const WALLRUN_TIME := 1.25
+const WALLRUN_MIN_SPEED := 6.5 # m/s along the wall to start (sprint is 11.4, walk 7.6)
+const WALLRUN_KEEP_SPEED := 3.5 # slower than this along the wall: drop off
+const WALLRUN_SINK_START := 0.4 # m/s down at the start ...
+const WALLRUN_SINK_END := 3.2 # ... and at the end of the run
+const WALLRUN_RISE_DAMP := 18.0 # m/s² that bleeds a jump's upward speed into the run
+const WALLRUN_MAX_NY := SURF_MIN_NORMAL_Y # flatter than this is a wall; surf ramps (0.05..0.7) never wallrun
+const WALLRUN_PROBE := 0.75 # m from the body centre (capsule radius 0.4)
+const WALLRUN_PER_AIR := 3
+const WALLRUN_COYOTE := 0.15 # s after leaving the wall that a jump is still a wall jump
+const WALLJUMP_PUSH := 6.5 # m/s away from the wall
+const WALLJUMP_UP := 7.0
+const WALLRUN_TILT := 0.16 # rad camera roll away from the wall
+# --- Dive + roll (#81) ---
+# Jump out of a slide (sprint + crouch, then jump) or press crouch in the air while holding sprint:
+# a low forward dive. Landing from it rolls you forward without losing speed, then carry keeps it.
+const DIVE_BOOST := 2.5
+const DIVE_MAX := 15.0 # horizontal cap at the dive start (AIR_MAX_SPEED is 13.5, CARRY_MAX 18)
+const DIVE_UP_GROUND := 4.8
+const DIVE_UP_AIR := 2.0
+const DIVE_MIN_SPEED := 6.0
+const ROLL_TIME := 0.55
+const ROLL_FRICTION := 0.25
+const ROLL_CARRY := 1.5 # s of surf-style carry after the roll, so the speed survives it
+const MOVE_NONE := 0
+const MOVE_WALLRUN := 1
+const MOVE_DIVE := 2
+const MOVE_ROLL := 3
+## Synced from the owner: what the pawn is doing (style tricks on the server, remote visuals).
+@export var move_fx := MOVE_NONE
+## Synced from the owner: +1 on every wall jump (the server sees the change: WALL JUMP KILL).
+@export var walljumps := 0
+var _wallrunning := false
+var _wall_n := Vector3.ZERO
+var _wall_key := "" # collider id + face of the current / last wall
+var _wallrun_t := 0.0
+var _wall_off_t := 10.0 # s since the last wallrun frame (coyote wall jump)
+var _wallruns_air := 0
+var _diving := false
+var _dive_used := false # one dive per air time
+var _roll_t := 0.0
+var _roll_dir := Vector3.FORWARD
 var _carry_t := 0.0 # seconds of surf-speed retention left (local sim only)
 var _was_surfing := false
 var _strip_cd: Dictionary = {} # strip name -> seconds until this pawn can take it again
@@ -152,6 +198,11 @@ var _surf_seen_t := -100.0 # last _style_clock with a steep ramp beside or under
 var _style_last_pos := Vector3.INF # teleports (respawn, admin moves) never count as a fall
 var _run_t := 0.0 # s above Style.RUN_GUN_SPEED without stopping (RUN & GUN)
 var _run_low_t := 0.0 # s below it since the last fast tick: past RUN_GUN_GRACE the run is over
+var _wallrun_seen_t := -100.0 # match authority: last _style_clock with move_fx == MOVE_WALLRUN
+var _walljump_seen_t := -100.0
+var _walljumps_seen := -1
+var _dive_seen_t := -100.0
+var _roll_seen_t := -100.0
 const STYLE_KEEP := 1.5
 const STYLE_RAMP_REACH := 1.0 # m from the body centre (capsule radius ~0.45, plus slack)
 const STYLE_TELEPORT_M := 3.0 # one tick moving further than this is a teleport (snapshots move < 1 m)
@@ -695,6 +746,7 @@ func _physics_process(delta: float) -> void:
 		velocity.z = 0.0
 	var on_floor := is_on_floor()
 	_try_start_slide(on_floor, chatting)
+	_try_air_dive(on_floor, chatting)
 	_update_stance(delta, on_floor)
 
 	_jump_buffer = maxf(_jump_buffer - delta, 0.0)
@@ -704,8 +756,17 @@ func _physics_process(delta: float) -> void:
 	if not on_floor:
 		velocity.y += float(get_gravity().y) * delta
 		_sliding = false
+		if (_wallrunning or _wall_off_t <= WALLRUN_COYOTE) and (not is_dead) and (not chatting) and _jump_buffer > 0.0:
+			_wall_jump()
+			_jump_buffer = 0.0
+	elif (not is_dead) and (not chatting) and _jump_buffer > 0.0 and _sliding:
+		_sliding = false
+		_start_dive(true) # sprint + crouch (slide), then jump: dive
+		jumped = true
+		_jump_buffer = 0.0
 	elif (not is_dead) and (not chatting) and _jump_buffer > 0.0:
 		_sliding = false
+		_roll_t = 0.0
 		if crouch > 0.2:
 			if not _ceiling_blocked():
 				crouch = 0.0
@@ -755,14 +816,23 @@ func _physics_process(delta: float) -> void:
 		horiz = _friction_amount(horiz, delta, carry_friction)
 		if not _sliding:
 			horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL, delta)
+	elif _roll_t > 0.0:
+		horiz = _friction_amount(horiz, delta, ROLL_FRICTION) # the roll keeps the dive's speed
 	elif _sliding:
 		horiz = _friction_amount(horiz, delta, SLIDE_FRICTION)
 	else:
 		horiz = _friction(horiz, delta)
 		horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL, delta)
 
+	if _wallrunning:
+		horiz = _wallrun_horiz(horiz, wish, delta)
 	velocity.x = horiz.x
 	velocity.z = horiz.z
+	if _wallrunning:
+		var sink := lerpf(WALLRUN_SINK_START, WALLRUN_SINK_END, clampf(_wallrun_t / WALLRUN_TIME, 0.0, 1.0))
+		# Gravity was added above; the wall replaces it. A jump's rise bleeds off instead of snapping.
+		var vy := velocity.y - float(get_gravity().y) * delta
+		velocity.y = move_toward(vy, -sink, WALLRUN_RISE_DAMP * delta) if vy > -sink else -sink
 	_surf_t = maxf(_surf_t - delta, 0.0)
 	if not on_floor and _surf_t > 0.0:
 		velocity = clip_to_plane(velocity, _surf_normal)
@@ -782,6 +852,9 @@ func _physics_process(delta: float) -> void:
 	_boost_through_strips()
 	_apply_carry_fov()
 	_finish_slide()
+	_tick_wallrun(delta, input_vec, chatting)
+	_tick_dive_roll(delta)
+	_tick_move_fx(delta)
 	_tick_feet(delta)
 	_tick_step_view(delta)
 
@@ -977,7 +1050,7 @@ func _finish_slide() -> void:
 
 
 func _update_stance(delta: float, _on_floor: bool) -> void:
-	var want := _sliding or ((not is_dead) and (not Game.chat_open) and (not Game.rc_view) and Input.is_action_pressed("crouch"))
+	var want := _sliding or _diving or _roll_t > 0.0 or ((not is_dead) and (not Game.chat_open) and (not Game.rc_view) and Input.is_action_pressed("crouch"))
 	if (not want) and crouch > 0.05 and _ceiling_blocked():
 		want = true
 	var target := 1.0 if want else 0.0
@@ -1210,6 +1283,18 @@ func _tick_style_track(delta: float) -> void:
 		air_time = 0.0
 		_style_in_air = false
 		return
+	if move_fx == MOVE_WALLRUN:
+		if _style_clock - _wallrun_seen_t > Style.MOVE_RECENT and _style_clock - _walljump_seen_t <= Style.WALL_TO_WALL_WINDOW:
+			Game.award_move_trick(peer_id, Style.WALL_TO_WALL)
+		_wallrun_seen_t = _style_clock
+	elif move_fx == MOVE_DIVE:
+		_dive_seen_t = _style_clock
+	elif move_fx == MOVE_ROLL:
+		_roll_seen_t = _style_clock
+	if walljumps != _walljumps_seen:
+		if _walljumps_seen >= 0:
+			_walljump_seen_t = _style_clock
+		_walljumps_seen = walljumps
 	if global_position.distance_to(_style_last_pos) > STYLE_TELEPORT_M:
 		_style_in_air = false
 		_landed_drop = 0.0
@@ -1273,6 +1358,24 @@ func _ramp_beside() -> bool:
 	return false
 
 
+## Match authority (#80/#81): movement the server saw on this pawn just now (synced move_fx/walljumps).
+func style_wallrun() -> bool:
+	return _style_clock - _wallrun_seen_t <= Style.MOVE_RECENT
+
+
+## A wall jump within WALLJUMP_RECENT, still in the air from it.
+func style_walljump() -> bool:
+	return _style_clock - _walljump_seen_t <= Style.WALLJUMP_RECENT and (_style_in_air or move_fx == MOVE_WALLRUN)
+
+
+func style_dive() -> bool:
+	return _style_clock - _dive_seen_t <= Style.MOVE_RECENT
+
+
+func style_roll() -> bool:
+	return _style_clock - _roll_seen_t <= Style.ROLL_RECENT
+
+
 ## Match authority: surfing right now (or within Style.SURF_RECENT).
 func style_surfing() -> bool:
 	return _style_in_air and _style_clock - _surf_seen_t <= Style.SURF_RECENT
@@ -1308,6 +1411,22 @@ func _reset_style_track() -> void:
 	_strip_cd.clear()
 	_strip_prev = Vector3.INF
 	_jump_buffer = 0.0
+	_wallrunning = false
+	_wall_key = ""
+	_wall_off_t = 10.0
+	_wallruns_air = 0
+	_diving = false
+	_dive_used = false
+	_roll_t = 0.0
+	move_fx = MOVE_NONE
+	_wallrun_seen_t = -100.0
+	_walljump_seen_t = -100.0
+	_dive_seen_t = -100.0
+	_roll_seen_t = -100.0
+	_walljumps_seen = walljumps
+	if camera:
+		camera.move_pitch = 0.0
+		camera.move_roll = 0.0
 
 
 func _accelerate(vel: Vector3, wish: Vector3, wish_speed: float, accel: float, delta: float) -> Vector3:
@@ -1320,3 +1439,205 @@ func _accelerate(vel: Vector3, wish: Vector3, wish_speed: float, accel: float, d
 		return vel
 	var acc := minf(accel * wish_speed * delta, add)
 	return vel + wish_dir * acc
+
+
+# ---------------------------------------------------------------------------------------------
+# Wallrun + wall jump (#80)
+
+
+func is_wallrunning() -> bool:
+	return _wallrunning
+
+
+## Along the wall only, never slower than WALLRUN_KEEP_SPEED while it lasts; a little steering.
+func _wallrun_horiz(horiz: Vector3, wish: Vector3, delta: float) -> Vector3:
+	var n := Vector3(_wall_n.x, 0.0, _wall_n.z).normalized()
+	var along := horiz - n * horiz.dot(n)
+	if wish.length_squared() > 0.01:
+		var wdir := wish - n * wish.dot(n)
+		if wdir.length_squared() > 0.0001:
+			along = _accelerate(along, wdir.normalized(), maxf(along.length(), SPRINT_SPEED), GROUND_ACCEL * 0.25, delta)
+	return along - n * 0.6 # lean in a little so move_and_slide keeps touching the wall
+
+
+## A near-vertical wall beside us: contact from move_and_slide, else a short probe left/right.
+func _find_wall() -> Dictionary:
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		var n := c.get_normal()
+		if absf(n.y) < WALLRUN_MAX_NY:
+			return {"n": n, "key": "%d:%s" % [c.get_collider_id(), str(n.snapped(Vector3(0.25, 0.25, 0.25)))]}
+	var horiz := Vector3(velocity.x, 0.0, velocity.z)
+	if horiz.length_squared() < 1.0:
+		return {}
+	var side := horiz.normalized().cross(Vector3.UP)
+	var space := get_world_3d().direct_space_state
+	var from := global_position + Vector3(0.0, 0.9, 0.0)
+	var dirs: Array[Vector3] = [side, -side]
+	if _wallrunning:
+		dirs = [-Vector3(_wall_n.x, 0.0, _wall_n.z).normalized()]
+	for d in dirs:
+		var q := PhysicsRayQueryParameters3D.create(from, from + d * WALLRUN_PROBE)
+		q.collision_mask = 1
+		q.exclude = [get_rid()]
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			continue
+		var n: Vector3 = hit.normal
+		if absf(n.y) < WALLRUN_MAX_NY:
+			return {"n": n, "key": "%d:%s" % [int(hit.collider_id), str(n.snapped(Vector3(0.25, 0.25, 0.25)))]}
+	return {}
+
+
+func _tick_wallrun(delta: float, input_vec: Vector2, locked: bool) -> void:
+	var on_floor := is_on_floor()
+	if on_floor:
+		_wall_key = "" # the ground resets every wall
+		_wallruns_air = 0
+		if _wallrunning:
+			_end_wallrun()
+		_wall_off_t = 10.0
+		return
+	if _wallrunning:
+		_wallrun_t += delta
+		_wall_off_t = 0.0
+		var w := _find_wall()
+		var along := Vector3(velocity.x, 0.0, velocity.z).length()
+		var drop := (not Input.is_action_pressed("sprint")) or Input.is_action_pressed("crouch")
+		if w.is_empty() or _wallrun_t >= WALLRUN_TIME or along < WALLRUN_KEEP_SPEED or drop or is_dead or locked:
+			_end_wallrun()
+		else:
+			_wall_n = w.n
+		return
+	_wall_off_t += delta
+	if is_dead or locked or is_bot or _surf_t > 0.0 or _diving or _wallruns_air >= WALLRUN_PER_AIR:
+		return
+	if not Input.is_action_pressed("sprint") or input_vec.y > -0.3:
+		return
+	var w := _find_wall()
+	if w.is_empty() or str(w.key) == _wall_key:
+		return
+	var n: Vector3 = w.n
+	var horiz := Vector3(velocity.x, 0.0, velocity.z)
+	var along := horiz - Vector3(n.x, 0.0, n.z).normalized() * horiz.dot(Vector3(n.x, 0.0, n.z).normalized())
+	if along.length() < WALLRUN_MIN_SPEED:
+		return
+	_wallrunning = true
+	_wall_n = n
+	_wall_key = str(w.key)
+	_wallrun_t = 0.0
+	_wall_off_t = 0.0
+	_wallruns_air += 1
+	_sliding = false
+
+
+func _end_wallrun() -> void:
+	_wallrunning = false
+	_wall_off_t = 0.0
+
+
+## Off the wall: away from it, up, and along it with the speed you had. The wall stays "used".
+func _wall_jump() -> void:
+	var n := Vector3(_wall_n.x, 0.0, _wall_n.z).normalized()
+	if n.length_squared() < 0.5:
+		return
+	var horiz := Vector3(velocity.x, 0.0, velocity.z)
+	var along := horiz - n * horiz.dot(n)
+	horiz = along + n * WALLJUMP_PUSH
+	velocity.x = horiz.x
+	velocity.z = horiz.z
+	velocity.y = WALLJUMP_UP
+	_wallrunning = false
+	_wall_off_t = 10.0
+	_dive_used = false # a wall jump earns a fresh dive
+	walljumps += 1
+	if land_sfx:
+		land_sfx.play()
+
+
+# ---------------------------------------------------------------------------------------------
+# Dive + roll (#81)
+
+
+func is_diving() -> bool:
+	return _diving
+
+
+func is_rolling() -> bool:
+	return _roll_t > 0.0
+
+
+## In the air: crouch pressed while holding sprint and moving. On the ground the slide jump does it.
+func _try_air_dive(on_floor: bool, locked: bool) -> void:
+	if on_floor or locked or is_dead or is_bot or _diving or _dive_used or _wallrunning or _surf_t > 0.0:
+		return
+	if not Input.is_action_just_pressed("crouch") or not Input.is_action_pressed("sprint"):
+		return
+	if Vector2(velocity.x, velocity.z).length() < DIVE_MIN_SPEED:
+		return
+	_start_dive(false)
+
+
+func _start_dive(from_ground: bool) -> void:
+	var dir := Vector3(velocity.x, 0.0, velocity.z)
+	if dir.length_squared() < 0.04:
+		dir = -transform.basis.z
+	dir = dir.normalized()
+	var speed := minf(maxf(Vector2(velocity.x, velocity.z).length(), SPRINT_SPEED) + DIVE_BOOST, DIVE_MAX)
+	velocity.x = dir.x * speed
+	velocity.z = dir.z * speed
+	velocity.y = DIVE_UP_GROUND if from_ground else maxf(velocity.y, DIVE_UP_AIR)
+	_diving = true
+	_dive_used = true
+	_roll_dir = dir
+	crouch = 1.0
+	_apply_stance()
+	if slide_sfx:
+		slide_sfx.play()
+
+
+func _tick_dive_roll(delta: float) -> void:
+	if _roll_t > 0.0:
+		_roll_t = maxf(_roll_t - delta, 0.0)
+		if _roll_t <= 0.0 and is_on_floor():
+			_carry_t = maxf(_carry_t, ROLL_CARRY)
+	if is_on_floor():
+		_dive_used = false
+		if _diving:
+			_diving = false
+			_roll_t = ROLL_TIME
+			if land_sfx:
+				land_sfx.play()
+			if camera:
+				camera.add_shake(2.5, 0.0, 4.0)
+	elif _diving and (_surf_t > 0.0 or _wallrunning or is_dead):
+		_diving = false
+
+
+## Synced state + the camera: tilt away from the wall, a forward flip while rolling.
+func _tick_move_fx(delta: float) -> void:
+	if _wallrunning:
+		move_fx = MOVE_WALLRUN
+	elif _diving:
+		move_fx = MOVE_DIVE
+	elif _roll_t > 0.0:
+		move_fx = MOVE_ROLL
+	else:
+		move_fx = MOVE_NONE
+	if camera == null:
+		return
+	var roll_target := 0.0
+	if _wallrunning:
+		var right := transform.basis.x
+		roll_target = -signf(right.dot(_wall_n)) * WALLRUN_TILT * Game.shake_scale()
+	camera.move_roll = lerpf(camera.move_roll, roll_target, 1.0 - exp(-10.0 * delta))
+	if _roll_t > 0.0:
+		var p := 1.0 - _roll_t / ROLL_TIME
+		if Game.shake_scale() >= 0.5:
+			camera.move_pitch = -TAU * ease(p, -1.8) # full forward flip
+		else:
+			camera.move_pitch = -deg_to_rad(25.0) * sin(p * PI) # reduced motion: a dip
+	elif _diving:
+		camera.move_pitch = lerpf(camera.move_pitch, -0.12, 1.0 - exp(-8.0 * delta))
+	else:
+		camera.move_pitch = lerpf(wrapf(camera.move_pitch, -PI, PI), 0.0, 1.0 - exp(-14.0 * delta))

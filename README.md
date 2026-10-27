@@ -41,6 +41,8 @@ All keys can be changed in **Settings**.
 | --- | --- |
 | Move / jump | **WASD** / **Space** |
 | Sprint / crouch (crouch while sprinting to slide) | **Shift** / **Ctrl** or **C** |
+| Dive (jump out of a slide, or crouch in the air while sprinting); you roll on landing | **Shift** + **Ctrl**, then **Space** |
+| Wallrun: hold sprint + forward in the air along a wall; jump to wall jump | **Shift** + **W** |
 | Fire / aim or scope | **Left mouse** / **Right mouse** |
 | Reload | **R** |
 | Switch weapon | **Q**, or **1**–**4** |
@@ -65,8 +67,9 @@ The server runs headless with `run-server.sh` (the first argument is the port):
 | --- | --- |
 | `--port` | game port, default `7777` |
 | `--map` | `townhouses`, `foundry`, `rooftops`, `quay`, `skyline` |
-| `--mode` | `tdm` or `ffa` |
-| `--kills` | 5–50 |
+| `--mode` | `tdm`, `ffa`, `style-tdm` or `style-ffa` (most style points wins) |
+| `--kills` | 5–50 (style modes: limit in hundreds of style points, 30 = 3000) |
+| `--style` | style limit in points for style modes, 500–5000 |
 | `--time` | round length in minutes, 1–20 |
 | `--bots` | 0–16 |
 

@@ -76,6 +76,12 @@ properties/2/replication_mode = 2
 properties/3/path = NodePath(".:crouch")
 properties/3/spawn = true
 properties/3/replication_mode = 1
+properties/4/path = NodePath(".:move_fx")
+properties/4/spawn = true
+properties/4/replication_mode = 2
+properties/5/path = NodePath(".:walljumps")
+properties/5/spawn = true
+properties/5/replication_mode = 2
 
 [node name="Player" type="CharacterBody3D"]
 collision_layer = 2

@@ -16,7 +16,7 @@ func _ready() -> void:
 	fails += _check("deaths counted", d2 == 2)
 	Game.sync_all_scores(rows)
 	fails += _check("deaths survive full sync", int(Game.scores[-2].deaths) == 2)
-	fails += _check("NET_VERSION bumped", Game.NET_VERSION == "0.3.13")
+	fails += _check("NET_VERSION bumped", Game.NET_VERSION == "0.3.14-dev")
 	var keep := Game.recent_servers
 	Game.recent_servers = PackedStringArray()
 	for i in 7:
