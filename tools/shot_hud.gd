@@ -30,6 +30,7 @@ func _ready() -> void:
 	hud.set_streak(4, Game.CHARGE_RADAR, Game.CHARGE_RADAR)
 	hud._streak_sel = 0
 	hud._refresh_streak_ui()
+	hud.set_weapon_slots(PackedStringArray(["Slug Shotgun", "Revolver"]))
 	hud.set_weapon_index(0)
 	hud.set_ammo(24, 30)
 	hud.set_grenades(2, 3)

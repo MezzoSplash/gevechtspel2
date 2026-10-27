@@ -188,7 +188,7 @@ var _round_music: AudioStreamPlayer
 const TENSION_TIME_LEFT := 30.0 # seconds left on the round clock
 const TENSION_KILLS_LEFT := 3 # leader (FFA player / TDM team) this close to kill_limit
 const TENSION_FADE := 1.2
-var menu_match := false # main.gd: the menu's background bot match stays quiet
+var menu_match := true # main.gd: the menu's background bot match stays quiet; the game boots into the menu
 var _tension: AudioStreamPlayer
 var _tension_final := false # final cue already started this round
 var _tension_start_stream: AudioStream
@@ -196,7 +196,8 @@ var _tension_final_stream: AudioStream
 var _tension_fade: Tween
 ## Calm loop while the home menu is up (over its silent background bot match). Fades with the menu.
 const MENU_MUSIC_DB := -6.0
-const MENU_FADE := 1.5
+const MENU_FADE := 1.5 # fade out into a match / back in on return
+const MENU_FADE_IN_BOOT := 0.35 # first show of the menu: audible at once
 var _menu_music: AudioStreamPlayer
 var _menu_music_on := false
 var _menu_fade: Tween
@@ -1822,11 +1823,19 @@ func _setup_tension_music() -> void:
 	_menu_music.bus = "Music"
 	_menu_music.stream = menu
 	_menu_music.volume_db = -60.0
+	_menu_music.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_menu_music)
+	# Start now, while main.tscn is still loading, instead of on the first physics tick after it (#62).
+	if not _cli_is_server():
+		_tick_menu_music(true)
+
+
+static func _cli_is_server() -> bool:
+	return OS.get_cmdline_user_args().has("--server")
 
 
 ## In the menu: fade the calm loop in (resumes where it was); in a match: fade it out and pause.
-func _tick_menu_music() -> void:
+func _tick_menu_music(boot := false) -> void:
 	if _menu_music == null or _menu_music.stream == null:
 		return
 	var want := menu_match and not is_dedicated
@@ -1840,7 +1849,9 @@ func _tick_menu_music() -> void:
 		if not _menu_music.playing:
 			_menu_music.play()
 		_menu_music.stream_paused = false
-		_menu_fade.tween_property(_menu_music, "volume_db", MENU_MUSIC_DB, MENU_FADE).from(-40.0)
+		var t := MENU_FADE_IN_BOOT if boot else MENU_FADE * 0.6
+		_menu_fade.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		_menu_fade.tween_property(_menu_music, "volume_db", MENU_MUSIC_DB, t).from(-24.0 if boot else -30.0)
 	else:
 		_menu_fade.tween_property(_menu_music, "volume_db", -60.0, MENU_FADE * 0.6)
 		_menu_fade.tween_callback(func() -> void: _menu_music.stream_paused = true)
@@ -2254,7 +2265,6 @@ func _award_line(peer_id: int, strip_name: String) -> void:
 func _physics_process(delta: float) -> void:
 	_tick_regen(delta)
 	_tick_tension()
-	_tick_menu_music()
 	_tick_lines(delta)
 	if radar_left > 0.0:
 		radar_left = maxf(radar_left - delta, 0.0)
@@ -3191,6 +3201,11 @@ func remove_favorite(address: String) -> void:
 			out.append(e)
 	favorite_servers = out
 	save_settings()
+
+
+## Every frame, not per physics tick: the menu fade must not wait for the first physics step (#62).
+func _process(_delta: float) -> void:
+	_tick_menu_music()
 
 
 ## Quit while a loop plays: stop it so the stream is not leaked at exit.

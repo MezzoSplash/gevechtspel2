@@ -487,6 +487,17 @@ func _paint(rect: ColorRect, bg: Color, accent: Color = Color(0, 0, 0, 0), top: 
 	sb.border_width_top = maxi(w, top)
 
 
+## Shrink a one-line label until it fits `max_w` (SLUG SHOTGUN in a 122 px slot, #58).
+func _fit_label(l: Label, max_w: float, size: int, min_size: int) -> void:
+	var font := l.get_theme_font("font")
+	var fs := size
+	while fs > min_size and font and font.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > max_w:
+		fs -= 1
+	l.add_theme_font_size_override("font_size", fs)
+	l.clip_text = true
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+
+
 func _refresh_weapon_slots() -> void:
 	if _slots.is_empty() or _slots[0] == null:
 		return
@@ -505,6 +516,7 @@ func _refresh_weapon_slots() -> void:
 			key_l.text = str(i + 1)
 		if name_l:
 			name_l.text = _slot_names[i]
+			_fit_label(name_l, slot.custom_minimum_size.x - 14.0, 18, 12)
 			name_l.modulate = Color(1, 0.92, 0.55) if on else Color(0.72, 0.74, 0.78)
 		if ammo_l:
 			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
