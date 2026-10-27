@@ -64,8 +64,13 @@ func _ready() -> void:
 	$Center/Solo/TeamRow/OrangeButton.pressed.connect(func() -> void: set_team(1))
 	_filling_match = true
 	_build_match_rows($Center/Solo, $Center/Solo/TeamRow.get_index())
+	var before := $Center/Mp.get_children()
 	_build_match_rows($Center/Mp, $Center/Mp/HostButton.get_index())
+	for c in $Center/Mp.get_children():
+		if not before.has(c):
+			_host_nodes.append(c)
 	_filling_match = false
+	_build_mp_tabs()
 	_lobby_info = Label.new()
 	_lobby_info.name = "MatchInfo"
 	_lobby_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -352,7 +357,7 @@ func _enter_screen() -> void:
 		elif _screen == "solo":
 			first = $Center/Solo/PlayButton
 		elif _screen == "mp":
-			first = $Center/Mp/HostButton
+			first = $Center/Mp/HostButton if _mp_tab == 0 else $Center/Mp/JoinRow/JoinButton
 		elif _screen == "settings":
 			first = null
 		if first and first.is_visible_in_tree():
@@ -377,6 +382,8 @@ func show_screen(id: String) -> void:
 		solo_name.text = mp_name.text
 	elif id == "mp":
 		mp_name.text = solo_name.text
+		if _mp_tab == 1:
+			refresh_server_list()
 	elif id == "settings" and settings_panel and settings_panel.has_method("refresh"):
 		settings_panel.refresh.call_deferred()
 	if changed or id == "home":
@@ -469,7 +476,7 @@ func refresh_recent_servers() -> void:
 	for e in Game.recent_servers:
 		_recent_pick.add_item(e)
 	_recent_pick.select(0)
-	_recent_pick.visible = Game.recent_servers.size() > 0
+	_recent_pick.visible = Game.recent_servers.size() > 0 and _mp_tab == 1
 
 
 func _on_recent_picked(idx: int) -> void:
@@ -480,6 +487,7 @@ func _on_recent_picked(idx: int) -> void:
 	if cut > 0:
 		set_host_ip(e.substr(0, cut))
 		set_host_port(int(e.substr(cut + 1)))
+		Game.set_last_server(e)
 	_recent_pick.select(0)
 
 
@@ -538,3 +546,223 @@ func refresh_lobby(lobby: Dictionary, is_host: bool) -> void:
 		orange.text = "\n".join(orange_names) if orange_names.size() > 0 else "—"
 	_paint_team_button($Center/Lobby/TeamRow/BlueButton, _team == 0, Color(0.35, 0.55, 0.95))
 	_paint_team_button($Center/Lobby/TeamRow/OrangeButton, _team == 1, Color(0.92, 0.45, 0.28))
+
+
+# --- Multiplayer: Host / Join tabs, saved servers, LAN ---
+
+var _host_nodes: Array[Node] = []
+var _join_nodes: Array[Node] = []
+var _mp_tab := 1
+var _tab_buttons: Array[Button] = []
+var _server_box: VBoxContainer
+var _server_rows := {} # address -> {label: Button, status: Label}
+var _fav_name: LineEdit
+
+
+func _build_mp_tabs() -> void:
+	var mp: VBoxContainer = $Center/Mp
+	var tabs := HBoxContainer.new()
+	tabs.name = "Tabs"
+	tabs.add_theme_constant_override("separation", 8)
+	var group := ButtonGroup.new()
+	for i in 2:
+		var b := Button.new()
+		b.text = "Join game" if i == 1 else "Host game"
+		b.toggle_mode = true
+		b.button_group = group
+		b.custom_minimum_size = Vector2(0, 36)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(func() -> void: set_mp_tab(i))
+		tabs.add_child(b)
+		_tab_buttons.append(b)
+	mp.add_child(tabs)
+	mp.move_child(tabs, $Center/Mp/NameRow.get_index() + 1)
+	_host_nodes.append($Center/Mp/HostButton)
+	# Join side: address row, recent, saved list, LAN.
+	_server_box = VBoxContainer.new()
+	_server_box.name = "ServerList"
+	_server_box.add_theme_constant_override("separation", 6)
+	var head := HBoxContainer.new()
+	var title := Label.new()
+	title.text = "Servers"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.42))
+	head.add_child(title)
+	var refresh := Button.new()
+	refresh.text = "Refresh"
+	refresh.pressed.connect(refresh_server_list)
+	head.add_child(refresh)
+	var lan := Button.new()
+	lan.text = "Find LAN"
+	lan.pressed.connect(func() -> void: Game.server_query.scan_lan(host_port()))
+	head.add_child(lan)
+	_server_box.add_child(head)
+	var rows := VBoxContainer.new()
+	rows.name = "Rows"
+	rows.add_theme_constant_override("separation", 4)
+	_server_box.add_child(rows)
+	var add := HBoxContainer.new()
+	add.add_theme_constant_override("separation", 8)
+	_fav_name = LineEdit.new()
+	_fav_name.placeholder_text = "Name for the address above"
+	_fav_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add.add_child(_fav_name)
+	var save := Button.new()
+	save.text = "Save server"
+	save.pressed.connect(func() -> void:
+		if Game.add_favorite(_fav_name.text, "%s:%d" % [host_ip(), host_port()]):
+			_fav_name.text = ""
+			refresh_server_list()
+	)
+	add.add_child(save)
+	_server_box.add_child(add)
+	mp.add_child(_server_box)
+	mp.move_child(_server_box, $Center/Mp/JoinRow.get_index())
+	for n in [_server_box, $Center/Mp/JoinRow, _recent_pick, $Center/Mp/Hint]:
+		if n:
+			_join_nodes.append(n)
+	Game.server_query.server_info.connect(_on_server_info)
+	ip_edit.text_changed.connect(func(_t: String) -> void: _remember_typed())
+	port_edit.text_changed.connect(func(_t: String) -> void: _remember_typed())
+	$Center/Mp/Hint.text = "Status, players and ping come from UDP port + 1 (7778 for 7777). Double-click a server to join."
+	_prefill_last_server()
+	set_mp_tab(_mp_tab)
+
+
+const _MP_HINTS := ["Host on this PC, then Connect from another window.", "Pick a server or type an address, then Connect."]
+
+
+func set_mp_tab(i: int) -> void:
+	_mp_tab = clampi(i, 0, 1)
+	var st := get_node_or_null("Center/Mp/Status") as Label
+	if st and (st.text in _MP_HINTS):
+		st.text = _MP_HINTS[_mp_tab]
+	for n in _host_nodes:
+		(n as CanvasItem).visible = _mp_tab == 0
+	for n in _join_nodes:
+		(n as CanvasItem).visible = _mp_tab == 1
+	if _recent_pick and _mp_tab == 1:
+		_recent_pick.visible = Game.recent_servers.size() > 0
+	if _tab_buttons.size() == 2:
+		_tab_buttons[_mp_tab].button_pressed = true
+	if _mp_tab == 1:
+		refresh_server_list()
+
+
+## Last server picked or joined; else the first saved one.
+func _prefill_last_server() -> void:
+	var key := Game.last_server
+	if key.is_empty() and not Game.recent_servers.is_empty():
+		key = Game.recent_servers[0]
+	if key.is_empty() and not Game.favorite_servers.is_empty():
+		key = Game.favorite_servers[0].get_slice("|", 1)
+	_fill_address(key)
+
+
+func _fill_address(key: String) -> void:
+	var cut := key.rfind(":")
+	if cut <= 0:
+		return
+	set_host_ip(key.substr(0, cut))
+	set_host_port(int(key.substr(cut + 1)))
+
+
+var _typed_save_t := 0
+
+
+## Typing an address counts as picking it, saved after a short pause (not per key).
+func _remember_typed() -> void:
+	_typed_save_t += 1
+	var mine := _typed_save_t
+	get_tree().create_timer(1.0, true).timeout.connect(func() -> void:
+		if mine == _typed_save_t:
+			Game.set_last_server("%s:%d" % [host_ip(), host_port()])
+	)
+
+
+func refresh_server_list() -> void:
+	if _server_box == null:
+		return
+	var rows := _server_box.get_node("Rows")
+	for c in rows.get_children():
+		c.queue_free()
+	_server_rows.clear()
+	for e in Game.favorite_servers:
+		var label := e.get_slice("|", 0) if e.contains("|") else ""
+		var address := e.get_slice("|", 1) if e.contains("|") else e
+		_add_server_row(rows, label, address, true)
+		Game.server_query.query(address)
+	Game.server_query.scan_lan(Game.DEFAULT_PORT)
+
+
+func _add_server_row(rows: Node, label: String, address: String, saved: bool) -> void:
+	var item := VBoxContainer.new()
+	item.add_theme_constant_override("separation", 1)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	item.add_child(row)
+	var pick := Button.new()
+	pick.text = ("%s  ·  %s" % [label, address]) if label != "" else address
+	pick.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pick.clip_text = true
+	pick.tooltip_text = "Click to fill in, double-click to join"
+	pick.pressed.connect(func() -> void:
+		_fill_address(address)
+		Game.set_last_server(address)
+	)
+	pick.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and ev.double_click:
+			_fill_address(address)
+			connect_pressed.emit()
+	)
+	row.add_child(pick)
+	var status := Label.new()
+	status.text = "…"
+	status.add_theme_font_size_override("font_size", 13)
+	status.add_theme_color_override("font_color", Color(0.72, 0.76, 0.82))
+	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	item.add_child(status)
+	var act := Button.new()
+	act.text = "×" if saved else "+"
+	act.tooltip_text = "Remove from list" if saved else "Save server"
+	act.custom_minimum_size = Vector2(32, 0)
+	act.pressed.connect(func() -> void:
+		if saved:
+			Game.remove_favorite(address)
+		else:
+			Game.add_favorite("LAN", address)
+		refresh_server_list()
+	)
+	row.add_child(act)
+	rows.add_child(item)
+	_server_rows[address] = {"status": status}
+	if saved:
+		# No answer in 2 s: offline (or the query port is blocked).
+		get_tree().create_timer(2.0, true).timeout.connect(func() -> void:
+			if is_instance_valid(status) and status.text == "…":
+				status.text = "offline"
+				status.add_theme_color_override("font_color", Color(0.85, 0.4, 0.35))
+		)
+
+
+func _on_server_info(address: String, info: Dictionary, ping_ms: int, lan: bool) -> void:
+	if _server_box == null:
+		return
+	if not _server_rows.has(address):
+		if not lan:
+			return
+		_add_server_row(_server_box.get_node("Rows"), "LAN", address, false)
+	var status: Label = _server_rows[address].status
+	if not is_instance_valid(status):
+		return
+	var same := str(info.get("v", "")) == Game.NET_VERSION
+	status.text = "%d/%d · %s %s · %d ms" % [
+		int(info.get("players", 0)), int(info.get("max", 10)),
+		str(info.get("map", "?")), str(info.get("mode", "")), ping_ms
+	]
+	if not same:
+		status.text = "v%s · %s" % [str(info.get("v", "?")), status.text]
+	status.tooltip_text = "%d bots" % int(info.get("bots", 0))
+	status.add_theme_color_override("font_color", Color(0.55, 0.85, 0.55) if same else Color(0.95, 0.7, 0.3))

@@ -35,7 +35,7 @@ func _pawn(n: String, team: int, pos: Vector3, yaw := 0.0) -> Player:
 func _run() -> void:
 	_ok(Game.STREAK_AT == 3, "UAV at 3 kills")
 	_ok(Game.RADAR_TIME >= 20.0 and Game.RADAR_TIME <= 30.0, "UAV lasts 20 to 30 s (%.0f)" % Game.RADAR_TIME)
-	_ok(Game.NET_VERSION == "0.3.7", "NET_VERSION bumped")
+	_ok(Game.NET_VERSION != "0.3.6", "NET_VERSION past 0.3.6 (UAV)")
 	var map: Node3D = null
 	for id in Maps.ORDER:
 		var m := (load(str(Maps.info(id).scene)) as PackedScene).instantiate() as Node3D

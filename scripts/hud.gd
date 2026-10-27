@@ -110,6 +110,8 @@ var _trick_sub: Label
 var _trick_tween: Tween
 var _trick_sfx: AudioStreamPlayer
 var _style_king: Label # round end, under the winner
+var _winner: PanelContainer # round end: winner card on top of the scoreboard
+var _round_end_peer := 0 # FFA: winner peer; TDM: winning team
 
 var _popup: VBoxContainer
 var _popup_title: Label
@@ -353,12 +355,16 @@ func reset_session() -> void:
 	_hide_trick()
 	if _style_king:
 		_style_king.visible = false
+	if _winner:
+		_winner.visible = false
 	_freeze_left = 0.0
 	_round_end_timer = 0.0
 	_round_end_winner = ""
 	_intermission_timer = 0.0
 	death_layer.visible = false
 	round_end_label.visible = false
+	if _winner:
+		_winner.visible = false
 	intermission_label.visible = false
 	if countdown_label:
 		countdown_label.visible = false
@@ -924,11 +930,13 @@ func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
 	return a.kills > b.kills
 
 
-func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
+func _on_round_ended(winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
 	_round_end_timer = 5.0
 	_round_end_winner = winner_name
-	round_end_label.text = "%s WINS" % winner_name
-	round_end_label.visible = true
+	_round_end_peer = winner_peer_id
+	round_end_label.text = "%s WINS" % winner_name # kept for anything reading it; the card replaces it on screen
+	round_end_label.visible = false
+	_show_winner(winner_peer_id, winner_name)
 	_show_style_king()
 	_scoreboard_open = true
 	scoreboard_container.visible = true
@@ -938,7 +946,7 @@ func _on_round_ended(_winner_peer_id: int, winner_name: String, _scores: Diction
 ## The final killcam hid the round-end board; show it again for its full time.
 func _on_killcam_finished() -> void:
 	if _round_end_winner != "":
-		_on_round_ended(0, _round_end_winner, {})
+		_on_round_ended(_round_end_peer, _round_end_winner, {})
 
 
 func show_intermission() -> void:
@@ -1032,7 +1040,62 @@ func _build_trick_popup() -> void:
 	add_child(_trick_sfx)
 
 
-## Round end, under "X WINS": who got the most style this round (FFA and TDM alike).
+## Round end: a compact card above the scoreboard (never over its header). Small caps line on top,
+## the name under it. FFA: gold, or "YOU WIN" for this machine's player. TDM: the team's colour.
+func _show_winner(winner_peer_id: int, winner_name: String) -> void:
+	if _winner == null:
+		_winner = PanelContainer.new()
+		_winner.name = "WinnerCard"
+		_winner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_winner.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		_winner.custom_minimum_size = Vector2(340, 0)
+		var v := VBoxContainer.new()
+		v.name = "V"
+		v.add_theme_constant_override("separation", 0)
+		_winner.add_child(v)
+		for n in ["Kicker", "Name"]:
+			var l := Label.new()
+			l.name = n
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+			l.add_theme_constant_override("outline_size", 4)
+			v.add_child(l)
+		(v.get_node("Kicker") as Label).add_theme_font_size_override("font_size", 14)
+		(v.get_node("Name") as Label).add_theme_font_size_override("font_size", 30)
+		scoreboard_container.add_child(_winner)
+		scoreboard_container.move_child(_winner, 0)
+	var accent := HUD_ACCENT
+	var kicker := "WINNER"
+	var title := winner_name.to_upper()
+	if not Game.is_ffa():
+		accent = Player.team_color(clampi(winner_peer_id, Game.TEAM_A, Game.TEAM_B))
+		kicker = "YOUR TEAM WINS" if Game.local_team() == winner_peer_id else "WINNING TEAM"
+	elif winner_peer_id != 0 and winner_peer_id == _local_peer_id:
+		kicker = "WINNER"
+		title = "YOU WIN"
+	elif winner_peer_id == 0:
+		kicker = "ROUND OVER"
+		title = "NO WINNER"
+		accent = SB_MUTED
+	var sb := _sb_box(SB_BG, 12)
+	sb.border_color = accent
+	sb.border_width_top = 3
+	sb.content_margin_left = 28
+	sb.content_margin_right = 28
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 10
+	_winner.add_theme_stylebox_override("panel", sb)
+	var k := _winner.get_node("V/Kicker") as Label
+	k.text = kicker
+	k.add_theme_color_override("font_color", Color(accent, 0.9) if accent != SB_MUTED else SB_MUTED)
+	var nm := _winner.get_node("V/Name") as Label
+	nm.text = title
+	nm.add_theme_color_override("font_color", accent.lightened(0.15))
+	_winner.visible = true
+
+
+## Round end, under the winner card: who got the most style this round (FFA and TDM alike).
 func _show_style_king() -> void:
 	var king := Game.style_king()
 	if _style_king == null:
@@ -1207,7 +1270,7 @@ func _sb_panel(title: String, score_text: String, team_col: Color, rows: Array, 
 
 func _refresh_scoreboard() -> void:
 	for c in scoreboard_container.get_children():
-		if c != _style_king:
+		if c != _style_king and c != _winner:
 			c.queue_free()
 	_scores = Game.get_scores()
 	_scores.sort_custom(_sort_scores)
@@ -1237,6 +1300,8 @@ func _refresh_scoreboard() -> void:
 	scoreboard_container.add_child(backdrop)
 	if _style_king:
 		scoreboard_container.move_child(_style_king, backdrop.get_index())
+	if _winner:
+		scoreboard_container.move_child(_winner, 0)
 
 
 func _process(delta: float) -> void:
@@ -1294,6 +1359,8 @@ func _process(delta: float) -> void:
 			round_end_label.visible = false
 			if _style_king:
 				_style_king.visible = false
+			if _winner:
+				_winner.visible = false
 			if not tab_pressed:
 				_scoreboard_open = false
 				scoreboard_container.visible = false

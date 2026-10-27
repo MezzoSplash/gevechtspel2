@@ -3,6 +3,7 @@
 
   music_round_start.wav  ~13 s build-up that plays when a round goes live
   music_round_final.wav  16 s seamless loop for the last 30 s / someone close to the kill limit
+  music_menu.wav         48 s calm seamless loop for the main menu
 
 Deterministic (fixed seed). Needs numpy. Run: python3 tools/gen_music.py
 """
@@ -162,8 +163,51 @@ def round_final() -> np.ndarray:
     return buf
 
 
+def soft_pad(ms: list[int], n_s: float) -> np.ndarray:
+    n = int(n_s * SR)
+    t = np.arange(n) / SR
+    y = np.zeros(n)
+    for m in ms:
+        for det in (-0.05, 0.05):
+            y += np.sin(2 * np.pi * hz(m + det) * t) + 0.25 * np.sin(2 * np.pi * hz(m + 12 + det) * t)
+    y /= len(ms) * 2
+    fade = np.minimum(1, t / 1.5) * np.minimum(1, (n_s - t) / 1.5)  # crossfades into the next chord
+    return y * fade
+
+
+def pluck(m: int, n_s: float = 1.6) -> np.ndarray:
+    n = int(n_s * SR)
+    t = np.arange(n) / SR
+    y = np.sin(2 * np.pi * hz(m) * t) + 0.3 * np.sin(2 * np.pi * hz(m) * 2 * t)
+    return y * env(n, 0.01, 0.5)
+
+
+def menu_calm() -> np.ndarray:
+    global LOOP
+    LOOP = True
+    bpm = 80  # 4 chords x 4 bars x 3 s = 48 s
+    beat = 60 / bpm
+    bar = 4 * beat
+    total = 16 * bar
+    buf = np.zeros(int(round(total * SR)))
+    # Fmaj7 - Am7 - Dm9 - Cmaj7, two bars each, twice.
+    chords = [[53, 57, 60, 64], [57, 60, 64, 67], [50, 53, 57, 64], [48, 52, 55, 59]]
+    for i in range(8):
+        ch = chords[i % 4]
+        at = i * 2 * bar
+        put(buf, at - 1.0, soft_pad(ch, 2 * bar + 2.0), 0.55)
+        put(buf, at, lowpass(saw(hz(ch[0] - 12), int(2 * bar * SR), 4), 300) * env(int(2 * bar * SR), 0.4, 3.0), 0.35)
+        notes = ch[1:] + [ch[0] + 12]
+        for k in range(8):
+            if (k + i) % 3 == 2:
+                continue  # leave gaps so it breathes
+            put(buf, at + k * beat, pluck(notes[(k * 3 + i) % 4] + 12), 0.18)
+    return buf
+
+
 LOOP = False
 
 if __name__ == "__main__":
     write("music_round_start.wav", round_start(), fade_out=1.0)
     write("music_round_final.wav", round_final())
+    write("music_menu.wav", menu_calm())

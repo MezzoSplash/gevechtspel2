@@ -481,6 +481,7 @@ func _start_server(port: int, dedicated: bool, map_id: StringName, mode: int) ->
 	multiplayer.multiplayer_peer = peer
 	Game.is_offline = false
 	Game.is_dedicated = dedicated
+	Game.hosted_port = port # ServerQuery answers info on port + 1
 	Game.set_match_config(map_id, mode, Game.last_kills, float(Game.last_time_min * 60), Game.last_bots)
 	print("SERVER: Server started on port %d, dedicated=%s, %s on %s" % [
 		port, dedicated, Game.mode_name(), Maps.display_name(Game.map_id)
@@ -649,6 +650,7 @@ func _reset_match_state() -> void:
 	for c in players_root.get_children():
 		players_root.remove_child(c) # gone at once: no team counts or names shared with the new pawns
 		c.queue_free()
+	Game.hosted_port = 0
 	Game.reset_session() # also ends a running killcam replay and clears killcam_active / round_frozen
 	Game.stop_round_sting()
 	_bot_id_counter = -1

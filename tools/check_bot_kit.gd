@@ -16,12 +16,18 @@ func _ready() -> void:
 	add_child(main)
 	await get_tree().create_timer(1.0).timeout
 	var menu = main.get_node("CanvasLayer/Menu")
+	var menu_on_in_menu: bool = Game._menu_music.playing and not Game._menu_music.stream_paused
 	Game.last_bots = 12
 	Game.bot_count = 12
 	menu.set_match_choice(&"quay", Game.MODE_FFA)
 	menu.play_local_pressed.emit()
 	Game.kill_feed.connect(func(_k: String, _v: String, weapon_id: StringName, _a = null, _b = null, _c = null, _d = null) -> void:
 		_deaths[weapon_id] = int(_deaths.get(weapon_id, 0)) + 1
+	)
+	var used := {0: 0, 1: 0}
+	Game.streak_used.connect(func(pid: int, slot: int) -> void:
+		if pid < 0:
+			used[slot] += 1
 	)
 	var tension_start := false
 	var tension_final := false
@@ -46,6 +52,8 @@ func _ready() -> void:
 				tension_start = true
 			elif Game._tension.stream == Game._tension_final_stream:
 				tension_final = true
+	var menu_off_in_match: bool = Game._menu_music.stream_paused
+	print("menu music in menu: ", menu_on_in_menu, "  paused in match: ", menu_off_in_match)
 	# Leader close to the limit: the final cue must start on its own.
 	Game.kill_limit = Game.leader_kills() + 2
 	await get_tree().create_timer(0.5).timeout
@@ -53,6 +61,9 @@ func _ready() -> void:
 	print("bot guns seen: ", _guns.keys(), " (", _guns.size(), "/", Weapon.LOADOUT.size(), ")")
 	print("grenades thrown: ", _nades)
 	print("rc-xd launched: ", _rc)
+	print("bot streaks used: UAV=%d RC-XD=%d" % [used[0], used[1]])
+	var ok: bool = _guns.size() == Weapon.LOADOUT.size() and _nades > 0 and used[0] > 0 and used[1] > 0 and tension_start and tension_final
+	print("BOT KIT CHECK ", "OK" if ok else "FAILED")
 	print("streak charges now: ", Game.streak_charges)
 	print("deaths by weapon: ", _deaths)
 	print("tension start cue played: ", tension_start, "  final cue played: ", tension_final,

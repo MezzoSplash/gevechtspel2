@@ -76,7 +76,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.3.10"
+const NET_VERSION := "0.3.11-dev" # grenade RPCs changed: a 0.3.10 peer must be refused, not half-work
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -144,6 +144,14 @@ var sfx_vol := 1.0
 var player_name := "Player" # this launch. --name replaces it and must not be written back.
 const RECENT_SERVERS_MAX := 5
 var recent_servers: PackedStringArray = [] # "ip:port", newest first (settings.cfg [net] recent)
+## Join tab: last server picked or joined (prefilled next time), and the saved server list
+## ("label|host:port"). Defaults: the EliteDesk over Tailscale and a slot for its public address.
+const DEFAULT_FAVORITES := ["EliteDesk (Tailscale)|100.87.65.3:7777", "EliteDesk (public)|public.address.here:7777"]
+const QUERY_PORT_OFFSET := 1 # server info answers on UDP game port + 1 (7778 for 7777)
+var last_server := ""
+var favorite_servers: PackedStringArray = PackedStringArray(DEFAULT_FAVORITES)
+var server_query: ServerQuery
+var hosted_port := 0 # set while this process is a server; ServerQuery answers on hosted_port + 1
 var profile_name := "Player" # the name settings.cfg keeps across launches
 var window_mode := WINDOW_WINDOWED
 var window_size := Vector2i(1600, 900) # project.godot's window override; the first-run default
@@ -186,6 +194,12 @@ var _tension_final := false # final cue already started this round
 var _tension_start_stream: AudioStream
 var _tension_final_stream: AudioStream
 var _tension_fade: Tween
+## Calm loop while the home menu is up (over its silent background bot match). Fades with the menu.
+const MENU_MUSIC_DB := -6.0
+const MENU_FADE := 1.5
+var _menu_music: AudioStreamPlayer
+var _menu_music_on := false
+var _menu_fade: Tween
 var _tension_live := false # last tick: a round was being played
 var _grenade_seq := 0
 var _grenade_visuals: Dictionary = {}
@@ -1205,6 +1219,7 @@ const RADAR_TIME := 25.0 # UAV: enemies on the minimap this long (BO2 is ~30 s)
 const CHARGE_RADAR := 1
 const CHARGE_RCXD := 2
 
+signal streak_used(peer_id: int, slot: int) # authority: a UAV (0) or RC-XD (1) was spent
 var streak_progress: Dictionary = {} # peer -> kills this life (death clears this)
 var streak_charges: Dictionary = {} # peer -> bitmask of streaks earned and not yet used
 var streak_earned: Dictionary = {} # peer -> bitmask already passed this life (stops a second copy)
@@ -1288,6 +1303,7 @@ func try_activate_streak(peer_id: int, slot: int) -> void:
 	charges &= ~bit
 	streak_charges[peer_id] = charges
 	_push_streak(peer_id)
+	streak_used.emit(peer_id, slot)
 	if bit == CHARGE_RADAR:
 		_grant_radar(peer_id)
 
@@ -1796,6 +1812,38 @@ func _setup_tension_music() -> void:
 	_tension = AudioStreamPlayer.new()
 	_tension.bus = "Music"
 	add_child(_tension)
+	var menu := load("res://assets/sounds/music_menu.wav") as AudioStreamWAV
+	if menu:
+		menu = menu.duplicate() as AudioStreamWAV
+		menu.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		menu.loop_begin = 0
+		menu.loop_end = int(menu.get_length() * menu.mix_rate)
+	_menu_music = AudioStreamPlayer.new()
+	_menu_music.bus = "Music"
+	_menu_music.stream = menu
+	_menu_music.volume_db = -60.0
+	add_child(_menu_music)
+
+
+## In the menu: fade the calm loop in (resumes where it was); in a match: fade it out and pause.
+func _tick_menu_music() -> void:
+	if _menu_music == null or _menu_music.stream == null:
+		return
+	var want := menu_match and not is_dedicated
+	if want == _menu_music_on:
+		return
+	_menu_music_on = want
+	if _menu_fade and _menu_fade.is_valid():
+		_menu_fade.kill()
+	_menu_fade = create_tween()
+	if want:
+		if not _menu_music.playing:
+			_menu_music.play()
+		_menu_music.stream_paused = false
+		_menu_fade.tween_property(_menu_music, "volume_db", MENU_MUSIC_DB, MENU_FADE).from(-40.0)
+	else:
+		_menu_fade.tween_property(_menu_music, "volume_db", -60.0, MENU_FADE * 0.6)
+		_menu_fade.tween_callback(func() -> void: _menu_music.stream_paused = true)
 
 
 ## `final`: the looping last-stretch cue; else the one-shot round-start build-up.
@@ -2206,6 +2254,7 @@ func _award_line(peer_id: int, strip_name: String) -> void:
 func _physics_process(delta: float) -> void:
 	_tick_regen(delta)
 	_tick_tension()
+	_tick_menu_music()
 	_tick_lines(delta)
 	if radar_left > 0.0:
 		radar_left = maxf(radar_left - delta, 0.0)
@@ -2370,6 +2419,9 @@ func _ready() -> void:
 	loadouts = Loadouts.new()
 	loadouts.name = "Loadouts"
 	add_child(loadouts)
+	server_query = ServerQuery.new()
+	server_query.name = "ServerQuery"
+	add_child(server_query)
 	_ensure_sfx_bus()
 	load_settings()
 	_bind_inputs()
@@ -2454,6 +2506,12 @@ func load_settings() -> void:
 		for e in cfg.get_value("net", "recent", PackedStringArray()):
 			if str(e).strip_edges() != "" and recent_servers.size() < RECENT_SERVERS_MAX:
 				recent_servers.append(str(e).strip_edges())
+		last_server = str(cfg.get_value("net", "last", "")).strip_edges()
+		if cfg.has_section_key("net", "favorites"):
+			favorite_servers = PackedStringArray()
+			for e in cfg.get_value("net", "favorites", PackedStringArray()):
+				if str(e).strip_edges() != "":
+					favorite_servers.append(str(e).strip_edges())
 		player_name = profile_name
 		window_mode = clampi(int(cfg.get_value("video", "window_mode", WINDOW_WINDOWED)), WINDOW_WINDOWED, WINDOW_FULLSCREEN)
 		var w := int(cfg.get_value("video", "width", window_size.x))
@@ -2507,6 +2565,8 @@ func save_settings() -> void:
 	cfg.set_value("match", "bots", last_bots)
 	cfg.set_value("profile", "name", profile_name)
 	cfg.set_value("net", "recent", recent_servers)
+	cfg.set_value("net", "last", last_server)
+	cfg.set_value("net", "favorites", favorite_servers)
 	cfg.set_value("video", "window_mode", window_mode)
 	cfg.set_value("video", "width", window_size.x)
 	cfg.set_value("video", "height", window_size.y)
@@ -3102,4 +3162,40 @@ func remember_server(ip: String, port: int) -> void:
 		if e != key and out.size() < RECENT_SERVERS_MAX:
 			out.append(e)
 	recent_servers = out
+	last_server = key
 	save_settings()
+
+
+func set_last_server(key: String) -> void:
+	last_server = key.strip_edges()
+	save_settings()
+
+
+## "label|host:port" entries; label may be empty. Same address twice is ignored.
+func add_favorite(label: String, address: String) -> bool:
+	address = address.strip_edges()
+	if address.is_empty():
+		return false
+	for e in favorite_servers:
+		if e.get_slice("|", 1) == address or e == address:
+			return false
+	favorite_servers.append("%s|%s" % [label.strip_edges(), address])
+	save_settings()
+	return true
+
+
+func remove_favorite(address: String) -> void:
+	var out := PackedStringArray()
+	for e in favorite_servers:
+		if e.get_slice("|", 1) != address and e != address:
+			out.append(e)
+	favorite_servers = out
+	save_settings()
+
+
+## Quit while a loop plays: stop it so the stream is not leaked at exit.
+func _exit_tree() -> void:
+	for pl in [_menu_music, _tension, _round_music]:
+		if pl:
+			pl.stop()
+			pl.stream = null
