@@ -126,6 +126,7 @@ func _ready() -> void:
 	Game.round_ended.connect(_on_round_ended)
 	Game.kill_feed.connect(_on_kill_feed)
 	Game.trick_scored.connect(_on_trick_scored)
+	Game.combo_changed.connect(_on_combo_changed)
 	Game.presence.connect(_on_presence)
 	Game.chat_message.connect(_on_chat_message)
 	Game.round_freeze_changed.connect(_on_round_freeze)
@@ -343,6 +344,9 @@ func _bb_escape(s: String) -> String:
 
 ## Leave to menu: drop streak/radar/death overlay from the old session.
 func reset_session() -> void:
+	_combo_left = 0.0
+	if _combo_box:
+		_combo_box.visible = false
 	_player = null
 	_local_peer_id = 0
 	_dmg_dirs.clear()
@@ -1547,6 +1551,7 @@ func _refresh_scoreboard() -> void:
 
 
 func _process(delta: float) -> void:
+	_tick_combo_ui(delta)
 	_hit_timer = maxf(_hit_timer - delta, 0.0)
 	_fire_punch = move_toward(_fire_punch, 0.0, delta * 9.0)
 	if _hint_timer > 0.0:
@@ -1671,3 +1676,110 @@ func _draw() -> void:
 
 func _bar(from: Vector2, delta: Vector2, col: Color, thick: float) -> void:
 	draw_line(from, from + delta, col, thick, true)
+
+
+# ---------------------------------------------------------------------------------------------
+# #84 combo meter: total × multiplier, the moves, a draining bar (red near the end), LANDED / BAILED.
+
+const COMBO_COLOR := Color(1.0, 0.82, 0.3)
+const COMBO_WARN_COLOR := Color(0.95, 0.3, 0.25)
+const COMBO_LANDED_COLOR := Color(0.45, 0.95, 0.5)
+var _combo_box: VBoxContainer
+var _combo_total: Label
+var _combo_moves: Label
+var _combo_bar: ProgressBar
+var _combo_fill: StyleBoxFlat
+var _combo_left := 0.0
+var _combo_tw: Tween
+
+
+func _build_combo_ui() -> void:
+	_combo_box = VBoxContainer.new()
+	_combo_box.name = "Combo"
+	_combo_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_combo_box.anchor_left = 0.5
+	_combo_box.anchor_right = 0.5
+	_combo_box.anchor_top = 0.66
+	_combo_box.anchor_bottom = 0.66
+	_combo_box.offset_left = -220.0
+	_combo_box.offset_right = 220.0
+	_combo_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_combo_box.add_theme_constant_override("separation", 2)
+	_combo_total = Label.new()
+	_combo_total.name = "Total"
+	_combo_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_combo_total.add_theme_font_size_override("font_size", 40)
+	_combo_total.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_combo_total.add_theme_constant_override("outline_size", 8)
+	_combo_box.add_child(_combo_total)
+	_combo_moves = Label.new()
+	_combo_moves.name = "Moves"
+	_combo_moves.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_combo_moves.add_theme_font_size_override("font_size", 15)
+	_combo_moves.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
+	_combo_moves.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_combo_moves.add_theme_constant_override("outline_size", 4)
+	_combo_box.add_child(_combo_moves)
+	_combo_bar = ProgressBar.new()
+	_combo_bar.name = "Bar"
+	_combo_bar.show_percentage = false
+	_combo_bar.custom_minimum_size = Vector2(260, 7)
+	_combo_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_combo_bar.max_value = Combo.TIME
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0, 0, 0, 0.55)
+	bg.set_corner_radius_all(3)
+	_combo_fill = StyleBoxFlat.new()
+	_combo_fill.bg_color = COMBO_COLOR
+	_combo_fill.set_corner_radius_all(3)
+	_combo_bar.add_theme_stylebox_override("background", bg)
+	_combo_bar.add_theme_stylebox_override("fill", _combo_fill)
+	_combo_box.add_child(_combo_bar)
+	_combo_box.visible = false
+	add_child(_combo_box)
+
+
+func _on_combo_changed(points: int, multiplier: float, time_left: float, moves: String, state: String, banked: int) -> void:
+	if _combo_box == null:
+		_build_combo_ui()
+	if _combo_tw and _combo_tw.is_valid():
+		_combo_tw.kill()
+	_combo_box.visible = true
+	_combo_box.modulate.a = 1.0
+	var mult := String.num(multiplier, 1).trim_suffix(".0")
+	if state == "build":
+		_combo_left = time_left
+		_combo_total.text = "%d  ×%s" % [points, mult]
+		_combo_total.add_theme_color_override("font_color", COMBO_COLOR)
+		_combo_moves.text = moves
+		_combo_bar.visible = true
+		_combo_box.pivot_offset = _combo_box.size * 0.5
+		_combo_box.scale = Vector2(1.12, 1.12)
+		_combo_tw = _combo_box.create_tween()
+		_combo_tw.tween_property(_combo_box, "scale", Vector2.ONE, 0.12)
+		return
+	_combo_left = 0.0
+	_combo_bar.visible = false
+	if state == "landed":
+		_combo_total.text = "LANDED  +%d" % banked
+		_combo_total.add_theme_color_override("font_color", COMBO_LANDED_COLOR)
+		_combo_moves.text = "%d × %s" % [points, mult]
+	else:
+		_combo_total.text = "BAILED"
+		_combo_total.add_theme_color_override("font_color", COMBO_WARN_COLOR)
+		_combo_moves.text = "%d × %s lost" % [points, mult]
+	_combo_tw = _combo_box.create_tween()
+	_combo_tw.tween_interval(1.2)
+	_combo_tw.tween_property(_combo_box, "modulate:a", 0.0, 0.5)
+	_combo_tw.tween_callback(func() -> void: _combo_box.visible = false)
+
+
+## The server ends it (timeout / death / kill); the bar only shows the time it already said is left.
+func _tick_combo_ui(delta: float) -> void:
+	if _combo_box == null or not _combo_bar.visible or _combo_left <= 0.0:
+		return
+	_combo_left = maxf(_combo_left - delta, 0.0)
+	_combo_bar.value = _combo_left
+	var warn := _combo_left <= Combo.WARN
+	_combo_fill.bg_color = COMBO_WARN_COLOR if warn else COMBO_COLOR
+	_combo_total.add_theme_color_override("font_color", COMBO_WARN_COLOR if warn else COMBO_COLOR)

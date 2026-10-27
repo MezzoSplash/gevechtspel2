@@ -1283,18 +1283,26 @@ func _tick_style_track(delta: float) -> void:
 		air_time = 0.0
 		_style_in_air = false
 		return
+	# #84: every new move feeds the combo (worth nothing until a kill lands it).
 	if move_fx == MOVE_WALLRUN:
-		if _style_clock - _wallrun_seen_t > Style.MOVE_RECENT and _style_clock - _walljump_seen_t <= Style.WALL_TO_WALL_WINDOW:
-			Game.award_move_trick(peer_id, Style.WALL_TO_WALL)
+		if _style_clock - _wallrun_seen_t > Style.MOVE_RECENT:
+			var w2w := _style_clock - _walljump_seen_t <= Style.WALL_TO_WALL_WINDOW
+			Game.combo_move(peer_id, Combo.WALL_TO_WALL if w2w else Combo.WALLRUN)
 		_wallrun_seen_t = _style_clock
 	elif move_fx == MOVE_DIVE:
+		if _style_clock - _dive_seen_t > Style.MOVE_RECENT:
+			Game.combo_move(peer_id, Combo.DIVE)
 		_dive_seen_t = _style_clock
 	elif move_fx == MOVE_ROLL:
+		if _style_clock - _roll_seen_t > Style.MOVE_RECENT:
+			Game.combo_move(peer_id, Combo.ROLL)
 		_roll_seen_t = _style_clock
 	if walljumps != _walljumps_seen:
 		if _walljumps_seen >= 0:
 			_walljump_seen_t = _style_clock
+			Game.combo_move(peer_id, Combo.WALLJUMP)
 		_walljumps_seen = walljumps
+	_tick_combo_moves()
 	if global_position.distance_to(_style_last_pos) > STYLE_TELEPORT_M:
 		_style_in_air = false
 		_landed_drop = 0.0
@@ -1356,6 +1364,28 @@ func _ramp_beside() -> bool:
 		if ny > SURF_MIN_NORMAL_Y and ny < SURF_MAX_NORMAL_Y:
 			return true
 	return false
+
+
+var _combo_surf := false
+var _combo_slide := false
+var _combo_air := false
+
+
+## #84, match authority: surf, slide and long air as combo moves (rising edges only).
+## Slides are not synced, so the server reads one from the synced crouch plus the observed speed.
+func _tick_combo_moves() -> void:
+	var surf := style_surfing()
+	if surf and not _combo_surf:
+		Game.combo_move(peer_id, Combo.SURF)
+	_combo_surf = surf
+	var slide := (not _style_in_air) and crouch > 0.6 and _obs_speed >= SPRINT_SPEED * 0.9 and move_fx != MOVE_ROLL
+	if slide and not _combo_slide:
+		Game.combo_move(peer_id, Combo.SLIDE)
+	_combo_slide = slide
+	var air := air_time >= Combo.AIR_TIME and not surf and move_fx == MOVE_NONE
+	if air and not _combo_air:
+		Game.combo_move(peer_id, Combo.AIR)
+	_combo_air = air_time >= Combo.AIR_TIME
 
 
 ## Match authority (#80/#81): movement the server saw on this pawn just now (synced move_fx/walljumps).
