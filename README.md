@@ -24,7 +24,7 @@ Gevechtspel is a multiplayer first-person shooter built in Godot 4. Matches are 
 - **Bots:** up to 16. They switch guns every life, throw grenades and use scorestreaks.
 - **Online play:** host from the menu or run a headless dedicated server. There is a server list with status, ping and player count, and **Find LAN** finds servers on your home network.
 - **Final killcam:** everyone watches the last kill of the round
-- **Settings:** video, mouse, key rebinding, crosshair, accessibility options, and separate Master, SFX, Music and UI volume
+- **Settings:** video, mouse, key rebinding, crosshair, accessibility options, and separate Master, SFX, Music, UI and Enemies volume (enemy gunshots and footsteps get their own slider, louder by default)
 - **Music:** a calm menu loop, a build-up when the round starts, and tense music in the final 30 seconds or when someone is close to winning
 
 ## Play
