@@ -142,8 +142,12 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 	_time_boxes.append(time_box)
 	_bot_boxes.append(bot_box)
 	_map_blurbs.append(blurb)
-	map_opt.item_selected.connect(func(_i: int) -> void: _on_choice_changed())
-	mode_opt.item_selected.connect(func(_i: int) -> void: _on_mode_changed())
+	map_opt.item_selected.connect(func(i: int) -> void:
+		_sync_opts(_map_opts, i)
+		_on_choice_changed())
+	mode_opt.item_selected.connect(func(i: int) -> void:
+		_sync_opts(_mode_opts, i)
+		_on_mode_changed())
 	kill_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_kill_boxes, v))
 	time_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_time_boxes, v))
 	bot_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_bot_boxes, v))
@@ -183,6 +187,17 @@ func _on_mode_changed() -> void:
 		_on_spin_changed(_kill_boxes, Game.default_kills_for(mo))
 		return
 	_on_choice_changed()
+
+
+## The picker the player touched wins: copy it to the twin on the other screen before anything
+## reads selected_map()/selected_mode() (those read the first picker, the Solo one).
+func _sync_opts(opts: Array[OptionButton], i: int) -> void:
+	if _filling_match:
+		return
+	_filling_match = true
+	for o in opts:
+		o.select(i)
+	_filling_match = false
 
 
 func _on_spin_changed(boxes: Array[SpinBox], v: float) -> void:
