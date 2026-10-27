@@ -66,7 +66,8 @@ const WALLRUN := &"wallrun"
 const WALLJUMP := &"walljump"
 const DIVE := &"dive"
 const ROLL := &"roll"
-const WALL_TO_WALL := &"wall2wall" # not a kill
+const WALL_TO_WALL := &"wall2wall" # not a kill (now a combo move, see Combo)
+const COMBO := &"combo" # a landed combo rides on the kill's award; its points come from Combo, not POINTS
 
 ## A good rifle or shotgun play lands near a 360 noscope (250): a slide point blank double is
 ## 100 + 150, a spray transfer 150 (x chain), the third headshot in a row 200.
@@ -75,7 +76,7 @@ const POINTS := {
 	POINT_BLANK: 100, DOUBLE: 150, SPRAY: 150, HS_STREAK: 200, SURF: 150, DROP: 100,
 	RUN_GUN: 125, HOSE: 150, QUICKDRAW: 150, SIX_SHOOTER: 200, MOW: 200, SLUG_SNIPE: 125, YEET: 250, YEET_X2: 500,
 	LINE: 100, LINE_X2: 200,
-	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, WALL_TO_WALL: 75,
+	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, WALL_TO_WALL: 75, COMBO: 0,
 }
 const LABELS := {
 	NOSCOPE: "NOSCOPE", SPIN: "360 NOSCOPE", AIRSHOT: "AIRSHOT", LONGSHOT: "LONGSHOT",
@@ -86,11 +87,11 @@ const LABELS := {
 	YEET: "YEET", YEET_X2: "YEET ×2",
 	LINE: "LINE", LINE_X2: "LINE ×2",
 	WALLRUN: "WALLRUN KILL", WALLJUMP: "WALL JUMP KILL", DIVE: "DIVE KILL", ROLL: "ROLL KILL",
-	WALL_TO_WALL: "WALL TO WALL",
+	WALL_TO_WALL: "WALL TO WALL", COMBO: "COMBO",
 }
 ## Biggest first in popups and the kill feed.
 const ORDER: Array[StringName] = [
-	LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, WALLJUMP, WALLRUN, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
+	COMBO, LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, WALLJUMP, WALLRUN, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF,
 	SLUG_SNIPE, DIVE, RUN_GUN, POINT_BLANK, ROLL, DROP, AIRSHOT, LONGSHOT,
 ]
 const MOVE_RECENT := 0.3 # s: wallrun/dive state seen on the server this recently still counts (sync jitter)

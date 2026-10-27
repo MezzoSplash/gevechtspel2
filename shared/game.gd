@@ -9,6 +9,8 @@ signal round_ended(winner_peer_id: int, winner_name: String, scores: Dictionary)
 ## `tricks`: "" or the trickshot label for the feed tag ("360 NOSCOPE + AIRSHOT").
 signal kill_feed(killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int, tricks: String)
 ## Every machine: a kill was a trickshot. `tricks` is Style.pack form; `total` the killer's style this round.
+## #84: this machine's own combo changed. state: "build", "landed", "bailed".
+signal combo_changed(points: int, multiplier: float, time_left: float, label: String, state: String, banked: int)
 signal trick_scored(killer_peer_id: int, tricks: String, points: int, multiplier: float, total: int)
 signal presence(player_name: String, joined: bool, team: int)
 signal chat_message(player_name: String, team: int, text: String)
@@ -83,7 +85,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.4.0" # wallrun/dive sync + style modes: 0.3.x peers must be refused
+const NET_VERSION := "0.4.1-dev" # sync_combo RPC: a 0.4.0 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -1292,7 +1294,7 @@ func register_kill(
 	}
 	if _round_active:
 		final_kill = kill_info # before the style award: a style-mode winning trick ends the round there
-	if not tricks.is_empty():
+	if not tricks.is_empty() or Combo.active(_combos.get(killer_peer_id, {})):
 		_award_style(kill_info, tricks)
 	if is_style_mode():
 		pass # style modes end on style points (_check_style_win), never on kills
@@ -1714,13 +1716,20 @@ func _note_trick_history(killer_peer_id: int, victim_peer_id: int, weapon_id: St
 
 ## Points (with the chain multiplier) onto the killer's style; tell everyone; remember the round's best
 ## trick for the final killcam.
-func _award_style(kill_info: Dictionary, tricks: Array[StringName]) -> void:
+func _award_style(kill_info: Dictionary, tricks_in: Array[StringName]) -> void:
 	var k := int(kill_info.k)
+	var tricks: Array[StringName] = tricks_in.duplicate()
+	var bank := 0
+	var c: Dictionary = _combos.get(k, {})
+	if Combo.active(c):
+		bank = Combo.value(c) # #84: the kill lands the combo
+		tricks.append(Style.COMBO)
+		_combo_end(k, "landed", bank)
 	var now := Time.get_ticks_msec() / 1000.0
 	var prev: Array = _style_chain.get(k, [0, -1000.0])
 	var chain := int(prev[0]) + 1 if now - float(prev[1]) <= Style.CHAIN_WINDOW else 1
 	_style_chain[k] = [chain, now]
-	var pts := Style.award(tricks, chain)
+	var pts := Style.award(tricks, chain) + bank # chain multiplier on the kill tricks only, never on the combo
 	var mult := Style.chain_multiplier(chain)
 	var total := pts + (int(scores[k].get("style", 0)) if scores.has(k) else 0)
 	_trick_seq += 1
@@ -1784,8 +1793,69 @@ func style_king() -> Dictionary:
 	return best
 
 
+# ---------------------------------------------------------------------------------------------
+# #84 combos (match authority). Players report moves through Game.combo_move from their style track.
+
+var _combos: Dictionary = {} # peer -> Combo state
+
+
+func combo_move(peer_id: int, move: StringName) -> void:
+	if not _is_match_authority() or not _round_active or play_locked() or not scores.has(peer_id):
+		return
+	var c: Dictionary = _combos.get(peer_id, {})
+	if not Combo.active(c):
+		c = Combo.fresh()
+	if Combo.add_move(c, move) <= 0:
+		return
+	_combos[peer_id] = c
+	_send_combo(peer_id, c, "build", 0)
+
+
+func combo_of(peer_id: int) -> Dictionary:
+	return _combos.get(peer_id, {})
+
+
+## Death, a timeout, a landing: the combo is over either way.
+func _combo_end(peer_id: int, state: String, banked: int) -> void:
+	var c: Dictionary = _combos.get(peer_id, {})
+	_combos.erase(peer_id)
+	if c.is_empty():
+		return
+	_send_combo(peer_id, c, state, banked)
+
+
+func _tick_combos(delta: float) -> void:
+	if _combos.is_empty() or not _is_match_authority():
+		return
+	for id in _combos.keys():
+		var c: Dictionary = _combos[id]
+		c.t = float(c.t) - delta
+		if float(c.t) <= 0.0:
+			_combo_end(id, "bailed", 0)
+
+
+func _send_combo(peer_id: int, c: Dictionary, state: String, banked: int) -> void:
+	var args := [int(c.get("pts", 0)), float(c.get("mult", 1.0)), maxf(float(c.get("t", 0.0)), 0.0), Combo.label(c), state, banked]
+	if not is_networked() or peer_id == multiplayer.get_unique_id():
+		_apply_combo(args)
+	elif peer_id > 0 and peer_id in multiplayer.get_peers():
+		sync_combo.rpc_id(peer_id, args)
+
+
+@rpc("authority", "reliable")
+func sync_combo(args: Array) -> void:
+	if args.size() >= 6:
+		_apply_combo(args)
+
+
+func _apply_combo(a: Array) -> void:
+	combo_changed.emit(int(a[0]), float(a[1]), float(a[2]), str(a[3]).left(120), str(a[4]), int(a[5]))
+
+
 ## Server: one more death on the victim's row (scoreboard K/D), synced to everyone.
 func _add_death(peer_id: int) -> void:
+	_combo_end(peer_id, "bailed", 0) # #84: dying with a combo up is a bail
+
 	if not scores.has(peer_id):
 		return
 	var d := int(scores[peer_id].get("deaths", 0)) + 1
@@ -2057,6 +2127,7 @@ func start_round() -> void:
 	_round_active = false # timer starts after freeze
 	final_kill.clear()
 	best_trick.clear()
+	_combos.clear()
 	_style_chain.clear()
 	_line_cd.clear()
 	_line_chain.clear()
@@ -2124,6 +2195,7 @@ func send_match_state(peer_id: int) -> void:
 
 ## Leave to menu: nothing from the old session may leak into the next one.
 func reset_session() -> void:
+	_combos.clear()
 	if freeze_grade:
 		freeze_grade.clear()
 	_tension_final = false
@@ -2149,6 +2221,7 @@ func reset_session() -> void:
 	killcam_active = false
 	final_kill.clear()
 	best_trick.clear()
+	_combos.clear()
 	_style_chain.clear()
 	_line_cd.clear()
 	_line_chain.clear()
@@ -2426,6 +2499,7 @@ func _physics_process(delta: float) -> void:
 	_tick_regen(delta)
 	_tick_tension()
 	_tick_lines(delta)
+	_tick_combos(delta)
 	if radar_left > 0.0:
 		radar_left = maxf(radar_left - delta, 0.0)
 	if not is_networked() or not multiplayer.is_server():

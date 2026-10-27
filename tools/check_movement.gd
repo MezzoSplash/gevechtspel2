@@ -7,6 +7,7 @@ extends Node
 ##     godot --headless res://tools/check_movement.tscn -- --net
 var fails := 0
 var net := false
+var combo_label := ""
 var me: Player
 const BASE := Vector3(0, 300, 0)
 
@@ -76,6 +77,7 @@ func _ready() -> void:
 		_done()
 		return
 	me._spawn_protect = 999.0
+	Game.combo_changed.connect(func(_p: int, _m: float, _t: float, l: String, _s: String, _b: int) -> void: combo_label = l)
 	# Floor far below, two parallel walls 8 m apart along Z (faces at x = +2.5 and x = -5.5).
 	_box(BASE + Vector3(0, -60, 0), Vector3(400, 1, 400))
 	_box(BASE + Vector3(3, 0, 0), Vector3(1, 40, 200))
@@ -152,8 +154,8 @@ func _walljump() -> void:
 			break
 	_ok(second, "second wallrun on the other wall")
 	await _frames(30 if net else 3)
-	var style1 := int(Game.scores[pid].get("style", 0))
-	_ok(style1 - style0 == int(Style.POINTS[Style.WALL_TO_WALL]), "WALL TO WALL scored (%d)" % (style1 - style0))
+	_ok(combo_label.contains("WALL TO WALL"), "WALL TO WALL in the combo (%s)" % combo_label)
+	_ok(int(Game.scores[pid].get("style", 0)) == style0, "moves alone bank no style (#84)")
 	_release_all()
 
 
