@@ -907,6 +907,77 @@ func _on_health(hp: float, max_hp: float) -> void:
 		_paint(hp_fill, fill)
 
 
+var _death_report: PanelContainer
+var _death_report_tw: Tween
+
+
+## #64: "Killed by X" card under RESPAWNING, then it stays a few seconds into the next life.
+func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, dealt_hits: int, killer_hp: int) -> void:
+	if _death_report == null:
+		_death_report = PanelContainer.new()
+		_death_report.name = "DeathReport"
+		_death_report.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_death_report.anchor_left = 0.5
+		_death_report.anchor_right = 0.5
+		_death_report.anchor_top = 0.5
+		_death_report.anchor_bottom = 0.5
+		_death_report.offset_left = -190.0
+		_death_report.offset_right = 190.0
+		_death_report.offset_top = 48.0
+		_death_report.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.05, 0.06, 0.08, 0.88)
+		sb.set_corner_radius_all(12)
+		sb.border_color = Color(0.92, 0.3, 0.25)
+		sb.border_width_top = 3
+		sb.content_margin_left = 18
+		sb.content_margin_right = 18
+		sb.content_margin_top = 10
+		sb.content_margin_bottom = 12
+		_death_report.add_theme_stylebox_override("panel", sb)
+		var v := VBoxContainer.new()
+		v.name = "V"
+		v.add_theme_constant_override("separation", 6)
+		_death_report.add_child(v)
+		var head := Label.new()
+		head.name = "Head"
+		head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		head.add_theme_font_size_override("font_size", 18)
+		v.add_child(head)
+		for row in ["Taken", "Dealt"]:
+			var h := HBoxContainer.new()
+			h.name = row
+			var l := Label.new()
+			l.name = "L"
+			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			l.add_theme_font_size_override("font_size", 15)
+			l.add_theme_color_override("font_color", Color(0.72, 0.76, 0.82))
+			h.add_child(l)
+			var r := Label.new()
+			r.name = "R"
+			r.add_theme_font_size_override("font_size", 16)
+			h.add_child(r)
+			v.add_child(h)
+		add_child(_death_report)
+	var v2 := _death_report.get_node("V")
+	(v2.get_node("Head") as Label).text = "KILLED BY  %s" % killer.to_upper()
+	(v2.get_node("Taken/L") as Label).text = "Their damage to you"
+	(v2.get_node("Taken/R") as Label).text = "%d  ·  %d %s" % [taken, taken_hits, "hit" if taken_hits == 1 else "hits"]
+	(v2.get_node("Taken/R") as Label).add_theme_color_override("font_color", Color(0.95, 0.45, 0.4))
+	(v2.get_node("Dealt/L") as Label).text = "Your damage to them"
+	var tail := "  ·  %d HP left" % killer_hp if killer_hp > 0 else ""
+	(v2.get_node("Dealt/R") as Label).text = "%d  ·  %d %s%s" % [dealt, dealt_hits, "hit" if dealt_hits == 1 else "hits", tail]
+	(v2.get_node("Dealt/R") as Label).add_theme_color_override("font_color", HUD_ACCENT if dealt > 0 else SB_MUTED)
+	_death_report.visible = true
+	_death_report.modulate.a = 1.0
+	if _death_report_tw and _death_report_tw.is_valid():
+		_death_report_tw.kill()
+	_death_report_tw = create_tween()
+	_death_report_tw.tween_interval(5.0)
+	_death_report_tw.tween_property(_death_report, "modulate:a", 0.0, 0.6)
+	_death_report_tw.tween_callback(func() -> void: _death_report.visible = false)
+
+
 func _on_died() -> void:
 	death_layer.visible = true
 
