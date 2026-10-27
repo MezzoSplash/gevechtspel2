@@ -27,6 +27,8 @@ var _master: HSlider
 var _master_val: Label
 var _sfx: HSlider
 var _sfx_val: Label
+var _enemies: HSlider
+var _enemies_val: Label
 var _show_fps: CheckBox
 var _music: HSlider
 var _music_val: Label
@@ -114,6 +116,7 @@ func refresh() -> void:
 	_invert.set_pressed_no_signal(Game.invert_y)
 	_master.set_value_no_signal(Game.master_vol * 100.0)
 	_sfx.set_value_no_signal(Game.sfx_vol * 100.0)
+	_enemies.set_value_no_signal(Game.enemies_vol * 100.0)
 	_show_fps.set_pressed_no_signal(Game.show_fps)
 	_music.set_value_no_signal(Game.music_vol * 100.0)
 	_ui.set_value_no_signal(Game.ui_vol * 100.0)
@@ -241,6 +244,14 @@ func _build() -> void:
 	_sfx = _slider(sfx_row, 0, 100, 1)
 	_sfx_val = _value_label(sfx_row)
 	_sfx.value_changed.connect(_on_sfx)
+	var en_row := _row(body, "Enemies")
+	_enemies = _slider(en_row, 0, roundi(Game.ENEMIES_VOL_MAX * 100.0), 1)
+	_enemies_val = _value_label(en_row)
+	_enemies.value_changed.connect(func(v: float) -> void:
+		if not _filling:
+			Game.set_enemies_vol(v / 100.0)
+			_refresh_audio_labels()
+	)
 	var music_row := _row(body, "Music")
 	_music = _slider(music_row, 0, 100, 1)
 	_music_val = _value_label(music_row)
@@ -257,7 +268,7 @@ func _build() -> void:
 			Game.set_ui_vol(v / 100.0)
 			_refresh_audio_labels()
 	)
-	_hint(body, "Effects: guns, steps, explosions. Music: round start. UI: hit markers, announcer, killcam.")
+	_hint(body, "Effects: guns, steps, explosions. Enemies: enemy shots, steps and reloads on top of Effects (100% = as loud as yours). Music: round start. UI: hit markers, announcer, killcam.")
 
 	body = _pages[4] # HUD
 	_section(body, "CROSSHAIR")
@@ -506,6 +517,7 @@ func _select_quiet(opt: OptionButton, index: int) -> void:
 func _refresh_audio_labels() -> void:
 	_master_val.text = "%d%%" % roundi(Game.master_vol * 100.0)
 	_sfx_val.text = "%d%%" % roundi(Game.sfx_vol * 100.0)
+	_enemies_val.text = "%d%%" % roundi(Game.enemies_vol * 100.0)
 	_music_val.text = "%d%%" % roundi(Game.music_vol * 100.0)
 	_ui_val.text = "%d%%" % roundi(Game.ui_vol * 100.0)
 

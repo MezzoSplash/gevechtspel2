@@ -236,7 +236,32 @@ func _ready() -> void:
 	call_deferred("_configure_control")
 
 
+const ENEMY_SFX_NODES := [
+	"Head/Camera3D/WeaponRoot/FireSfx", "Head/Camera3D/WeaponRoot/ReloadSfx", "StepSfx", "SlideSfx", "LandSfx",
+]
+var _bus_check_t := 0.0
+
+
+## Enemy pawns play their shots and movement on the "Enemies" bus (own slider, #59). Teams can change
+## mid-match, so this is re-checked twice a second rather than once at spawn.
+func _tick_audio_bus(delta: float) -> void:
+	_bus_check_t -= delta
+	if _bus_check_t > 0.0:
+		return
+	_bus_check_t = 0.5
+	var bus := "SFX"
+	if not is_local() and not Game.is_dedicated:
+		var me := Game.player_for_peer(multiplayer.get_unique_id())
+		if me and Game.is_enemy(me, self):
+			bus = "Enemies"
+	for path in ENEMY_SFX_NODES:
+		var n := get_node_or_null(path)
+		if n and n.get("bus") != null and n.bus != bus:
+			n.bus = bus
+
+
 func _process(delta: float) -> void:
+	_tick_audio_bus(delta)
 	_update_nametag(delta)
 
 
