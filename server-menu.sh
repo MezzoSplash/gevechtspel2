@@ -2,7 +2,7 @@
 # Interactive menu to start a Gevechtspel dedicated server.
 #   ./server-menu.sh            guided setup (whiptail/dialog if installed, plain prompts otherwise)
 #   ./server-menu.sh --defaults start straight away with saved defaults
-# Binary: $GEVECHTSPEL_BIN, else newest gevechtspel-*-linux-x86_64 next to this script
+# Binary: $GEVECHTSPEL_BIN, else most recently modified gevechtspel-*-linux-x86_64 next to this script
 # (or in Exportbuilds/), else run from source via run.sh (needs Godot).
 # Defaults are saved in ~/.config/gevechtspel/server.conf
 set -euo pipefail
@@ -31,7 +31,7 @@ find_bin() {
 	[[ -n "$BIN" && -x "$BIN" ]] && return
 	local c
 	# shellcheck disable=SC2012
-	c=$(ls -1 "$DIR"/gevechtspel-*-linux-x86_64 "$DIR"/Exportbuilds/gevechtspel-*-linux-x86_64 2>/dev/null | sort -V | tail -n1 || true)
+	c=$(ls -1t "$DIR"/gevechtspel-*-linux-x86_64 "$DIR"/Exportbuilds/gevechtspel-*-linux-x86_64 2>/dev/null | head -n1 || true)
 	BIN="$c"
 }
 
