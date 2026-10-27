@@ -141,6 +141,11 @@ var match_config_handler: Callable
 var lobby: Dictionary = {} # peer_id → {name, team}
 var master_vol := 1.0
 var sfx_vol := 1.0
+## Enemy shots, steps, slides, landings, reloads (#59). Routed through SFX, so Effects scales it too.
+## Above 1.0 is a boost: the default makes enemies a bit louder than before.
+const ENEMIES_VOL_DEFAULT := 1.4
+const ENEMIES_VOL_MAX := 2.0
+var enemies_vol := ENEMIES_VOL_DEFAULT
 var player_name := "Player" # this launch. --name replaces it and must not be written back.
 const RECENT_SERVERS_MAX := 5
 var recent_servers: PackedStringArray = [] # "ip:port", newest first (settings.cfg [net] recent)
@@ -2450,6 +2455,7 @@ func _ensure_sfx_bus() -> void:
 			AudioServer.set_bus_name(b, bus_name)
 			AudioServer.set_bus_send(b, "Master")
 	if AudioServer.get_bus_index("SFX") != -1:
+		_ensure_enemies_bus()
 		return
 	var i := AudioServer.bus_count
 	AudioServer.add_bus()
@@ -2465,6 +2471,7 @@ func _ensure_sfx_bus() -> void:
 	var limiter := AudioEffectHardLimiter.new()
 	limiter.ceiling_db = -0.5
 	AudioServer.add_bus_effect(AudioServer.get_bus_index("Master"), limiter)
+	_ensure_enemies_bus()
 
 
 const SHADOW_NAMES := ["Auto (Graphics)", "Off", "Low", "Medium", "High"]
@@ -2499,6 +2506,7 @@ func load_settings() -> void:
 	if cfg.load("user://settings.cfg") == OK:
 		master_vol = clampf(float(cfg.get_value("audio", "master", 1.0)), 0.0, 1.0)
 		sfx_vol = clampf(float(cfg.get_value("audio", "sfx", 1.0)), 0.0, 1.0)
+		enemies_vol = clampf(float(cfg.get_value("audio", "enemies", ENEMIES_VOL_DEFAULT)), 0.0, ENEMIES_VOL_MAX)
 		mouse_sens = clampf(float(cfg.get_value("input", "mouse_sens", 1.0)), MOUSE_SENS_MIN, MOUSE_SENS_MAX)
 		ads_sens = clampf(float(cfg.get_value("input", "ads_sens", 0.45)), ADS_SENS_MIN, ADS_SENS_MAX)
 		invert_y = bool(cfg.get_value("input", "invert_y", false))
@@ -2565,6 +2573,7 @@ func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master", master_vol)
 	cfg.set_value("audio", "sfx", sfx_vol)
+	cfg.set_value("audio", "enemies", enemies_vol)
 	cfg.set_value("input", "mouse_sens", mouse_sens)
 	cfg.set_value("input", "ads_sens", ads_sens)
 	cfg.set_value("input", "invert_y", invert_y)
@@ -2696,6 +2705,7 @@ func set_sfx_vol(v: float) -> void:
 func apply_audio() -> void:
 	_set_bus_linear("Master", master_vol)
 	_set_bus_linear("SFX", sfx_vol)
+	_set_bus_linear("Enemies", enemies_vol)
 	_set_bus_linear("Music", music_vol)
 	_set_bus_linear("UI", ui_vol)
 
@@ -2997,6 +3007,21 @@ func _snap_fps(v: int) -> int:
 
 func _snap_scale(v: float) -> float:
 	return clampf(round(clampf(v, 0.5, 1.0) * 20.0) / 20.0, 0.5, 1.0)
+
+
+func _ensure_enemies_bus() -> void:
+	if AudioServer.get_bus_index("Enemies") != -1:
+		return
+	var b := AudioServer.bus_count
+	AudioServer.add_bus()
+	AudioServer.set_bus_name(b, "Enemies")
+	AudioServer.set_bus_send(b, "SFX")
+
+
+func set_enemies_vol(v: float) -> void:
+	enemies_vol = clampf(v, 0.0, ENEMIES_VOL_MAX)
+	_set_bus_linear("Enemies", enemies_vol)
+	save_settings()
 
 
 func _set_bus_linear(bus_name: String, linear: float) -> void:
