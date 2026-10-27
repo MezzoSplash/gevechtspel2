@@ -2,6 +2,8 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.4.1** — Tony Hawk style combos: wallruns, wall jumps, dives, rolls, slides, surfs and long air build a combo with a multiplier and a draining bar; a kill lands it (points × multiplier onto your style), running out of time or dying bails it. In Style TDM/FFA the limit now scales with the round: style per minute × minutes (defaults 25 000 FFA, 40 000 TDM in 10 minutes), so one combo no longer ends the match. **Not compatible with v0.4.0** (NET_VERSION 0.4.1): everyone must update, including the dedicated server.
+
 **v0.4.0** — New movement: wallrun along walls (hold sprint + forward in the air) and wall jump off them; dive out of a slide or in the air, with a roll on landing that keeps your speed. New style tricks: WALLRUN KILL, WALL JUMP KILL, DIVE KILL, ROLL KILL and WALL TO WALL. New modes Style Team Deathmatch and Style Free For All, where the most style points wins (`--mode style-tdm|style-ffa`, `--style 3000`). Host Game map and mode picks stick again, and client logs say CLIENT for peer connects. **Not compatible with v0.3.x** (NET_VERSION 0.4.0): everyone must update, including the dedicated server.
 
 **v0.3.13** — The round start music now begins as soon as the intermission ends, plays through the countdown and fades out 5 seconds into the round. The "Round starting" voice line is gone. The death card also shows the weapon you were killed with (gun name, Grenade, Throwing Knife, Knife or RC-XD). **Not compatible with v0.3.12 or older** (NET_VERSION 0.3.13): everyone must update, including the dedicated server.
