@@ -29,5 +29,14 @@ func _ready() -> void:
 		hud._radar_voice_t[k] = float(hud._radar_voice_t[k]) - hud.RADAR_VOICE_COOLDOWN - 0.1
 	hud.show_radar_event("Bot 9", 1, false)
 	_ok(log.count("enemy") == 2, "after the cooldown: plays again")
+	# RC-XD lines (same cooldown, own types)
+	for i in 4:
+		hud.show_rc_event("Bot %d" % i, 1, false)
+	hud.show_rc_event("Me", 0, true)
+	hud.show_rc_event("Me", 0, true)
+	_ok(log.count("rcxd_enemy") == 1, "4 enemy RC-XDs: one 'Enemy RC-XD inbound' (%d)" % log.count("rcxd_enemy"))
+	_ok(log.count("rcxd_friendly") == 1, "friendly RC-XD: one 'Friendly RC-XD deployed' (%d)" % log.count("rcxd_friendly"))
+	_ok(hud._announcer.stream != null and hud._announcer.stream.resource_path.ends_with("rcxd_friendly.wav"), "plays rcxd_friendly.wav")
+	_ok(load("res://assets/sounds/rcxd_enemy.wav") != null, "rcxd_enemy.wav loads")
 	print("UAV VOICE CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails else 0)

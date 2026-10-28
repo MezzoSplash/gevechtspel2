@@ -11,6 +11,8 @@ Usage: python3 tools/build_sfx.py <src_dir>
                                    echo "Friendly radar online." | piper -m en_US-ljspeech-high.onnx -f tts/friendly_radar_online.wav
                                    echo "Enemy radar online." | piper -m en_US-ljspeech-high.onnx -f tts/enemy_radar_online.wav
                                    echo "RC-XD ready for deployment." | piper -m en_US-ljspeech-high.onnx -f tts/rcxd_ready_for_deployment.wav
+                                   echo "Enemy RC-XD inbound." | piper -m en_US-ljspeech-high.onnx -f tts/enemy_rcxd_inbound.wav
+                                   echo "Friendly RC-XD deployed." | piper -m en_US-ljspeech-high.onnx -f tts/friendly_rcxd_deployed.wav
 Needs ffmpeg and numpy. Writes into assets/sounds/.
 """
 import os
@@ -266,6 +268,10 @@ radio("friendly_radar_online.wav", "radar_friendly.wav")
 radio("enemy_radar_online.wav", "radar_enemy.wav")
 # -3.5 dB peak puts it at the same loudness as the shipped radar_friendly / radar_enemy clips (about -16.5 dB mean).
 radio("rcxd_ready_for_deployment.wav", "rcxd_ready.wav", peak_db=-3.5)
+if os.path.exists(K + "tts/enemy_rcxd_inbound.wav"):
+    # -5.5 dB peak: same loudness as the shipped radar lines (about -16 dB mean).
+    radio("enemy_rcxd_inbound.wav", "rcxd_enemy.wav", peak_db=-5.5)
+    radio("friendly_rcxd_deployed.wav", "rcxd_friendly.wav", peak_db=-5.5)
 
 def trickshot():
     # Trickshot sting: Kenney Interface rising sweep, then the two-tone chime plus an octave-up copy for sparkle.
