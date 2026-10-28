@@ -557,10 +557,10 @@ func show_radar_event(by_name: String, team: int, friendly: bool) -> void:
 	if friendly:
 		_radar_left = maxf(_radar_left, Game.radar_left)
 		_refresh_streak_ui()
-		_play_announcer("res://assets/sounds/radar_friendly.wav")
+		_play_radar_voice("friendly")
 		show_popup("UAV", _POPUP_FRIENDLY, by_name, team)
 	else:
-		_play_announcer("res://assets/sounds/radar_enemy.wav")
+		_play_radar_voice("enemy")
 		show_popup("ENEMY UAV", _POPUP_HOSTILE, by_name, team)
 
 
@@ -784,6 +784,22 @@ func _set_streak_frame(slot: ColorRect, on: bool) -> void:
 		var bar := slot.get_node_or_null(edge_name) as ColorRect
 		if bar:
 			bar.visible = on
+
+
+## "Friendly/Enemy radar online" at most once per RADAR_VOICE_COOLDOWN per type. With 12 bots calling
+## UAVs the line played all match long. The popup text still shows every time.
+const RADAR_VOICE_COOLDOWN := 20.0
+var _radar_voice_t := {} # "friendly"/"enemy" -> last play (s, ticks)
+var radar_voice_log: Array = [] # types that actually played (headless check)
+
+
+func _play_radar_voice(kind: String) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if _radar_voice_t.has(kind) and now - float(_radar_voice_t[kind]) < RADAR_VOICE_COOLDOWN:
+		return
+	_radar_voice_t[kind] = now
+	radar_voice_log.append(kind)
+	_play_announcer("res://assets/sounds/radar_%s.wav" % kind)
 
 
 func _play_announcer(path: String) -> void:
