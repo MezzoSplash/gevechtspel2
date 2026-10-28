@@ -3,9 +3,9 @@
 
     python3 tools/gen_combo_sfx.py   -> assets/sounds/combo_{ding,special,land,bail}.wav
 
-ding     punchy, crunchy arcade blip + sub thump per combo move (the HUD raises its pitch with the multiplier)
-special  dark whoosh into a heavy hit for wallrun / wall jump / wall to wall / dive / roll
-land     meaty payout: slam, then a chunky low "ka-CHING", when a kill lands the combo
+ding     turntable "wicka" scratch per combo move (the HUD raises its pitch with the multiplier)
+special  vinyl rewind into a crunchy kick + snare hit (wallrun / wall jump / wall to wall / dive / roll)
+land     scratch, snare fill onto a kick, then a register "ka-chunk", when a kill lands the combo
 bail     record scratch, when the combo is lost (death or the timer)
 Mono 16-bit 44.1 kHz. Deterministic (fixed seed).
 """
@@ -26,12 +26,6 @@ def env(t, attack, decay):
     return a * np.exp(-np.maximum(t - attack, 0) / decay)
 
 
-def bell(f, sec, decay, partials=((1, 1.0), (2.76, 0.35), (5.4, 0.18), (8.9, 0.07))):
-    t = t_of(sec)
-    s = sum(a * np.sin(2 * np.pi * f * m * t) * np.exp(-t / (decay / m ** 0.5)) for m, a in partials)
-    return s * env(t, 0.002, 10)
-
-
 def lowpass(x, k):
     k = max(int(k), 1)
     return np.convolve(x, np.ones(k) / k, mode="same")
@@ -49,9 +43,9 @@ def mix(*parts):
     return out
 
 
-def save(name, x, peak=0.85):
+def save(name, x, peak=0.85, fade_s=0.01):
     x = x / (np.max(np.abs(x)) + 1e-9) * peak
-    fade = int(SR * 0.01)
+    fade = int(SR * fade_s)
     x[-fade:] *= np.linspace(1, 0, fade)
     os.makedirs(OUT, exist_ok=True)
     with wave.open(os.path.join(OUT, name), "wb") as w:
@@ -62,58 +56,80 @@ def save(name, x, peak=0.85):
     print("wrote", name, "%.2fs" % (len(x) / SR))
 
 
-def sat(x, drive):
-    """Soft clip: grit and loudness without harsh digital clipping."""
-    return np.tanh(x * drive) / np.tanh(drive)
+# --- THUG2-style set (ding / special / land): turntable scratches + crunchy drums, like the bail scratch.
+# Everything synthesised: a fake "record" (buzzy formant stab + noise) read at a hand-drawn speed curve.
+_rng = np.random.default_rng(2)
 
 
-def crush(x, bits=7, hold=2):
-    """A little sample-and-hold bit crush for an arcade edge."""
-    y = np.repeat(x[::hold], hold)[: len(x)]
-    q = 2 ** (bits - 1)
-    return np.round(y * q) / q
+def lp(x, k):
+    k = max(int(k), 1)
+    return np.convolve(x, np.ones(k) / k, mode="same")
 
 
-def thump(f0, f1, sec, decay):
-    """Kick-style body: a sine that drops in pitch (punch), with a short click on top."""
-    t = t_of(sec)
-    f = f1 + (f0 - f1) * np.exp(-t / 0.03)
-    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / decay)
-    click = lowpass(rng.standard_normal(len(t)), 2) * np.exp(-t / 0.004)
-    return body + 0.35 * click
+def sat(x, d):
+    return np.tanh(x * d) / np.tanh(d)
 
 
-def hit(f, sec, decay):
-    """Chunky arcade tone: square-ish wave with a downward blip, darker than a bell."""
-    t = t_of(sec)
-    fr = f * (1 + 0.5 * np.exp(-t / 0.015))
-    ph = 2 * np.pi * np.cumsum(fr) / SR
-    tone = np.sign(np.sin(ph)) * 0.5 + np.sin(ph) * 0.5
-    return lowpass(tone, 6) * env(t, 0.001, decay)
+def at(x, sec):
+    return pad(x, sec)
 
 
-def ding():
-    # per move: low punchy blip + sub thump, crunchy (the HUD pitches it up with the multiplier)
-    x = mix(thump(180, 70, 0.22, 0.07) * 0.9, hit(330, 0.22, 0.06) * 0.6)
-    return lowpass(crush(sat(x, 2.5), 7, 1), 3)
+# --- the "record": a vocal-ish 'ahh' stab (formant buzz) and a noisy hit, like a scratch sample
+def record(f0=180, sec=2.0):
+    t = t_of(sec); ph = 2 * np.pi * f0 * t
+    buzz = sum(np.sin(ph * h) / h for h in range(1, 18))
+    form = lp(buzz, 3) - lp(buzz, 25) * 0.6          # crude formant
+    return form * 0.7 + lp(_rng.standard_normal(len(t)), 3) * 0.25
+
+def scratch(src, speeds, sec):
+    """speeds: list of (duration, from, to). Hand on the platter: read src at that speed."""
+    curve = np.concatenate([np.linspace(a, b, int(SR * d)) for d, a, b in speeds])[: int(SR * sec)]
+    pos = np.cumsum(curve) + SR * 0.5
+    y = np.interp(pos, np.arange(len(src)), src)
+    y *= np.clip(np.abs(curve) / 1.0, 0, 1) ** 0.6     # stops are silent
+    return lp(y, 2)
+
+# --- drums
+def kick(sec=0.35, f0=150, f1=45, dec=0.12):
+    t = t_of(sec); f = f1 + (f0 - f1) * np.exp(-t / 0.035)
+    return sat(np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / dec), 1.8) + lp(_rng.standard_normal(len(t)), 2) * np.exp(-t / 0.003) * 0.4
+def snare(sec=0.3, crunch=3.0):
+    t = t_of(sec); n = _rng.standard_normal(len(t))
+    body = np.sin(2 * np.pi * 190 * t) * np.exp(-t / 0.04)
+    rattle = (n - lp(n, 6)) * np.exp(-t / 0.09)
+    return sat(body * 0.8 + rattle, crunch)
+def hat(sec=0.08):
+    t = t_of(sec); n = _rng.standard_normal(len(t)); return (n - lp(n, 3)) * np.exp(-t / 0.02) * 0.5
+def crush(x, bits=8): q = 2 ** (bits - 1); return np.round(x * q) / q
 
 
-def special():
-    t = t_of(0.5)
-    noise = rng.standard_normal(len(t))
-    band = lowpass(noise, 10) - lowpass(noise, 70)  # darker whoosh
-    whoosh = band * np.sin(np.pi * np.clip(t / 0.28, 0, 1)) ** 2 * (t < 0.28) * 1.4
-    impact = pad(mix(thump(160, 50, 0.4, 0.12) * 1.2, hit(220, 0.35, 0.1) * 0.7, hit(330, 0.3, 0.08) * 0.35), 0.24)
-    return lowpass(crush(sat(mix(whoosh, impact), 3.0), 7, 1), 4)
+def fill():
+    y = np.zeros(int(SR * 0.6))
+    for i, d in enumerate([0, 0.07, 0.14, 0.21]):
+        s = snare(0.15, 3.0) * (0.6 + 0.12 * i); y[int(SR * d):int(SR * d) + len(s)] += s
+    y += at(kick(0.4), 0.28)[:len(y)] * 1.2 if len(at(kick(0.4), 0.28)) <= len(y) else at(kick(0.4), 0.28)[:len(y)] * 1.2
+    return y
+def bell_clunk():
+    t = t_of(0.35)
+    clunk = lp(_rng.standard_normal(int(SR * 0.04)), 4) * np.exp(-t_of(0.04) / 0.01)
+    ding = sum(np.sin(2 * np.pi * f * t) * np.exp(-t / 0.12) for f in (880, 1320)) * 0.4  # one short register bell
+    return mix(clunk * 1.4, at(ding, 0.03))
 
 
-def land():
-    # meaty payout: heavy slam, then a chunky two-note "ka-CHING" (low, not sparkly)
-    slam = mix(thump(120, 40, 0.5, 0.16) * 1.3,
-               lowpass(rng.standard_normal(int(SR * 0.08)), 4) * env(t_of(0.08), 0.001, 0.02) * 0.8)
-    ka = pad(hit(196, 0.18, 0.05) * 0.8, 0.03)  # G3
-    ching = pad(mix(hit(294, 0.55, 0.22), hit(440, 0.5, 0.18) * 0.5, thump(90, 45, 0.3, 0.1) * 0.6), 0.12)  # D4 + A4
-    return lowpass(crush(sat(mix(slam, ka, ching), 2.8), 7, 1), 3)
+def thug2_set():
+    """The approved preview set (Gianni, 28 Oct). The B variants are computed but not saved: they draw
+    from the same noise stream, so skipping them would change the A sounds."""
+    rec = record()
+    rec_hi = record(260)
+    ding = scratch(rec, [(0.05, 0.2, 2.2), (0.04, 2.2, -1.8), (0.06, -1.8, 2.6), (0.05, 2.6, 0)], 0.2)  # "wicka"
+    mix(scratch(rec_hi, [(0.03, 0, 2.8), (0.07, 2.8, 0.3)], 0.1), hat() * 0.5)  # B: chirp (unused)
+    rewind = scratch(rec, [(0.28, 1.0, -4.0), (0.06, -4.0, 0)], 0.34)
+    special = sat(mix(rewind * 0.9, at(kick() * 1.1, 0.30), at(snare() * 0.9, 0.30)), 1.6)  # rewind + hit
+    zip_ = scratch(rec_hi, [(0.12, 0.3, 4.5), (0.03, 4.5, 0)], 0.15)  # B: zip + snare (unused)
+    mix(zip_, at(snare(0.35, 4.0), 0.13), at(kick(0.3), 0.13), at(snare(0.2), 0.26))
+    sc = scratch(rec, [(0.06, 0, 2.5), (0.06, 2.5, -2.5), (0.06, -2.5, 2.5), (0.04, 2.5, 0)], 0.22)
+    land = sat(mix(sc * 0.8, at(fill(), 0.2), at(bell_clunk(), 0.5)), 1.5)  # scratch + fill + ka-chunk
+    return ding, special, land
 
 
 def bail():
@@ -136,10 +152,12 @@ def bail():
 
 
 if __name__ == "__main__":
-    save("combo_ding.wav", ding(), 0.7)
-    save("combo_special.wav", special())
-    save("combo_land.wav", land())
-    # combo_bail.wav (the record scratch) is frozen as approved: not rewritten. --bail to regenerate it.
+    d, sp, ld = thug2_set()
+    save("combo_ding.wav", d, 0.9, 0.008)
+    save("combo_special.wav", sp, 0.9, 0.008)
+    save("combo_land.wav", ld, 0.9, 0.008)
+    # combo_bail.wav (the record scratch) is frozen as approved: not rewritten. --bail to regenerate it
+    # (it would not be byte-identical: it shares the old noise stream).
     import sys
     if "--bail" in sys.argv:
         save("combo_bail.wav", bail())

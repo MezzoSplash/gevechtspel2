@@ -26,6 +26,7 @@ They were trimmed, mixed to mono, faded and normalized with `tools/build_sfx.py`
 | `rcxd_drive.wav` | Synthesized in `tools/build_sfx.py` (looping electric motor and two gear meshes) | this project | CC0 |
 | `melee_hit.wav` | Kenney *Impact Sounds* `impactPunch_heavy_001.ogg` + `impactPlate_light_002.ogg` | Kenney | CC0 |
 | `trickshot.wav` | Kenney *Interface Sounds* `maximize_005.ogg` (rising sweep) + `confirmation_002.ogg` (chime, plus an octave-up copy), mixed and saturated in `tools/build_sfx.py` | Kenney | CC0 |
+| `combo_ding.wav`, `combo_special.wav`, `combo_land.wav`, `combo_bail.wav` | Turntable scratches, drums and register clunk synthesised from scratch in `tools/gen_combo_sfx.py` (numpy, fixed seed; no samples) | MezzoSplash | CC0 |
 | `melee_swing.wav` | Synthesized in `tools/build_sfx.py` (band-passed noise whoosh) | this project | CC0 |
 | `radar_friendly.wav`, `radar_enemy.wav`, `rcxd_ready.wav`, `rcxd_friendly.wav`, `rcxd_enemy.wav` | "Friendly radar online." / "Enemy radar online." / "RC-XD ready for deployment." / "Friendly RC-XD deployed." / "Enemy RC-XD inbound." spoken by the [Piper](https://github.com/rhasspy/piper) TTS, voice `en_US-ljspeech-high`, then radio-filtered in `tools/build_sfx.py` | voice: Bryce Beattie, trained on the LJ Speech dataset (Keith Ito, Linda Johnson) | voice model MIT, training data public domain; we release the clips as CC0 |
 

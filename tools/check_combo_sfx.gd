@@ -1,5 +1,6 @@
 extends Node
-## Combo SFX headless: ding per move with rising pitch, special whoosh for wall/dive moves, kaching on
+## Combo SFX headless (THUG2-style set: wicka scratch, rewind + hit, scratch + fill + ka-chunk, record
+## scratch): ding per move with rising pitch, special whoosh for wall/dive moves, kaching on
 ## landing, record scratch on bail, all on the UI bus, rate limited.
 ##   godot --headless res://tools/check_combo_sfx.tscn   → "COMBO SFX CHECK OK"
 var fails := 0
