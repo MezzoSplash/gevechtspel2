@@ -63,7 +63,7 @@ func _ready() -> void:
 	landed.append(await _land(1, bots[0], [Combo.SLIDE, Combo.AIR])) # small, by me
 	await get_tree().create_timer(1.5).timeout
 	landed.append(await _land(bots[1], bots[0], big)) # the biggest, by a bot, early
-	await get_tree().create_timer(9.0).timeout # past KEEP: only a stored clip can replay it now
+	await get_tree().create_timer(Killcam.KEEP + 2.0).timeout # past KEEP: only a stored clip can replay it now
 	landed.append(await _land(1, bots[1], [Combo.WALLRUN, Combo.WALLJUMP, Combo.DIVE])) # medium, recent
 	# Metric: a trick kill without a combo is best only until someone lands a combo; after that a
 	# smaller combo still beats it (the spot is for the biggest single combo).
@@ -99,6 +99,11 @@ func _ready() -> void:
 		if kc._playing:
 			break
 	_ok(kc._playing, "final killcam plays")
+	_ok(is_equal_approx(Killcam.PRE, 5.0) and is_equal_approx(Killcam.POST, 2.0) and Killcam.KEEP >= Killcam.PRE + Killcam.POST + 0.4 + Killcam.POST,
+		"timings: %.1f s before, %.1f s after, buffer %.1f s" % [Killcam.PRE, Killcam.POST, Killcam.KEEP])
+	var fr: Array = kc._clip.frames
+	_ok(float(kc._clip.t_kill) - float(fr[0][0]) >= Killcam.PRE and float(fr[-1][0]) - float(kc._clip.t_kill) >= Killcam.POST,
+		"stored clip covers PRE before and POST after the kill")
 	_ok(int(Game.killcam_pick().get("bank", 0)) == int(landed[1].pts), "pick carries the combo payout")
 	var info: Dictionary = kc._clip.get("info", {})
 	_ok(int(info.get("trick_id", -1)) == int(best.id), "replays the biggest combo (trick %s, want %d)" % [info.get("trick_id", -1), best.id])
