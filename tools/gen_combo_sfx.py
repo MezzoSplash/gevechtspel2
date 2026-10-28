@@ -3,9 +3,9 @@
 
     python3 tools/gen_combo_sfx.py   -> assets/sounds/combo_{ding,special,land,bail}.wav
 
-ding     short bell per combo move (the HUD raises its pitch as the multiplier grows)
-special  air whoosh + bright ching for wallrun / wall jump / wall to wall / dive / roll
-land     "kaching": register clunk + coin chimes, when a kill lands the combo
+ding     punchy, crunchy arcade blip + sub thump per combo move (the HUD raises its pitch with the multiplier)
+special  dark whoosh into a heavy hit for wallrun / wall jump / wall to wall / dive / roll
+land     meaty payout: slam, then a chunky low "ka-CHING", when a kill lands the combo
 bail     record scratch, when the combo is lost (death or the timer)
 Mono 16-bit 44.1 kHz. Deterministic (fixed seed).
 """
@@ -62,25 +62,58 @@ def save(name, x, peak=0.85):
     print("wrote", name, "%.2fs" % (len(x) / SR))
 
 
+def sat(x, drive):
+    """Soft clip: grit and loudness without harsh digital clipping."""
+    return np.tanh(x * drive) / np.tanh(drive)
+
+
+def crush(x, bits=7, hold=2):
+    """A little sample-and-hold bit crush for an arcade edge."""
+    y = np.repeat(x[::hold], hold)[: len(x)]
+    q = 2 ** (bits - 1)
+    return np.round(y * q) / q
+
+
+def thump(f0, f1, sec, decay):
+    """Kick-style body: a sine that drops in pitch (punch), with a short click on top."""
+    t = t_of(sec)
+    f = f1 + (f0 - f1) * np.exp(-t / 0.03)
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / decay)
+    click = lowpass(rng.standard_normal(len(t)), 2) * np.exp(-t / 0.004)
+    return body + 0.35 * click
+
+
+def hit(f, sec, decay):
+    """Chunky arcade tone: square-ish wave with a downward blip, darker than a bell."""
+    t = t_of(sec)
+    fr = f * (1 + 0.5 * np.exp(-t / 0.015))
+    ph = 2 * np.pi * np.cumsum(fr) / SR
+    tone = np.sign(np.sin(ph)) * 0.5 + np.sin(ph) * 0.5
+    return lowpass(tone, 6) * env(t, 0.001, decay)
+
+
 def ding():
-    return bell(1318.5, 0.35, 0.12)  # E6
+    # per move: low punchy blip + sub thump, crunchy (the HUD pitches it up with the multiplier)
+    x = mix(thump(180, 70, 0.22, 0.07) * 0.9, hit(330, 0.22, 0.06) * 0.6)
+    return lowpass(crush(sat(x, 2.5), 7, 1), 3)
 
 
 def special():
-    t = t_of(0.55)
+    t = t_of(0.5)
     noise = rng.standard_normal(len(t))
-    # whoosh: band of noise sweeping up then fading (two smoothing widths = crude band-pass)
-    sweep = lowpass(noise, 6) - lowpass(noise, 40)
-    whoosh = sweep * np.sin(np.pi * np.clip(t / 0.32, 0, 1)) ** 2 * (t < 0.32)
-    ching = pad(bell(1760, 0.45, 0.18) + 0.6 * bell(2637, 0.45, 0.14), 0.24)
-    return mix(whoosh * 0.9, ching)
+    band = lowpass(noise, 10) - lowpass(noise, 70)  # darker whoosh
+    whoosh = band * np.sin(np.pi * np.clip(t / 0.28, 0, 1)) ** 2 * (t < 0.28) * 1.4
+    impact = pad(mix(thump(160, 50, 0.4, 0.12) * 1.2, hit(220, 0.35, 0.1) * 0.7, hit(330, 0.3, 0.08) * 0.35), 0.24)
+    return lowpass(crush(sat(mix(whoosh, impact), 3.0), 7, 1), 4)
 
 
 def land():
-    t = t_of(0.08)
-    clunk = (np.sin(2 * np.pi * 140 * t) + 0.5 * lowpass(rng.standard_normal(len(t)), 3)) * env(t, 0.001, 0.025)
-    coins = [pad(bell(f, 0.5, 0.2), d) for f, d in ((2093, 0.06), (2637, 0.12), (3136, 0.18), (4186, 0.24))]
-    return mix(clunk * 1.2, *[c * 0.7 for c in coins])
+    # meaty payout: heavy slam, then a chunky two-note "ka-CHING" (low, not sparkly)
+    slam = mix(thump(120, 40, 0.5, 0.16) * 1.3,
+               lowpass(rng.standard_normal(int(SR * 0.08)), 4) * env(t_of(0.08), 0.001, 0.02) * 0.8)
+    ka = pad(hit(196, 0.18, 0.05) * 0.8, 0.03)  # G3
+    ching = pad(mix(hit(294, 0.55, 0.22), hit(440, 0.5, 0.18) * 0.5, thump(90, 45, 0.3, 0.1) * 0.6), 0.12)  # D4 + A4
+    return lowpass(crush(sat(mix(slam, ka, ching), 2.8), 7, 1), 3)
 
 
 def bail():
@@ -106,4 +139,7 @@ if __name__ == "__main__":
     save("combo_ding.wav", ding(), 0.7)
     save("combo_special.wav", special())
     save("combo_land.wav", land())
-    save("combo_bail.wav", bail())
+    # combo_bail.wav (the record scratch) is frozen as approved: not rewritten. --bail to regenerate it.
+    import sys
+    if "--bail" in sys.argv:
+        save("combo_bail.wav", bail())

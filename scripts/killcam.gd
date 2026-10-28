@@ -748,7 +748,9 @@ func _build_overlay(info: Dictionary) -> void:
 	var title_text := "FINAL KILLCAM"
 	if info.has("trick_id"):
 		title_text = "BEST TRICKSHOT"
-		if int(info.get("pts", 0)) > 0:
+		if int(info.get("bank", 0)) > 0:
+			title_text = "BEST COMBO  ·  %d STYLE" % int(info.bank)
+		elif int(info.get("pts", 0)) > 0:
 			title_text += "  ·  %d STYLE" % int(info.pts)
 	var title := _label(title_text, 34, Color(1, 1, 1))
 	title.set_anchors_preset(Control.PRESET_FULL_RECT)

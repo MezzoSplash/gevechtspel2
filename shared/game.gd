@@ -1775,10 +1775,15 @@ func _award_style(kill_info: Dictionary, tricks_in: Array[StringName]) -> void:
 	var mult := Style.chain_multiplier(chain)
 	var total := pts + (int(scores[k].get("style", 0)) if scores.has(k) else 0)
 	_trick_seq += 1
-	var is_best := _round_active and pts > int(best_trick.get("pts", 0))
+	# Best trickshot = the biggest single landed combo (its payout, points × multiplier) of the round, over
+	# all players. Kills without a combo only count while nobody has landed one yet. Before this a plain
+	# trick kill with a chain multiplier (e.g. a bot's HOSE + RUN & GUN ×2) could beat a bigger combo.
+	var best_bank := int(best_trick.get("bank", 0))
+	var is_best := _round_active and (bank > best_bank or (bank == 0 and best_bank == 0 and pts > int(best_trick.get("pts", 0))))
 	if is_best:
 		best_trick = kill_info.duplicate()
 		best_trick["pts"] = pts
+		best_trick["bank"] = bank
 		best_trick["tags"] = Style.label(tricks) # #88: with COMBO, so a combo-landing best does not look like a plain kill
 		best_trick["trick_id"] = _trick_seq
 	var packed := Style.pack(tricks)
