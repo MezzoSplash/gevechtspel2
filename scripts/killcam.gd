@@ -10,9 +10,9 @@ extends Node
 signal finished ## the lock is off again: the round-end board comes back
 
 const RATE := 30.0 # snapshots per second
-const KEEP := 7.0 # seconds of history
-const PRE := 3.5 # the replay starts this long before the kill
-const POST := 1.0 # and runs this long after it; the server waits POST before it sends "play"
+const KEEP := 10.0 # seconds of history: PRE + POST + slice margin, with room to spare
+const PRE := 5.0 # the replay starts this long before the kill
+const POST := 2.0 # and runs this long after it; the server waits POST before it sends "play"
 const SLOW_FROM := 0.3 # slow motion from this long before the kill
 const SLOW_TO := 0.25 # until this long after it
 const SLOW := 0.35 # playback speed in the slow part
