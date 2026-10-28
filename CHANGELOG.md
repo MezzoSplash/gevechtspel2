@@ -2,6 +2,8 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.4.3** — New Tony Hawk style combo sounds (a turntable scratch per trick that rises with the combo, a rewind and drum hit for wall and dive moves, a scratch and drum fill with a register "ka-chunk" when a kill lands the combo, a record scratch when it bails). The final killcam now shows the biggest single landed combo of the round ("BEST COMBO"). The radar voice lines have a 20 s cooldown per type (the popups still show every time), and new voice lines "Enemy RC-XD inbound" and "Friendly RC-XD deployed". The killcam is longer: 5 s before and 2 s after the kill. **Compatible with v0.4.2** (NET_VERSION stays 0.4.2).
+
 **v0.4.2** — RC-XD kills now earn style (new trick RC-XD KILL, 150). The final "Best trickshot" killcam shows the round's real top kill again, includes COMBO in its tags and shows its points. Surfing holds the combo timer (the bar turns blue). Bot difficulty Easy / Medium / Hard in Solo and Host and via `--bot-difficulty` (default Medium; Hard is how bots played up to v0.4.1). **Not compatible with v0.4.1** (NET_VERSION 0.4.2): everyone must update, including the dedicated server.
 
 **v0.4.1** — Tony Hawk style combos: wallruns, wall jumps, dives, rolls, slides, surfs and long air build a combo with a multiplier and a draining bar; a kill lands it (points × multiplier onto your style), running out of time or dying bails it. In Style TDM/FFA the limit now scales with the round: style per minute × minutes (defaults 25 000 FFA, 40 000 TDM in 10 minutes), so one combo no longer ends the match. **Not compatible with v0.4.0** (NET_VERSION 0.4.1): everyone must update, including the dedicated server.
