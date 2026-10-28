@@ -564,11 +564,14 @@ func show_radar_event(by_name: String, team: int, friendly: bool) -> void:
 		show_popup("ENEMY UAV", _POPUP_HOSTILE, by_name, team)
 
 
-## RC-XD switched on. Own team gets the plain title. The other team gets the enemy title. No voice line.
+## RC-XD switched on. Own team (and you) get the plain title and "Friendly RC-XD deployed"; the other
+## team (in FFA everyone else) the enemy title and "Enemy RC-XD inbound". Voice on the radar cooldown.
 func show_rc_event(by_name: String, team: int, friendly: bool) -> void:
 	if friendly:
+		_play_radar_voice("rcxd_friendly")
 		show_popup("RC-XD", _POPUP_FRIENDLY, by_name, team)
 	else:
+		_play_radar_voice("rcxd_enemy")
 		show_popup("ENEMY RC-XD", _POPUP_HOSTILE, by_name, team)
 
 
@@ -799,7 +802,7 @@ func _play_radar_voice(kind: String) -> void:
 		return
 	_radar_voice_t[kind] = now
 	radar_voice_log.append(kind)
-	_play_announcer("res://assets/sounds/radar_%s.wav" % kind)
+	_play_announcer("res://assets/sounds/%s.wav" % (kind if kind.begins_with("rcxd_") else "radar_" + kind))
 
 
 func _play_announcer(path: String) -> void:
