@@ -324,21 +324,13 @@ func score_word() -> String:
 	return "style" if is_style_mode() else "kills"
 
 
-## What counts for a team: kills, or the summed style of its members in style modes.
+## Scoring, win checks, round clock and round reset live in MatchRules (shared/match_rules.gd).
 func team_score(team_id: int) -> int:
-	if not is_style_mode():
-		return get_team_kills(team_id)
-	var sum := 0
-	for id in scores:
-		if int(scores[id].get("team", 0)) == team_id:
-			sum += int(scores[id].get("style", 0))
-	return sum
+	return MatchRules.team_score(self, team_id)
 
 
 func player_score(peer_id: int) -> int:
-	if not scores.has(peer_id):
-		return 0
-	return int(scores[peer_id].get("style" if is_style_mode() else "kills", 0))
+	return MatchRules.player_score(self, peer_id)
 
 
 func mode_name(m: int = -1) -> String:
@@ -364,10 +356,7 @@ func win_kills() -> int:
 
 
 func default_kills_for(m: int = -1) -> int:
-	var mm := mode if m < 0 else m
-	if is_style_mode(mm):
-		return STYLE_FFA_LIMIT if is_ffa(mm) else STYLE_TDM_LIMIT
-	return FFA_WIN_KILLS if is_ffa(mm) else WIN_KILLS
+	return MatchRules.default_kills_for(self, m)
 
 
 ## Hostility for damage, bots, tags, and colours. FFA: everyone but yourself.
@@ -1675,121 +1664,20 @@ func sync_kill_feed(
 
 # --- Trickshots / style (see Style). Match authority decides, everyone shows it. ---
 
-## The shot (or melee swing) resolving right now (Game._shot_ctx) made this kill: what tricks was it?
-## Grenades and anything outside a shot or swing have no context and no tricks.
+## Trick detection lives in Tricks (shared/tricks.gd); these wrappers keep the old entry points.
 func _detect_tricks(
 	killer_peer_id: int, victim_peer_id: int, weapon_id: StringName, headshot: bool = false
 ) -> Array[StringName]:
-	var none: Array[StringName] = []
-	if weapon_id == &"rcxd":
-		return Style.detect({"weapon": weapon_id}) # #87: the RC blast has no shot context, but is a style kill
-	if _shot_ctx.is_empty():
-		return none
-	var shooter := _shot_ctx.get("shooter") as Player
-	if shooter == null or not is_instance_valid(shooter):
-		return none
-	if shooter.peer_id != killer_peer_id and shooter._owner_peer() != killer_peer_id:
-		return none
-	var victim := player_for_peer(victim_peer_id)
-	var origin: Vector3 = _shot_ctx.get("origin", shooter.global_position)
-	var dist := origin.distance_to(victim.aim_point()) if victim else 0.0
-	var window := Style.SPIN_WINDOW
-	if is_networked() and not shooter.is_bot and not shooter.is_local():
-		window += Style.SPIN_NET_SLACK
-	var now := Time.get_ticks_msec() / 1000.0
-	var burst: Dictionary = _shot_ctx.get("burst", {})
-	var others := 0
-	for v in burst.get("victims", []):
-		if int(v) != victim_peer_id:
-			others += 1
-	var streak := int(_hs_streak.get(killer_peer_id, 0))
-	if weapon_id == &"rifle" and headshot:
-		streak += 1
-	var mag: Dictionary = _shot_ctx.get("mag", {})
-	var mag_kills := int(mag.get("kills", 0)) + 1 if StringName(mag.get("weapon", &"")) == weapon_id else 0
-	var since_draw := INF
-	if shooter.weapon and shooter.weapon.def and shooter.weapon.def.id == weapon_id:
-		since_draw = shooter.weapon.since_draw()
-	var remote := is_networked() and not shooter.is_bot and not shooter.is_local()
-	return Style.detect({
-		"weapon": weapon_id,
-		"scoped": bool(_shot_ctx.get("scoped", false)),
-		"bot": shooter.is_bot,
-		"headshot": headshot,
-		"spin": shooter.spin_degrees(window),
-		"shooter_air": shooter.air_time,
-		"victim_air": victim.air_time if victim else 0.0,
-		"dist": dist,
-		"speed": shooter._obs_speed,
-		"surf": shooter.style_surfing(),
-		"drop": shooter.style_drop(),
-		"burst_victims": others,
-		"double": weapon_id == &"shotgun" and now - float(_shotgun_kill_t.get(killer_peer_id, -100.0)) <= Style.DOUBLE_WINDOW,
-		"hs_streak": streak,
-		"run_t": shooter.run_time(),
-		"mag_kills": mag_kills,
-		"since_draw": since_draw,
-		"quickdraw_slack": Style.QUICKDRAW_NET_SLACK if remote else 0.0,
-		"knife_air": bool(_shot_ctx.get("knife_air", false)),
-		"wallrun": shooter.style_wallrun(),
-		"walljump": shooter.style_walljump(),
-		"dive": shooter.style_dive(),
-		"roll": shooter.style_roll(),
-	})
+	return Tricks.detect(self, killer_peer_id, victim_peer_id, weapon_id, headshot)
 
 
-## Per-killer history behind DOUBLE, SPRAY TRANSFER and HEADSHOT STREAK (after _detect_tricks).
 func _note_trick_history(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName, headshot: bool) -> void:
-	_hs_streak.erase(victim_peer_id) # dying ends your streak
-	if weapon_id == &"rifle" and headshot:
-		_hs_streak[killer_peer_id] = int(_hs_streak.get(killer_peer_id, 0)) + 1
-	else:
-		_hs_streak.erase(killer_peer_id) # any other kill breaks the run
-	if weapon_id == &"shotgun":
-		_shotgun_kill_t[killer_peer_id] = Time.get_ticks_msec() / 1000.0
-	if not _shot_ctx.is_empty():
-		var burst: Dictionary = _shot_ctx.get("burst", {})
-		if not burst.is_empty():
-			(burst.victims as Array).append(victim_peer_id)
-		var mag: Dictionary = _shot_ctx.get("mag", {})
-		if not mag.is_empty() and StringName(mag.get("weapon", &"")) == weapon_id:
-			mag.kills = int(mag.kills) + 1
+	Tricks.note_history(_hs_streak, _shotgun_kill_t, _shot_ctx, killer_peer_id, victim_peer_id, weapon_id, headshot)
 
 
-## Points (with the chain multiplier) onto the killer's style; tell everyone; remember the round's best
-## trick for the final killcam.
+## Style awarding lives in ComboLedger (shared/combo_ledger.gd); wrapper keeps the old entry point.
 func _award_style(kill_info: Dictionary, tricks_in: Array[StringName]) -> void:
-	var k := int(kill_info.k)
-	var tricks: Array[StringName] = tricks_in.duplicate()
-	var bank := 0
-	var c: Dictionary = _combos.get(k, {})
-	if Combo.active(c):
-		bank = Combo.value(c) # #84: the kill lands the combo
-		tricks.append(Style.COMBO)
-		_combo_end(k, "landed", bank)
-	var now := Time.get_ticks_msec() / 1000.0
-	var prev: Array = _style_chain.get(k, [0, -1000.0])
-	var chain := int(prev[0]) + 1 if now - float(prev[1]) <= Style.CHAIN_WINDOW else 1
-	_style_chain[k] = [chain, now]
-	var pts := Style.award(tricks, chain) + bank # chain multiplier on the kill tricks only, never on the combo
-	var mult := Style.chain_multiplier(chain)
-	var total := pts + (int(scores[k].get("style", 0)) if scores.has(k) else 0)
-	_trick_seq += 1
-	# Best trickshot = the biggest single landed combo (its payout, points × multiplier) of the round, over
-	# all players. Kills without a combo only count while nobody has landed one yet. Before this a plain
-	# trick kill with a chain multiplier (e.g. a bot's HOSE + RUN & GUN ×2) could beat a bigger combo.
-	var best_bank := int(best_trick.get("bank", 0))
-	var is_best := _round_active and (bank > best_bank or (bank == 0 and best_bank == 0 and pts > int(best_trick.get("pts", 0))))
-	if is_best:
-		best_trick = kill_info.duplicate()
-		best_trick["pts"] = pts
-		best_trick["bank"] = bank
-		best_trick["tags"] = Style.label(tricks) # #88: with COMBO, so a combo-landing best does not look like a plain kill
-		best_trick["trick_id"] = _trick_seq
-	var packed := Style.pack(tricks)
-	_apply_trick(k, int(kill_info.v), packed, pts, mult, total, _trick_seq, is_best)
-	if is_networked():
-		sync_trick.rpc(k, int(kill_info.v), packed, pts, mult, total, _trick_seq, is_best)
+	ComboLedger.award_style(self, kill_info, tricks_in)
 
 
 @rpc("authority", "reliable")
@@ -1828,17 +1716,8 @@ func killcam_pick() -> Dictionary:
 	return info
 
 
-## Most style this round (> 0). Ties: the name that sorts first. {} if nobody has style.
 func style_king() -> Dictionary:
-	var best := {}
-	for id in scores:
-		var st := int(scores[id].get("style", 0))
-		if st <= 0:
-			continue
-		var n := str(scores[id].name)
-		if best.is_empty() or st > int(best.style) or (st == int(best.style) and n < str(best.name)):
-			best = {"peer_id": int(id), "name": n, "style": st, "team": int(scores[id].get("team", 0))}
-	return best
+	return MatchRules.style_king(scores)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1847,57 +1726,25 @@ func style_king() -> Dictionary:
 var _combos: Dictionary = {} # peer -> Combo state
 
 
+## Combo logic lives in ComboLedger; these wrappers keep the old entry points (and RPCs stay here).
 func combo_move(peer_id: int, move: StringName) -> void:
-	if not _is_match_authority() or not _round_active or play_locked() or not scores.has(peer_id):
-		return
-	var c: Dictionary = _combos.get(peer_id, {})
-	if not Combo.active(c):
-		c = Combo.fresh()
-	if Combo.add_move(c, move) <= 0:
-		return
-	_combos[peer_id] = c
-	_send_combo(peer_id, c, "build", 0)
+	ComboLedger.move(self, peer_id, move)
 
 
 func combo_of(peer_id: int) -> Dictionary:
 	return _combos.get(peer_id, {})
 
 
-## Death, a timeout, a landing: the combo is over either way.
 func _combo_end(peer_id: int, state: String, banked: int) -> void:
-	var c: Dictionary = _combos.get(peer_id, {})
-	_combos.erase(peer_id)
-	if c.is_empty():
-		return
-	_send_combo(peer_id, c, state, banked)
+	ComboLedger.end(self, peer_id, state, banked)
 
 
 func _tick_combos(delta: float) -> void:
-	if _combos.is_empty() or not _is_match_authority():
-		return
-	for id in _combos.keys():
-		var c: Dictionary = _combos[id]
-		# #89: surfing holds the clock (a long surf is the trick, not a pause). The HUD shows it frozen.
-		var pawn := player_for_peer(int(id))
-		var surfing := pawn != null and not pawn.is_dead and pawn.style_surfing()
-		if surfing != bool(c.get("frozen", false)):
-			c["frozen"] = surfing
-			_send_combo(int(id), c, "build", 0) # "frozen" while c.frozen, see _send_combo
-		if surfing:
-			continue
-		c.t = float(c.t) - delta
-		if float(c.t) <= 0.0:
-			_combo_end(id, "bailed", 0)
+	ComboLedger.tick(self, delta)
 
 
 func _send_combo(peer_id: int, c: Dictionary, state: String, banked: int) -> void:
-	if state == "build" and bool(c.get("frozen", false)):
-		state = "frozen" # a move while surfing: new points, the timer is still held
-	var args := [int(c.get("pts", 0)), float(c.get("mult", 1.0)), maxf(float(c.get("t", 0.0)), 0.0), Combo.label(c), state, banked]
-	if not is_networked() or peer_id == multiplayer.get_unique_id():
-		_apply_combo(args)
-	elif peer_id > 0 and peer_id in multiplayer.get_peers():
-		sync_combo.rpc_id(peer_id, args)
+	ComboLedger.send(self, peer_id, c, state, banked)
 
 
 @rpc("authority", "reliable")
@@ -1964,31 +1811,15 @@ func sync_all_scores(scores_data: Array) -> void:
 
 
 func _check_win_team(team_id: int) -> void:
-	if not _round_active:
-		return
-	if get_team_kills(team_id) >= win_kills():
-		_end_round_team(team_id)
+	MatchRules.check_win_team(self, team_id)
 
 
-## #82: in style modes the first team (TDM) or player (FFA) to score_limit() style points wins.
 func _check_style_win(peer_id: int) -> void:
-	if not is_style_mode() or not _round_active or not scores.has(peer_id):
-		return
-	if is_ffa():
-		if player_score(peer_id) >= score_limit():
-			_end_round_player(peer_id)
-		return
-	var t := int(scores[peer_id].get("team", 0))
-	if team_score(t) >= score_limit():
-		_end_round_team(t)
+	MatchRules.check_style_win(self, peer_id)
 
 
-## FFA: first player to kill_limit wins the round.
 func _check_win_player(peer_id: int) -> void:
-	if not _round_active or not scores.has(peer_id):
-		return
-	if int(scores[peer_id].kills) >= win_kills():
-		_end_round_player(peer_id)
+	MatchRules.check_win_player(self, peer_id)
 
 
 ## FFA round end: `winner_name` is the player. round_ended carries the peer id (TDM: the team id).
@@ -2184,17 +2015,7 @@ func _tick_tension() -> void:
 func start_round() -> void:
 	_round_timer = 0.0
 	_round_active = false # timer starts after freeze
-	final_kill.clear()
-	best_trick.clear()
-	_combos.clear()
-	_style_chain.clear()
-	_line_cd.clear()
-	_line_chain.clear()
-	_line_pos.clear()
-	_bursts.clear()
-	_shotgun_kill_t.clear()
-	_hs_streak.clear()
-	_mags.clear()
+	MatchRules.clear_round_state(self)
 	team_kills = [0, 0]
 	if is_networked() and multiplayer.is_server():
 		sync_team_kills.rpc(0, 0)
@@ -2278,17 +2099,7 @@ func reset_session() -> void:
 	in_lobby = false
 	round_frozen = false
 	killcam_active = false
-	final_kill.clear()
-	best_trick.clear()
-	_combos.clear()
-	_style_chain.clear()
-	_line_cd.clear()
-	_line_chain.clear()
-	_line_pos.clear()
-	_bursts.clear()
-	_shotgun_kill_t.clear()
-	_hs_streak.clear()
-	_mags.clear()
+	MatchRules.clear_round_state(self)
 	_shot_ctx = {}
 	if killcam:
 		killcam.reset()
@@ -2318,16 +2129,7 @@ func reset_session() -> void:
 
 
 func update_round_timer(delta: float) -> bool:
-	if not _round_active:
-		return false
-	_round_timer += delta
-	if _round_timer >= round_time:
-		if is_ffa():
-			_end_round_player(top_player())
-		else:
-			_end_round_team(_get_leader())
-		return true
-	return false
+	return MatchRules.update_round_timer(self, delta)
 
 
 func _get_leader() -> int:
