@@ -1011,42 +1011,12 @@ func is_sliding() -> bool:
 	return _sliding
 
 
-## Sprint, or already faster than a walk, plus crouch. Plain crouch stays the slow stance.
 func _try_start_slide(on_floor: bool, locked: bool) -> void:
-	if _sliding or locked or is_dead or not on_floor:
-		return
-	if not Input.is_action_just_pressed("crouch"):
-		return
-	var speed := Vector2(velocity.x, velocity.z).length()
-	if not is_sprinting and speed < WALK_SPEED * 1.05:
-		return
-	_sliding = true
-	_slide_t = 0.0
-	_slide_dir = Vector3(velocity.x, 0.0, velocity.z)
-	if _slide_dir.length_squared() < 0.04:
-		_slide_dir = -transform.basis.z
-	_slide_dir = _slide_dir.normalized()
-	crouch = 1.0
-	if slide_sfx:
-		slide_sfx.play()
+	Movement.try_start_slide(self, on_floor, locked)
 
 
-## Minimum time so a tap still slides. After that: release, slow down, or a wall ends it.
 func _finish_slide() -> void:
-	if not _sliding:
-		return
-	_slide_t += get_physics_process_delta_time()
-	var speed := Vector2(velocity.x, velocity.z).length()
-	var release := not Input.is_action_pressed("crouch")
-	var slow := speed < WALK_SPEED * 0.95
-	var wall := false
-	for i in get_slide_collision_count():
-		var n := get_slide_collision(i).get_normal()
-		if n.y < 0.45:
-			wall = true
-			break
-	if _slide_t >= SLIDE_MIN and (release or slow or wall or not is_on_floor()):
-		_sliding = false
+	Movement.finish_slide(self)
 
 
 func _update_stance(delta: float, _on_floor: bool) -> void:
@@ -1106,38 +1076,16 @@ func _ceiling_blocked() -> bool:
 	return space.intersect_ray(query).has("collider")
 
 
-## Quake-style stop: no Godot default air float.
 func _friction(vel: Vector3, delta: float) -> Vector3:
-	return _friction_amount(vel, delta, GROUND_FRICTION)
+	return Movement.friction(vel, delta)
 
 
 func _friction_amount(vel: Vector3, delta: float, friction: float) -> Vector3:
-	var speed := vel.length()
-	if speed < 0.01:
-		return Vector3.ZERO
-	var control := STOP_SPEED if speed < STOP_SPEED else speed
-	var drop := control * friction * delta
-	var new_speed := maxf(speed - drop, 0.0)
-	return vel * (new_speed / speed)
+	return Movement.friction_amount(vel, delta, friction)
 
 
-## Source AirAccelerate: the speed we may add along the wish direction is capped at AIR_WISH_CAP, the
-## rate is not. Straight ahead adds nothing once you move; perpendicular (strafe + mouse) bends the
-## velocity and adds a little speed, bounded by AIR_MAX_SPEED (speed you already had is kept).
 func _air_accelerate(vel: Vector3, wish: Vector3, wish_speed: float, delta: float) -> Vector3:
-	if wish.length_squared() < 0.0001 or wish_speed <= 0.0:
-		return vel
-	var dir := wish.normalized()
-	var add := minf(wish_speed, AIR_WISH_CAP) - vel.dot(dir)
-	if add <= 0.0:
-		return vel
-	var before := vel.length()
-	var out := vel + dir * minf(AIR_ACCEL * wish_speed * delta, add)
-	var limit := maxf(before, AIR_MAX_SPEED)
-	var speed := out.length()
-	if speed > limit:
-		out *= limit / speed
-	return out
+	return Movement.air_accelerate(vel, wish, wish_speed, delta)
 
 
 ## Source ClipVelocity: drop the part of `vel` that goes into the plane.
@@ -1148,78 +1096,24 @@ static func clip_to_plane(vel: Vector3, normal: Vector3) -> Vector3:
 	return vel - normal * into
 
 
-## Remember a steep ramp we touched this frame (not floor, not a wall): surfing clips against it.
 func _note_surf_contact() -> void:
-	for i in get_slide_collision_count():
-		var n := get_slide_collision(i).get_normal()
-		if n.y > SURF_MIN_NORMAL_Y and n.y < SURF_MAX_NORMAL_Y:
-			_surf_normal = n
-			_surf_t = SURF_MEMORY
-			return
-	# A clipped glide runs parallel to the ramp, so move_and_slide may not touch it every frame.
-	if _surf_t > 0.0 and not is_on_floor():
-		var hit := KinematicCollision3D.new()
-		if test_move(global_transform, -_surf_normal * SURF_PROBE, hit):
-			var n2 := hit.get_normal()
-			if n2.y > SURF_MIN_NORMAL_Y and n2.y < SURF_MAX_NORMAL_Y:
-				_surf_normal = n2
-				_surf_t = SURF_MEMORY
+	Movement.note_surf_contact(self)
 
 
 func is_surfing() -> bool:
 	return _surf_t > 0.0 and not is_on_floor()
 
 
-## Surf just ended. Above sprint, keep that speed and add a small shove, capped at CARRY_MAX.
 func _begin_carry() -> void:
-	if is_dead or Game.rc_view:
-		return
-	var horiz := Vector3(velocity.x, 0.0, velocity.z)
-	var speed := horiz.length()
-	if speed <= CARRY_ENTER_SPEED:
-		return
-	horiz = horiz.normalized() * minf(speed + CARRY_EXIT_BOOST, CARRY_MAX)
-	velocity.x = horiz.x
-	velocity.z = horiz.z
-	_carry_t = CARRY_TIME
-	if _whoosh:
-		_whoosh.play()
+	Movement.begin_carry(self)
 
 
-## Local sim: a fast pass through a strip shoves you and refreshes carry. Points are the server's.
 func _boost_through_strips() -> void:
-	var speed := Vector2(velocity.x, velocity.z).length()
-	if speed < STRIP_SPEED or is_dead or Game.rc_view:
-		_strip_prev = global_position
-		return
-	var prev := _strip_prev if _strip_prev.is_finite() else global_position
-	_strip_prev = global_position
-	if prev.distance_to(global_position) > STRIP_TELEPORT_M:
-		return
-	for n in get_tree().get_nodes_in_group("speed_strip"):
-		var strip := n as Node3D
-		if strip == null or not segment_hits_strip(strip, prev, global_position):
-			continue
-		var id := str(strip.name)
-		if float(_strip_cd.get(id, 0.0)) > 0.0:
-			continue
-		_strip_cd[id] = STRIP_COOLDOWN
-		var horiz := Vector3(velocity.x, 0.0, velocity.z)
-		horiz = horiz.normalized() * minf(horiz.length() + STRIP_BOOST, CARRY_MAX)
-		velocity.x = horiz.x
-		velocity.z = horiz.z
-		_carry_t = CARRY_TIME
-		return
+	Movement.boost_through_strips(self)
 
 
 func _tick_strip_cd(delta: float) -> void:
-	var dead: Array[String] = []
-	for id in _strip_cd:
-		_strip_cd[id] = float(_strip_cd[id]) - delta
-		if float(_strip_cd[id]) <= 0.0:
-			dead.append(str(id))
-	for id in dead:
-		_strip_cd.erase(id)
+	Movement.tick_strip_cd(self, delta)
 
 
 ## Sprint FOV plus a bit more while carrying. ADS clears it. The two together stay within FOV_EXTRA_CAP.
@@ -1460,15 +1354,7 @@ func _reset_style_track() -> void:
 
 
 func _accelerate(vel: Vector3, wish: Vector3, wish_speed: float, accel: float, delta: float) -> Vector3:
-	if wish.length_squared() < 0.0001:
-		return vel
-	var wish_dir := wish.normalized()
-	var current := vel.dot(wish_dir)
-	var add := wish_speed - current
-	if add <= 0.0:
-		return vel
-	var acc := minf(accel * wish_speed * delta, add)
-	return vel + wish_dir * acc
+	return Movement.accelerate(vel, wish, wish_speed, accel, delta)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1479,110 +1365,24 @@ func is_wallrunning() -> bool:
 	return _wallrunning
 
 
-## Along the wall only, never slower than WALLRUN_KEEP_SPEED while it lasts; a little steering.
 func _wallrun_horiz(horiz: Vector3, wish: Vector3, delta: float) -> Vector3:
-	var n := Vector3(_wall_n.x, 0.0, _wall_n.z).normalized()
-	var along := horiz - n * horiz.dot(n)
-	if wish.length_squared() > 0.01:
-		var wdir := wish - n * wish.dot(n)
-		if wdir.length_squared() > 0.0001:
-			along = _accelerate(along, wdir.normalized(), maxf(along.length(), SPRINT_SPEED), GROUND_ACCEL * 0.25, delta)
-	return along - n * 0.6 # lean in a little so move_and_slide keeps touching the wall
+	return Movement.wallrun_horiz(self, horiz, wish, delta)
 
 
-## A near-vertical wall beside us: contact from move_and_slide, else a short probe left/right.
 func _find_wall() -> Dictionary:
-	for i in get_slide_collision_count():
-		var c := get_slide_collision(i)
-		var n := c.get_normal()
-		if absf(n.y) < WALLRUN_MAX_NY:
-			return {"n": n, "key": "%d:%s" % [c.get_collider_id(), str(n.snapped(Vector3(0.25, 0.25, 0.25)))]}
-	var horiz := Vector3(velocity.x, 0.0, velocity.z)
-	if horiz.length_squared() < 1.0:
-		return {}
-	var side := horiz.normalized().cross(Vector3.UP)
-	var space := get_world_3d().direct_space_state
-	var from := global_position + Vector3(0.0, 0.9, 0.0)
-	var dirs: Array[Vector3] = [side, -side]
-	if _wallrunning:
-		dirs = [-Vector3(_wall_n.x, 0.0, _wall_n.z).normalized()]
-	for d in dirs:
-		var q := PhysicsRayQueryParameters3D.create(from, from + d * WALLRUN_PROBE)
-		q.collision_mask = 1
-		q.exclude = [get_rid()]
-		var hit := space.intersect_ray(q)
-		if hit.is_empty():
-			continue
-		var n: Vector3 = hit.normal
-		if absf(n.y) < WALLRUN_MAX_NY:
-			return {"n": n, "key": "%d:%s" % [int(hit.collider_id), str(n.snapped(Vector3(0.25, 0.25, 0.25)))]}
-	return {}
+	return Movement.find_wall(self)
 
 
 func _tick_wallrun(delta: float, input_vec: Vector2, locked: bool) -> void:
-	var on_floor := is_on_floor()
-	if on_floor:
-		_wall_key = "" # the ground resets every wall
-		_wallruns_air = 0
-		if _wallrunning:
-			_end_wallrun()
-		_wall_off_t = 10.0
-		return
-	if _wallrunning:
-		_wallrun_t += delta
-		_wall_off_t = 0.0
-		var w := _find_wall()
-		var along := Vector3(velocity.x, 0.0, velocity.z).length()
-		var drop := (not Input.is_action_pressed("sprint")) or Input.is_action_pressed("crouch")
-		if w.is_empty() or _wallrun_t >= WALLRUN_TIME or along < WALLRUN_KEEP_SPEED or drop or is_dead or locked:
-			_end_wallrun()
-		else:
-			_wall_n = w.n
-		return
-	_wall_off_t += delta
-	if is_dead or locked or is_bot or _surf_t > 0.0 or _diving or _wallruns_air >= WALLRUN_PER_AIR:
-		return
-	if not Input.is_action_pressed("sprint") or input_vec.y > -0.3:
-		return
-	var w := _find_wall()
-	if w.is_empty() or str(w.key) == _wall_key:
-		return
-	var n: Vector3 = w.n
-	var horiz := Vector3(velocity.x, 0.0, velocity.z)
-	var along := horiz - Vector3(n.x, 0.0, n.z).normalized() * horiz.dot(Vector3(n.x, 0.0, n.z).normalized())
-	if along.length() < WALLRUN_MIN_SPEED:
-		return
-	_wallrunning = true
-	_wall_n = n
-	_wall_key = str(w.key)
-	_wallrun_t = 0.0
-	_wall_off_t = 0.0
-	_wallruns_air += 1
-	_sliding = false
+	Movement.tick_wallrun(self, delta, input_vec, locked)
 
 
 func _end_wallrun() -> void:
-	_wallrunning = false
-	_wall_off_t = 0.0
+	Movement.end_wallrun(self)
 
 
-## Off the wall: away from it, up, and along it with the speed you had. The wall stays "used".
 func _wall_jump() -> void:
-	var n := Vector3(_wall_n.x, 0.0, _wall_n.z).normalized()
-	if n.length_squared() < 0.5:
-		return
-	var horiz := Vector3(velocity.x, 0.0, velocity.z)
-	var along := horiz - n * horiz.dot(n)
-	horiz = along + n * WALLJUMP_PUSH
-	velocity.x = horiz.x
-	velocity.z = horiz.z
-	velocity.y = WALLJUMP_UP
-	_wallrunning = false
-	_wall_off_t = 10.0
-	_dive_used = false # a wall jump earns a fresh dive
-	walljumps += 1
-	if land_sfx:
-		land_sfx.play()
+	Movement.wall_jump(self)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1597,51 +1397,16 @@ func is_rolling() -> bool:
 	return _roll_t > 0.0
 
 
-## In the air: crouch pressed while holding sprint and moving. On the ground the slide jump does it.
 func _try_air_dive(on_floor: bool, locked: bool) -> void:
-	if on_floor or locked or is_dead or is_bot or _diving or _dive_used or _wallrunning or _surf_t > 0.0:
-		return
-	if not Input.is_action_just_pressed("crouch") or not Input.is_action_pressed("sprint"):
-		return
-	if Vector2(velocity.x, velocity.z).length() < DIVE_MIN_SPEED:
-		return
-	_start_dive(false)
+	Movement.try_air_dive(self, on_floor, locked)
 
 
 func _start_dive(from_ground: bool) -> void:
-	var dir := Vector3(velocity.x, 0.0, velocity.z)
-	if dir.length_squared() < 0.04:
-		dir = -transform.basis.z
-	dir = dir.normalized()
-	var speed := minf(maxf(Vector2(velocity.x, velocity.z).length(), SPRINT_SPEED) + DIVE_BOOST, DIVE_MAX)
-	velocity.x = dir.x * speed
-	velocity.z = dir.z * speed
-	velocity.y = DIVE_UP_GROUND if from_ground else maxf(velocity.y, DIVE_UP_AIR)
-	_diving = true
-	_dive_used = true
-	_roll_dir = dir
-	crouch = 1.0
-	_apply_stance()
-	if slide_sfx:
-		slide_sfx.play()
+	Movement.start_dive(self, from_ground)
 
 
 func _tick_dive_roll(delta: float) -> void:
-	if _roll_t > 0.0:
-		_roll_t = maxf(_roll_t - delta, 0.0)
-		if _roll_t <= 0.0 and is_on_floor():
-			_carry_t = maxf(_carry_t, ROLL_CARRY)
-	if is_on_floor():
-		_dive_used = false
-		if _diving:
-			_diving = false
-			_roll_t = ROLL_TIME
-			if land_sfx:
-				land_sfx.play()
-			if camera:
-				camera.add_shake(2.5, 0.0, 4.0)
-	elif _diving and (_surf_t > 0.0 or _wallrunning or is_dead):
-		_diving = false
+	Movement.tick_dive_roll(self, delta)
 
 
 ## Synced state + the camera: tilt away from the wall, a forward flip while rolling.
