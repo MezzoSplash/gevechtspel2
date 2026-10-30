@@ -56,7 +56,7 @@ func _ready() -> void:
 	var c := Game.combo_of(1)
 	_ok(int(c.pts) == 140 and is_equal_approx(float(c.mult), 1.5), "combo 140 ×1.5")
 	await get_tree().process_frame
-	_ok(hud._combo_box and hud._combo_box.visible and hud._combo_total.text.begins_with("140"), "HUD meter shows the combo (%s)" % (hud._combo_total.text if hud._combo_box else "-"))
+	_ok(hud.combo_meter and hud.combo_meter.visible and hud.combo_meter.total.text.begins_with("140"), "HUD meter shows the combo (%s)" % (hud.combo_meter.total.text if hud.combo_meter else "-"))
 	Game.register_kill(1, bot, &"rifle", false)
 	_ok(_style() - s0 == 210, "kill lands it: +210 (%d)" % (_style() - s0))
 	_ok(not events.is_empty() and events[-1][4] == "landed" and int(events[-1][5]) == 210, "LANDED event with 210")
@@ -70,16 +70,16 @@ func _ready() -> void:
 	Game.combo_move(1, Combo.DIVE)
 	await get_tree().create_timer(Combo.TIME * 0.7).timeout
 	_ok(Combo.active(Game.combo_of(1)), "refreshed by a new move (still alive after 1.4× TIME)")
-	_ok(hud._combo_fill.bg_color != hud.COMBO_WARN_COLOR, "bar not red yet")
+	_ok(hud.combo_meter.fill.bg_color != ComboMeter.WARN_COLOR, "bar not red yet")
 	await get_tree().create_timer(Combo.TIME * 0.3 - Combo.WARN * 0.5).timeout
-	_ok(hud._combo_fill.bg_color == hud.COMBO_WARN_COLOR, "bar turns red near expiry")
+	_ok(hud.combo_meter.fill.bg_color == ComboMeter.WARN_COLOR, "bar turns red near expiry")
 
 	# Bail on timeout.
 	events.clear()
 	s0 = _style()
 	await get_tree().create_timer(Combo.WARN + 0.3).timeout
 	_ok(Game.combo_of(1).is_empty() and not events.is_empty() and events[-1][4] == "bailed", "BAILED on timeout")
-	_ok(_style() == s0 and hud._combo_total.text == "BAILED", "bail banks nothing, HUD says BAILED")
+	_ok(_style() == s0 and hud.combo_meter.total.text == "BAILED", "bail banks nothing, HUD says BAILED")
 
 	# Bail on death.
 	events.clear()
