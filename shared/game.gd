@@ -495,52 +495,16 @@ func sync_score_removed(peer_id: int) -> void:
 	pings.erase(peer_id)
 
 
-## Trimmed to NAME_MAX, one line. Used for every name that reaches the scoreboard.
 func clean_name(n: String, fallback: String = "Player") -> String:
-	n = n.replace("\n", " ").replace("\r", " ").replace("\t", " ").strip_edges()
-	if n.length() > NAME_MAX:
-		n = n.substr(0, NAME_MAX).strip_edges()
-	return n if n != "" else fallback
+	return Lobby.clean_name(self, n, fallback)
 
 
-## Server: `n` cleaned and made unique among connected players, bots and lobby rows,
-## case-insensitive. A taken name gets " (2)", " (3)", ... `peer_id`'s own current name never counts.
 func unique_name(peer_id: int, n: String) -> String:
-	n = clean_name(n)
-	var taken := {}
-	for other in scores:
-		if int(other) != peer_id:
-			taken[str(scores[other].get("name", "")).to_lower()] = true
-	for other in lobby:
-		if int(other) != peer_id:
-			taken[str(lobby[other].get("name", "")).to_lower()] = true
-	for other in pending_names:
-		if int(other) != peer_id:
-			taken[str(pending_names[other]).to_lower()] = true
-	for node in get_tree().get_nodes_in_group("player"):
-		var p := node as Player
-		if p != null and p.peer_id != peer_id:
-			taken[p.display_name.to_lower()] = true
-	if not taken.has(n.to_lower()):
-		return n
-	var i := 2
-	while true:
-		var suffix := " (%d)" % i
-		var cand := n.substr(0, NAME_MAX - suffix.length()).strip_edges() + suffix
-		if not taken.has(cand.to_lower()):
-			return cand
-		i += 1
-	return n
+	return Lobby.unique_name(self, peer_id, n)
 
 
-## Our name as the server resolved it (e.g. "Gianni (2)"), else the typed one.
 func local_resolved_name() -> String:
-	var me := multiplayer.get_unique_id() if is_networked() else 1
-	if scores.has(me):
-		return str(scores[me].get("name", player_name))
-	if lobby.has(me):
-		return str(lobby[me].get("name", player_name))
-	return player_name
+	return Lobby.local_resolved_name(self)
 
 
 func weapon_def(weapon_id: StringName) -> WeaponDef:
@@ -1050,11 +1014,7 @@ func broadcast_respawn(peer_id: int, xform: Transform3D) -> void:
 
 
 func take_pending_name(peer_id: int, fallback: String) -> String:
-	if pending_names.has(peer_id):
-		var n: String = pending_names[peer_id]
-		pending_names.erase(peer_id)
-		return n
-	return fallback
+	return Lobby.take_pending_name(self, peer_id, fallback)
 
 
 func _is_match_authority() -> bool:
@@ -1062,12 +1022,7 @@ func _is_match_authority() -> bool:
 
 
 func _display_name_for(peer_id: int) -> String:
-	var killer := player_for_peer(peer_id)
-	if killer:
-		return killer.display_name
-	if peer_id < 0:
-		return "Bot %d" % abs(peer_id)
-	return "Player"
+	return Lobby.display_name_for(self, peer_id)
 
 
 func _apply_score(peer_id: int, kills: int, n: String, team: int = 0) -> void:
@@ -1079,42 +1034,15 @@ func _apply_score(peer_id: int, kills: int, n: String, team: int = 0) -> void:
 	score_changed.emit(peer_id, kills, n)
 
 
-## Called when a pawn spawns (and for a killer without a row). `team` is the pawn's, so it always
-## wins over a row made earlier by apply_display_name, and the fix is synced to everyone.
 func register_participant(peer_id: int, n: String, team: int = 0) -> void:
-	if scores.has(peer_id):
-		var existing: String = str(scores[peer_id].name)
-		var incoming_placeholder := n == "" or n == "Player"
-		var keep_existing := existing != "" and existing != "Player"
-		var new_name := existing if n == "" or (incoming_placeholder and keep_existing) else n
-		if new_name == existing and int(scores[peer_id].get("team", -1)) == team:
-			return
-		_apply_score(peer_id, int(scores[peer_id].kills), new_name, team)
-		if is_networked() and multiplayer.is_server():
-			sync_score.rpc(peer_id, int(scores[peer_id].kills), new_name, team)
-		return
-	_apply_score(peer_id, 0, n, team)
-	if is_networked() and multiplayer.is_server():
-		sync_score.rpc(peer_id, 0, n, team)
+	Lobby.register_participant(self, peer_id, n, team)
 
 
 const CHAT_MAX := 120
 
 
-## All-chat. Clients send to the server; host stamps name/team and broadcasts.
 func send_chat(text: String) -> void:
-	text = text.strip_edges()
-	if text.length() > CHAT_MAX:
-		text = text.substr(0, CHAT_MAX)
-	if text == "":
-		return
-	if not is_networked():
-		_deliver_chat(player_name, _local_team(), text)
-		return
-	if multiplayer.is_server():
-		_relay_chat(multiplayer.get_unique_id(), text)
-	else:
-		submit_chat.rpc_id(1, text)
+	Lobby.send_chat(self, text)
 
 
 func _local_team() -> int:
@@ -1122,18 +1050,8 @@ func _local_team() -> int:
 	return p.team_id if p else 0
 
 
-## Never trust the client for the display name — look up the pawn / scoreboard.
 func _relay_chat(peer_id: int, text: String) -> void:
-	var p := player_for_peer(peer_id)
-	var n := _display_name_for(peer_id)
-	var team := 0
-	if p:
-		n = p.display_name
-		team = p.team_id
-	elif scores.has(peer_id):
-		n = str(scores[peer_id].name)
-		team = int(scores[peer_id].get("team", 0))
-	broadcast_chat.rpc(n, team, text)
+	Lobby.relay_chat(self, peer_id, text)
 
 
 ## Client → server. Strip/cap here again in case of a bad peer.
@@ -1159,28 +1077,19 @@ func broadcast_chat(n: String, team: int, text: String) -> void:
 
 
 func _deliver_chat(n: String, team: int, text: String) -> void:
-	chat_message.emit(n, team, text)
+	Lobby.deliver_chat(self, n, team, text)
 
 
 func set_lobby_member(peer_id: int, n: String, team: int) -> void:
-	if not _is_match_authority():
-		return
-	lobby[peer_id] = {"name": n, "team": clampi(team, TEAM_A, TEAM_B)}
-	_push_lobby()
+	Lobby.set_lobby_member(self, peer_id, n, team)
 
 
 func remove_lobby_member(peer_id: int) -> void:
-	if not lobby.has(peer_id):
-		return
-	lobby.erase(peer_id)
-	if _is_match_authority():
-		_push_lobby()
+	Lobby.remove_lobby_member(self, peer_id)
 
 
 func _push_lobby() -> void:
-	lobby_changed.emit()
-	if is_networked() and multiplayer.is_server():
-		sync_lobby.rpc(lobby)
+	Lobby.push_lobby(self)
 
 
 @rpc("authority", "reliable")
@@ -1212,11 +1121,7 @@ func begin_match() -> void:
 
 
 func announce_presence(player_name: String, joined: bool, team: int) -> void:
-	if not _is_match_authority():
-		return
-	presence.emit(player_name, joined, team)
-	if is_networked():
-		sync_presence.rpc(player_name, joined, team)
+	Lobby.announce_presence(self, player_name, joined, team)
 
 
 @rpc("authority", "reliable")
