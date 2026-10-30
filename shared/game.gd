@@ -2482,120 +2482,12 @@ const REBIND_ACTIONS := [
 ]
 
 
-## Reads user://settings.cfg. Missing keys keep the defaults, so an older file (audio + mouse
-## only) still loads. Applies audio and, unless this process is headless, the video settings.
 func load_settings() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load("user://settings.cfg") == OK:
-		master_vol = clampf(float(cfg.get_value("audio", "master", 1.0)), 0.0, 1.0)
-		sfx_vol = clampf(float(cfg.get_value("audio", "sfx", 1.0)), 0.0, 1.0)
-		enemies_vol = clampf(float(cfg.get_value("audio", "enemies", ENEMIES_VOL_DEFAULT)), 0.0, ENEMIES_VOL_MAX)
-		mouse_sens = clampf(float(cfg.get_value("input", "mouse_sens", 1.0)), MOUSE_SENS_MIN, MOUSE_SENS_MAX)
-		ads_sens = clampf(float(cfg.get_value("input", "ads_sens", 0.45)), ADS_SENS_MIN, ADS_SENS_MAX)
-		invert_y = bool(cfg.get_value("input", "invert_y", false))
-		var m := StringName(str(cfg.get_value("match", "map", String(Maps.DEFAULT))))
-		last_map = m if Maps.has(m) else Maps.DEFAULT
-		last_mode = clampi(int(cfg.get_value("match", "mode", MODE_TDM)), MODE_TDM, MODE_LAST)
-		last_kills = clampi(int(cfg.get_value("match", "kills", default_kills_for(last_mode))), KILLS_MIN, KILLS_MAX)
-		last_time_min = clampi(int(cfg.get_value("match", "time_min", 10)), TIME_MIN_MINUTES, TIME_MAX_MINUTES)
-		last_bots = clampi(int(cfg.get_value("match", "bots", BOT_COUNT_DEFAULT)), 0, BOT_COUNT_MAX)
-		last_bot_difficulty = clampi(int(cfg.get_value("match", "bot_difficulty", BOT_MEDIUM)), BOT_EASY, BOT_HARD)
-		bot_difficulty = last_bot_difficulty
-		kill_limit = last_kills
-		round_time = float(last_time_min * 60)
-		bot_count = last_bots
-		profile_name = clean_name(str(cfg.get_value("profile", "name", profile_name)))
-		recent_servers = PackedStringArray()
-		for e in cfg.get_value("net", "recent", PackedStringArray()):
-			if str(e).strip_edges() != "" and recent_servers.size() < RECENT_SERVERS_MAX:
-				recent_servers.append(str(e).strip_edges())
-		last_server = str(cfg.get_value("net", "last", "")).strip_edges()
-		if cfg.has_section_key("net", "favorites"):
-			favorite_servers = PackedStringArray()
-			for e in cfg.get_value("net", "favorites", PackedStringArray()):
-				if str(e).strip_edges() != "":
-					favorite_servers.append(str(e).strip_edges())
-		player_name = profile_name
-		window_mode = clampi(int(cfg.get_value("video", "window_mode", WINDOW_WINDOWED)), WINDOW_WINDOWED, WINDOW_FULLSCREEN)
-		var w := int(cfg.get_value("video", "width", window_size.x))
-		var h := int(cfg.get_value("video", "height", window_size.y))
-		if w < 640 or h < 480:
-			w = 1600
-			h = 900
-		window_size = Vector2i(w, h)
-		vsync = bool(cfg.get_value("video", "vsync", true))
-		max_fps = _snap_fps(int(cfg.get_value("video", "max_fps", 0)))
-		fov = clampf(roundf(float(cfg.get_value("video", "fov", 90.0))), FOV_MIN, FOV_MAX)
-		render_scale = _snap_scale(float(cfg.get_value("video", "render_scale", 1.0)))
-		msaa = clampi(int(cfg.get_value("video", "msaa", 2)), 0, 3)
-		show_fps = bool(cfg.get_value("hud", "show_fps", true))
-		gfx_quality = clampi(int(cfg.get_value("video", "quality", 2)), 0, 2)
-		view_sway = clampi(int(cfg.get_value("video", "view_sway", 2)), 0, 2)
-		music_vol = clampf(float(cfg.get_value("audio", "music", 1.0)), 0.0, 1.0)
-		ui_vol = clampf(float(cfg.get_value("audio", "ui", 1.0)), 0.0, 1.0)
-		shadow_quality = clampi(int(cfg.get_value("video", "shadows", 0)), 0, SHADOW_NAMES.size() - 1)
-		crosshair_color = clampi(int(cfg.get_value("hud", "crosshair_color", 0)), 0, CROSSHAIR_COLORS.size() - 1)
-		crosshair_style = clampi(int(cfg.get_value("hud", "crosshair_style", 0)), 0, CROSSHAIR_STYLES.size() - 1)
-		crosshair_size = clampf(float(cfg.get_value("hud", "crosshair_size", 1.0)), 0.5, 2.0)
-		show_minimap = bool(cfg.get_value("hud", "minimap", true))
-		show_killfeed = bool(cfg.get_value("hud", "killfeed", true))
-		colorblind = clampi(int(cfg.get_value("access", "colorblind", 0)), 0, COLORBLIND_NAMES.size() - 1)
-		reduce_shake = bool(cfg.get_value("access", "reduce_shake", false))
-		_saved_keys = {}
-		if cfg.has_section("keys"):
-			for a in cfg.get_section_keys("keys"):
-				_saved_keys[a] = str(cfg.get_value("keys", a, ""))
-	apply_audio()
-	var size_before := window_size
-	apply_display()
-	# A size that does not fit this monitor is replaced; remember the one we actually used.
-	if window_size != size_before:
-		save_settings()
+	GameSettings.load_settings(self)
 
 
-## Rewrites the whole file from memory. Every key load_settings reads has to be written here.
 func save_settings() -> void:
-	var cfg := ConfigFile.new()
-	cfg.set_value("audio", "master", master_vol)
-	cfg.set_value("audio", "sfx", sfx_vol)
-	cfg.set_value("audio", "enemies", enemies_vol)
-	cfg.set_value("input", "mouse_sens", mouse_sens)
-	cfg.set_value("input", "ads_sens", ads_sens)
-	cfg.set_value("input", "invert_y", invert_y)
-	cfg.set_value("match", "map", String(last_map))
-	cfg.set_value("match", "mode", last_mode)
-	cfg.set_value("match", "kills", last_kills)
-	cfg.set_value("match", "time_min", last_time_min)
-	cfg.set_value("match", "bots", last_bots)
-	cfg.set_value("match", "bot_difficulty", last_bot_difficulty)
-	cfg.set_value("profile", "name", profile_name)
-	cfg.set_value("net", "recent", recent_servers)
-	cfg.set_value("net", "last", last_server)
-	cfg.set_value("net", "favorites", favorite_servers)
-	cfg.set_value("video", "window_mode", window_mode)
-	cfg.set_value("video", "width", window_size.x)
-	cfg.set_value("video", "height", window_size.y)
-	cfg.set_value("video", "vsync", vsync)
-	cfg.set_value("video", "max_fps", max_fps)
-	cfg.set_value("video", "fov", fov)
-	cfg.set_value("video", "render_scale", render_scale)
-	cfg.set_value("video", "msaa", msaa)
-	cfg.set_value("hud", "show_fps", show_fps)
-	cfg.set_value("video", "quality", gfx_quality)
-	cfg.set_value("video", "view_sway", view_sway)
-	cfg.set_value("audio", "music", music_vol)
-	cfg.set_value("audio", "ui", ui_vol)
-	cfg.set_value("video", "shadows", shadow_quality)
-	cfg.set_value("hud", "crosshair_color", crosshair_color)
-	cfg.set_value("hud", "crosshair_style", crosshair_style)
-	cfg.set_value("hud", "crosshair_size", crosshair_size)
-	cfg.set_value("hud", "minimap", show_minimap)
-	cfg.set_value("hud", "killfeed", show_killfeed)
-	cfg.set_value("access", "colorblind", colorblind)
-	cfg.set_value("access", "reduce_shake", reduce_shake)
-	for a in _saved_keys:
-		cfg.set_value("keys", a, _saved_keys[a])
-	cfg.save("user://settings.cfg")
+	GameSettings.save_settings(self)
 
 
 ## Profile name. Saves, tells the other name fields, and pushes a live pawn / lobby row when one exists.
@@ -2762,32 +2654,8 @@ func crosshair_rgb() -> Color:
 	return CROSSHAIR_COLORS[crosshair_color]
 
 
-## Shadow override on top of Gfx. Auto leaves Gfx's choice alone.
 func apply_shadows(map: Node) -> void:
-	if shadow_quality == 0:
-		if map:
-			for sun in map.find_children("*", "DirectionalLight3D", true, false):
-				var l := sun as DirectionalLight3D
-				if l.has_meta(&"shadow_base"):
-					l.shadow_enabled = bool(l.get_meta(&"shadow_base"))
-		return
-	match shadow_quality:
-		2:
-			RenderingServer.directional_shadow_atlas_set_size(2048, false)
-			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
-		3:
-			RenderingServer.directional_shadow_atlas_set_size(4096, true)
-			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW)
-		4:
-			RenderingServer.directional_shadow_atlas_set_size(8192, true)
-			RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH)
-	if map == null:
-		return
-	for sun in map.find_children("*", "DirectionalLight3D", true, false):
-		var l := sun as DirectionalLight3D
-		if not l.has_meta(&"shadow_base"):
-			l.set_meta(&"shadow_base", l.shadow_enabled)
-		l.shadow_enabled = shadow_quality != 1 and bool(l.get_meta(&"shadow_base"))
+	GameSettings.apply_shadows(self, map)
 
 
 func set_show_fps(on: bool) -> void:
@@ -2873,129 +2741,40 @@ func display_headless() -> bool:
 	return DisplayServer.get_name() == "headless"
 
 
-## Presets that fit the current monitor, plus that monitor's own size when it is not already listed.
 func resolution_choices() -> Array:
-	var screen := Vector2i(1920, 1080)
-	if not display_headless():
-		screen = DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
-	return _resolutions_fitting(screen)
+	return GameSettings.resolution_choices(self)
 
 
 func _resolutions_fitting(screen: Vector2i) -> Array:
-	var out: Array[Vector2i] = []
-	for r in RESOLUTIONS:
-		var size := r as Vector2i
-		if size.x <= screen.x and size.y <= screen.y:
-			out.append(size)
-	var listed := false
-	for size in out:
-		if size == screen:
-			listed = true
-			break
-	if not listed and screen.x >= 640 and screen.y >= 480:
-		out.append(screen)
-	out.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x * a.y < b.x * b.y)
-	if out.is_empty():
-		out.append(Vector2i(mini(maxi(screen.x, 640), 1280), mini(maxi(screen.y, 480), 720)))
-	return out
+	return GameSettings.resolutions_fitting(self, screen)
 
 
-## Window, VSync, the FPS cap, 3D scale and MSAA. Headless returns immediately; main.gd then
-## pins a dedicated server to 60 fps. A saved size bigger than this monitor is replaced with
-## the largest preset that fits, and load_settings writes that back.
 func apply_display() -> void:
-	if display_headless():
-		return
-	_apply_vsync_and_fps()
-	_apply_window()
-	apply_render()
+	GameSettings.apply_display(self)
 
 
 func _apply_vsync_and_fps() -> void:
-	if display_headless():
-		return
-	var want_vsync := DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED
-	if DisplayServer.window_get_vsync_mode() != want_vsync:
-		DisplayServer.window_set_vsync_mode(want_vsync)
-	if Engine.max_fps != max_fps:
-		Engine.max_fps = max_fps
+	GameSettings.apply_vsync_and_fps(self)
 
 
 func _apply_window() -> void:
-	var screen_id := DisplayServer.window_get_current_screen()
-	var screen := DisplayServer.screen_get_size(screen_id)
-	var fit := _clamp_window_size(window_size, screen)
-	if fit != window_size:
-		window_size = fit
-	var mode_now := DisplayServer.window_get_mode()
-	if window_mode == WINDOW_BORDERLESS:
-		# Borderless follows the monitor. The stored size is for windowed / exclusive only.
-		if mode_now != DisplayServer.WINDOW_MODE_FULLSCREEN:
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-		return
-	if window_mode == WINDOW_FULLSCREEN:
-		if mode_now == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN and DisplayServer.window_get_size() == window_size:
-			return
-		# Leave exclusive before changing size, or the mode switch keeps the old resolution.
-		if mode_now != DisplayServer.WINDOW_MODE_WINDOWED:
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-		DisplayServer.window_set_size(window_size)
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
-		return
-	var size_now := DisplayServer.window_get_size()
-	if mode_now != DisplayServer.WINDOW_MODE_WINDOWED:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-	if DisplayServer.window_get_flag(DisplayServer.WINDOW_FLAG_BORDERLESS):
-		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-	if size_now != window_size:
-		DisplayServer.window_set_size(window_size)
-		var origin := DisplayServer.screen_get_position(screen_id)
-		DisplayServer.window_set_position(origin + (screen - window_size) / 2)
+	GameSettings.apply_window(self)
 
 
 func _clamp_window_size(size: Vector2i, screen: Vector2i) -> Vector2i:
-	if size.x >= 640 and size.y >= 480 and size.x <= screen.x and size.y <= screen.y:
-		return size
-	var choices := _resolutions_fitting(screen)
-	var best: Vector2i = choices[0]
-	var best_area := -1
-	for choice in choices:
-		var area: int = int(choice.x) * int(choice.y)
-		if area > best_area:
-			best = choice
-			best_area = area
-	return best
+	return GameSettings.clamp_window_size(self, size, screen)
 
 
-## 3D render scale and MSAA on the root viewport. 2D (HUD, menus) stays at the window resolution.
-## Skip writes that already match: assigning msaa_3d on a live Vulkan viewport can SIGSEGV.
 func apply_render() -> void:
-	if not is_inside_tree() or display_headless():
-		return
-	var root := get_tree().root
-	if root.scaling_3d_mode != Viewport.SCALING_3D_MODE_BILINEAR:
-		root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
-	if not is_equal_approx(root.scaling_3d_scale, render_scale):
-		root.scaling_3d_scale = render_scale
-	var want_msaa := msaa as Viewport.MSAA
-	if root.msaa_3d != want_msaa:
-		root.msaa_3d = want_msaa
-	Gfx.apply_global(gfx_quality)
-	var main := root.get_node_or_null(^"Main")
-	var map_node: Node = null
-	if main and "map_node" in main:
-		map_node = main.map_node
-		Gfx.apply_map(map_node, gfx_quality)
-	apply_shadows(map_node)
+	GameSettings.apply_render(self)
 
 
 func _snap_fps(v: int) -> int:
-	v = clampi(v, 0, FPS_CAP_MAX)
-	return int(round(float(v) / 10.0)) * 10
+	return GameSettings.snap_fps(self, v)
 
 
 func _snap_scale(v: float) -> float:
-	return clampf(round(clampf(v, 0.5, 1.0) * 20.0) / 20.0, 0.5, 1.0)
+	return GameSettings.snap_scale(self, v)
 
 
 func _ensure_enemies_bus() -> void:
@@ -3025,146 +2804,47 @@ func _set_bus_linear(bus_name: String, linear: float) -> void:
 
 
 func _bind_inputs() -> void:
-	_key("move_forward", KEY_W)
-	_key("move_back", KEY_S)
-	_key("move_left", KEY_A)
-	_key("move_right", KEY_D)
-	_key("jump", KEY_SPACE)
-	_key("reload", KEY_R)
-	_key("switch_weapon", KEY_Q)
-	_key("weapon_1", KEY_1)
-	_key("weapon_2", KEY_2)
-	_key("weapon_3", KEY_3)
-	_key("weapon_4", KEY_4)
-	_key("use_streak", KEY_ENTER) # not ui_accept: that one includes Space (jump)
-	_key("use_streak", KEY_KP_ENTER)
-	_mouse("fire", MOUSE_BUTTON_LEFT)
-	_mouse("zoom", MOUSE_BUTTON_RIGHT)
-	_key("toggle_mouse", KEY_ESCAPE)
-	_key("chat", KEY_T)
-	_key("grenade", KEY_G)
-	_key("throw_knife", KEY_F)
-	_key("melee", KEY_E)
-	_key("sprint", KEY_SHIFT)
-	_key("crouch", KEY_CTRL)
-	_key("crouch", KEY_C)
-	for a in _saved_keys:
-		var ev := _event_from_code(str(_saved_keys[a]))
-		if ev != null and InputMap.has_action(a):
-			InputMap.action_erase_events(a)
-			InputMap.action_add_event(a, ev)
+	Keybinds.bind_inputs(self)
 
 
 func _event_code(ev: InputEvent) -> String:
-	if ev is InputEventKey:
-		var k := ev as InputEventKey
-		return "k:%d" % (k.physical_keycode if k.physical_keycode != 0 else k.keycode)
-	if ev is InputEventMouseButton:
-		return "m:%d" % (ev as InputEventMouseButton).button_index
-	return ""
+	return Keybinds.event_code(self, ev)
 
 
 func _event_from_code(code: String) -> InputEvent:
-	var parts := code.split(":")
-	if parts.size() != 2 or not parts[1].is_valid_int():
-		return null
-	if parts[0] == "k":
-		var k := InputEventKey.new()
-		k.physical_keycode = int(parts[1]) as Key
-		return k
-	if parts[0] == "m":
-		var m := InputEventMouseButton.new()
-		m.button_index = int(parts[1]) as MouseButton
-		return m
-	return null
+	return Keybinds.event_from_code(self, code)
 
 
-## Shown on the rebind buttons, e.g. "W" or "Mouse 1 / C".
 func binding_text(action: String) -> String:
-	var out: PackedStringArray = []
-	for ev in InputMap.action_get_events(action):
-		if ev is InputEventKey:
-			var k := ev as InputEventKey
-			var code := k.physical_keycode if k.physical_keycode != 0 else k.keycode
-			var shown := code if display_headless() else DisplayServer.keyboard_get_keycode_from_physical(code)
-			out.append(OS.get_keycode_string(shown))
-		elif ev is InputEventMouseButton:
-			var b := (ev as InputEventMouseButton).button_index
-			out.append({MOUSE_BUTTON_LEFT: "Mouse L", MOUSE_BUTTON_RIGHT: "Mouse R", MOUSE_BUTTON_MIDDLE: "Mouse M"}.get(b, "Mouse %d" % b))
-	return " / ".join(out) if not out.is_empty() else "—"
+	return Keybinds.binding_text(self, action)
 
 
-## One key or mouse button per action. If another rebindable action already uses it, that action
-## gets this one's old binding (swap). Returns the swapped action's label, or "".
 func rebind(action: String, ev: InputEvent) -> String:
-	var code := _event_code(ev)
-	if code == "" or not InputMap.has_action(action):
-		return ""
-	var old := InputMap.action_get_events(action)
-	var swapped := ""
-	for pair in REBIND_ACTIONS:
-		var other: String = pair[0]
-		if other == action:
-			continue
-		for oe in InputMap.action_get_events(other):
-			if _event_code(oe) == code:
-				InputMap.action_erase_event(other, oe)
-				if not old.is_empty():
-					InputMap.action_add_event(other, old[0])
-				_saved_keys[other] = _first_code(other)
-				swapped = pair[1]
-	InputMap.action_erase_events(action)
-	InputMap.action_add_event(action, _event_from_code(code))
-	_saved_keys[action] = code
-	save_settings()
-	return swapped
+	return Keybinds.rebind(self, action, ev)
 
 
 func _first_code(action: String) -> String:
-	var evs := InputMap.action_get_events(action)
-	return _event_code(evs[0]) if not evs.is_empty() else ""
+	return Keybinds.first_code(self, action)
 
 
 func reset_bindings() -> void:
-	_saved_keys.clear()
-	for pair in REBIND_ACTIONS:
-		InputMap.action_erase_events(pair[0])
-	_bind_inputs()
-	save_settings()
+	Keybinds.reset_bindings(self)
 
 
 func _key(action: String, keycode: Key) -> void:
-	if not InputMap.has_action(action):
-		InputMap.add_action(action)
-	if _has_key(action, keycode):
-		return
-	var event := InputEventKey.new()
-	event.physical_keycode = keycode
-	InputMap.action_add_event(action, event)
+	Keybinds.key(self, action, keycode)
 
 
 func _mouse(action: String, button: MouseButton) -> void:
-	if not InputMap.has_action(action):
-		InputMap.add_action(action)
-	if _has_mouse(action, button):
-		return
-	var event := InputEventMouseButton.new()
-	event.button_index = button
-	InputMap.action_add_event(action, event)
+	Keybinds.mouse(self, action, button)
 
 
 func _has_key(action: String, keycode: Key) -> bool:
-	for event in InputMap.action_get_events(action):
-		if event is InputEventKey and event.physical_keycode == keycode:
-			return true
-	return false
+	return Keybinds.has_key(self, action, keycode)
 
 
 func _has_mouse(action: String, button: MouseButton) -> bool:
-	for event in InputMap.action_get_events(action):
-		if event is InputEventMouseButton and event.button_index == button:
-			return true
-	return false
+	return Keybinds.has_mouse(self, action, button)
 
 
 ## Engine.time_scale is global: on a listen server it would slow bots, timers, and physics for everyone.
