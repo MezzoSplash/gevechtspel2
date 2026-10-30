@@ -1686,37 +1686,9 @@ func _note_trick_history(killer_peer_id: int, victim_peer_id: int, weapon_id: St
 	Tricks.note_history(_hs_streak, _shotgun_kill_t, _shot_ctx, killer_peer_id, victim_peer_id, weapon_id, headshot)
 
 
-## Points (with the chain multiplier) onto the killer's style; tell everyone; remember the round's best
-## trick for the final killcam.
+## Style awarding lives in ComboLedger (shared/combo_ledger.gd); wrapper keeps the old entry point.
 func _award_style(kill_info: Dictionary, tricks_in: Array[StringName]) -> void:
-	var k := int(kill_info.k)
-	var tricks: Array[StringName] = tricks_in.duplicate()
-	var bank := 0
-	var c: Dictionary = _combos.get(k, {})
-	if Combo.active(c):
-		bank = Combo.value(c) # #84: the kill lands the combo
-		tricks.append(Style.COMBO)
-		_combo_end(k, "landed", bank)
-	var now := Time.get_ticks_msec() / 1000.0
-	var chain := Tricks.next_chain(_style_chain, k, now)
-	var pts := Style.award(tricks, chain) + bank # chain multiplier on the kill tricks only, never on the combo
-	var mult := Style.chain_multiplier(chain)
-	var total := pts + (int(scores[k].get("style", 0)) if scores.has(k) else 0)
-	_trick_seq += 1
-	# Best trickshot = the biggest single landed combo (its payout, points × multiplier) of the round, over
-	# all players. Kills without a combo only count while nobody has landed one yet. Before this a plain
-	# trick kill with a chain multiplier (e.g. a bot's HOSE + RUN & GUN ×2) could beat a bigger combo.
-	var is_best := Tricks.is_best(best_trick, _round_active, bank, pts)
-	if is_best:
-		best_trick = kill_info.duplicate()
-		best_trick["pts"] = pts
-		best_trick["bank"] = bank
-		best_trick["tags"] = Style.label(tricks) # #88: with COMBO, so a combo-landing best does not look like a plain kill
-		best_trick["trick_id"] = _trick_seq
-	var packed := Style.pack(tricks)
-	_apply_trick(k, int(kill_info.v), packed, pts, mult, total, _trick_seq, is_best)
-	if is_networked():
-		sync_trick.rpc(k, int(kill_info.v), packed, pts, mult, total, _trick_seq, is_best)
+	ComboLedger.award_style(self, kill_info, tricks_in)
 
 
 @rpc("authority", "reliable")
@@ -1774,57 +1746,25 @@ func style_king() -> Dictionary:
 var _combos: Dictionary = {} # peer -> Combo state
 
 
+## Combo logic lives in ComboLedger; these wrappers keep the old entry points (and RPCs stay here).
 func combo_move(peer_id: int, move: StringName) -> void:
-	if not _is_match_authority() or not _round_active or play_locked() or not scores.has(peer_id):
-		return
-	var c: Dictionary = _combos.get(peer_id, {})
-	if not Combo.active(c):
-		c = Combo.fresh()
-	if Combo.add_move(c, move) <= 0:
-		return
-	_combos[peer_id] = c
-	_send_combo(peer_id, c, "build", 0)
+	ComboLedger.move(self, peer_id, move)
 
 
 func combo_of(peer_id: int) -> Dictionary:
 	return _combos.get(peer_id, {})
 
 
-## Death, a timeout, a landing: the combo is over either way.
 func _combo_end(peer_id: int, state: String, banked: int) -> void:
-	var c: Dictionary = _combos.get(peer_id, {})
-	_combos.erase(peer_id)
-	if c.is_empty():
-		return
-	_send_combo(peer_id, c, state, banked)
+	ComboLedger.end(self, peer_id, state, banked)
 
 
 func _tick_combos(delta: float) -> void:
-	if _combos.is_empty() or not _is_match_authority():
-		return
-	for id in _combos.keys():
-		var c: Dictionary = _combos[id]
-		# #89: surfing holds the clock (a long surf is the trick, not a pause). The HUD shows it frozen.
-		var pawn := player_for_peer(int(id))
-		var surfing := pawn != null and not pawn.is_dead and pawn.style_surfing()
-		if surfing != bool(c.get("frozen", false)):
-			c["frozen"] = surfing
-			_send_combo(int(id), c, "build", 0) # "frozen" while c.frozen, see _send_combo
-		if surfing:
-			continue
-		c.t = float(c.t) - delta
-		if float(c.t) <= 0.0:
-			_combo_end(id, "bailed", 0)
+	ComboLedger.tick(self, delta)
 
 
 func _send_combo(peer_id: int, c: Dictionary, state: String, banked: int) -> void:
-	if state == "build" and bool(c.get("frozen", false)):
-		state = "frozen" # a move while surfing: new points, the timer is still held
-	var args := [int(c.get("pts", 0)), float(c.get("mult", 1.0)), maxf(float(c.get("t", 0.0)), 0.0), Combo.label(c), state, banked]
-	if not is_networked() or peer_id == multiplayer.get_unique_id():
-		_apply_combo(args)
-	elif peer_id > 0 and peer_id in multiplayer.get_peers():
-		sync_combo.rpc_id(peer_id, args)
+	ComboLedger.send(self, peer_id, c, state, banked)
 
 
 @rpc("authority", "reliable")
