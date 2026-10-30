@@ -227,10 +227,42 @@ func _bake_nav() -> void:
 	nav_mesh.agent_max_slope = 46.0
 	nav_mesh.cell_size = 0.25
 	nav_mesh.cell_height = 0.25
+	# #104: CSG shapes get parsed from their visual mesh (a GPU readback + warning), so the parser only
+	# sees the non-CSG static bodies (group NAV_GROUP) and the CSG faces come from their collision shape.
+	var t0 := Time.get_ticks_usec()
+	nav_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
+	nav_mesh.geometry_source_group_name = NAV_GROUP
+	var csgs: Array[CSGShape3D] = []
+	if arena is CSGShape3D and (arena as CSGShape3D).use_collision:
+		csgs.append(arena as CSGShape3D) # the whole arena is one CSG tree
+	_collect_nav_sources(arena, csgs)
 	var source := NavigationMeshSourceGeometryData3D.new()
 	NavigationServer3D.parse_source_geometry_data(nav_mesh, source, arena)
+	for csg in csgs:
+		var shape := csg.bake_collision_shape()
+		if shape:
+			source.add_faces(shape.get_faces(), csg.global_transform)
 	NavigationServer3D.bake_from_source_geometry_data(nav_mesh, source)
 	region.navigation_mesh = nav_mesh
+	print("NAV: baked in %d ms (%d csg, %d polys)" % [(Time.get_ticks_usec() - t0) / 1000, csgs.size(), nav_mesh.get_polygon_count()])
+
+
+const NAV_GROUP := &"_nav_source"
+
+
+## Tags every static body outside a CSG tree for the parser and lists the CSG roots with collision.
+func _collect_nav_sources(node: Node, csgs: Array[CSGShape3D]) -> void:
+	for child in node.get_children():
+		if child is CSGShape3D:
+			var csg := child as CSGShape3D
+			if csg.is_root_shape() and csg.use_collision:
+				csgs.append(csg)
+			_collect_nav_sources(child, csgs) # static bodies can sit inside a CSG tree
+			continue
+		if child is StaticBody3D:
+			child.add_to_group(NAV_GROUP)
+			continue
+		_collect_nav_sources(child, csgs)
 
 
 func _parse_args() -> Dictionary:
