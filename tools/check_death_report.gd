@@ -14,6 +14,7 @@ func _ready() -> void:
 		menu.set_host_port(7799)
 		menu.connect_pressed.emit()
 	else:
+		Game.last_bots = 8 # set_match_choice resets the bot box from last_bots (see #100)
 		Game.bot_count = 8
 		menu.set_match_choice(&"quay", Game.MODE_FFA)
 		menu.play_local_pressed.emit()
