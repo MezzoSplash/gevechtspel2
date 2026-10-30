@@ -103,15 +103,6 @@ const TRICK_COLOR := Color(1.0, 0.78, 0.22) # trickshot gold: popup, feed tag, k
 const _TRICK_HOLD := 1.5
 const _TRICK_FADE := 0.45
 const _TRICK_SFX := preload("res://assets/sounds/trickshot.wav")
-## Combo SFX (original, tools/gen_combo_sfx.py). Local player only: the server sends combo state to its owner.
-const _COMBO_DING := preload("res://assets/sounds/combo_ding.wav")
-const _COMBO_SPECIAL := preload("res://assets/sounds/combo_special.wav")
-const _COMBO_LAND := preload("res://assets/sounds/combo_land.wav")
-const _COMBO_BAIL := preload("res://assets/sounds/combo_bail.wav")
-const COMBO_SPECIAL_MOVES := ["WALLRUN", "WALL JUMP", "WALL TO WALL", "DIVE", "ROLL"]
-const COMBO_SFX_GAP := 0.09 # s: moves closer than this share one sound (no machine-gun dings)
-const COMBO_PITCH_STEP := 0.06 # per MULT_STEP of multiplier
-const COMBO_PITCH_MAX := 1.8
 
 var _trick: VBoxContainer # big centred trickshot word for the shooter
 var _trick_title: Label
@@ -353,9 +344,8 @@ func _bb_escape(s: String) -> String:
 
 ## Leave to menu: drop streak/radar/death overlay from the old session.
 func reset_session() -> void:
-	_combo_left = 0.0
-	if _combo_box:
-		_combo_box.visible = false
+	if combo_meter:
+		combo_meter.reset()
 	_player = null
 	_local_peer_id = 0
 	_dmg_dirs.clear()
@@ -1707,158 +1697,20 @@ func _bar(from: Vector2, delta: Vector2, col: Color, thick: float) -> void:
 
 
 # ---------------------------------------------------------------------------------------------
-# #84 combo meter: total × multiplier, the moves, a draining bar (red near the end), LANDED / BAILED.
+# #84 combo meter: scripts/hud/combo_meter.gd. Built on the first combo event (same child order as before).
 
-const COMBO_COLOR := Color(1.0, 0.82, 0.3)
-const COMBO_WARN_COLOR := Color(0.95, 0.3, 0.25)
-const COMBO_FROZEN_COLOR := Color(0.45, 0.85, 1.0) # #89: surf holds the combo timer
-const COMBO_LANDED_COLOR := Color(0.45, 0.95, 0.5)
-var _combo_box: VBoxContainer
-var _combo_total: Label
-var _combo_moves: Label
-var _combo_bar: ProgressBar
-var _combo_fill: StyleBoxFlat
-var _combo_left := 0.0
-var _combo_sfx: AudioStreamPlayer
-var _combo_sfx_t := -10.0 # last combo sound (s, ticks)
-var _combo_last_pts := 0
-var combo_sfx_log: Array = [] # [kind, pitch] for the headless check
-var _combo_frozen := false
-var _combo_tw: Tween
-
-
-func _build_combo_ui() -> void:
-	_combo_box = VBoxContainer.new()
-	_combo_box.name = "Combo"
-	_combo_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_combo_box.anchor_left = 0.5
-	_combo_box.anchor_right = 0.5
-	_combo_box.anchor_top = 0.66
-	_combo_box.anchor_bottom = 0.66
-	_combo_box.offset_left = -220.0
-	_combo_box.offset_right = 220.0
-	_combo_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_combo_box.add_theme_constant_override("separation", 2)
-	_combo_total = Label.new()
-	_combo_total.name = "Total"
-	_combo_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_combo_total.add_theme_font_size_override("font_size", 40)
-	_combo_total.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_combo_total.add_theme_constant_override("outline_size", 8)
-	_combo_box.add_child(_combo_total)
-	_combo_moves = Label.new()
-	_combo_moves.name = "Moves"
-	_combo_moves.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_combo_moves.add_theme_font_size_override("font_size", 15)
-	_combo_moves.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
-	_combo_moves.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	_combo_moves.add_theme_constant_override("outline_size", 4)
-	_combo_box.add_child(_combo_moves)
-	_combo_bar = ProgressBar.new()
-	_combo_bar.name = "Bar"
-	_combo_bar.show_percentage = false
-	_combo_bar.custom_minimum_size = Vector2(260, 7)
-	_combo_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_combo_bar.max_value = Combo.TIME
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0, 0, 0, 0.55)
-	bg.set_corner_radius_all(3)
-	_combo_fill = StyleBoxFlat.new()
-	_combo_fill.bg_color = COMBO_COLOR
-	_combo_fill.set_corner_radius_all(3)
-	_combo_bar.add_theme_stylebox_override("background", bg)
-	_combo_bar.add_theme_stylebox_override("fill", _combo_fill)
-	_combo_box.add_child(_combo_bar)
-	_combo_box.visible = false
-	add_child(_combo_box)
+var combo_meter: ComboMeter
+var combo_sfx_log: Array = [] # [kind, pitch] for the headless check (shared with combo_meter.sfx_log)
 
 
 func _on_combo_changed(points: int, multiplier: float, time_left: float, moves: String, state: String, banked: int) -> void:
-	if _combo_box == null:
-		_build_combo_ui()
-	if _combo_tw and _combo_tw.is_valid():
-		_combo_tw.kill()
-	_combo_box.visible = true
-	_combo_box.modulate.a = 1.0
-	_combo_sound(points, multiplier, moves, state)
-	var mult := String.num(multiplier, 1).trim_suffix(".0")
-	if state == "frozen":
-		# #89: surfing holds the timer; the bar stays put until the server sends "build" again.
-		_combo_frozen = true
-		_combo_left = time_left
-		_combo_bar.value = time_left
-		_combo_bar.visible = true
-		_combo_total.text = "%d  ×%s" % [points, mult]
-		_combo_total.add_theme_color_override("font_color", COMBO_FROZEN_COLOR)
-		_combo_fill.bg_color = COMBO_FROZEN_COLOR
-		_combo_moves.text = "%s  ·  SURF: TIMER HELD" % moves if moves != "" else "SURF: TIMER HELD"
-		return
-	_combo_frozen = false
-	if state == "build":
-		_combo_left = time_left
-		_combo_total.text = "%d  ×%s" % [points, mult]
-		_combo_total.add_theme_color_override("font_color", COMBO_COLOR)
-		_combo_moves.text = moves
-		_combo_bar.visible = true
-		_combo_box.pivot_offset = _combo_box.size * 0.5
-		_combo_box.scale = Vector2(1.12, 1.12)
-		_combo_tw = _combo_box.create_tween()
-		_combo_tw.tween_property(_combo_box, "scale", Vector2.ONE, 0.12)
-		return
-	_combo_left = 0.0
-	_combo_bar.visible = false
-	if state == "landed":
-		_combo_total.text = "LANDED  +%d" % banked
-		_combo_total.add_theme_color_override("font_color", COMBO_LANDED_COLOR)
-		_combo_moves.text = "%d × %s" % [points, mult]
-	else:
-		_combo_total.text = "BAILED"
-		_combo_total.add_theme_color_override("font_color", COMBO_WARN_COLOR)
-		_combo_moves.text = "%d × %s lost" % [points, mult]
-	_combo_tw = _combo_box.create_tween()
-	_combo_tw.tween_interval(1.2)
-	_combo_tw.tween_property(_combo_box, "modulate:a", 0.0, 0.5)
-	_combo_tw.tween_callback(func() -> void: _combo_box.visible = false)
+	if combo_meter == null:
+		combo_meter = ComboMeter.new()
+		combo_meter.sfx_log = combo_sfx_log
+		add_child(combo_meter)
+	combo_meter.on_combo_changed(points, multiplier, time_left, moves, state, banked)
 
 
-func _combo_sound(points: int, multiplier: float, moves: String, state: String) -> void:
-	var prev := _combo_last_pts
-	_combo_last_pts = points if state == "build" or state == "frozen" else 0
-	var kind := ""
-	var pitch := 1.0
-	if state == "landed":
-		kind = "land"
-	elif state == "bailed":
-		kind = "bail"
-	elif points > prev:
-		var last := moves.get_slice(" > ", moves.get_slice_count(" > ") - 1)
-		kind = "special" if last in COMBO_SPECIAL_MOVES else "ding"
-		pitch = minf(1.0 + COMBO_PITCH_STEP * (multiplier - Combo.MULT_START) / Combo.MULT_STEP, COMBO_PITCH_MAX)
-	if kind == "":
-		return
-	var now := Time.get_ticks_msec() / 1000.0
-	if (kind == "ding" or kind == "special") and now - _combo_sfx_t < COMBO_SFX_GAP:
-		return
-	_combo_sfx_t = now
-	if _combo_sfx == null:
-		_combo_sfx = AudioStreamPlayer.new()
-		_combo_sfx.bus = "UI"
-		_combo_sfx.max_polyphony = 3
-		add_child(_combo_sfx)
-	var streams := {"ding": _COMBO_DING, "special": _COMBO_SPECIAL, "land": _COMBO_LAND, "bail": _COMBO_BAIL}
-	_combo_sfx.stream = streams[kind]
-	_combo_sfx.pitch_scale = pitch
-	_combo_sfx.volume_db = -6.0 if kind == "ding" else -3.0
-	_combo_sfx.play()
-	combo_sfx_log.append([kind, pitch])
-
-
-## The server ends it (timeout / death / kill); the bar only shows the time it already said is left.
 func _tick_combo_ui(delta: float) -> void:
-	if _combo_box == null or not _combo_bar.visible or _combo_left <= 0.0 or _combo_frozen:
-		return
-	_combo_left = maxf(_combo_left - delta, 0.0)
-	_combo_bar.value = _combo_left
-	var warn := _combo_left <= Combo.WARN
-	_combo_fill.bg_color = COMBO_WARN_COLOR if warn else COMBO_COLOR
-	_combo_total.add_theme_color_override("font_color", COMBO_WARN_COLOR if warn else COMBO_COLOR)
+	if combo_meter:
+		combo_meter.tick(delta)

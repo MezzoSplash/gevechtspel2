@@ -23,7 +23,7 @@ func _ready() -> void:
 	var log: Array = hud.combo_sfx_log
 	hud._on_combo_changed(30, 1.0, 3.0, "SLIDE", "build", 0)
 	_ok(log.size() == 1 and log[-1][0] == "ding", "first move: ding")
-	_ok(hud._combo_sfx.bus == &"UI", "on the UI bus")
+	_ok(hud.combo_meter.sfx.bus == &"UI", "on the UI bus")
 	await get_tree().create_timer(0.15).timeout
 	hud._on_combo_changed(70, 1.5, 3.0, "SLIDE > AIR", "build", 0)
 	_ok(log.size() == 2 and log[-1][0] == "ding" and float(log[-1][1]) > float(log[0][1]), "pitch rises with the multiplier")
