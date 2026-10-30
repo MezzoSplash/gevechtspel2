@@ -1,5 +1,7 @@
 <div align="center">
 
+[![Checks](https://github.com/MezzoSplash/gevechtspel2/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/MezzoSplash/gevechtspel2/actions/workflows/checks.yml)
+
 # Gevechtspel
 
 **A fast little arena shooter for Linux and Windows. Surf, strafe, and outplay your friends.**
