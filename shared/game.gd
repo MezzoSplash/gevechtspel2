@@ -324,21 +324,13 @@ func score_word() -> String:
 	return "style" if is_style_mode() else "kills"
 
 
-## What counts for a team: kills, or the summed style of its members in style modes.
+## Scoring, win checks, round clock and round reset live in MatchRules (shared/match_rules.gd).
 func team_score(team_id: int) -> int:
-	if not is_style_mode():
-		return get_team_kills(team_id)
-	var sum := 0
-	for id in scores:
-		if int(scores[id].get("team", 0)) == team_id:
-			sum += int(scores[id].get("style", 0))
-	return sum
+	return MatchRules.team_score(self, team_id)
 
 
 func player_score(peer_id: int) -> int:
-	if not scores.has(peer_id):
-		return 0
-	return int(scores[peer_id].get("style" if is_style_mode() else "kills", 0))
+	return MatchRules.player_score(self, peer_id)
 
 
 func mode_name(m: int = -1) -> String:
@@ -364,10 +356,7 @@ func win_kills() -> int:
 
 
 func default_kills_for(m: int = -1) -> int:
-	var mm := mode if m < 0 else m
-	if is_style_mode(mm):
-		return STYLE_FFA_LIMIT if is_ffa(mm) else STYLE_TDM_LIMIT
-	return FFA_WIN_KILLS if is_ffa(mm) else WIN_KILLS
+	return MatchRules.default_kills_for(self, m)
 
 
 ## Hostility for damage, bots, tags, and colours. FFA: everyone but yourself.
@@ -1727,17 +1716,8 @@ func killcam_pick() -> Dictionary:
 	return info
 
 
-## Most style this round (> 0). Ties: the name that sorts first. {} if nobody has style.
 func style_king() -> Dictionary:
-	var best := {}
-	for id in scores:
-		var st := int(scores[id].get("style", 0))
-		if st <= 0:
-			continue
-		var n := str(scores[id].name)
-		if best.is_empty() or st > int(best.style) or (st == int(best.style) and n < str(best.name)):
-			best = {"peer_id": int(id), "name": n, "style": st, "team": int(scores[id].get("team", 0))}
-	return best
+	return MatchRules.style_king(scores)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1831,31 +1811,15 @@ func sync_all_scores(scores_data: Array) -> void:
 
 
 func _check_win_team(team_id: int) -> void:
-	if not _round_active:
-		return
-	if get_team_kills(team_id) >= win_kills():
-		_end_round_team(team_id)
+	MatchRules.check_win_team(self, team_id)
 
 
-## #82: in style modes the first team (TDM) or player (FFA) to score_limit() style points wins.
 func _check_style_win(peer_id: int) -> void:
-	if not is_style_mode() or not _round_active or not scores.has(peer_id):
-		return
-	if is_ffa():
-		if player_score(peer_id) >= score_limit():
-			_end_round_player(peer_id)
-		return
-	var t := int(scores[peer_id].get("team", 0))
-	if team_score(t) >= score_limit():
-		_end_round_team(t)
+	MatchRules.check_style_win(self, peer_id)
 
 
-## FFA: first player to kill_limit wins the round.
 func _check_win_player(peer_id: int) -> void:
-	if not _round_active or not scores.has(peer_id):
-		return
-	if int(scores[peer_id].kills) >= win_kills():
-		_end_round_player(peer_id)
+	MatchRules.check_win_player(self, peer_id)
 
 
 ## FFA round end: `winner_name` is the player. round_ended carries the peer id (TDM: the team id).
@@ -2051,17 +2015,7 @@ func _tick_tension() -> void:
 func start_round() -> void:
 	_round_timer = 0.0
 	_round_active = false # timer starts after freeze
-	final_kill.clear()
-	best_trick.clear()
-	_combos.clear()
-	_style_chain.clear()
-	_line_cd.clear()
-	_line_chain.clear()
-	_line_pos.clear()
-	_bursts.clear()
-	_shotgun_kill_t.clear()
-	_hs_streak.clear()
-	_mags.clear()
+	MatchRules.clear_round_state(self)
 	team_kills = [0, 0]
 	if is_networked() and multiplayer.is_server():
 		sync_team_kills.rpc(0, 0)
@@ -2145,17 +2099,7 @@ func reset_session() -> void:
 	in_lobby = false
 	round_frozen = false
 	killcam_active = false
-	final_kill.clear()
-	best_trick.clear()
-	_combos.clear()
-	_style_chain.clear()
-	_line_cd.clear()
-	_line_chain.clear()
-	_line_pos.clear()
-	_bursts.clear()
-	_shotgun_kill_t.clear()
-	_hs_streak.clear()
-	_mags.clear()
+	MatchRules.clear_round_state(self)
 	_shot_ctx = {}
 	if killcam:
 		killcam.reset()
@@ -2185,16 +2129,7 @@ func reset_session() -> void:
 
 
 func update_round_timer(delta: float) -> bool:
-	if not _round_active:
-		return false
-	_round_timer += delta
-	if _round_timer >= round_time:
-		if is_ffa():
-			_end_round_player(top_player())
-		else:
-			_end_round_team(_get_leader())
-		return true
-	return false
+	return MatchRules.update_round_timer(self, delta)
 
 
 func _get_leader() -> int:
