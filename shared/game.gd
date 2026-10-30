@@ -1,3 +1,4 @@
+class_name GameState
 extends Node
 ## Autoload `Game`. Shared weapon stats, server-authoritative hits, scores, and LAN RPCs.
 ## Clients never decide damage, deaths, or bot actions.
@@ -1376,43 +1377,12 @@ var streak_charges: Dictionary = {} # peer -> bitmask of streaks earned and not 
 var streak_earned: Dictionary = {} # peer -> bitmask already passed this life (stops a second copy)
 
 
-## Humans and bots (bots have negative ids). Death clears this life's count, not a streak already earned.
-## 3 banks the UAV, 5 banks the RC-XD. Each stays until Enter uses it,
-## or until start_round clears every charge for the next round.
 func _bump_streak(killer_peer_id: int, victim_peer_id: int) -> void:
-	if victim_peer_id != 0:
-		streak_progress[victim_peer_id] = 0
-		streak_earned[victim_peer_id] = 0
-		_push_streak(victim_peer_id)
-	if killer_peer_id == 0:
-		return
-	var n := int(streak_progress.get(killer_peer_id, 0))
-	if n < RCXD_AT:
-		n += 1
-	streak_progress[killer_peer_id] = n
-	var charges := int(streak_charges.get(killer_peer_id, 0))
-	var earned := int(streak_earned.get(killer_peer_id, 0))
-	if n >= STREAK_AT and (earned & CHARGE_RADAR) == 0:
-		earned |= CHARGE_RADAR
-		charges |= CHARGE_RADAR
-	if n >= RCXD_AT and (earned & CHARGE_RCXD) == 0:
-		earned |= CHARGE_RCXD
-		charges |= CHARGE_RCXD
-	streak_earned[killer_peer_id] = earned
-	streak_charges[killer_peer_id] = charges
-	_push_streak(killer_peer_id)
+	Streaks.bump_streak(self, killer_peer_id, victim_peer_id)
 
 
 func _push_streak(peer_id: int) -> void:
-	var n := int(streak_progress.get(peer_id, 0))
-	var charges := int(streak_charges.get(peer_id, 0))
-	var earned := int(streak_earned.get(peer_id, 0))
-	if peer_id < 0:
-		return # bot: its brain reads streak_charges on the server, no HUD to update
-	if not is_networked() or peer_id == multiplayer.get_unique_id():
-		_apply_streak_local(n, charges, earned)
-		return
-	sync_streak.rpc_id(peer_id, n, charges, earned)
+	Streaks.push_streak(self, peer_id)
 
 
 @rpc("authority", "reliable")
@@ -1421,42 +1391,11 @@ func sync_streak(n: int, charges: int, earned: int) -> void:
 
 
 func _apply_streak_local(n: int, charges: int, earned: int) -> void:
-	var hud := get_tree().get_first_node_in_group("hud") as Hud
-	if hud:
-		hud.set_streak(n, charges, earned)
+	Streaks.apply_streak_local(self, n, charges, earned)
 
 
-## Slot 0 is the UAV (3), slot 1 is the RC-XD (5). Using one spends only that charge.
-## UAV still spends if one is already running (time is not stacked).
-## Freeze, killcam, death, or a car already out: the charge is kept.
 func try_activate_streak(peer_id: int, slot: int) -> void:
-	if not _is_match_authority():
-		return
-	if play_locked() or peer_id == 0:
-		return
-	var p := player_for_peer(peer_id)
-	if p == null or p.is_dead:
-		return
-	if RcXd.for_owner(peer_id) != null:
-		return
-	var bit := 0
-	if slot == 0:
-		bit = CHARGE_RADAR
-	elif slot == 1:
-		bit = CHARGE_RCXD
-	else:
-		return
-	var charges := int(streak_charges.get(peer_id, 0))
-	if (charges & bit) == 0:
-		return
-	if bit == CHARGE_RCXD and not RcXd.launch(p):
-		return
-	charges &= ~bit
-	streak_charges[peer_id] = charges
-	_push_streak(peer_id)
-	streak_used.emit(peer_id, slot)
-	if bit == CHARGE_RADAR:
-		_grant_radar(peer_id)
+	Streaks.try_activate_streak(self, peer_id, slot)
 
 
 ## HUD calls this. Clients cannot grant their own UAV.
@@ -1594,23 +1533,8 @@ func _apply_rc_announce(team: int, by_name: String, by_peer: int) -> void:
 	hud.show_rc_event(by_name, team, friendly)
 
 
-## UAV: every machine hears about it; the activator's team gets enemies on the minimap,
-## the other team only the "enemy radar" cue. The minimap reads the live pawns, so
-## enemies that respawn during the radar show up too. FFA: only the activator gets markers
-## (of everyone else); all others get the "enemy radar" cue.
 func _grant_radar(peer_id: int) -> void:
-	var team := 0
-	var p := player_for_peer(peer_id)
-	if p:
-		team = p.team_id
-	elif scores.has(peer_id):
-		team = int(scores[peer_id].get("team", 0))
-	var by := _display_name_for(peer_id)
-	if scores.has(peer_id):
-		by = str(scores[peer_id].name)
-	if is_networked():
-		sync_radar.rpc(team, by, RADAR_TIME, peer_id)
-	_apply_radar(team, by, RADAR_TIME, peer_id)
+	Streaks.grant_radar(self, peer_id)
 
 
 @rpc("authority", "reliable")
@@ -1621,30 +1545,11 @@ func sync_radar(team: int, by_name: String, seconds: float, by_peer: int) -> voi
 
 
 func _apply_radar(team: int, by_name: String, seconds: float, by_peer: int) -> void:
-	var mine := local_team()
-	if mine < 0:
-		return
-	var hud := get_tree().get_first_node_in_group("hud") as Hud
-	var friendly := team == mine
-	if is_ffa():
-		friendly = by_peer == multiplayer.get_unique_id()
-	if friendly:
-		radar_team = team
-		radar_peer = by_peer
-		radar_left = maxf(radar_left, seconds)
-	if hud:
-		hud.show_radar_event(by_name, team, friendly)
+	Streaks.apply_radar(self, team, by_name, seconds, by_peer)
 
 
-## Round end, round start, killcam, and leaving: no markers carry over, and no RC stays out.
 func clear_radar() -> void:
-	radar_left = 0.0
-	radar_team = -1
-	radar_peer = 0
-	var hud := get_tree().get_first_node_in_group("hud") as Hud
-	if hud:
-		hud.clear_radar()
-	RcXd.abort_all()
+	Streaks.clear_radar(self)
 
 
 func _emit_kill_feed(
@@ -2029,23 +1934,8 @@ func start_round() -> void:
 	_clear_round_streaks()
 
 
-## New round drops this life's kill count and any charge still held.
-## Leave-to-menu clears the same dictionaries in reset_session. Without this, a radar
-## banked last round is still usable after intermission. Clients hear it via sync_streak.
 func _clear_round_streaks() -> void:
-	var humans := {}
-	for src in [streak_progress, streak_charges, streak_earned]:
-		for id in src:
-			if int(id) > 0:
-				humans[int(id)] = true
-	streak_progress.clear()
-	streak_charges.clear()
-	streak_earned.clear()
-	var me := multiplayer.get_unique_id() if is_networked() else 1
-	if me > 0:
-		humans[me] = true
-	for id in humans:
-		_push_streak(int(id))
+	Streaks.clear_round_streaks(self)
 
 
 func end_freeze() -> void:
