@@ -632,32 +632,15 @@ func _take_fire_credit(peer: int, def: WeaponDef) -> bool:
 
 
 func next_grenade_id() -> int:
-	_grenade_seq += 1
-	return _grenade_seq
+	return Throwables.next_grenade_id(self)
 
 
-## Authority only. Clients ask via request_grenade; the count RPC updates their HUD.
 func throw_grenade(thrower: Player, origin: Vector3, dir: Vector3, client_seq := 0) -> void:
-	if thrower == null or thrower.is_dead or thrower.grenades <= 0 or play_locked():
-		return
-	if is_networked() and not multiplayer.is_server():
-		return
-	thrower.grenades -= 1
-	thrower._notify_grenades()
-	if is_networked():
-		sync_grenade_count.rpc(thrower.peer_id, thrower.grenades)
-	Grenade.launch(thrower, origin, dir, client_seq)
+	Throwables.throw_grenade(self, thrower, origin, dir, client_seq)
 
 
-## Client prediction: the thrower sees their grenade leave the hand at once instead of a ping later.
-## `seq` ties it to the server's spawn RPC, which then adopts this copy.
 func predict_grenade(thrower: Player, origin: Vector3, dir: Vector3) -> int:
-	var scene := get_tree().current_scene
-	if scene == null or thrower == null:
-		return 0
-	_grenade_pred_seq += 1
-	_grenade_predicted[_grenade_pred_seq] = Grenade.spawn_visual(scene, origin, Grenade.initial_velocity(dir))
-	return _grenade_pred_seq
+	return Throwables.predict_grenade(self, thrower, origin, dir)
 
 
 ## Client throw. Server re-checks ammo, death, and freeze.
@@ -727,29 +710,13 @@ func sync_grenade_boom(pos: Vector3, net_id: int) -> void:
 
 
 func _grenade_visual(net_id: int, pos: Vector3, vel: Vector3) -> Node3D:
-	if _grenade_visuals.has(net_id) and is_instance_valid(_grenade_visuals[net_id]):
-		return _grenade_visuals[net_id]
-	var scene := get_tree().current_scene
-	if scene == null:
-		return null
-	var g := Grenade.spawn_visual(scene, pos, vel)
-	_grenade_visuals[net_id] = g
-	return g
+	return Throwables.grenade_visual(self, net_id, pos, vel)
 
 
 # --- Throwing knives (grenade slot, F). Same flow as grenades: authority decides, clients get copies. ---
 
-## Authority only. Clients ask via request_knife.
 func throw_knife(thrower: Player, origin: Vector3, dir: Vector3) -> void:
-	if thrower == null or thrower.is_dead or thrower.knives <= 0 or play_locked():
-		return
-	if is_networked() and not multiplayer.is_server():
-		return
-	thrower.knives -= 1
-	thrower._notify_grenades()
-	if is_networked():
-		sync_knife_count.rpc(thrower.peer_id, thrower.knives)
-	ThrowingKnife.launch(thrower, origin, dir)
+	Throwables.throw_knife(self, thrower, origin, dir)
 
 
 @rpc("any_peer", "reliable")
@@ -809,24 +776,8 @@ func sync_knife_done(net_id: int, pos: Vector3, normal: Vector3, end: int) -> vo
 	k.queue_free()
 
 
-## Server knife hit a body: one-hit kill, the throw is the "shot" for tricks (YEET).
 func knife_hit(knife: ThrowingKnife, victim: Player, point: Vector3, normal: Vector3) -> void:
-	var thrower := player_for_peer(knife.thrower_id)
-	if thrower:
-		_shot_ctx = {"shooter": thrower, "origin": knife.origin, "scoped": false, "burst": {}, "knife_air": knife.airborne}
-	var killer_id := knife.thrower_id
-	if killer_id <= 0 and thrower:
-		killer_id = thrower._owner_peer()
-	var res := victim.apply_hit(point, normal, ThrowingKnife.DAMAGE, false, killer_id, &"knife", 1.0, knife.origin)
-	_shot_ctx = {}
-	if res.get("damage", 0) <= 0 or thrower == null:
-		return
-	if thrower.is_local():
-		hit_confirmed.emit(bool(res.killed), false)
-		if thrower.weapon:
-			thrower.weapon.play_hit_feedback(bool(res.killed), false)
-	elif is_networked() and not thrower.is_bot and thrower.peer_id > 0:
-		notify_hit.rpc_id(thrower.peer_id, bool(res.killed), false)
+	Throwables.knife_hit(self, knife, victim, point, normal)
 
 
 ## Host / offline / bots: resolve hits on this machine (must be match authority).
