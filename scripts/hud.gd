@@ -73,28 +73,12 @@ var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # 
 ]
 @onready var intermission_label: Label = $Intermission
 @onready var timer_label: Label = $Timer
-@onready var kill_feed: VBoxContainer = $KillFeed
+@onready var kill_feed: KillFeed = $KillFeed
 @onready var presence_feed: VBoxContainer = $PresenceFeed
 @onready var chat_log: VBoxContainer = $ChatLog
 @onready var chat_input: LineEdit = $ChatInput
 
-const _FEED_ICONS := {
-	&"rifle": preload("res://assets/ui/icon_rifle.svg"),
-	&"pistol": preload("res://assets/ui/icon_pistol.svg"),
-	&"shotgun": preload("res://assets/ui/icon_shotgun.svg"),
-	&"sniper": preload("res://assets/ui/icon_sniper.svg"),
-	&"grenade": preload("res://assets/ui/icon_grenade.svg"),
-	&"smg": preload("res://assets/ui/icon_smg.svg"),
-	&"revolver": preload("res://assets/ui/icon_revolver.svg"),
-	&"knife": preload("res://assets/ui/icon_knife.svg"),
-	&"melee": preload("res://assets/ui/icon_melee.svg"),
-	&"lmg": preload("res://assets/ui/icon_lmg.svg"),
-	&"slug": preload("res://assets/ui/icon_slug.svg"),
-	&"rcxd": preload("res://assets/ui/icon_rcxd.svg"),
-	&"fall": preload("res://assets/ui/icon_fall.svg"), # kill_y (map drop), see player._check_kill_y
-}
-const _FEED_MAX := 6
-const _FEED_LIFE := 5.0
+const _FEED_ICONS := KillFeed.ICONS # killcam and checks read it here
 const _POPUP_HOLD := 2.4 # streak popup under the clock: hold, then fade
 const _POPUP_FADE := 0.6
 const _POPUP_FRIENDLY := Color(1.0, 0.86, 0.4)
@@ -125,6 +109,9 @@ func _ready() -> void:
 	Game.score_changed.connect(_on_score_changed)
 	Game.round_ended.connect(_on_round_ended)
 	Game.kill_feed.connect(_on_kill_feed)
+	if kill_feed:
+		kill_feed.name_color = _name_color
+		kill_feed.local_name = _local_name
 	Game.trick_scored.connect(_on_trick_scored)
 	Game.combo_changed.connect(_on_combo_changed)
 	Game.presence.connect(_on_presence)
@@ -1051,53 +1038,8 @@ func _on_kill_feed(
 	killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int,
 	tricks: String = ""
 ) -> void:
-	if kill_feed == null:
-		return
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.alignment = BoxContainer.ALIGNMENT_END
-	var k := Label.new()
-	k.text = killer_name
-	k.add_theme_font_size_override("font_size", 16)
-	k.add_theme_color_override("font_color", _name_color(killer_name, killer_team))
-	if killer_name == _local_name():
-		k.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.8))
-		k.add_theme_constant_override("outline_size", 4)
-	var icon := TextureRect.new()
-	icon.texture = _FEED_ICONS.get(weapon_id, _FEED_ICONS[&"rifle"])
-	icon.custom_minimum_size = Vector2(56, 18)
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.modulate = Color(1, 1, 1, 0.95)
-	var v := Label.new()
-	v.text = victim_name
-	v.add_theme_font_size_override("font_size", 16)
-	v.add_theme_color_override("font_color", _name_color(victim_name, victim_team))
-	if victim_name == _local_name():
-		v.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.8))
-		v.add_theme_constant_override("outline_size", 4)
-	row.add_child(k)
-	row.add_child(icon)
-	row.add_child(v)
-	if tricks != "":
-		var tag := Label.new()
-		tag.name = "TrickTag"
-		tag.text = tricks
-		tag.add_theme_font_size_override("font_size", 14)
-		tag.add_theme_color_override("font_color", TRICK_COLOR)
-		tag.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		tag.add_theme_constant_override("outline_size", 4)
-		row.add_child(tag)
-	kill_feed.add_child(row)
-	kill_feed.move_child(row, 0)
-	while kill_feed.get_child_count() > _FEED_MAX:
-		var old := kill_feed.get_child(kill_feed.get_child_count() - 1)
-		kill_feed.remove_child(old)
-		old.queue_free()
-	var tw := row.create_tween()
-	tw.tween_interval(_FEED_LIFE)
-	tw.tween_property(row, "modulate:a", 0.0, 0.45)
-	tw.tween_callback(row.queue_free)
+	if kill_feed:
+		kill_feed.add_kill(killer_name, victim_name, weapon_id, killer_team, victim_team, tricks)
 
 
 ## Team colour; FFA: your own name gold, everyone else the enemy colour.
