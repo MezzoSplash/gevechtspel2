@@ -43,7 +43,7 @@ _run_once() {
 	local name="$1"; shift
 	local log="$LOG_DIR/$name.log" t0=$SECONDS code
 	local to="$TIMEOUT"; [[ -n "${SLOW[$name]:-}" ]] && to="${SLOW[$name]}"
-	timeout "$to" "$GODOT" --headless --path . "$@" >"$log" 2>&1; code=$?
+	timeout -k 10 "$to" "$GODOT" --headless --path . "$@" >"$log" 2>&1; code=$?
 	local why=""
 	if (( code == 124 )); then why="timeout ${to}s"
 	elif (( code != 0 )); then why="exit $code"
