@@ -27,6 +27,7 @@ func _ready() -> void:
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	add_child(main)
 	await get_tree().create_timer(1.0).timeout
+	Game.last_bots = 16 # set_match_choice resets the bot box from last_bots (#100)
 	Game.bot_count = 16
 	Game.kill_feed.connect(func(_k: String, _v: String, w: StringName, _a = null, _b = null, _c = null) -> void:
 		_kills[w] = int(_kills.get(w, 0)) + 1
@@ -34,14 +35,18 @@ func _ready() -> void:
 	main.get_node("CanvasLayer/Menu").set_match_choice(&"townhouses", Game.MODE_TDM)
 	main.get_node("CanvasLayer/Menu").play_local_pressed.emit()
 	var held := {}
+	var max_bots := 0
 	for t in 18:
 		await get_tree().create_timer(5.0).timeout
 		for n in get_tree().get_nodes_in_group("player"):
 			var p := n as Player
 			if p and p.is_bot and p.weapon and p.weapon.def:
 				held[p.weapon.def.id] = true
+		var bots := get_tree().get_nodes_in_group("player").filter(func(n: Node) -> bool: return n is Player and (n as Player).is_bot).size()
+		max_bots = maxi(max_bots, bots)
 	print("bot guns seen: ", held.keys())
 	print("kills by weapon: ", _kills)
+	fails += _check("at least 8 bots spawned (%d)" % max_bots, max_bots >= 8)
 	fails += _check("bots hold the LMG", held.has(&"lmg"))
 	fails += _check("bots hold the slug", held.has(&"slug"))
 	fails += _check("an LMG or slug kill happened", _kills.has(&"lmg") or _kills.has(&"slug"))
