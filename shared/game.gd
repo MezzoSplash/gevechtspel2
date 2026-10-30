@@ -1675,85 +1675,15 @@ func sync_kill_feed(
 
 # --- Trickshots / style (see Style). Match authority decides, everyone shows it. ---
 
-## The shot (or melee swing) resolving right now (Game._shot_ctx) made this kill: what tricks was it?
-## Grenades and anything outside a shot or swing have no context and no tricks.
+## Trick detection lives in Tricks (shared/tricks.gd); these wrappers keep the old entry points.
 func _detect_tricks(
 	killer_peer_id: int, victim_peer_id: int, weapon_id: StringName, headshot: bool = false
 ) -> Array[StringName]:
-	var none: Array[StringName] = []
-	if weapon_id == &"rcxd":
-		return Style.detect({"weapon": weapon_id}) # #87: the RC blast has no shot context, but is a style kill
-	if _shot_ctx.is_empty():
-		return none
-	var shooter := _shot_ctx.get("shooter") as Player
-	if shooter == null or not is_instance_valid(shooter):
-		return none
-	if shooter.peer_id != killer_peer_id and shooter._owner_peer() != killer_peer_id:
-		return none
-	var victim := player_for_peer(victim_peer_id)
-	var origin: Vector3 = _shot_ctx.get("origin", shooter.global_position)
-	var dist := origin.distance_to(victim.aim_point()) if victim else 0.0
-	var window := Style.SPIN_WINDOW
-	if is_networked() and not shooter.is_bot and not shooter.is_local():
-		window += Style.SPIN_NET_SLACK
-	var now := Time.get_ticks_msec() / 1000.0
-	var burst: Dictionary = _shot_ctx.get("burst", {})
-	var others := 0
-	for v in burst.get("victims", []):
-		if int(v) != victim_peer_id:
-			others += 1
-	var streak := int(_hs_streak.get(killer_peer_id, 0))
-	if weapon_id == &"rifle" and headshot:
-		streak += 1
-	var mag: Dictionary = _shot_ctx.get("mag", {})
-	var mag_kills := int(mag.get("kills", 0)) + 1 if StringName(mag.get("weapon", &"")) == weapon_id else 0
-	var since_draw := INF
-	if shooter.weapon and shooter.weapon.def and shooter.weapon.def.id == weapon_id:
-		since_draw = shooter.weapon.since_draw()
-	var remote := is_networked() and not shooter.is_bot and not shooter.is_local()
-	return Style.detect({
-		"weapon": weapon_id,
-		"scoped": bool(_shot_ctx.get("scoped", false)),
-		"bot": shooter.is_bot,
-		"headshot": headshot,
-		"spin": shooter.spin_degrees(window),
-		"shooter_air": shooter.air_time,
-		"victim_air": victim.air_time if victim else 0.0,
-		"dist": dist,
-		"speed": shooter._obs_speed,
-		"surf": shooter.style_surfing(),
-		"drop": shooter.style_drop(),
-		"burst_victims": others,
-		"double": weapon_id == &"shotgun" and now - float(_shotgun_kill_t.get(killer_peer_id, -100.0)) <= Style.DOUBLE_WINDOW,
-		"hs_streak": streak,
-		"run_t": shooter.run_time(),
-		"mag_kills": mag_kills,
-		"since_draw": since_draw,
-		"quickdraw_slack": Style.QUICKDRAW_NET_SLACK if remote else 0.0,
-		"knife_air": bool(_shot_ctx.get("knife_air", false)),
-		"wallrun": shooter.style_wallrun(),
-		"walljump": shooter.style_walljump(),
-		"dive": shooter.style_dive(),
-		"roll": shooter.style_roll(),
-	})
+	return Tricks.detect(self, killer_peer_id, victim_peer_id, weapon_id, headshot)
 
 
-## Per-killer history behind DOUBLE, SPRAY TRANSFER and HEADSHOT STREAK (after _detect_tricks).
 func _note_trick_history(killer_peer_id: int, victim_peer_id: int, weapon_id: StringName, headshot: bool) -> void:
-	_hs_streak.erase(victim_peer_id) # dying ends your streak
-	if weapon_id == &"rifle" and headshot:
-		_hs_streak[killer_peer_id] = int(_hs_streak.get(killer_peer_id, 0)) + 1
-	else:
-		_hs_streak.erase(killer_peer_id) # any other kill breaks the run
-	if weapon_id == &"shotgun":
-		_shotgun_kill_t[killer_peer_id] = Time.get_ticks_msec() / 1000.0
-	if not _shot_ctx.is_empty():
-		var burst: Dictionary = _shot_ctx.get("burst", {})
-		if not burst.is_empty():
-			(burst.victims as Array).append(victim_peer_id)
-		var mag: Dictionary = _shot_ctx.get("mag", {})
-		if not mag.is_empty() and StringName(mag.get("weapon", &"")) == weapon_id:
-			mag.kills = int(mag.kills) + 1
+	Tricks.note_history(_hs_streak, _shotgun_kill_t, _shot_ctx, killer_peer_id, victim_peer_id, weapon_id, headshot)
 
 
 ## Points (with the chain multiplier) onto the killer's style; tell everyone; remember the round's best
@@ -1768,9 +1698,7 @@ func _award_style(kill_info: Dictionary, tricks_in: Array[StringName]) -> void:
 		tricks.append(Style.COMBO)
 		_combo_end(k, "landed", bank)
 	var now := Time.get_ticks_msec() / 1000.0
-	var prev: Array = _style_chain.get(k, [0, -1000.0])
-	var chain := int(prev[0]) + 1 if now - float(prev[1]) <= Style.CHAIN_WINDOW else 1
-	_style_chain[k] = [chain, now]
+	var chain := Tricks.next_chain(_style_chain, k, now)
 	var pts := Style.award(tricks, chain) + bank # chain multiplier on the kill tricks only, never on the combo
 	var mult := Style.chain_multiplier(chain)
 	var total := pts + (int(scores[k].get("style", 0)) if scores.has(k) else 0)
@@ -1778,8 +1706,7 @@ func _award_style(kill_info: Dictionary, tricks_in: Array[StringName]) -> void:
 	# Best trickshot = the biggest single landed combo (its payout, points × multiplier) of the round, over
 	# all players. Kills without a combo only count while nobody has landed one yet. Before this a plain
 	# trick kill with a chain multiplier (e.g. a bot's HOSE + RUN & GUN ×2) could beat a bigger combo.
-	var best_bank := int(best_trick.get("bank", 0))
-	var is_best := _round_active and (bank > best_bank or (bank == 0 and best_bank == 0 and pts > int(best_trick.get("pts", 0))))
+	var is_best := Tricks.is_best(best_trick, _round_active, bank, pts)
 	if is_best:
 		best_trick = kill_info.duplicate()
 		best_trick["pts"] = pts
