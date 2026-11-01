@@ -19,7 +19,7 @@ Status: **OK** = own work or CC0/MIT, fine for commercial use · **ATTR** = fine
 | `reload.wav`, `radar_standby.wav`, `round_starting.wav` | 3 | Unknown: ffmpeg-converted (Lavf tag), no generator script, no credit | unknown | **VERIFY** |
 | `lmg_fire.wav`, `slug_fire.wav` | 2 | Unknown: added in 4ce9324 with no source, ffmpeg-converted | unknown | **VERIFY** |
 | `land.wav`, `slide.wav`, `round_start.wav` | 3 | Probably generated (plain PCM, no metadata), but no script in the repo | probably own | **VERIFY** (low risk) |
-| Viewmodels `pistol/rifle/shotgun/sniper.glb` + 153 extracted `*_N.png` textures | 4 + 153 | Unknown: added in v0.2.3, "Microsoft GLTF Exporter" (3D Builder / SketchUp-style numbered materials); no credit | unknown | **VERIFY** (highest risk) |
+| Viewmodels `pistol/rifle/shotgun/sniper.glb` + 153 extracted `*_N.png` textures | 4 + 153 | sqorchtech (repo contributor), made in Paint 3D (hence "Microsoft GLTF Exporter") | not stated | **VERIFY** (written grant from sqorchtech) |
 | SMG viewmodel, fire anim, muzzle VFX (`assets/weapons/smg/`) | 13 | sqorchtech (repo contributor), Blender | not stated | **VERIFY** (written grant) |
 | RC-XD mesh (`assets/gadgets/RCExplody.glb` + palette) | 2 | sqorchtech | not stated | **VERIFY** (written grant) |
 | Low-poly revolver, knife, LMG, slug (`*.tscn`) | 4 | `tools/build_lowpoly_weapons.py` | own | OK |
