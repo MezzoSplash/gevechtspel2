@@ -1,7 +1,7 @@
 # Asset inventory and licenses
 
 Audit of every non-code asset in the repo (`git ls-files`, 1 Nov 2026), for a future commercial (Steam) release.
-Credit lines live in [CREDITS.md](CREDITS.md). Open items are tracked in the "assets to verify before release" issue.
+Credit lines live in [CREDITS.md](CREDITS.md). Open items are tracked in #135.
 
 Status: **OK** = own work or CC0/MIT, fine for commercial use · **ATTR** = fine, but a notice must ship with the game ·
 **VERIFY** = origin or license not documented; replace or get it in writing before release.
