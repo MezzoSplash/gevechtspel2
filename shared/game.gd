@@ -2,6 +2,22 @@ class_name GameState
 extends Node
 ## Autoload `Game`. Shared weapon stats, server-authoritative hits, scores, and LAN RPCs.
 ## Clients never decide damage, deaths, or bot actions.
+##
+## Game is the shared state and the network layer: every @rpc lives here, on the same node path on every
+## machine, so the protocol (NET_VERSION) never depends on how the logic is organised. Most functions
+## below are thin entry points that forward to a static helper (#106):
+##   shared/combat.gd        damage, shot resolution, kills, deaths, respawns, regen, tracers
+##   shared/match_rules.gd   modes, score limits, win checks, round clock, per-round reset
+##   shared/match_flow.gd    round start/freeze/end, intermission, late join, roster, pings, LINE strips
+##   shared/match_audio.gd   menu music, round sting, tension music
+##   shared/tricks.gd        trickshot detection and history
+##   shared/combo_ledger.gd  combos and style awarding
+##   shared/streaks.gd       UAV / RC-XD scorestreaks and the radar
+##   shared/throwables.gd    frag grenades and throwing knives
+##   shared/lobby.gd         names, participants, lobby roster, join notices, chat
+##   shared/game_settings.gd settings file, window, resolution, render
+##   shared/keybinds.gd      key and mouse bindings
+## A helper takes the autoload as its first argument (`game: GameState`) and never declares RPCs.
 
 signal hit_confirmed(killed: bool, headshot: bool)
 signal local_player_ready(player: Player)

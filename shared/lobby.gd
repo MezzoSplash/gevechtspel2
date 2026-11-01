@@ -52,6 +52,7 @@ static func local_resolved_name(game: GameState) -> String:
 	return game.player_name
 
 
+## Name a joining peer sent before its pawn existed, or `fallback`.
 static func take_pending_name(game: GameState, peer_id: int, fallback: String) -> String:
 	if game.pending_names.has(peer_id):
 		var n: String = game.pending_names[peer_id]
@@ -60,6 +61,7 @@ static func take_pending_name(game: GameState, peer_id: int, fallback: String) -
 	return fallback
 
 
+## The pawn's display name, else "Bot N" for a bot id or "Player".
 static func display_name_for(game: GameState, peer_id: int) -> String:
 	var killer := game.player_for_peer(peer_id)
 	if killer:
@@ -88,6 +90,7 @@ static func register_participant(game: GameState, peer_id: int, n: String, team:
 		game.sync_score.rpc(peer_id, 0, n, team)
 
 
+## Server: adds or updates one peer in the lobby roster and syncs it.
 static func set_lobby_member(game: GameState, peer_id: int, n: String, team: int) -> void:
 	if not game._is_match_authority():
 		return
@@ -95,6 +98,7 @@ static func set_lobby_member(game: GameState, peer_id: int, n: String, team: int
 	push_lobby(game)
 
 
+## Server: removes a peer from the lobby roster and syncs it.
 static func remove_lobby_member(game: GameState, peer_id: int) -> void:
 	if not game.lobby.has(peer_id):
 		return
@@ -103,12 +107,14 @@ static func remove_lobby_member(game: GameState, peer_id: int) -> void:
 		push_lobby(game)
 
 
+## Server: sends the whole lobby roster to everyone.
 static func push_lobby(game: GameState) -> void:
 	game.lobby_changed.emit()
 	if game.is_networked() and game.multiplayer.is_server():
 		game.sync_lobby.rpc(game.lobby)
 
 
+## Server: "X joined/left" notice on every machine.
 static func announce_presence(game: GameState, player_name: String, joined: bool, team: int) -> void:
 	if not game._is_match_authority():
 		return
@@ -147,5 +153,6 @@ static func relay_chat(game: GameState, peer_id: int, text: String) -> void:
 	game.broadcast_chat.rpc(n, team, text)
 
 
+## Puts one chat line on this machine's HUD.
 static func deliver_chat(game: GameState, n: String, team: int, text: String) -> void:
 	game.chat_message.emit(n, team, text)

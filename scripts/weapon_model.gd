@@ -5,6 +5,7 @@ extends RefCounted
 ## wrappers under the old names.
 
 
+## Turns shadow casting off for every mesh under `n`.
 static func no_shadows(n: Node) -> void:
 	if n is GeometryInstance3D:
 		(n as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -118,6 +119,7 @@ static func fire_clip(anim: AnimationPlayer) -> StringName:
 	return StringName()
 
 
+## Restarts the muzzle particles under `node`; true if it had any.
 static func burst_muzzle(node: Node) -> bool:
 	var burst := false
 	if node is GPUParticles3D:
@@ -132,6 +134,7 @@ static func burst_muzzle(node: Node) -> bool:
 	return burst
 
 
+## `target`'s origin in the space `root` sits in.
 static func origin_in_parent(root: Node3D, target: Node3D) -> Vector3:
 	return xform_in_parent(root, target).origin
 
@@ -146,6 +149,7 @@ static func xform_in_parent(root: Node3D, target: Node3D) -> Transform3D:
 	return root.transform * xf
 
 
+## Combined mesh bounds of `n` in its parent's space.
 static func aabb_in_parent(n: Node3D) -> AABB:
 	var acc := AABB()
 	var has := false

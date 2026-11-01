@@ -39,6 +39,7 @@ static func award_style(game: Node, kill_info: Dictionary, tricks_in: Array[Stri
 		game.sync_trick.rpc(k, int(kill_info.v), packed, pts, mult, total, game._trick_seq, is_best)
 
 
+## Match authority: a move (slide, surf, wallrun, ...) extends or starts the peer's combo.
 static func move(game: Node, peer_id: int, move_id: StringName) -> void:
 	if not game._is_match_authority() or not game._round_active or game.play_locked() or not game.scores.has(peer_id):
 		return
@@ -60,6 +61,7 @@ static func end(game: Node, peer_id: int, state: String, banked: int) -> void:
 	send(game, peer_id, c, state, banked)
 
 
+## Match authority: drains every combo timer; surfing holds it (#89).
 static func tick(game: Node, delta: float) -> void:
 	if game._combos.is_empty() or not game._is_match_authority():
 		return
@@ -78,6 +80,7 @@ static func tick(game: Node, delta: float) -> void:
 			end(game, id, "bailed", 0)
 
 
+## Sends a combo state to its owner (locally or by RPC).
 static func send(game: Node, peer_id: int, c: Dictionary, state: String, banked: int) -> void:
 	if state == "build" and bool(c.get("frozen", false)):
 		state = "frozen" # a move while surfing: new points, the timer is still held

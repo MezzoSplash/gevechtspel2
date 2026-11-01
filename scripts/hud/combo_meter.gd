@@ -75,6 +75,7 @@ func _init() -> void:
 	visible = false
 
 
+## Shows a combo update: build, frozen (surf), landed or bailed.
 func on_combo_changed(points: int, multiplier: float, time_left: float, moves: String, state: String, banked: int) -> void:
 	if _tw and _tw.is_valid():
 		_tw.kill()
@@ -164,6 +165,7 @@ func tick(delta: float) -> void:
 	total.add_theme_color_override("font_color", WARN_COLOR if warn else COLOR)
 
 
+## Hides the meter (leave to menu).
 func reset() -> void:
 	_left = 0.0
 	visible = false

@@ -26,6 +26,7 @@ var name_color: Callable = func(_n: String, _team: int) -> Color: return Color.W
 var local_name: Callable = func() -> String: return ""
 
 
+## Adds one kill row on top and drops the oldest past MAX_ROWS.
 func add_kill(
 	killer_name: String, victim_name: String, weapon_id: StringName, killer_team: int, victim_team: int,
 	tricks: String = ""

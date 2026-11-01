@@ -47,6 +47,7 @@ static func friction(vel: Vector3, delta: float) -> Vector3:
 	return friction_amount(vel, delta, Player.GROUND_FRICTION)
 
 
+## Quake-style friction with a custom friction value.
 static func friction_amount(vel: Vector3, delta: float, friction: float) -> Vector3:
 	var speed := vel.length()
 	if speed < 0.01:
@@ -136,6 +137,7 @@ static func boost_through_strips(p: Player) -> void:
 		return
 
 
+## Counts down the per-strip boost cooldowns.
 static func tick_strip_cd(p: Player, delta: float) -> void:
 	var dead: Array[String] = []
 	for id in p._strip_cd:
@@ -146,6 +148,7 @@ static func tick_strip_cd(p: Player, delta: float) -> void:
 		p._strip_cd.erase(id)
 
 
+## Quake ground acceleration toward `wish` up to `wish_speed`.
 static func accelerate(vel: Vector3, wish: Vector3, wish_speed: float, accel: float, delta: float) -> Vector3:
 	if wish.length_squared() < 0.0001:
 		return vel
@@ -198,6 +201,7 @@ static func find_wall(p: Player) -> Dictionary:
 	return {}
 
 
+## Starts, keeps or ends a wallrun this frame.
 static func tick_wallrun(p: Player, delta: float, input_vec: Vector2, locked: bool) -> void:
 	var on_floor := p.is_on_floor()
 	if on_floor:
@@ -240,6 +244,7 @@ static func tick_wallrun(p: Player, delta: float, input_vec: Vector2, locked: bo
 	p._sliding = false
 
 
+## Leaves the wall (the coyote wall-jump window starts).
 static func end_wallrun(p: Player) -> void:
 	p._wallrunning = false
 	p._wall_off_t = 0.0
@@ -275,6 +280,7 @@ static func try_air_dive(p: Player, on_floor: bool, locked: bool) -> void:
 	start_dive(p, false)
 
 
+## Dive forward with a speed boost (from a slide or in the air).
 static func start_dive(p: Player, from_ground: bool) -> void:
 	var dir := Vector3(p.velocity.x, 0.0, p.velocity.z)
 	if dir.length_squared() < 0.04:
@@ -293,6 +299,7 @@ static func start_dive(p: Player, from_ground: bool) -> void:
 		p.slide_sfx.play()
 
 
+## Dive lands into a roll; the roll keeps speed and then ends.
 static func tick_dive_roll(p: Player, delta: float) -> void:
 	if p._roll_t > 0.0:
 		p._roll_t = maxf(p._roll_t - delta, 0.0)

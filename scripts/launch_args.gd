@@ -4,6 +4,7 @@ extends RefCounted
 ## --style, --time, --bots, --bot-difficulty. Unknown values print a hint and keep the default.
 
 
+## Parses the user args after `--` into a Dictionary with defaults for anything missing.
 static func parse(args: PackedStringArray) -> Dictionary:
 	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "style": -1, "time_min": -1, "bots": -1, "bot_difficulty": -1}
 	var i := 0

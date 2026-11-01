@@ -31,6 +31,7 @@ static func bump_streak(g: GameState, killer_peer_id: int, victim_peer_id: int) 
 	push_streak(g, killer_peer_id)
 
 
+## Sends one peer its streak state: HUD locally, RPC to a remote human; bots have no HUD.
 static func push_streak(g: GameState, peer_id: int) -> void:
 	var n := int(g.streak_progress.get(peer_id, 0))
 	var charges := int(g.streak_charges.get(peer_id, 0))
@@ -43,6 +44,7 @@ static func push_streak(g: GameState, peer_id: int) -> void:
 	g.sync_streak.rpc_id(peer_id, n, charges, earned)
 
 
+## Shows the streak counter and charges on this machine's HUD.
 static func apply_streak_local(g: GameState, n: int, charges: int, earned: int) -> void:
 	var hud := g.get_tree().get_first_node_in_group("hud") as Hud
 	if hud:
@@ -101,6 +103,7 @@ static func grant_radar(g: GameState, peer_id: int) -> void:
 	apply_radar(g, team, by, g.RADAR_TIME, peer_id)
 
 
+## Every machine: friendly UAV starts the minimap radar, an enemy one only shows the warning.
 static func apply_radar(g: GameState, team: int, by_name: String, seconds: float, by_peer: int) -> void:
 	var mine := g.local_team()
 	if mine < 0:
