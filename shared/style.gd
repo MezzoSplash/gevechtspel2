@@ -90,7 +90,7 @@ const LABELS := {
 	YEET: "YEET", YEET_X2: "YEET ×2",
 	LINE: "LINE", LINE_X2: "LINE ×2",
 	WALLRUN: "WALLRUN KILL", WALLJUMP: "WALL JUMP KILL", DIVE: "DIVE KILL", ROLL: "ROLL KILL",
-	WALL_TO_WALL: "WALL TO WALL", RCXD: "RC-XD KILL", COMBO: "COMBO",
+	WALL_TO_WALL: "WALL TO WALL", RCXD: "RCXPLODIE KILL", COMBO: "COMBO",
 }
 ## Biggest first in popups and the kill feed.
 const ORDER: Array[StringName] = [
