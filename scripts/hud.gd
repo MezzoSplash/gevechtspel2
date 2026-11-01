@@ -546,10 +546,10 @@ func show_radar_event(by_name: String, team: int, friendly: bool) -> void:
 func show_rc_event(by_name: String, team: int, friendly: bool) -> void:
 	if friendly:
 		_play_radar_voice("rcxd_friendly")
-		show_popup("RC-XD", _POPUP_FRIENDLY, by_name, team)
+		show_popup(Game.RCXD_DISPLAY_NAME.to_upper(), _POPUP_FRIENDLY, by_name, team)
 	else:
 		_play_radar_voice("rcxd_enemy")
-		show_popup("ENEMY RC-XD", _POPUP_HOSTILE, by_name, team)
+		show_popup("ENEMY " + Game.RCXD_DISPLAY_NAME.to_upper(), _POPUP_HOSTILE, by_name, team)
 
 
 ## While the local camera is in the car. `on` false hides the line.

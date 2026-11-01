@@ -66,6 +66,7 @@ func _ready() -> void:
 			bot = int(id)
 
 	# #87 RC-XD
+	_ok(Game.weapon_display_name(&"rcxd") == "RCXplodie", "#146: RC-XD shows as RCXplodie")
 	_ok(Style.detect({"weapon": &"rcxd"}).has(Style.RCXD), "RC-XD kill is a trick")
 	_ok(Style.detect({"weapon": &"grenade"}).is_empty(), "grenade still none")
 	var s0 := _style()

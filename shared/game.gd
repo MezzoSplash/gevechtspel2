@@ -490,7 +490,7 @@ func weapon_def(weapon_id: StringName) -> WeaponDef:
 
 
 const _KILL_SOURCE_NAMES := {
-	&"grenade": "Grenade", &"knife": "Throwing Knife", &"melee": "Knife", &"rcxd": "RC-XD", &"fall": "Fall",
+	&"grenade": "Grenade", &"knife": "Throwing Knife", &"melee": "Knife", &"rcxd": RCXD_DISPLAY_NAME, &"fall": "Fall",
 }
 
 
@@ -982,6 +982,8 @@ func sync_team_kills(blue: int, orange: int) -> void:
 
 const STREAK_AT := 3 # UAV
 const RCXD_AT := 5
+## Player-facing name of the RC-XD streak (#146). Internal ids (rcxd, CHARGE_RCXD) stay as they are.
+const RCXD_DISPLAY_NAME := "RCXplodie"
 const RADAR_TIME := 25.0 # UAV: enemies on the minimap this long (BO2 is ~30 s)
 const CHARGE_RADAR := 1
 const CHARGE_RCXD := 2
