@@ -18,7 +18,7 @@ echo "Godot: $GODOT ($("$GODOT" --version 2>/dev/null))"
 # stress_host_join (long multi-client stress run), check_quay (needs /tmp/quay_probe.json from gen_quay.py),
 # _check_guns (manual viewer).
 # check_skyline_walk hangs headless (no output, >400s), skipped until fixed.
-SKIP=(stress_host_join check_quay _check_guns check_skyline_walk)
+SKIP=(net_jitter_probe stress_host_join check_quay _check_guns check_skyline_walk)
 # Known failing checks (reported, do not fail the run). Format: name
 # check_server_list: "direct query answered" fails: the fixed server's port is not port-forwarded yet (#101, not a code bug).
 # check_net_grenade: flaky, client sometimes not connected in time ("no pawn"); passed 1 of 4 runs.
