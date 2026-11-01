@@ -48,6 +48,9 @@ static func move(game: Node, peer_id: int, move_id: StringName) -> void:
 		c = Combo.fresh()
 	if Combo.add_move(c, move_id) <= 0:
 		return
+	# #151: style modes pay more per move the longer you stay alive and keep killing (streak resets on death).
+	if game.is_style_mode():
+		c["kf"] = Combo.streak_factor(int(game.streak_progress.get(peer_id, 0)))
 	game._combos[peer_id] = c
 	send(game, peer_id, c, "build", 0)
 
@@ -84,7 +87,7 @@ static func tick(game: Node, delta: float) -> void:
 static func send(game: Node, peer_id: int, c: Dictionary, state: String, banked: int) -> void:
 	if state == "build" and bool(c.get("frozen", false)):
 		state = "frozen" # a move while surfing: new points, the timer is still held
-	var args := [int(c.get("pts", 0)), float(c.get("mult", 1.0)), maxf(float(c.get("t", 0.0)), 0.0), Combo.label(c), state, banked]
+	var args := [int(c.get("pts", 0)), Combo.total_mult(c), maxf(float(c.get("t", 0.0)), 0.0), Combo.label(c), state, banked]
 	if not game.is_networked() or peer_id == game.multiplayer.get_unique_id():
 		game._apply_combo(args)
 	elif peer_id > 0 and peer_id in game.multiplayer.get_peers():

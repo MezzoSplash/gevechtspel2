@@ -31,6 +31,9 @@ const REPEAT_WINDOW := 3 # the same move again within the last N moves ...
 const REPEAT_FACTOR := 0.5 # ... is worth this much and adds no multiplier (no wall-to-wall farming)
 const AIR_TIME := 1.0 # s off the ground for an AIR move
 const MAX_MOVES := 40
+## #151 (style modes): kills this life raise the combo factor. Index = kills (streak count, reset on
+## death); from 3 kills on it stays at the top value (no runaway). 0 kills: 3 wall jumps = 160; 3 kills: 160 × 3.1 = 496.
+const STREAK_FACTORS: Array[float] = [1.0, 1.7, 2.4, 3.1]
 
 
 ## New empty combo state.
@@ -62,8 +65,21 @@ static func add_move(c: Dictionary, move: StringName) -> int:
 	return add
 
 
+## The combo's payout: points × move multiplier × killstreak factor ("kf", #151).
 static func value(c: Dictionary) -> int:
-	return roundi(float(c.get("pts", 0)) * float(c.get("mult", MULT_START)))
+	return roundi(float(c.get("pts", 0)) * total_mult(c))
+
+
+## Move multiplier × killstreak factor: the one multiplier the HUD shows and value() pays.
+static func total_mult(c: Dictionary) -> float:
+	return float(c.get("mult", MULT_START)) * float(c.get("kf", 1.0))
+
+
+## #151: combo factor for `kills` kills this life (see STREAK_FACTORS).
+static func streak_factor(kills: int) -> float:
+	if STREAK_FACTORS.is_empty():
+		return 1.0
+	return STREAK_FACTORS[clampi(kills, 0, STREAK_FACTORS.size() - 1)]
 
 
 ## "WALLRUN > WALL JUMP > WALL TO WALL" (last few moves).
