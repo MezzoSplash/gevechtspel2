@@ -213,8 +213,8 @@ var player_name := "Player" # this launch. --name replaces it and must not be wr
 const RECENT_SERVERS_MAX := 5
 var recent_servers: PackedStringArray = [] # "ip:port", newest first (settings.cfg [net] recent)
 ## Join tab: last server picked or joined (prefilled next time), and the saved server list
-## ("label|host:port"). Defaults: the EliteDesk over Tailscale and a slot for its public address.
-const DEFAULT_FAVORITES := ["EliteDesk (Tailscale)|100.87.65.3:7777", "EliteDesk (public)|public.address.here:7777"]
+## ("label|host:port"). Default: the official EliteDesk server on its public address.
+const DEFAULT_FAVORITES := ["EliteDesk|77.169.214.14:7777"]
 const QUERY_PORT_OFFSET := 1 # server info answers on UDP game port + 1 (7778 for 7777)
 var last_server := ""
 var favorite_servers: PackedStringArray = PackedStringArray(DEFAULT_FAVORITES)
