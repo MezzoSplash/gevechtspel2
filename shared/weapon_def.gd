@@ -18,6 +18,8 @@ extends Resource
 @export var fire_sound: AudioStream
 @export var pellet_count: int = 1
 @export var automatic: bool = true
+## Damage falloff (#147), applied by the server per hit (Combat): full damage up to falloff_start_m,
+## then linear down to damage × falloff_min_mult at falloff_end_m and beyond. Tune per gun in its .tres.
 @export var falloff_start_m: float = 0.0
 @export var falloff_end_m: float = 0.0
 @export var falloff_min_mult: float = 1.0
