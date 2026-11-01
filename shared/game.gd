@@ -105,7 +105,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.4.2" # combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.4.3" # shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -132,6 +132,9 @@ var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idl
 var rc_view := false # this machine is looking out of an RC-XD; the pawn stays put and cannot shoot
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
 var best_trick: Dictionary = {} # match authority: this round's highest-scoring trickshot (same keys + tags/pts/trick_id)
+var _lag_history: Dictionary = {} # server: LagComp samples per player instance id
+var _shot_rewind: Array = [] # server, while a client shot resolves: LagComp.offsets_for
+var _server_clock_offset := 0 # client: server ms minus local ms at the last sync_pings (LagComp.view_ms)
 var _shot_ctx: Dictionary = {} # match authority, while a shot resolves: {shooter, origin, scoped}
 var _style_chain: Dictionary = {} # peer_id -> [trick kills in a row, time of the last one]
 var _line_cd: Dictionary = {} # peer_id -> {strip name: seconds left}. Points only; the shove is local.
@@ -516,7 +519,8 @@ func request_weapon_fire(
 	shot_seed: int = 0,
 	scoped: bool = false,
 	burst: int = 0,
-	mag: int = 0
+	mag: int = 0,
+	view_ms: int = 0
 ) -> void:
 	if not multiplayer.is_server():
 		return
@@ -537,7 +541,10 @@ func request_weapon_fire(
 		return
 	var floor_mult := def.spread_mult_for(shooter.min_spread_multiplier(), scoped)
 	var mult := clampf(spread_mult, floor_mult, SPREAD_MAX)
+	# Lag compensation (#105): cast against the targets where this client saw them, then put them back.
+	_shot_rewind = LagComp.offsets_for(self, shooter, LagComp.rewind_ms_for(self, peer, view_ms))
 	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped, burst, mag)
+	_shot_rewind = []
 	var from := muzzle_pos
 	if from == Vector3.ZERO or from.distance_to(origin) > 2.0:
 		from = origin
@@ -1496,10 +1503,12 @@ func _sample_pings() -> void:
 
 
 @rpc("authority", "unreliable")
-func sync_pings(data: Dictionary) -> void:
+## `server_ms` is the server clock when sent, for LagComp.view_ms (lag compensation, #105).
+func sync_pings(data: Dictionary, server_ms: int = 0) -> void:
 	if multiplayer.is_server():
 		return
 	pings = data
+	LagComp.note_server_time(self, server_ms)
 
 
 func _tick_lines(delta: float) -> void:
@@ -1528,6 +1537,7 @@ func _physics_process(delta: float) -> void:
 		radar_left = maxf(radar_left - delta, 0.0)
 	if not is_networked() or not multiplayer.is_server():
 		return
+	LagComp.record(self)
 	_ping_accum += delta
 	if _ping_accum >= 0.45:
 		_ping_accum = 0.0

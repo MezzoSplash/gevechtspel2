@@ -183,7 +183,7 @@ static func sample_pings(game: GameState) -> void:
 		if int(id) < 0:
 			game.pings[id] = -1
 	if not game.multiplayer.get_peers().is_empty():
-		game.sync_pings.rpc(game.pings)
+		game.sync_pings.rpc(game.pings, LagComp.now_ms())
 
 
 ## Match authority. A human pawn crossing a speed strip fast enough banks LINE (or LINE ×2).

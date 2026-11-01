@@ -139,7 +139,7 @@ static func resolve_shot_rays(game: GameState, shooter: Player, origin: Vector3,
 		var query := PhysicsRayQueryParameters3D.create(origin, to)
 		query.collision_mask = game.SHOT_MASK
 		query.exclude = exclude
-		var hit := space.intersect_ray(query)
+		var hit := LagComp.intersect_ray(space, query, game._shot_rewind)
 		if i == 0:
 			best.end = to if hit.is_empty() else hit.position
 		if hit.is_empty():
@@ -238,8 +238,10 @@ static func apply_shot_hit(game: GameState, shooter: Player, hit: Dictionary, da
 			return {}
 		if not game.is_enemy(victim, shooter):
 			return {}
+		# Lag-compensated hits (#105) land on the rewound body; the headshot test needs the live one.
+		var on_body: Vector3 = hit.position + hit.get("rewind_delta", Vector3.ZERO)
 		return victim.apply_hit(
-			hit.position, hit.normal, damage, true, killer_id, def.id, def.headshot_multiplier, shooter.global_position
+			on_body, hit.normal, damage, true, killer_id, def.id, def.headshot_multiplier, shooter.global_position
 		)
 	# RC-XD sits on layer 4 (inside SHOT_MASK). Destroying it does not splash.
 	var rc := collider as RcXd
