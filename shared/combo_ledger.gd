@@ -25,13 +25,15 @@ static func award_style(game: Node, kill_info: Dictionary, tricks_in: Array[Stri
 	# Best trickshot = the biggest single landed combo (its payout, points × multiplier) of the round, over
 	# all players. Kills without a combo only count while nobody has landed one yet. Before this a plain
 	# trick kill with a chain multiplier (e.g. a bot's HOSE + RUN & GUN ×2) could beat a bigger combo.
-	var is_best := Tricks.is_best(game.best_trick, game._round_active, bank, pts)
+	var victim_is_bot := int(kill_info.v) < 0 # bots have negative peer ids
+	var is_best := Tricks.is_best(game.best_trick, game._round_active, bank, pts, victim_is_bot)
 	if is_best:
 		var bt: Dictionary = kill_info.duplicate()
 		bt["pts"] = pts
 		bt["bank"] = bank
 		bt["tags"] = Style.label(tricks) # #88: with COMBO, so a combo-landing best does not look like a plain kill
 		bt["trick_id"] = game._trick_seq
+		bt["vbot"] = victim_is_bot # #149: player kills outrank bot kills
 		game.best_trick = bt
 	var packed := Style.pack(tricks)
 	game._apply_trick(k, int(kill_info.v), packed, pts, mult, total, game._trick_seq, is_best)
