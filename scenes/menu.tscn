@@ -206,7 +206,7 @@ text = "MULTIPLAYER"
 [node name="Status" type="Label" parent="Center/Mp"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.88, 0.92, 1)
-text = "Host on this PC, then Connect from another window."
+text = "Host a game here; others join with your address."
 horizontal_alignment = 1
 autowrap_mode = 3
 
