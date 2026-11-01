@@ -227,6 +227,9 @@ func _owner_peer() -> int:
 
 
 ## Must run before MultiplayerSynchronizer starts. Bots always belong to peer 1.
+## $Sync sends position/rotation/Head:rotation as ALWAYS (unreliable, 30 Hz): a lost pose is simply
+## replaced by the next one. ON_CHANGE would make them reliable, and on a lossy link one lost packet
+## then stalls every later pose and reliable RPC on the channel (head-of-line blocking, high-ping desync).
 func _enter_tree() -> void:
 	_restore_bot_identity()
 	if Game.is_offline:
