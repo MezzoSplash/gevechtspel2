@@ -598,16 +598,36 @@ func refresh_lobby(lobby: Dictionary, is_host: bool) -> void:
 
 
 # --- Multiplayer: Host / Join tabs, saved servers, LAN ---
+# Join tab, top to bottom: OFFICIAL SERVER (the built-in Game.DEFAULT_FAVORITES, pinned), SERVER LIST
+# (your saved servers + LAN finds), DIRECT CONNECT (address, recent, save). Host tab: just Host game.
+
+const _SECTION_COLOR := Color(1.0, 0.84, 0.42)
+const _STATUS_DIM := Color(0.72, 0.76, 0.82)
+const _STATUS_OK := Color(0.55, 0.85, 0.55)
+const _STATUS_WARN := Color(0.95, 0.7, 0.3)
+const _STATUS_BAD := Color(0.85, 0.4, 0.35)
 
 var _host_nodes: Array[Node] = []
 var _join_nodes: Array[Node] = []
 var _mp_tab := 1
 var _tab_buttons: Array[Button] = []
 var _server_box: VBoxContainer
-var _server_rows := {} # address -> {label: Button, status: Label}
+var _fixed_box: VBoxContainer
+var _server_rows := {} # address -> {status: Label}
 var _fav_name: LineEdit
 
 
+## Small gold caption that opens a section of the Join tab.
+func _section_label(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_color_override("font_color", _SECTION_COLOR)
+	return l
+
+
+## Builds the Host/Join tabs and the three Join sections around the scene's JoinRow.
 func _build_mp_tabs() -> void:
 	var mp: VBoxContainer = $Center/Mp
 	var tabs := HBoxContainer.new()
@@ -627,58 +647,83 @@ func _build_mp_tabs() -> void:
 	mp.add_child(tabs)
 	mp.move_child(tabs, $Center/Mp/NameRow.get_index() + 1)
 	_host_nodes.append($Center/Mp/HostButton)
-	# Join side: address row, recent, saved list, LAN.
+	$Center/Mp/HostButton.text = "Host game on this PC"
+	var join_row: Node = $Center/Mp/JoinRow
+	# 1) Official server, pinned on top.
+	_fixed_box = VBoxContainer.new()
+	_fixed_box.name = "FixedServer"
+	_fixed_box.add_theme_constant_override("separation", 6)
+	_fixed_box.add_child(_section_label("OFFICIAL SERVER"))
+	var fixed_rows := VBoxContainer.new()
+	fixed_rows.name = "Rows"
+	fixed_rows.add_theme_constant_override("separation", 6)
+	_fixed_box.add_child(fixed_rows)
+	mp.add_child(_fixed_box)
+	mp.move_child(_fixed_box, join_row.get_index())
+	# 2) Saved servers and LAN finds.
 	_server_box = VBoxContainer.new()
 	_server_box.name = "ServerList"
 	_server_box.add_theme_constant_override("separation", 6)
 	var head := HBoxContainer.new()
-	var title := Label.new()
-	title.text = "Servers"
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.add_theme_color_override("font_color", Color(1.0, 0.84, 0.42))
-	head.add_child(title)
+	head.add_theme_constant_override("separation", 6)
+	head.add_child(_section_label("SERVER LIST"))
 	var refresh := Button.new()
 	refresh.text = "Refresh"
+	refresh.tooltip_text = "Ask every server for status, players and ping again"
 	refresh.pressed.connect(refresh_server_list)
 	head.add_child(refresh)
 	var lan := Button.new()
-	lan.text = "Find LAN"
+	lan.text = "Find LAN games"
 	lan.pressed.connect(func() -> void: Game.server_query.scan_lan(host_port()))
 	head.add_child(lan)
 	_server_box.add_child(head)
 	var rows := VBoxContainer.new()
 	rows.name = "Rows"
-	rows.add_theme_constant_override("separation", 4)
+	rows.add_theme_constant_override("separation", 6)
 	_server_box.add_child(rows)
+	var empty := Label.new()
+	empty.name = "Empty"
+	empty.text = "No saved or LAN servers yet. Save one below."
+	empty.theme_type_variation = &"HintLabel"
+	_server_box.add_child(empty)
+	mp.add_child(_server_box)
+	mp.move_child(_server_box, join_row.get_index())
+	# 3) Direct connect: the scene's JoinRow, then recent and save.
+	var direct := _section_label("DIRECT CONNECT")
+	direct.name = "DirectTitle"
+	mp.add_child(direct)
+	mp.move_child(direct, join_row.get_index())
 	var add := HBoxContainer.new()
+	add.name = "SaveRow"
 	add.add_theme_constant_override("separation", 8)
 	_fav_name = LineEdit.new()
-	_fav_name.placeholder_text = "Name for the address above"
+	_fav_name.placeholder_text = "Name to save this address"
 	_fav_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	add.add_child(_fav_name)
 	var save := Button.new()
-	save.text = "Save server"
+	save.text = "Save to list"
+	save.custom_minimum_size = Vector2(100, 0)
 	save.pressed.connect(func() -> void:
 		if Game.add_favorite(_fav_name.text, "%s:%d" % [host_ip(), host_port()]):
 			_fav_name.text = ""
 			refresh_server_list()
 	)
 	add.add_child(save)
-	_server_box.add_child(add)
-	mp.add_child(_server_box)
-	mp.move_child(_server_box, $Center/Mp/JoinRow.get_index())
-	for n in [_server_box, $Center/Mp/JoinRow, _recent_pick, $Center/Mp/Hint]:
+	mp.add_child(add)
+	var after := _recent_pick if _recent_pick else join_row
+	mp.move_child(add, after.get_index() + 1)
+	for n in [_fixed_box, _server_box, direct, join_row, _recent_pick, add, $Center/Mp/Hint]:
 		if n:
 			_join_nodes.append(n)
 	Game.server_query.server_info.connect(_on_server_info)
 	ip_edit.text_changed.connect(func(_t: String) -> void: _remember_typed())
 	port_edit.text_changed.connect(func(_t: String) -> void: _remember_typed())
-	$Center/Mp/Hint.text = "Status, players and ping come from UDP port + 1 (7778 for 7777). Double-click a server to join."
+	$Center/Mp/Hint.text = "Click a server to fill in its address, double-click (or Join) to connect. Status comes from UDP port + 1."
 	_prefill_last_server()
 	set_mp_tab(_mp_tab)
 
 
-const _MP_HINTS := ["Host on this PC, then Connect from another window.", "Pick a server or type an address, then Connect."]
+const _MP_HINTS := ["Host a game here; others join with your address.", "Join the official server, pick one from the list, or type an address."]
 
 
 func set_mp_tab(i: int) -> void:
@@ -729,33 +774,59 @@ func _remember_typed() -> void:
 	)
 
 
+## True for the built-in server(s) from Game.DEFAULT_FAVORITES (shown under OFFICIAL SERVER).
+static func is_fixed_server(address: String) -> bool:
+	for e in Game.DEFAULT_FAVORITES:
+		if str(e).get_slice("|", 1) == address:
+			return true
+	return false
+
+
+## Rebuilds both lists from Game.favorite_servers and asks every server (and the LAN) for status.
 func refresh_server_list() -> void:
 	if _server_box == null:
 		return
 	var rows := _server_box.get_node("Rows")
-	for c in rows.get_children():
-		c.queue_free()
+	var fixed_rows := _fixed_box.get_node("Rows")
+	for box in [rows, fixed_rows]:
+		for c in box.get_children():
+			box.remove_child(c)
+			c.queue_free()
 	_server_rows.clear()
 	for e in Game.favorite_servers:
 		var label := e.get_slice("|", 0) if e.contains("|") else ""
 		var address := e.get_slice("|", 1) if e.contains("|") else e
-		_add_server_row(rows, label, address, true)
+		var fixed := is_fixed_server(address)
+		_add_server_row(fixed_rows if fixed else rows, label, address, true, fixed)
 		Game.server_query.query(address)
+	_fixed_box.visible = _mp_tab == 1 and fixed_rows.get_child_count() > 0
+	_update_list_empty()
 	Game.server_query.scan_lan(Game.DEFAULT_PORT)
 
 
-func _add_server_row(rows: Node, label: String, address: String, saved: bool) -> void:
-	var item := VBoxContainer.new()
-	item.add_theme_constant_override("separation", 1)
+func _update_list_empty() -> void:
+	if _server_box:
+		_server_box.get_node("Empty").visible = _server_box.get_node("Rows").get_child_count() == 0
+
+
+## One server: its name (click fills in, double-click joins), "address · status" under it, and on the
+## right Join (official) or remove/save (×/+).
+func _add_server_row(rows: Node, label: String, address: String, saved: bool, fixed := false) -> void:
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 2)
+	var item: Control = inner
+	if fixed: # a framed card, so the official server stands out from the list
+		item = PanelContainer.new()
+		item.add_child(inner)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	item.add_child(row)
+	inner.add_child(row)
 	var pick := Button.new()
-	pick.text = ("%s  ·  %s" % [label, address]) if label != "" else address
+	pick.text = label if label != "" else address
 	pick.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	pick.clip_text = true
-	pick.tooltip_text = "Click to fill in, double-click to join"
+	pick.tooltip_text = "%s\nClick to fill in, double-click to join" % address
 	pick.pressed.connect(func() -> void:
 		_fill_address(address)
 		Game.set_last_server(address)
@@ -766,33 +837,43 @@ func _add_server_row(rows: Node, label: String, address: String, saved: bool) ->
 			connect_pressed.emit()
 	)
 	row.add_child(pick)
+	var act := Button.new()
+	if fixed:
+		act.text = "Join"
+		act.tooltip_text = "Connect to %s" % address
+		act.custom_minimum_size = Vector2(72, 0)
+		act.pressed.connect(func() -> void:
+			_fill_address(address)
+			Game.set_last_server(address)
+			connect_pressed.emit()
+		)
+	else:
+		act.text = "×" if saved else "+"
+		act.tooltip_text = "Remove from list" if saved else "Save to list"
+		act.custom_minimum_size = Vector2(32, 0)
+		act.pressed.connect(func() -> void:
+			if saved:
+				Game.remove_favorite(address)
+			else:
+				Game.add_favorite("LAN", address)
+			refresh_server_list()
+		)
+	row.add_child(act)
 	var status := Label.new()
-	status.text = "…"
+	status.text = "%s · Checking…" % address
 	status.add_theme_font_size_override("font_size", 13)
-	status.add_theme_color_override("font_color", Color(0.72, 0.76, 0.82))
+	status.add_theme_color_override("font_color", _STATUS_DIM)
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	item.add_child(status)
-	var act := Button.new()
-	act.text = "×" if saved else "+"
-	act.tooltip_text = "Remove from list" if saved else "Save server"
-	act.custom_minimum_size = Vector2(32, 0)
-	act.pressed.connect(func() -> void:
-		if saved:
-			Game.remove_favorite(address)
-		else:
-			Game.add_favorite("LAN", address)
-		refresh_server_list()
-	)
-	row.add_child(act)
+	inner.add_child(status)
 	rows.add_child(item)
 	_server_rows[address] = {"status": status}
 	if saved:
 		# No answer in 2 s: offline (or the query port is blocked).
 		get_tree().create_timer(2.0, true).timeout.connect(func() -> void:
-			if is_instance_valid(status) and status.text == "…":
-				status.text = "offline"
-				status.add_theme_color_override("font_color", Color(0.85, 0.4, 0.35))
+			if is_instance_valid(status) and status.text.ends_with("Checking…"):
+				status.text = "%s · Offline, no reply" % address
+				status.add_theme_color_override("font_color", _STATUS_BAD)
 		)
 
 
@@ -803,15 +884,16 @@ func _on_server_info(address: String, info: Dictionary, ping_ms: int, lan: bool)
 		if not lan:
 			return
 		_add_server_row(_server_box.get_node("Rows"), "LAN", address, false)
+		_update_list_empty()
 	var status: Label = _server_rows[address].status
 	if not is_instance_valid(status):
 		return
 	var same := str(info.get("v", "")) == Game.NET_VERSION
-	status.text = "%d/%d · %s %s · %d ms" % [
+	status.text = "%s · Online · %d/%d players · %s %s · %d ms" % [address,
 		int(info.get("players", 0)), int(info.get("max", 10)),
 		str(info.get("map", "?")), str(info.get("mode", "")), ping_ms
 	]
 	if not same:
-		status.text = "v%s · %s" % [str(info.get("v", "?")), status.text]
+		status.text = "%s · Other version v%s" % [status.text, str(info.get("v", "?"))]
 	status.tooltip_text = "%d bots" % int(info.get("bots", 0))
-	status.add_theme_color_override("font_color", Color(0.55, 0.85, 0.55) if same else Color(0.95, 0.7, 0.3))
+	status.add_theme_color_override("font_color", _STATUS_OK if same else _STATUS_WARN)
