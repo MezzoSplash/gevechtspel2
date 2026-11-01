@@ -1311,33 +1311,16 @@ func _check_win_player(peer_id: int) -> void:
 	MatchRules.check_win_player(self, peer_id)
 
 
-## FFA round end: `winner_name` is the player. round_ended carries the peer id (TDM: the team id).
 func _end_round_player(peer_id: int) -> void:
-	_round_active = false
-	clear_radar()
-	var winner_name := _display_name_for(peer_id)
-	if scores.has(peer_id):
-		winner_name = str(scores[peer_id].name)
-	if peer_id == 0:
-		winner_name = "Nobody"
-	round_ended.emit(peer_id, winner_name, scores.duplicate())
-	if is_networked():
-		sync_round_end.rpc(peer_id, winner_name, scores.duplicate())
+	MatchFlow.end_round_player(self, peer_id)
 
 
 func _end_round_team(team_id: int) -> void:
-	_round_active = false
-	clear_radar()
-	var winner_name: String = TEAM_NAMES[clampi(team_id, 0, TEAM_NAMES.size() - 1)]
-	round_ended.emit(team_id, winner_name, scores.duplicate())
-	if is_networked():
-		sync_round_end.rpc(team_id, winner_name, scores.duplicate())
+	MatchFlow.end_round_team(self, team_id)
 
 
 func notify_intermission() -> void:
-	intermission_started.emit()
-	if is_networked() and multiplayer.is_server():
-		sync_intermission.rpc()
+	MatchFlow.notify_intermission(self)
 
 
 @rpc("authority", "reliable")
@@ -1378,144 +1361,43 @@ func sync_round_frozen(on: bool) -> void:
 
 
 func play_round_sting() -> void:
-	if _round_music and _round_music.stream:
-		_round_music.play()
+	MatchAudio.play_round_sting(self)
 
 
 func stop_round_sting() -> void:
-	if _round_music and _round_music.playing:
-		_round_music.stop()
+	MatchAudio.stop_round_sting(self)
 
 
 func _setup_tension_music() -> void:
-	_tension_start_stream = load("res://assets/sounds/music_round_start.wav")
-	var fin := load("res://assets/sounds/music_round_final.wav") as AudioStreamWAV
-	if fin:
-		fin = fin.duplicate() as AudioStreamWAV
-		fin.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		fin.loop_begin = 0
-		fin.loop_end = int(fin.get_length() * fin.mix_rate)
-	_tension_final_stream = fin
-	_tension = AudioStreamPlayer.new()
-	_tension.bus = "Music"
-	add_child(_tension)
-	var menu := load("res://assets/sounds/music_menu.wav") as AudioStreamWAV
-	if menu:
-		menu = menu.duplicate() as AudioStreamWAV
-		menu.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		menu.loop_begin = 0
-		menu.loop_end = int(menu.get_length() * menu.mix_rate)
-	_menu_music = AudioStreamPlayer.new()
-	_menu_music.bus = "Music"
-	_menu_music.stream = menu
-	_menu_music.volume_db = -60.0
-	_menu_music.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(_menu_music)
-	# Start now, while main.tscn is still loading, instead of on the first physics tick after it (#62).
-	if not _cli_is_server():
-		_tick_menu_music(true)
+	MatchAudio.setup_tension_music(self)
 
 
 static func _cli_is_server() -> bool:
 	return OS.get_cmdline_user_args().has("--server")
 
 
-## In the menu: fade the calm loop in (resumes where it was); in a match: fade it out and pause.
 func _tick_menu_music(boot := false) -> void:
-	if _menu_music == null or _menu_music.stream == null:
-		return
-	var want := menu_match and not is_dedicated
-	if want == _menu_music_on:
-		return
-	_menu_music_on = want
-	if _menu_fade and _menu_fade.is_valid():
-		_menu_fade.kill()
-	_menu_fade = create_tween()
-	if want:
-		if not _menu_music.playing:
-			_menu_music.play()
-		_menu_music.stream_paused = false
-		var t := MENU_FADE_IN_BOOT if boot else MENU_FADE * 0.6
-		_menu_fade.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-		_menu_fade.tween_property(_menu_music, "volume_db", MENU_MUSIC_DB, t).from(-24.0 if boot else -30.0)
-	else:
-		_menu_fade.tween_property(_menu_music, "volume_db", -60.0, MENU_FADE * 0.6)
-		_menu_fade.tween_callback(func() -> void: _menu_music.stream_paused = true)
+	MatchAudio.tick_menu_music(self, boot)
 
 
-## `final`: the looping last-stretch cue; else the one-shot round-start build-up.
 func play_tension(final: bool) -> void:
-	if _tension == null or is_dedicated or menu_match or in_lobby:
-		return
-	if final:
-		_tension_final = true
-	else:
-		_tension_final = false
-	var stream := _tension_final_stream if final else _tension_start_stream
-	if stream == null:
-		return
-	if _tension_fade and _tension_fade.is_valid():
-		_tension_fade.kill()
-	_tension.volume_db = 0.0
-	_tension.stream = stream
-	_tension.play()
+	MatchAudio.play_tension(self, final)
 
 
 func stop_tension() -> void:
-	if _tension == null or not _tension.playing:
-		return
-	if _tension_fade and _tension_fade.is_valid():
-		return
-	_tension_fade = create_tween()
-	_tension_fade.tween_property(_tension, "volume_db", -40.0, TENSION_FADE)
-	_tension_fade.tween_callback(_tension.stop)
-	_tension_fade.tween_callback(func() -> void: _tension.volume_db = 0.0)
+	MatchAudio.stop_tension(self)
 
 
-## Highest kill count that counts toward the limit: the leading team (TDM) or player (FFA).
 func leader_kills() -> int:
-	if not is_ffa():
-		return maxi(team_score(TEAM_A), team_score(TEAM_B))
-	var best := 0
-	for id in scores:
-		best = maxi(best, player_score(id))
-	return best
+	return MatchAudio.leader_kills(self)
 
 
 func _tick_tension() -> void:
-	if _tension == null:
-		return
-	var live := _round_active and not round_frozen and not menu_match and not in_lobby
-	if _tension_live and not live:
-		_tension_final = false
-		stop_tension() # round over, killcam, leave: fade whatever cue is on
-	_tension_live = live
-	if not live or _tension_final:
-		return
-	if _round_timer >= TENSION_START_LEN and _tension.playing and _tension.stream == _tension_start_stream:
-		stop_tension() # the build-up only covers the countdown and the first seconds of the round
-	var close_time := get_round_time_left() <= TENSION_TIME_LEFT
-	var close_left := roundi(score_limit() * 0.1) if is_style_mode() else TENSION_KILLS_LEFT # style: last 10%
-	var close_kills := score_limit() - leader_kills() <= close_left
-	if close_time or close_kills:
-		play_tension(true)
+	MatchAudio.tick_tension(self)
 
 
 func start_round() -> void:
-	_round_timer = 0.0
-	_round_active = false # timer starts after freeze
-	MatchRules.clear_round_state(self)
-	team_kills = [0, 0]
-	if is_networked() and multiplayer.is_server():
-		sync_team_kills.rpc(0, 0)
-	for id in scores:
-		scores[id].style = 0
-		scores[id].deaths = 0
-		_apply_score(id, 0, str(scores[id].name), int(scores[id].get("team", 0)))
-		if is_networked() and multiplayer.is_server():
-			sync_score.rpc(id, 0, str(scores[id].name), int(scores[id].team), 0)
-			sync_deaths.rpc(id, 0)
-	_clear_round_streaks()
+	MatchFlow.start_round(self)
 
 
 func _clear_round_streaks() -> void:
@@ -1523,83 +1405,15 @@ func _clear_round_streaks() -> void:
 
 
 func end_freeze() -> void:
-	_round_active = true
-	_round_timer = 0.0
-	set_round_frozen(false)
-	if is_networked() and multiplayer.is_server():
-		sync_round_time.rpc(round_time)
+	MatchFlow.end_freeze(self)
 
 
-## Late joiner: scores, team totals, freeze, and clock, so the HUD is right from the first frame.
 func send_match_state(peer_id: int) -> void:
-	if not is_networked() or not multiplayer.is_server():
-		return
-	sync_match_config.rpc_id(peer_id, String(map_id), mode, kill_limit, round_time)
-	var scores_arr := get_scores()
-	if scores_arr.size() > 0:
-		sync_all_scores.rpc_id(peer_id, scores_arr)
-	sync_team_kills.rpc_id(peer_id, int(team_kills[0]), int(team_kills[1]))
-	if round_frozen:
-		sync_round_frozen.rpc_id(peer_id, true)
-	if killcam_active:
-		killcam.send_lock_to(peer_id)
-	if _round_active:
-		sync_round_time.rpc_id(peer_id, get_round_time_left())
+	MatchFlow.send_match_state(self, peer_id)
 
 
-## Leave to menu: nothing from the old session may leak into the next one.
 func reset_session() -> void:
-	_combos.clear()
-	if freeze_grade:
-		freeze_grade.clear()
-	_tension_final = false
-	if _tension:
-		_tension.stop()
-	PhysFx.clear()
-	scores.clear()
-	pings.clear()
-	net_hp.clear()
-	_regen_dirty.clear()
-	lobby.clear()
-	streak_progress.clear()
-	streak_charges.clear()
-	streak_earned.clear()
-	rc_view = false
-	_rc_done.clear()
-	pending_names.clear()
-	pending_teams.clear()
-	_fire_credit.clear()
-	team_kills = [0, 0]
-	in_lobby = false
-	round_frozen = false
-	killcam_active = false
-	MatchRules.clear_round_state(self)
-	_shot_ctx = {}
-	if killcam:
-		killcam.reset()
-	if melee:
-		melee.reset()
-	if impacts:
-		impacts.clear()
-	if loadouts:
-		loadouts.reset()
-	clear_radar()
-	_round_active = false
-	_round_timer = 0.0
-	stop_round_sting()
-	Engine.time_scale = 1.0
-	for id in _grenade_visuals:
-		var vis: Node = _grenade_visuals[id]
-		if is_instance_valid(vis):
-			vis.queue_free()
-	_grenade_visuals.clear()
-	_grenade_predicted.clear()
-	_grenade_done.clear()
-	for g in get_tree().get_nodes_in_group("grenade"):
-		g.queue_free()
-	_knife_visuals.clear()
-	for k in get_tree().get_nodes_in_group("knife"):
-		k.queue_free()
+	MatchFlow.reset_session(self)
 
 
 func update_round_timer(delta: float) -> bool:
@@ -1607,17 +1421,11 @@ func update_round_timer(delta: float) -> bool:
 
 
 func _get_leader() -> int:
-	if team_score(TEAM_A) >= team_score(TEAM_B):
-		return TEAM_A
-	return TEAM_B
+	return MatchFlow.get_leader(self)
 
 
-## FFA leader: most kills; a tie goes to the name that sorts first (same order as the board).
 func top_player() -> int:
-	var board := get_scores()
-	if board.is_empty() or int(board[0].get(score_word(), 0)) <= 0:
-		return 0
-	return int(board[0].peer_id)
+	return MatchFlow.top_player(self)
 
 
 func get_team_kills(team_id: int) -> int:
@@ -1625,19 +1433,7 @@ func get_team_kills(team_id: int) -> int:
 
 
 func get_scores() -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	for id in scores:
-		out.append({
-			"peer_id": id,
-			"name": scores[id].name,
-			"kills": scores[id].kills,
-			"team": int(scores[id].get("team", 0)),
-			"style": int(scores[id].get("style", 0)),
-			"deaths": int(scores[id].get("deaths", 0)),
-			"ping": int(pings.get(id, -1)),
-		})
-	out.sort_custom(_sort_scores)
-	return out
+	return MatchFlow.get_scores(self)
 
 
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
@@ -1679,23 +1475,8 @@ func _spawn_net_tracer(from: Vector3, to: Vector3) -> void:
 	Combat.spawn_net_tracer(self, from, to)
 
 
-## Host is 0 ms. Bots are -1 (shown as —). Clients get ENet RTT from the server.
 func _sample_pings() -> void:
-	if not is_networked() or not multiplayer.is_server():
-		return
-	pings[multiplayer.get_unique_id()] = 0
-	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
-	if enet:
-		for id in multiplayer.get_peers():
-			var ep := enet.get_peer(int(id))
-			if ep == null or not ep.is_active():
-				continue
-			pings[int(id)] = int(ep.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME))
-	for id in scores:
-		if int(id) < 0:
-			pings[id] = -1
-	if not multiplayer.get_peers().is_empty():
-		sync_pings.rpc(pings)
+	MatchFlow.sample_pings(self)
 
 
 @rpc("authority", "unreliable")
@@ -1705,95 +1486,20 @@ func sync_pings(data: Dictionary) -> void:
 	pings = data
 
 
-## Match authority. A human pawn crossing a speed strip fast enough banks LINE (or LINE ×2).
-## The segment test catches a snapshot that steps through the box. Bots never surf, so they skip it.
-## is_best stays false: a strip is not a kill, and it must not replace the round's killcam.
 func _tick_lines(delta: float) -> void:
-	if not _is_match_authority():
-		return
-	_decay_line_clocks(delta)
-	var strips := get_tree().get_nodes_in_group("speed_strip")
-	if strips.is_empty():
-		return
-	for n in get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p == null or p.is_bot or p.is_dead:
-			continue
-		var prev: Vector3 = _line_pos.get(p.peer_id, p.global_position)
-		var step := p.global_position - prev
-		_line_pos[p.peer_id] = p.global_position
-		if step.length() > Player.STRIP_TELEPORT_M:
-			continue
-		var spd := Vector2(step.x, step.z).length() / maxf(delta, 0.0001)
-		if spd < Player.STRIP_SPEED:
-			continue
-		for s in strips:
-			var strip := s as Node3D
-			if strip == null or not Player.segment_hits_strip(strip, prev, p.global_position):
-				continue
-			_award_line(p.peer_id, str(strip.name))
-			break
+	MatchFlow.tick_lines(self, delta)
 
 
 func _decay_line_clocks(delta: float) -> void:
-	var gone: Array[int] = []
-	for id in _line_cd:
-		var left: Dictionary = _line_cd[id]
-		var names: Array = left.keys()
-		for sname in names:
-			left[sname] = float(left[sname]) - delta
-			if float(left[sname]) <= 0.0:
-				left.erase(sname)
-		if left.is_empty():
-			gone.append(int(id))
-	for id in gone:
-		_line_cd.erase(id)
-	gone.clear()
-	for id in _line_chain:
-		var row: Array = _line_chain[id]
-		row[1] = float(row[1]) - delta
-		if float(row[1]) <= 0.0:
-			gone.append(int(id))
-	for id in gone:
-		_line_chain.erase(id)
+	MatchFlow.decay_line_clocks(self, delta)
 
 
-## #80: a movement trick that is not a kill (WALL TO WALL). Same wire as LINE.
 func award_move_trick(peer_id: int, trick: StringName) -> void:
-	if not _is_match_authority() or not _round_active or not scores.has(peer_id):
-		return
-	var pts := int(Style.POINTS.get(trick, 0))
-	if pts <= 0:
-		return
-	var total := pts + int(scores[peer_id].get("style", 0))
-	_trick_seq += 1
-	var packed := Style.pack([trick])
-	_apply_trick(peer_id, 0, packed, pts, 1.0, total, _trick_seq, false)
-	if is_networked() and multiplayer.is_server():
-		sync_trick.rpc(peer_id, 0, packed, pts, 1.0, total, _trick_seq, false)
+	MatchFlow.award_move_trick(self, peer_id, trick)
 
 
-## Same wire as a trickshot, without the kill chain and without touching best_trick.
 func _award_line(peer_id: int, strip_name: String) -> void:
-	if not scores.has(peer_id):
-		return
-	var cd: Dictionary = _line_cd.get(peer_id, {})
-	if float(cd.get(strip_name, 0.0)) > 0.0:
-		return
-	cd[strip_name] = Player.STRIP_COOLDOWN
-	_line_cd[peer_id] = cd
-	var trick := Style.LINE
-	var prev: Array = _line_chain.get(peer_id, ["", 0.0])
-	if str(prev[0]) != "" and str(prev[0]) != strip_name and float(prev[1]) > 0.0:
-		trick = Style.LINE_X2
-	_line_chain[peer_id] = [strip_name, Player.CARRY_TIME]
-	var pts := int(Style.POINTS[trick])
-	var total := pts + int(scores[peer_id].get("style", 0))
-	_trick_seq += 1
-	var packed := Style.pack([trick])
-	_apply_trick(peer_id, 0, packed, pts, 1.0, total, _trick_seq, false)
-	if is_networked() and multiplayer.is_server():
-		sync_trick.rpc(peer_id, 0, packed, pts, 1.0, total, _trick_seq, false)
+	MatchFlow.award_line(self, peer_id, strip_name)
 
 
 ## Listen-server: bots have MultiplayerSynchronizer off, so we push poses ourselves.
@@ -1891,18 +1597,11 @@ func sync_weapon(peer_id: int, weapon_id: String) -> void:
 
 
 func live_peer_ids() -> Array:
-	var ids: Array = []
-	for n in get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p and not p.is_queued_for_deletion():
-			ids.append(p.peer_id)
-	return ids
+	return MatchFlow.live_peer_ids(self)
 
 
 func broadcast_roster() -> void:
-	if not is_networked() or not multiplayer.is_server():
-		return
-	sync_roster.rpc(live_peer_ids())
+	MatchFlow.broadcast_roster(self)
 
 
 ## Client deletes pawns the server no longer has (ghost bots after join-replace).
