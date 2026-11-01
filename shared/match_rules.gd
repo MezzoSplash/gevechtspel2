@@ -16,12 +16,14 @@ static func team_score(game: Node, team_id: int) -> int:
 	return sum
 
 
+## Kills, or style in style modes, for one peer.
 static func player_score(game: Node, peer_id: int) -> int:
 	if not game.scores.has(peer_id):
 		return 0
 	return int(game.scores[peer_id].get("style" if game.is_style_mode() else "kills", 0))
 
 
+## Default kill (or style-rate) limit for mode `m` (-1: current mode).
 static func default_kills_for(game: Node, m: int) -> int:
 	var mm: int = game.mode if m < 0 else m
 	if game.is_style_mode(mm):
@@ -29,6 +31,7 @@ static func default_kills_for(game: Node, m: int) -> int:
 	return game.FFA_WIN_KILLS if game.is_ffa(mm) else game.WIN_KILLS
 
 
+## TDM: ends the round when a team reaches the kill limit.
 static func check_win_team(game: Node, team_id: int) -> void:
 	if not game._round_active:
 		return
@@ -70,6 +73,7 @@ static func style_king(scores: Dictionary) -> Dictionary:
 	return best
 
 
+## Advances the round clock; at time-out ends the round for the leader. True when it ended.
 static func update_round_timer(game: Node, delta: float) -> bool:
 	if not game._round_active:
 		return false

@@ -19,6 +19,7 @@ static func end_round_player(game: GameState, peer_id: int) -> void:
 		game.sync_round_end.rpc(peer_id, winner_name, game.scores.duplicate())
 
 
+## TDM round end: winner is a team; notifies every machine.
 static func end_round_team(game: GameState, team_id: int) -> void:
 	game._round_active = false
 	game.clear_radar()
@@ -28,12 +29,14 @@ static func end_round_team(game: GameState, team_id: int) -> void:
 		game.sync_round_end.rpc(team_id, winner_name, game.scores.duplicate())
 
 
+## Starts the intermission here and, on the server, everywhere.
 static func notify_intermission(game: GameState) -> void:
 	game.intermission_started.emit()
 	if game.is_networked() and game.multiplayer.is_server():
 		game.sync_intermission.rpc()
 
 
+## Resets scores, trick/combo state and streaks for a new round.
 static func start_round(game: GameState) -> void:
 	game._round_timer = 0.0
 	game._round_active = false # timer starts after freeze
@@ -51,6 +54,7 @@ static func start_round(game: GameState) -> void:
 	game._clear_round_streaks()
 
 
+## Freeze is over: the round clock starts.
 static func end_freeze(game: GameState) -> void:
 	game._round_active = true
 	game._round_timer = 0.0
@@ -131,6 +135,7 @@ static func reset_session(game: GameState) -> void:
 		k.queue_free()
 
 
+## TDM: the leading team (ties: team A).
 static func get_leader(game: GameState) -> int:
 	if game.team_score(game.TEAM_A) >= game.team_score(game.TEAM_B):
 		return game.TEAM_A
@@ -145,6 +150,7 @@ static func top_player(game: GameState) -> int:
 	return int(board[0].peer_id)
 
 
+## Score rows (peer, name, kills, team, style, deaths, ...) for the HUD and scoreboard.
 static func get_scores(game: GameState) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for id in game.scores:
@@ -210,6 +216,7 @@ static func tick_lines(game: GameState, delta: float) -> void:
 			break
 
 
+## Counts down LINE strip cooldowns and chains.
 static func decay_line_clocks(game: GameState, delta: float) -> void:
 	var gone: Array[int] = []
 	for id in game._line_cd:
@@ -271,6 +278,7 @@ static func award_line(game: GameState, peer_id: int, strip_name: String) -> voi
 		game.sync_trick.rpc(peer_id, 0, packed, pts, 1.0, total, game._trick_seq, false)
 
 
+## Peers that are connected right now (server included).
 static func live_peer_ids(game: GameState) -> Array:
 	var ids: Array = []
 	for n in game.get_tree().get_nodes_in_group("player"):
@@ -280,6 +288,7 @@ static func live_peer_ids(game: GameState) -> Array:
 	return ids
 
 
+## Server: sends the live peer list to everyone.
 static func broadcast_roster(game: GameState) -> void:
 	if not game.is_networked() or not game.multiplayer.is_server():
 		return

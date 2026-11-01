@@ -156,6 +156,7 @@ static func resolution_choices(g: GameState) -> Array:
 	return resolutions_fitting(g, screen)
 
 
+## The RESOLUTIONS that fit on `screen`, plus the screen size itself.
 static func resolutions_fitting(g: GameState, screen: Vector2i) -> Array:
 	var out: Array[Vector2i] = []
 	for r in g.RESOLUTIONS:
@@ -186,6 +187,7 @@ static func apply_display(g: GameState) -> void:
 	apply_render(g)
 
 
+## VSync mode and the FPS cap from the settings.
 static func apply_vsync_and_fps(g: GameState) -> void:
 	if g.display_headless():
 		return
@@ -196,6 +198,7 @@ static func apply_vsync_and_fps(g: GameState) -> void:
 		Engine.max_fps = g.max_fps
 
 
+## Window mode and size from the settings, clamped to the current screen.
 static func apply_window(g: GameState) -> void:
 	var screen_id := DisplayServer.window_get_current_screen()
 	var screen := DisplayServer.screen_get_size(screen_id)
@@ -228,6 +231,7 @@ static func apply_window(g: GameState) -> void:
 		DisplayServer.window_set_position(origin + (screen - g.window_size) / 2)
 
 
+## `size` if it is at least 640×480 and fits `screen`, else the largest resolution that fits.
 static func clamp_window_size(g: GameState, size: Vector2i, screen: Vector2i) -> Vector2i:
 	if size.x >= 640 and size.y >= 480 and size.x <= screen.x and size.y <= screen.y:
 		return size
@@ -264,10 +268,12 @@ static func apply_render(g: GameState) -> void:
 	apply_shadows(g, map_node)
 
 
+## FPS cap clamped to 0..FPS_CAP_MAX and rounded to a multiple of 10 (0 = unlimited).
 static func snap_fps(g: GameState, v: int) -> int:
 	v = clampi(v, 0, g.FPS_CAP_MAX)
 	return int(round(float(v) / 10.0)) * 10
 
 
+## Render scale clamped to 0.5–1.0 in steps of 0.05.
 static func snap_scale(g: GameState, v: float) -> float:
 	return clampf(round(clampf(v, 0.5, 1.0) * 20.0) / 20.0, 0.5, 1.0)

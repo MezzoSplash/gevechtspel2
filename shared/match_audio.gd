@@ -4,16 +4,19 @@ extends RefCounted
 ## is close to winning. Static helpers on the Game autoload `game`; Game keeps the players and state.
 
 
+## Round-start music, from the end of the intermission into the round.
 static func play_round_sting(game: GameState) -> void:
 	if game._round_music and game._round_music.stream:
 		game._round_music.play()
 
 
+## Stops the round-start music.
 static func stop_round_sting(game: GameState) -> void:
 	if game._round_music and game._round_music.playing:
 		game._round_music.stop()
 
 
+## Creates the music players (tension, menu) once.
 static func setup_tension_music(game: GameState) -> void:
 	game._tension_start_stream = load("res://assets/sounds/music_round_start.wav")
 	var fin := load("res://assets/sounds/music_round_final.wav") as AudioStreamWAV
@@ -84,6 +87,7 @@ static func play_tension(game: GameState, final: bool) -> void:
 	game._tension.play()
 
 
+## Fades out the tension music.
 static func stop_tension(game: GameState) -> void:
 	if game._tension == null or not game._tension.playing:
 		return
@@ -105,6 +109,7 @@ static func leader_kills(game: GameState) -> int:
 	return best
 
 
+## Starts tension music in the last 30 s or when the leader is close to the limit.
 static func tick_tension(game: GameState) -> void:
 	if game._tension == null:
 		return

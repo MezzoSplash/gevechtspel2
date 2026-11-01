@@ -4,6 +4,7 @@ extends RefCounted
 ## Static helpers on the Game autoload `game`; Game keeps the state and every @rpc (request_*, sync_*).
 
 
+## Next network id for a grenade (authority).
 static func next_grenade_id(game: GameState) -> int:
 	game._grenade_seq += 1
 	return game._grenade_seq
@@ -33,6 +34,7 @@ static func predict_grenade(game: GameState, thrower: Player, origin: Vector3, d
 	return game._grenade_pred_seq
 
 
+## The client copy of grenade `net_id`, spawned on first sight.
 static func grenade_visual(game: GameState, net_id: int, pos: Vector3, vel: Vector3) -> Node3D:
 	if game._grenade_visuals.has(net_id) and is_instance_valid(game._grenade_visuals[net_id]):
 		return game._grenade_visuals[net_id]

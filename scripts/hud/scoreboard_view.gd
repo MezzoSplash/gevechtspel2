@@ -38,6 +38,7 @@ static func build(scores: Array, ffa: bool, local_peer_id: int) -> PanelContaine
 	return backdrop
 
 
+## Flat panel style used across the scoreboard.
 static func box(col: Color, radius: int = 0, border: Color = Color(0, 0, 0, 0)) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = col
@@ -52,6 +53,7 @@ static func box(col: Color, radius: int = 0, border: Color = Color(0, 0, 0, 0)) 
 	return sb
 
 
+## Scoreboard label: size, colour, optional fixed width and right alignment.
 static func label(text: String, size: int, col: Color, width: int = 0, right: bool = false) -> Label:
 	var l := Label.new()
 	l.text = text

@@ -5,6 +5,7 @@ extends RefCounted
 ## networked shot tracers. Static helpers on the Game autoload `game`; Game keeps the state and every @rpc.
 
 
+## Current HP of a pawn as the authority sees it.
 static func hp_of(game: GameState, p: Player) -> float:
 	if not game.is_networked():
 		return p.hp
@@ -16,6 +17,7 @@ static func hp_of(game: GameState, p: Player) -> float:
 	return float(game.net_hp[id])
 
 
+## Logs damage for the death report (taken by the victim, dealt by the attacker).
 static func note_damage(game: GameState, attacker_peer: int, victim_peer: int, amount: float) -> void:
 	if attacker_peer == 0 or attacker_peer == victim_peer or amount <= 0.0:
 		return
@@ -122,6 +124,7 @@ static func resolve_weapon_fire(game: GameState, shooter: Player,
 	return best
 
 
+## Casts every pellet/ray of a shot and returns the best hit per victim.
 static func resolve_shot_rays(game: GameState, shooter: Player, origin: Vector3, look_dir: Vector3, def: WeaponDef, spread_mult: float, shot_seed: int) -> Dictionary:
 	look_dir = look_dir.normalized()
 	var spread := def.spread_deg * spread_mult
@@ -192,6 +195,7 @@ static func shot_exclude(game: GameState, shooter: Player) -> Array[RID]:
 	return out
 
 
+## Combines the results of one shot: a kill beats a headshot beats a plain hit.
 static func merge_hit_result(game: GameState, best: Dictionary, result: Dictionary) -> Dictionary:
 	if result.get("killed", false):
 		return {"killed": true, "headshot": result.headshot, "hit": true}
@@ -220,6 +224,7 @@ static func spread_dir(game: GameState, forward: Vector3, deg: float, rng: Rando
 	return (forward.normalized() * cos(phi) + (right * cos(theta) + up * sin(theta)) * sin(phi)).normalized()
 
 
+## Applies damage for a resolved hit and fires hit feedback.
 static func apply_shot_hit(game: GameState, shooter: Player, hit: Dictionary, damage: float, def: WeaponDef) -> Dictionary:
 	var collider := hit.collider as Node
 	if collider == null:
@@ -320,6 +325,7 @@ static func register_suicide(game: GameState, peer_id: int, weapon_id: StringNam
 	game._bump_streak(0, peer_id)
 
 
+## TDM: counts a kill for a team and syncs the totals.
 static func add_team_kill(game: GameState, team_id: int) -> void:
 	var t := clampi(team_id, game.TEAM_A, game.TEAM_B)
 	game.team_kills[t] = int(game.team_kills[t]) + 1
@@ -433,6 +439,7 @@ static func note_net_shot(game: GameState, from: Vector3, to: Vector3, shooter: 
 	game.killcam.note_tracer(shooter.peer_id, from, to, shooter.weapon.def.id)
 
 
+## Tracer for a shot fired on another machine.
 static func spawn_net_tracer(game: GameState, from: Vector3, to: Vector3) -> void:
 	var length := from.distance_to(to)
 	if length < 0.05:

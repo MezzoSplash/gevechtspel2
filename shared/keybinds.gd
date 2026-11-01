@@ -4,6 +4,7 @@ extends RefCounted
 ## autoload `g`; Game keeps the wrappers under the old names.
 
 
+## Default bindings for every action, then the saved overrides on top.
 static func bind_inputs(g: GameState) -> void:
 	key(g, "move_forward", KEY_W)
 	key(g, "move_back", KEY_S)
@@ -35,6 +36,7 @@ static func bind_inputs(g: GameState) -> void:
 			InputMap.action_add_event(a, ev)
 
 
+## Short save code for a key or mouse event ("k:87", "m:1").
 static func event_code(g: GameState, ev: InputEvent) -> String:
 	if ev is InputEventKey:
 		var k := ev as InputEventKey
@@ -44,6 +46,7 @@ static func event_code(g: GameState, ev: InputEvent) -> String:
 	return ""
 
 
+## Input event back from a save code; null when the code is unknown.
 static func event_from_code(g: GameState, code: String) -> InputEvent:
 	var parts := code.split(":")
 	if parts.size() != 2 or not parts[1].is_valid_int():
@@ -100,11 +103,13 @@ static func rebind(g: GameState, action: String, ev: InputEvent) -> String:
 	return swapped
 
 
+## Save code of the first event bound to `action`.
 static func first_code(g: GameState, action: String) -> String:
 	var evs := InputMap.action_get_events(action)
 	return event_code(g, evs[0]) if not evs.is_empty() else ""
 
 
+## Drops every override and restores the defaults.
 static func reset_bindings(g: GameState) -> void:
 	g._saved_keys.clear()
 	for pair in g.REBIND_ACTIONS:
@@ -113,6 +118,7 @@ static func reset_bindings(g: GameState) -> void:
 	g.save_settings()
 
 
+## Adds a key event to `action` unless it is already bound.
 static func key(g: GameState, action: String, keycode: Key) -> void:
 	if not InputMap.has_action(action):
 		InputMap.add_action(action)
@@ -123,6 +129,7 @@ static func key(g: GameState, action: String, keycode: Key) -> void:
 	InputMap.action_add_event(action, event)
 
 
+## Adds a mouse button to `action` unless it is already bound.
 static func mouse(g: GameState, action: String, button: MouseButton) -> void:
 	if not InputMap.has_action(action):
 		InputMap.add_action(action)
@@ -133,6 +140,7 @@ static func mouse(g: GameState, action: String, button: MouseButton) -> void:
 	InputMap.action_add_event(action, event)
 
 
+## True when `action` already has `keycode`.
 static func has_key(g: GameState, action: String, keycode: Key) -> bool:
 	for event in InputMap.action_get_events(action):
 		if event is InputEventKey and event.physical_keycode == keycode:
@@ -140,6 +148,7 @@ static func has_key(g: GameState, action: String, keycode: Key) -> bool:
 	return false
 
 
+## True when `action` already has `button`.
 static func has_mouse(g: GameState, action: String, button: MouseButton) -> bool:
 	for event in InputMap.action_get_events(action):
 		if event is InputEventMouseButton and event.button_index == button:
