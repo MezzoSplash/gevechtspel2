@@ -99,7 +99,14 @@ static func next_chain(style_chain: Dictionary, peer_id: int, now: float) -> int
 
 
 ## Best trickshot rule: the biggest landed combo of the round; kills without a combo only count while
-## nobody has landed one yet.
-static func is_best(best_trick: Dictionary, round_active: bool, bank: int, pts: int) -> bool:
+## nobody has landed one yet. #149: a kill on a real player always beats a kill on a bot, so the MVP
+## killcam shows a bot kill only in a round without any player-on-player kill (e.g. offline vs bots).
+## `victim_is_bot`: the new kill's victim is a bot (negative peer id).
+static func is_best(best_trick: Dictionary, round_active: bool, bank: int, pts: int, victim_is_bot := false) -> bool:
+	if not round_active:
+		return false
+	var best_on_bot := bool(best_trick.get("vbot", true)) # empty best: any kill may take it
+	if victim_is_bot != best_on_bot and not best_trick.is_empty():
+		return not victim_is_bot # player kill takes it from a bot kill, never the other way round
 	var best_bank := int(best_trick.get("bank", 0))
-	return round_active and (bank > best_bank or (bank == 0 and best_bank == 0 and pts > int(best_trick.get("pts", 0))))
+	return bank > best_bank or (bank == 0 and best_bank == 0 and pts > int(best_trick.get("pts", 0)))

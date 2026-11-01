@@ -84,6 +84,13 @@ func _ready() -> void:
 	Game._combos.erase(1)
 	Game._award_style(fake, no_combo)
 	_ok(int(Game.best_trick.get("bank", 0)) == 210, "a later bigger trick kill without combo does not take it back")
+	# #149: a kill on a real player beats a bigger one on a bot; a bot kill never replaces a player kill.
+	var on_bot := {"bank": 900, "pts": 900, "vbot": true}
+	var on_player := {"bank": 50, "pts": 50, "vbot": false}
+	_ok(Tricks.is_best(on_bot, true, 0, 10, false), "#149: small player kill beats a 900 combo on a bot")
+	_ok(not Tricks.is_best(on_player, true, 5000, 5000, true), "#149: huge bot kill does not beat a player kill")
+	_ok(Tricks.is_best(on_player, true, 60, 60, false), "#149: bigger player combo still wins among player kills")
+	_ok(Tricks.is_best({}, true, 0, 10, true), "#149: bot kill counts while nothing better exists (offline)")
 	Game.best_trick = saved
 	await get_tree().create_timer(2.0).timeout
 	for l in landed:
