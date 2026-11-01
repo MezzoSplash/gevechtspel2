@@ -31,7 +31,7 @@ func _land(killer: int, victim: int, moves: Array) -> Dictionary:
 	for m in moves:
 		Game.combo_move(killer, m)
 	var c := Game.combo_of(killer)
-	var expect := roundi(float(c.pts) * float(c.mult))
+	var expect := Combo.value(c) # includes the #151 killstreak factor
 	v.apply_hit(v.global_position + Vector3(0, 1, 0), Vector3.UP, 999.0, false, killer, &"rifle", 1.0, k.global_position)
 	return {"pts": expect, "t": Game.killcam._clock, "id": Game._trick_seq, "k": killer, "v": victim}
 
@@ -76,6 +76,7 @@ func _ready() -> void:
 	Game._award_style(fake, no_combo)
 	var trick_pts := int(Game.best_trick.get("pts", 0))
 	_ok(trick_pts >= 1000 and int(Game.best_trick.get("bank", -1)) == 0, "no combo yet: the %d trick kill is best" % trick_pts)
+	Game.streak_progress.erase(1) # #151: baseline without the killstreak factor
 	Game.combo_move(1, Combo.WALLRUN)
 	Game.combo_move(1, Combo.WALLJUMP)
 	var empty: Array[StringName] = []

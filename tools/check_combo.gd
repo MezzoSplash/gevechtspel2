@@ -50,6 +50,7 @@ func _ready() -> void:
 	# Land: WALLRUN 60 + WALL JUMP 80 = 140, ×1.5 = 210.
 	events.clear()
 	s0 = _style()
+	Game.streak_progress.erase(1) # #151: baseline without the killstreak factor
 	Game.combo_move(1, Combo.WALLRUN)
 	Game.combo_move(1, Combo.WALLJUMP)
 	_ok(_style() == s0, "moves alone bank nothing")

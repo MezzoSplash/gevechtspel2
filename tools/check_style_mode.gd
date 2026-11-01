@@ -37,6 +37,19 @@ func _ready() -> void:
 		Combo.add_move(big, m)
 	print("  one 8-move combo: %d × %.1f = %d" % [big.pts, big.mult, Combo.value(big)])
 	_ok(Combo.value(big) * 4 < Game.style_limit_for(Game.STYLE_FFA_LIMIT, 600.0), "a big combo is under a quarter of the FFA limit (no win in seconds)")
+	# #151: kills this life raise the combo factor (Gianni's example: 3 wall jumps 180 -> ~500 at 3 kills).
+	var wj := Combo.fresh()
+	for i in 3:
+		Combo.add_move(wj, Combo.WALLJUMP)
+	var wj0 := Combo.value(wj)
+	wj["kf"] = Combo.streak_factor(3)
+	var wj3 := Combo.value(wj)
+	print("  3 wall jumps: %d at 0 kills, %d at 3 kills" % [wj0, wj3])
+	_ok(wj0 == 160 and wj3 >= 450 and wj3 <= 550, "#151: 3 kills turn a 160 combo into ~500 (%d)" % wj3)
+	_ok(Combo.streak_factor(0) == 1.0 and Combo.streak_factor(99) == Combo.streak_factor(3), "#151: no kills = x1, capped after 3")
+	big["kf"] = Combo.streak_factor(99)
+	print("  big combo at max streak: %d" % Combo.value(big))
+	_ok(Combo.value(big) * 3 < Game.style_limit_for(Game.STYLE_FFA_LIMIT, 600.0), "#151: even at max streak a big combo is under a third of the FFA limit")
 	# Style FFA, rate 5 × 1 min (= 500 style), 3 bots.
 	for b in menu._time_boxes:
 		b.value = 1
@@ -51,6 +64,11 @@ func _ready() -> void:
 	for i in 6:
 		Game.register_kill(1, -1, &"rifle", false)
 	_ok(ended.is_empty(), "kills do not end a style round")
+	# #151 live: the server stamps the killstreak factor on the combo; death resets the streak.
+	Game._combos.erase(1)
+	Game.combo_move(1, Combo.WALLJUMP)
+	_ok(is_equal_approx(float(Game.combo_of(1).get("kf", 0.0)), Combo.streak_factor(int(Game.streak_progress.get(1, 0)))), "#151: combo carries the streak factor (%s)" % Game.combo_of(1).get("kf", "-"))
+	Game._combos.erase(1)
 	for i in 7:
 		Game.award_move_trick(1, Style.WALL_TO_WALL) # 7 × 75 = 525
 	await get_tree().process_frame
