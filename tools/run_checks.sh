@@ -20,7 +20,7 @@ echo "Godot: $GODOT ($("$GODOT" --version 2>/dev/null))"
 # check_skyline_walk hangs headless (no output, >400s), skipped until fixed.
 SKIP=(stress_host_join check_quay _check_guns check_skyline_walk)
 # Known failing checks (reported, do not fail the run). Format: name
-# check_server_list: "direct query answered" fails (UDP status query gets no reply).
+# check_server_list: "direct query answered" fails: the fixed server's port is not port-forwarded yet (#101, not a code bug).
 # check_net_grenade: flaky, client sometimes not connected in time ("no pawn"); passed 1 of 4 runs.
 KNOWN_FAIL=(check_server_list check_net_grenade)
 # Engine shutdown noise (leaks at exit) is not a test failure.

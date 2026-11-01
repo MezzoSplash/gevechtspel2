@@ -684,7 +684,8 @@ func _fire() -> void:
 	var mag_id := mag_of(def.id) # HOSE / SIX SHOOTER only
 	if Game.is_networked() and not multiplayer.is_server():
 		Game.request_weapon_fire.rpc_id(
-			1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed, scoped, burst, mag_id
+			1, origin, look_dir, def.id, muzzle.global_position, spread_mult, shot_seed, scoped, burst, mag_id,
+			LagComp.view_ms(Game)
 		)
 	elif shooter:
 		var best: Dictionary = Game.fire_weapon_locally(
