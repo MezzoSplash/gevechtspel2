@@ -20,6 +20,11 @@ const JUMP_SPEED := 7.6
 const AIR_ACCEL := 12.0 # sv_airaccelerate: how fast the capped wish speed is reached
 const AIR_WISH_CAP := 1.1 # m/s (Source's 30 u/s, at our 1.6x movement scale)
 const AIR_MAX_SPEED := 13.5 # strafing cannot push horizontal speed past this (sprint is 11.4)
+# #152: light mid-air steering. Holding a direction turns the horizontal velocity toward it, at most
+# AIR_STEER_RATE rad/s, without adding speed (not a jetpack). Beyond AIR_STEER_MAX_ANGLE (e.g. holding S)
+# nothing happens, so you cannot flip around mid-air. 0.0 turns it off.
+const AIR_STEER_RATE := 1.2 # rad/s at full input (~70 deg/s)
+const AIR_STEER_MAX_ANGLE := deg_to_rad(100.0)
 const BOT_AIR_ACCEL := 3.5 # bots never strafe-jump; they keep the old direct air control
 const JUMP_BUFFER := 0.1 # seconds a jump press is kept, so a hop on landing is not eaten
 # Surfing: a slope steeper than floor_max_angle (45°) is not floor. While touching one, the velocity is
@@ -200,6 +205,7 @@ var _run_t := 0.0 # s above Style.RUN_GUN_SPEED without stopping (RUN & GUN)
 var _run_low_t := 0.0 # s below it since the last fast tick: past RUN_GUN_GRACE the run is over
 var _wallrun_seen_t := -100.0 # match authority: last _style_clock with move_fx == MOVE_WALLRUN
 var _walljump_seen_t := -100.0
+var _air_steer_locked := false # #152: no air steering from a wall jump until the floor or the next wallrun
 var _walljumps_seen := -1
 var _dive_seen_t := -100.0
 var _roll_seen_t := -100.0
@@ -825,6 +831,8 @@ func _physics_process(delta: float) -> void:
 	if jumped or not on_floor:
 		# The jump tick is already air: no ground friction, so sprint speed carries into the jump.
 		horiz = _air_accelerate(horiz, wish, WALK_SPEED * minf(wish.length(), 1.0), delta)
+		if not _air_steer_locked:
+			horiz = Movement.air_steer(horiz, wish, delta)
 	elif _kb_t > 0.0:
 		horiz = _friction_amount(horiz, delta, KB_FRICTION)
 		horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL * 0.5, delta)

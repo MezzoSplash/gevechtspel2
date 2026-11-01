@@ -77,6 +77,20 @@ static func air_accelerate(vel: Vector3, wish: Vector3, wish_speed: float, delta
 	return out
 
 
+## #152 air control: turn the horizontal velocity `vel` toward the wish direction by at most
+## Player.AIR_STEER_RATE × input strength × delta radians. Speed is kept exactly (no boost); a wish more
+## than Player.AIR_STEER_MAX_ANGLE away from the velocity is ignored. Expects y = 0 on both vectors.
+static func air_steer(vel: Vector3, wish: Vector3, delta: float) -> Vector3:
+	var strength := minf(wish.length(), 1.0)
+	if strength < 0.01 or vel.length_squared() < 0.25 or Player.AIR_STEER_RATE <= 0.0:
+		return vel
+	var angle := vel.signed_angle_to(wish, Vector3.UP)
+	if absf(angle) > Player.AIR_STEER_MAX_ANGLE:
+		return vel
+	var step := minf(absf(angle), Player.AIR_STEER_RATE * strength * delta)
+	return vel.rotated(Vector3.UP, signf(angle) * step)
+
+
 ## Remember a steep ramp we touched this frame (not floor, not a wall): surfing clips against it.
 static func note_surf_contact(p: Player) -> void:
 	for i in p.get_slide_collision_count():
@@ -207,6 +221,7 @@ static func tick_wallrun(p: Player, delta: float, input_vec: Vector2, locked: bo
 	if on_floor:
 		p._wall_key = "" # the ground resets every wall
 		p._wallruns_air = 0
+		p._air_steer_locked = false # #152: landed, air steering is back
 		if p._wallrunning:
 			end_wallrun(p)
 		p._wall_off_t = 10.0
@@ -241,6 +256,7 @@ static func tick_wallrun(p: Player, delta: float, input_vec: Vector2, locked: bo
 	p._wallrun_t = 0.0
 	p._wall_off_t = 0.0
 	p._wallruns_air += 1
+	p._air_steer_locked = false # #152: a new wallrun ends the wall-jump lock
 	p._sliding = false
 
 
@@ -265,6 +281,7 @@ static func wall_jump(p: Player) -> void:
 	p._wall_off_t = 10.0
 	p._dive_used = false # a wall jump earns a fresh dive
 	p.walljumps += 1
+	p._air_steer_locked = true # #152: the jump-off line is the player's choice; W must not bend it back
 	if p.land_sfx:
 		p.land_sfx.play()
 
