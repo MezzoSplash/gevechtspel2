@@ -206,6 +206,20 @@ var _roll_seen_t := -100.0
 const STYLE_KEEP := 1.5
 const STYLE_RAMP_REACH := 1.0 # m from the body centre (capsule radius ~0.45, plus slack)
 const STYLE_TELEPORT_M := 3.0 # one tick moving further than this is a teleport (snapshots move < 1 m)
+## Remote human pawns on a client glide toward the last received pose instead of snapping to it.
+## Time constant of that exponential smoothing; matches LagComp.INTERP_MS so lag compensation stays honest.
+const NET_SMOOTH_S := 0.05
+var _net_target := Vector3.ZERO # last pose received through $Sync (client side, remote humans only)
+var _net_has := false # _net_target holds a real pose
+
+## Replicated stand-in for `position` ($Sync, see _enter_tree). The owner reads its real position;
+## a receiver stores it as a target (_smooth_remote) so lost or jittery snapshots do not stutter.
+## The server applies it raw: hit tests and the lag-comp history must use the true pose.
+var net_pos: Vector3:
+	get:
+		return position
+	set(v):
+		_receive_net_pos(v)
 
 
 ## Bots are never "local" (no camera/input), even in offline 5v5.
@@ -227,7 +241,7 @@ func _owner_peer() -> int:
 
 
 ## Must run before MultiplayerSynchronizer starts. Bots always belong to peer 1.
-## $Sync sends position/rotation/Head:rotation as ALWAYS (unreliable, 30 Hz): a lost pose is simply
+## $Sync sends net_pos/rotation/Head:rotation as ALWAYS (unreliable, 30 Hz): a lost pose is simply
 ## replaced by the next one. ON_CHANGE would make them reliable, and on a lossy link one lost packet
 ## then stalls every later pose and reliable RPC on the channel (head-of-line blocking, high-ping desync).
 func _enter_tree() -> void:
@@ -736,6 +750,7 @@ func _physics_process(delta: float) -> void:
 		_tick_feet(delta)
 		return
 	if not is_local():
+		_smooth_remote(delta)
 		_apply_remote_visual()
 		_tick_feet(delta)
 		return
@@ -998,6 +1013,26 @@ func _enemy_in_sight() -> bool:
 		if space.intersect_ray(query).is_empty():
 			return true
 	return false
+
+
+## See net_pos. First pose, the server, or a jump past STYLE_TELEPORT_M (respawn) snaps.
+func _receive_net_pos(v: Vector3) -> void:
+	var smooth := is_inside_tree() and _net_has and not multiplayer.is_server()
+	_net_target = v
+	_net_has = true
+	if not smooth or v.distance_to(position) > STYLE_TELEPORT_M:
+		position = v
+
+
+## Client-side glide of a remote human toward _net_target (frame-rate independent).
+## A local teleport of the pawn (e.g. a respawn RPC) re-bases the target instead of being pulled back.
+func _smooth_remote(delta: float) -> void:
+	if not _net_has or multiplayer.is_server():
+		return
+	if position.distance_to(_net_target) > STYLE_TELEPORT_M:
+		_net_target = position
+		return
+	position = _net_target + (position - _net_target) * exp(-delta / NET_SMOOTH_S)
 
 
 func _apply_remote_visual() -> void:

@@ -36,7 +36,7 @@ func _ready() -> void:
 
 func _move() -> void:
 	var base := _me.global_position
-	while _t < PROBE_S + 10.0:
+	while _t < PROBE_S + 40.0:
 		await get_tree().physics_frame
 		_t += get_physics_process_delta_time()
 		_me.global_position = base + Vector3(sin(_t * 2.0) * 3.0, 0.0, 0.0)
