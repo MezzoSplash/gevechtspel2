@@ -470,6 +470,13 @@ func _equip_def(weapon_def: WeaponDef, save_current: bool = true) -> void:
 		Game.announce_weapon(owner as Player, def.id)
 
 
+## The held gun's model is on screen (not scoped, not mid-throw). First-person arms follow this.
+func model_shown() -> bool:
+	if def == null or not _view_models.has(def.id):
+		return visible
+	return visible and (_view_models[def.id] as Node3D).visible
+
+
 ## Server copy following a client's switch, or the shooter itself: seconds since the held gun was drawn.
 func since_draw() -> float:
 	return float(Time.get_ticks_msec() - drawn_ms) / 1000.0
