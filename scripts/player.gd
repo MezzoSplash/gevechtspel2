@@ -283,6 +283,7 @@ func _ready() -> void:
 	if peer_id == 0:
 		peer_id = _owner_peer()
 	_dup_body_mat()
+	_attach_arms()
 	_apply_team_visual()
 	_init_loadout()
 	# Bots/offline skip MultiplayerSynchronizer; bot poses are Game.sync_bot_poses.
@@ -414,6 +415,8 @@ func _configure_control() -> void:
 	if is_local():
 		body_mesh.visible = false
 		weapon.visible = true
+		if _arms_enabled() and camera.get_node_or_null("ViewArms") == null:
+			BodyArms.attach_view(camera, weapon, _body_mat) # #164: first-person forearms + hands
 		nametag.visible = false
 		# Online the server's (deduplicated) name from the spawn data wins.
 		if Game.player_name != "" and not Game.is_networked():
@@ -487,6 +490,17 @@ func set_display_name(n: String) -> void:
 	if nametag:
 		nametag.text = n
 		nametag.modulate = team_color(team_id)
+
+
+## #164: arms are visuals only; a dedicated server never draws them.
+func _arms_enabled() -> bool:
+	return not Game.is_dedicated and body_mesh != null and weapon != null
+
+
+## #164: third-person arms that hold the gun (replace the static arm boxes on the live pawn).
+func _attach_arms() -> void:
+	if _arms_enabled() and body_mesh.get_node_or_null("Arms") == null:
+		BodyArms.attach_body(body_mesh, weapon, _body_mat)
 
 
 func _dup_body_mat() -> void:
