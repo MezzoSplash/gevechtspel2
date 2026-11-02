@@ -30,6 +30,7 @@ func _ready() -> void:
 	Game.round_ended.connect(func(w: int, n: String, _s: Dictionary) -> void: ended.append([w, n]))
 	menu.set_match_choice(&"quay", Game.MODE_GUN_GAME)
 	_ok(menu.selected_mode() == Game.MODE_GUN_GAME, "Gun Game selectable in the menu")
+	_ok(not (menu._kill_boxes[0] as Control).get_parent().visible, "Gun Game hides the Kills limit row")
 	for b in menu._bot_boxes:
 		b.value = 3
 	for b in menu._time_boxes:

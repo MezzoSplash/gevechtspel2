@@ -253,11 +253,14 @@ func set_match_choice(map_id: StringName, mode: int) -> void:
 
 
 ## #82: style modes reuse the Kills box as the style limit in hundreds (30 → 3000 style).
+## Gun Game hides the row: the ladder decides the round.
 func _refresh_limit_labels(mo: int) -> void:
 	var style := Game.is_style_mode(mo)
 	for b in _kill_boxes:
 		b.suffix = "×100 style/min" if style else ""
 		var row := b.get_parent()
+		if row:
+			row.visible = not Game.is_gun_game(mo) # the ladder length is the limit in Gun Game
 		if row and row.get_child_count() > 0 and row.get_child(0) is Label:
 			(row.get_child(0) as Label).text = "Style" if style else "Kills"
 
