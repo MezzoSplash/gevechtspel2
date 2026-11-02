@@ -23,7 +23,7 @@ func _ready() -> void:
 	Game.round_ended.connect(func(w: int, n: String, _s: Dictionary) -> void: ended.append([w, n]))
 	# Menu: picking a style mode relabels the limit row.
 	var mo: OptionButton = menu._mode_opts[menu._mode_opts.size() - 1]
-	_ok(mo.item_count == 4, "Host/Solo mode pickers list 4 modes")
+	_ok(mo.item_count == Game.MODE_NAMES.size(), "Host/Solo mode pickers list every mode")
 	mo.select(Game.MODE_STYLE_FFA)
 	mo.item_selected.emit(Game.MODE_STYLE_FFA)
 	_ok(menu.selected_mode() == Game.MODE_STYLE_FFA, "style FFA selectable")

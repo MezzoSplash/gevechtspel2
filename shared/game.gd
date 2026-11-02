@@ -51,9 +51,10 @@ const MODE_TDM := 0
 const MODE_FFA := 1
 const MODE_STYLE_TDM := 2 # #82: same teams as TDM, but the team with the most style points wins
 const MODE_STYLE_FFA := 3 # #82: FFA where the player with the most style points wins
-const MODE_LAST := MODE_STYLE_FFA
-const MODE_IDS := ["tdm", "ffa", "style-tdm", "style-ffa"]
-const MODE_NAMES := ["Team Deathmatch", "Free For All", "Style Team Deathmatch", "Style Free For All"]
+const MODE_GUN_GAME := 4 # #148: FFA weapon ladder, see shared/gun_game.gd
+const MODE_LAST := MODE_GUN_GAME
+const MODE_IDS := ["tdm", "ffa", "style-tdm", "style-ffa", "gungame"]
+const MODE_NAMES := ["Team Deathmatch", "Free For All", "Style Team Deathmatch", "Style Free For All", "Gun Game"]
 ## Style modes reuse kill_limit as a style RATE: STYLE_UNIT points per minute of round time, so the limit
 ## grows with the round (FFA default 25 → 2500/min → 25 000 in 10 min). Measured: one landed combo is
 ## ~1 000–6 000 (moves 30–120 each, up to ×6), bots alone make ~300–500/min; the old flat 2 000/3 000 ended
@@ -131,6 +132,7 @@ var round_frozen := false # look OK, no walk/shoot; bots idle
 var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
 var rc_view := false # this machine is looking out of an RC-XD; the pawn stays put and cannot shoot
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
+var gun_level: Dictionary = {} # #148 Gun Game: peer_id → 0-based ladder step (authority decides, all mirror)
 var best_trick: Dictionary = {} # match authority: this round's highest-scoring trickshot (same keys + tags/pts/trick_id)
 var _lag_history: Dictionary = {} # server: LagComp samples per player instance id
 var _shot_rewind: Array = [] # server, while a client shot resolves: LagComp.offsets_for
@@ -319,7 +321,12 @@ func player_for_peer(peer_id: int) -> Player:
 
 func is_ffa(m: int = -1) -> bool:
 	var mm := mode if m < 0 else m
-	return mm == MODE_FFA or mm == MODE_STYLE_FFA
+	return mm == MODE_FFA or mm == MODE_STYLE_FFA or mm == MODE_GUN_GAME
+
+
+## #148: Gun Game (FFA weapon ladder).
+func is_gun_game(m: int = -1) -> bool:
+	return (mode if m < 0 else m) == MODE_GUN_GAME
 
 
 ## #82: style points, not kills, decide the round.
@@ -334,6 +341,8 @@ static func style_limit_for(rate: int, round_sec: float) -> int:
 
 
 func score_limit() -> int:
+	if is_gun_game():
+		return GunGame.LADDER.size()
 	if is_style_mode():
 		return style_limit_for(kill_limit, round_time)
 	return kill_limit
@@ -341,6 +350,8 @@ func score_limit() -> int:
 
 ## "kills" or "style" (HUD, scoreboard, menu blurbs).
 func score_word() -> String:
+	if is_gun_game():
+		return "level"
 	return "style" if is_style_mode() else "kills"
 
 
@@ -364,6 +375,8 @@ static func parse_mode(raw: String) -> int:
 		return MODE_STYLE_TDM
 	if s in ["style-ffa", "style_ffa", "styleffa", "4"]:
 		return MODE_STYLE_FFA
+	if s in ["gungame", "gun-game", "gun_game", "gg", "5"]:
+		return MODE_GUN_GAME
 	if s in ["tdm", "team", "teams", "team_deathmatch", "1"]:
 		return MODE_TDM
 	if s in ["ffa", "free", "freeforall", "free_for_all", "dm", "2"]:
@@ -1612,6 +1625,22 @@ func request_weapon_switch(weapon_id: String) -> void:
 		return
 	p.weapon.equip_remote(id)
 	sync_weapon.rpc(peer, weapon_id)
+
+
+## #148: a peer's Gun Game step changed (authority → everyone).
+@rpc("authority", "reliable")
+func sync_gun_level(peer_id: int, level: int) -> void:
+	if multiplayer.is_server():
+		return
+	_apply_gun_level(peer_id, level)
+
+
+## #148: mirror a step and arm the pawn with its gun (GunGame.arm decides who may).
+func _apply_gun_level(peer_id: int, level: int) -> void:
+	gun_level[peer_id] = level
+	GunGame.arm(self, peer_id)
+	if scores.has(peer_id):
+		score_changed.emit(peer_id, int(scores[peer_id].kills), str(scores[peer_id].name))
 
 
 @rpc("authority", "reliable")

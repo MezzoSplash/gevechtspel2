@@ -355,6 +355,9 @@ func _init_loadout() -> void:
 
 func weapon_ids() -> Array[StringName]:
 	var ids: Array[StringName] = []
+	if Game.is_gun_game(): # #148: only the ladder step's gun, for humans and bots
+		ids.append(GunGame.weapon_at(GunGame.level_of(Game, peer_id)))
+		return ids
 	if loadout.is_empty():
 		for w in Weapon.LOADOUT:
 			ids.append(w.id)
@@ -371,6 +374,8 @@ func has_weapon(id: StringName) -> bool:
 
 ## Per type in the class (frags on G, knives on F); the class shares PlayerClasses.MAX_GRENADES slots.
 func grenade_max() -> int:
+	if Game.is_gun_game():
+		return 0 # #148: guns and the knife only
 	if loadout.is_empty():
 		return GRENADE_MAX
 	var g: Dictionary = loadout.get("grenades", {})
@@ -378,6 +383,8 @@ func grenade_max() -> int:
 
 
 func knife_max() -> int:
+	if Game.is_gun_game():
+		return 0
 	if loadout.is_empty():
 		return 0
 	var g: Dictionary = loadout.get("grenades", {})
@@ -395,7 +402,9 @@ func apply_loadout() -> void:
 
 
 func _apply_bot_loadout() -> void:
-	if weapon:
+	if weapon and Game.is_gun_game():
+		apply_loadout() # #148: the bot's ladder step, not its fixed gun
+	elif weapon:
 		weapon.equip_loadout(loadout_index)
 
 
