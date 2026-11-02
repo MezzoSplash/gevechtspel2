@@ -134,12 +134,16 @@ func physics_tick(delta: float) -> void:
 	_track_stuck(delta)
 	var enemy := _pick_target(delta)
 	_tick_streaks(delta, enemy)
-	if enemy == null:
+	var goal := CTF.bot_goal(Game, pawn) # #160: Vector3.INF outside CTF
+	if enemy == null or (goal != Vector3.INF and not _can_see(enemy)):
 		_in_fight = false
 		_acquire_left = float(Game.bot_profile().acquire)
 		if _stuck_pulse:
 			_pick_unstick()
-		_steer_to(_home, Player.WALK_SPEED, delta)
+		if goal != Vector3.INF:
+			_go_to_objective(goal, delta)
+		else:
+			_steer_to(_home, Player.WALK_SPEED, delta)
 		_move(delta)
 		return
 	# Seen but out of weapon range (a shotgun bot at a window, the enemy across the street): walk the
@@ -276,6 +280,20 @@ func _hunt(enemy: Player, delta: float) -> void:
 	_tick_aim_wobble(enemy, delta)
 	_face_travel(travel)
 	_steer_to(dest, Player.WALK_SPEED, delta, true)
+
+
+## #160: walk the navmesh to a CTF goal (flag, base). Repaths when the goal moves or every HUNT_REPATH.
+func _go_to_objective(goal: Vector3, delta: float) -> void:
+	_repath_t -= delta
+	if agent and (_repath_t <= 0.0 or _path_enemy.distance_squared_to(goal) > 4.0):
+		agent.target_position = goal
+		_path_enemy = goal
+		_repath_t = HUNT_REPATH
+	var travel := goal - pawn.global_position
+	if agent and not agent.is_navigation_finished():
+		travel = agent.get_next_path_position() - pawn.global_position
+	_face_travel(travel)
+	_steer_to(goal, Player.SPRINT_SPEED, delta, true)
 
 
 ## Visible and in range. Sidestep in the open; do not ask the navmesh for a 2 m shuffle.

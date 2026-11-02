@@ -236,7 +236,13 @@ func set_match_choice(map_id: StringName, mode: int) -> void:
 	_filling_match = true
 	for o in _map_opts:
 		o.select(mi)
+	# #160: CTF only where the map has flag bases; picking such a map falls back to TDM.
+	var ctf_ok := CTF.available(Maps.ORDER[mi])
+	if mo == Game.MODE_CTF and not ctf_ok:
+		mo = Game.MODE_TDM
 	for o in _mode_opts:
+		o.set_item_disabled(Game.MODE_CTF, not ctf_ok)
+		o.set_item_tooltip(Game.MODE_CTF, "" if ctf_ok else "This map has no flag bases yet (Quay has).")
 		o.select(mo)
 	for b in _kill_boxes:
 		b.set_value_no_signal(Game.last_kills)
@@ -253,14 +259,14 @@ func set_match_choice(map_id: StringName, mode: int) -> void:
 
 
 ## #82: style modes reuse the Kills box as the style limit in hundreds (30 → 3000 style).
-## Gun Game hides the row: the ladder decides the round.
+## Gun Game and CTF hide the row: their rules fix the limit.
 func _refresh_limit_labels(mo: int) -> void:
 	var style := Game.is_style_mode(mo)
 	for b in _kill_boxes:
 		b.suffix = "×100 style/min" if style else ""
 		var row := b.get_parent()
 		if row:
-			row.visible = not Game.is_gun_game(mo) # the ladder length is the limit in Gun Game
+			row.visible = not Game.has_fixed_limit(mo) # Gun Game: the ladder; CTF: CTF.CAPTURES_TO_WIN
 		if row and row.get_child_count() > 0 and row.get_child(0) is Label:
 			(row.get_child(0) as Label).text = "Style" if style else "Kills"
 
@@ -272,7 +278,9 @@ func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
 		mo = selected_mode()
 	var info := Maps.info(Maps.ORDER[mi])
 	var rule := "first to %d kills" % selected_kills()
-	if Game.is_gun_game(mo):
+	if Game.is_ctf(mo):
+		rule = "first to %d flag captures" % CTF.CAPTURES_TO_WIN
+	elif Game.is_gun_game(mo):
 		rule = "first through the %d-gun ladder (knife kill = victim down a gun)" % GunGame.LADDER.size()
 	elif Game.is_style_mode(mo):
 		rule = "first to %d style" % Game.style_limit_for(selected_kills(), float(selected_time_min() * 60))

@@ -52,9 +52,10 @@ const MODE_FFA := 1
 const MODE_STYLE_TDM := 2 # #82: same teams as TDM, but the team with the most style points wins
 const MODE_STYLE_FFA := 3 # #82: FFA where the player with the most style points wins
 const MODE_GUN_GAME := 4 # #148: FFA weapon ladder, see shared/gun_game.gd
-const MODE_LAST := MODE_GUN_GAME
-const MODE_IDS := ["tdm", "ffa", "style-tdm", "style-ffa", "gungame"]
-const MODE_NAMES := ["Team Deathmatch", "Free For All", "Style Team Deathmatch", "Style Free For All", "Gun Game"]
+const MODE_CTF := 5 # #160: Capture the Flag (teams), see shared/ctf.gd; only on maps with flag bases
+const MODE_LAST := MODE_CTF
+const MODE_IDS := ["tdm", "ffa", "style-tdm", "style-ffa", "gungame", "ctf"]
+const MODE_NAMES := ["Team Deathmatch", "Free For All", "Style Team Deathmatch", "Style Free For All", "Gun Game", "Capture the Flag"]
 ## Style modes reuse kill_limit as a style RATE: STYLE_UNIT points per minute of round time, so the limit
 ## grows with the round (FFA default 25 → 2500/min → 25 000 in 10 min). Measured: one landed combo is
 ## ~1 000–6 000 (moves 30–120 each, up to ×6), bots alone make ~300–500/min; the old flat 2 000/3 000 ended
@@ -132,6 +133,8 @@ var round_frozen := false # look OK, no walk/shoot; bots idle
 var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
 var rc_view := false # this machine is looking out of an RC-XD; the pawn stays put and cannot shoot
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
+var flags: Array = [] # #160 CTF: [blue, orange] Objective dicts (authority decides, all mirror)
+var ctf_caps: Array = [0, 0] # #160 CTF: captures per team this round
 var gun_level: Dictionary = {} # #148 Gun Game: peer_id → 0-based ladder step (authority decides, all mirror)
 var best_trick: Dictionary = {} # match authority: this round's highest-scoring trickshot (same keys + tags/pts/trick_id)
 var _lag_history: Dictionary = {} # server: LagComp samples per player instance id
@@ -324,6 +327,16 @@ func is_ffa(m: int = -1) -> bool:
 	return mm == MODE_FFA or mm == MODE_STYLE_FFA or mm == MODE_GUN_GAME
 
 
+## #160: Capture the Flag.
+func is_ctf(m: int = -1) -> bool:
+	return (mode if m < 0 else m) == MODE_CTF
+
+
+## Modes whose limit is fixed by the rules (menu hides the Kills row): Gun Game, CTF.
+func has_fixed_limit(m: int = -1) -> bool:
+	return is_gun_game(m) or is_ctf(m)
+
+
 ## #148: Gun Game (FFA weapon ladder).
 func is_gun_game(m: int = -1) -> bool:
 	return (mode if m < 0 else m) == MODE_GUN_GAME
@@ -343,6 +356,8 @@ static func style_limit_for(rate: int, round_sec: float) -> int:
 func score_limit() -> int:
 	if is_gun_game():
 		return GunGame.LADDER.size()
+	if is_ctf():
+		return CTF.CAPTURES_TO_WIN
 	if is_style_mode():
 		return style_limit_for(kill_limit, round_time)
 	return kill_limit
@@ -352,6 +367,8 @@ func score_limit() -> int:
 func score_word() -> String:
 	if is_gun_game():
 		return "level"
+	if is_ctf():
+		return "captures"
 	return "style" if is_style_mode() else "kills"
 
 
@@ -375,6 +392,8 @@ static func parse_mode(raw: String) -> int:
 		return MODE_STYLE_TDM
 	if s in ["style-ffa", "style_ffa", "styleffa", "4"]:
 		return MODE_STYLE_FFA
+	if s in ["ctf", "capture-the-flag", "capture_the_flag", "flag", "6"]:
+		return MODE_CTF
 	if s in ["gungame", "gun-game", "gun_game", "gg", "5"]:
 		return MODE_GUN_GAME
 	if s in ["tdm", "team", "teams", "team_deathmatch", "1"]:
@@ -419,6 +438,11 @@ func sync_match_config(new_map: String, new_mode: int, kills: int = 0, time_sec:
 func set_match_config(new_map: StringName, new_mode: int, kills: int = -1, time_sec: float = -1.0, bots: int = -1) -> void:
 	map_id = new_map if Maps.has(new_map) else Maps.DEFAULT
 	mode = clampi(new_mode, MODE_TDM, MODE_LAST)
+	if mode == MODE_CTF and not CTF.available(map_id):
+		mode = MODE_TDM # #160: no flag bases on this map
+	if mode == MODE_CTF:
+		CTF.setup(self)
+	CtfFlags.ensure(self) # #160: flag visuals only while CTF runs
 	kill_limit = clampi(kills if kills >= KILLS_MIN else last_kills, KILLS_MIN, KILLS_MAX)
 	round_time = time_sec if time_sec >= 60.0 else float(last_time_min * 60)
 	round_time = clampf(round_time, float(TIME_MIN_MINUTES * 60), float(TIME_MAX_MINUTES * 60))
@@ -1001,6 +1025,8 @@ const RADAR_TIME := 25.0 # UAV: enemies on the minimap this long (BO2 is ~30 s)
 const CHARGE_RADAR := 1
 const CHARGE_RCXD := 2
 
+signal flags_changed # #160: flag state or capture score changed
+signal flag_event(kind: String, team: int, by_name: String) # #160: taken / dropped / returned / captured
 signal streak_used(peer_id: int, slot: int) # authority: a UAV (0) or RC-XD (1) was spent
 var streak_progress: Dictionary = {} # peer -> kills this life (death clears this)
 var streak_charges: Dictionary = {} # peer -> bitmask of streaks earned and not yet used
@@ -1272,6 +1298,18 @@ func combo_of(peer_id: int) -> Dictionary:
 
 func _combo_end(peer_id: int, state: String, banked: int) -> void:
 	ComboLedger.end(self, peer_id, state, banked)
+
+
+## #160: authority runs the flags; clients only count the dropped-flag timer down for the HUD.
+func _tick_ctf(delta: float) -> void:
+	if not is_ctf():
+		return
+	if _is_match_authority():
+		CTF.tick(self, delta)
+		return
+	for f in flags:
+		if int(f.state) == Objective.DROPPED:
+			f.drop_t = maxf(float(f.drop_t) - delta, 0.0)
 
 
 func _tick_combos(delta: float) -> void:
@@ -1548,6 +1586,7 @@ func _physics_process(delta: float) -> void:
 	_tick_tension()
 	_tick_lines(delta)
 	_tick_combos(delta)
+	_tick_ctf(delta)
 	if radar_left > 0.0:
 		radar_left = maxf(radar_left - delta, 0.0)
 	if not is_networked() or not multiplayer.is_server():
@@ -1625,6 +1664,35 @@ func request_weapon_switch(weapon_id: String) -> void:
 		return
 	p.weapon.equip_remote(id)
 	sync_weapon.rpc(peer, weapon_id)
+
+
+## #160: both flags and the capture score (authority → everyone, on every change and to late joiners).
+@rpc("authority", "reliable")
+func sync_flags(packed: Array, caps_a: int, caps_b: int) -> void:
+	if multiplayer.is_server():
+		return
+	_apply_flags(packed, caps_a, caps_b)
+
+
+func _apply_flags(packed: Array, caps_a: int, caps_b: int) -> void:
+	if flags.size() != 2:
+		CTF.setup(self)
+	for t in mini(packed.size(), 2):
+		Objective.unpack(flags[t], packed[t])
+	ctf_caps = [caps_a, caps_b]
+	flags_changed.emit()
+
+
+## #160: a flag event for the HUD/killfeed: kind is taken / dropped / returned / captured.
+@rpc("authority", "reliable")
+func sync_flag_event(kind: String, team: int, peer: int) -> void:
+	if multiplayer.is_server():
+		return
+	_apply_flag_event(kind, team, peer)
+
+
+func _apply_flag_event(kind: String, team: int, peer: int) -> void:
+	flag_event.emit(kind, team, _display_name_for(peer) if peer != 0 else "")
 
 
 ## #148: a peer's Gun Game step changed (authority → everyone).

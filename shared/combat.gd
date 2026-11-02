@@ -302,6 +302,8 @@ static func register_kill(game: GameState, killer_peer_id: int, victim_peer_id: 
 		game._award_style(kill_info, tricks)
 	if game.is_gun_game():
 		GunGame.on_kill(game, killer_peer_id, victim_peer_id, weapon_id) # #148: the ladder, not kills, wins
+	elif game.is_ctf():
+		pass # #160: captures end a CTF round, never kills
 	elif game.is_style_mode():
 		pass # style modes end on style points (_check_style_win), never on kills
 	elif game.is_ffa():

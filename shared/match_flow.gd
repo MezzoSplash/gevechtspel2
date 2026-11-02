@@ -46,6 +46,7 @@ static func start_round(game: GameState) -> void:
 		game.sync_team_kills.rpc(0, 0)
 	for id in game.scores:
 		game.scores[id].style = 0
+		game.scores[id].erase("captures")
 		game.scores[id].deaths = 0
 		game._apply_score(id, 0, str(game.scores[id].name), int(game.scores[id].get("team", 0)))
 		if game.is_networked() and game.multiplayer.is_server():
@@ -54,6 +55,8 @@ static func start_round(game: GameState) -> void:
 	game._clear_round_streaks()
 	if game._is_match_authority():
 		GunGame.reset(game) # #148: everyone starts the ladder again (no-op outside Gun Game)
+		if game.is_ctf():
+			CTF.reset(game) # #160: both flags home, 0-0
 
 
 ## Freeze is over: the round clock starts.
@@ -74,6 +77,7 @@ static func send_match_state(game: GameState, peer_id: int) -> void:
 	if scores_arr.size() > 0:
 		game.sync_all_scores.rpc_id(peer_id, scores_arr)
 	game.sync_team_kills.rpc_id(peer_id, int(game.team_kills[0]), int(game.team_kills[1]))
+	CTF.send_to(game, peer_id) # #160: flags and captures
 	for id in game.gun_level: # #148: everyone's Gun Game step
 		game.sync_gun_level.rpc_id(peer_id, int(id), int(game.gun_level[id]))
 	if game.round_frozen:
@@ -167,6 +171,7 @@ static func get_scores(game: GameState) -> Array[Dictionary]:
 			"deaths": int(game.scores[id].get("deaths", 0)),
 			"ping": int(game.pings.get(id, -1)),
 			"level": GunGame.level_of(game, int(id)) + 1, # #148: 1-based for the scoreboard
+			"captures": int(game.scores[id].get("captures", 0)), # #160
 		})
 	out.sort_custom(game._sort_scores)
 	return out
