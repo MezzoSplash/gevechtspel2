@@ -110,6 +110,10 @@ func _draw() -> void:
 		elif m == MARK_ENEMY:
 			marks[p.get_instance_id()] = wp
 	track_contacts(marks, now)
+	if Game.is_ctf() and Game.flags.size() == 2: # #160: both flags, always known (like CoD's objective icons)
+		for t in 2:
+			var fp := CTF.flag_world_pos(Game, t)
+			_draw_flag(to_px.call(Vector2(fp.x, fp.z)), Player.team_color(t))
 	for id in _ghosts:
 		var g: Dictionary = _ghosts[id]
 		_draw_enemy(to_px.call(g.pos), ghost_alpha(int(g.lost), now))
@@ -179,6 +183,12 @@ func _project(poly: PackedVector2Array, to_px: Callable) -> PackedVector2Array:
 
 
 ## Arrow pointing along `rot` (0 = up on the map, matching a pawn facing -Z).
+## #160: a small flag (pole + cloth) for a CTF flag.
+func _draw_flag(at: Vector2, col: Color) -> void:
+	draw_line(at + Vector2(0, 5), at + Vector2(0, -7), Color(0.9, 0.9, 0.92), 1.5)
+	draw_rect(Rect2(at + Vector2(0, -7), Vector2(7, 5)), col)
+
+
 func _draw_arrow(at: Vector2, rot: float, s: float, col: Color) -> void:
 	var f := Vector2(0, -1).rotated(-rot)
 	var side := Vector2(f.y, -f.x)

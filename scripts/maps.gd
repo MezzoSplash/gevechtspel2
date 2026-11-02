@@ -77,6 +77,9 @@ const INFO := {
 			[Vector3(-13, 0, 57.4), Vector3(-7.8, 0, 57.4), Vector3(-2.6, 0, 57.4), Vector3(2.6, 0, 57.4), Vector3(7.8, 0, 57.4), Vector3(13, 0, 57.4), Vector3(-13, 0, 60.2), Vector3(-7.8, 0, 60.2), Vector3(-2.6, 0, 60.2), Vector3(2.6, 0, 60.2), Vector3(7.8, 0, 60.2), Vector3(13, 0, 60.2)],
 			[Vector3(13, 0, -57.4), Vector3(7.8, 0, -57.4), Vector3(2.6, 0, -57.4), Vector3(-2.6, 0, -57.4), Vector3(-7.8, 0, -57.4), Vector3(-13, 0, -57.4), Vector3(13, 0, -60.2), Vector3(7.8, 0, -60.2), Vector3(2.6, 0, -60.2), Vector3(-2.6, 0, -60.2), Vector3(-7.8, 0, -60.2), Vector3(-13, 0, -60.2)],
 		],
+		# #160 CTF: one flag per team on that team's office roof (y 10, the roof nearest its yard), in the
+		# open part of the roof south/north of both stairwells. Half-turn pair like the spawns.
+		"flag_bases": [Vector3(-24, 10, 32), Vector3(24, 10, -32)],
 		# Half-turn pairs. Yard, side-lane ground, quay deck beside the office, dock, roofs, balconies.
 		"ffa_spawns": [
 			Vector3(-26, 0, 58), Vector3(0, 0, 57), Vector3(26, 0, 58),
@@ -138,6 +141,11 @@ static func parse(raw: String) -> StringName:
 
 static func team_spawns(id: StringName, team: int) -> Array:
 	return info(id).team_spawns[clampi(team, 0, 1)]
+
+
+## #160: [blue base, orange base] for CTF, or [] when the map has no flag markers yet.
+static func flag_bases(id: StringName) -> Array:
+	return info(id).get("flag_bases", [])
 
 
 static func ffa_spawns(id: StringName) -> Array:

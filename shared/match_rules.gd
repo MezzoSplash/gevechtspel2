@@ -7,6 +7,8 @@ extends RefCounted
 
 ## What counts for a team: kills, or the summed style of its members in style modes.
 static func team_score(game: Node, team_id: int) -> int:
+	if game.is_ctf():
+		return int(game.ctf_caps[clampi(team_id, 0, 1)]) # #160: captures, not kills
 	if not game.is_style_mode():
 		return game.get_team_kills(team_id)
 	var sum := 0

@@ -109,6 +109,7 @@ func _ready() -> void:
 	Game.score_changed.connect(_on_score_changed)
 	Game.round_ended.connect(_on_round_ended)
 	Game.kill_feed.connect(_on_kill_feed)
+	Game.flag_event.connect(_on_flag_event)
 	if kill_feed:
 		kill_feed.name_color = _name_color
 		kill_feed.local_name = _local_name
@@ -591,6 +592,13 @@ func clear_radar() -> void:
 
 
 ## Top centre, under the round clock: what was switched on, and by whom (name in team colour).
+## #160: popup for a flag event, gold when it is good for your team, red when not.
+func _on_flag_event(kind: String, team: int, by_name: String) -> void:
+	var good := CtfStatus.is_good(kind, team, Game.local_team())
+	show_popup(CtfStatus.popup_title(kind, team), _POPUP_FRIENDLY if good else _POPUP_HOSTILE, by_name, CtfStatus.actor_team(kind, team))
+	_standing_t = 0.0
+
+
 func show_popup(title: String, title_col: Color, by_name: String, team: int) -> void:
 	if _popup == null:
 		return
@@ -1272,7 +1280,7 @@ func style_king_text() -> String:
 	return _style_king.text if _style_king and _style_king.visible else ""
 
 
-## FFA only: "2nd · 7 / 20 kills" (leader 9) under the clock. Team mode hides it.
+## FFA: "2nd · 7 / 20 kills" (leader 9) under the clock; CTF: captures and flags. Other team modes hide it.
 func _refresh_standing() -> void:
 	if _standing == null:
 		_standing = Label.new()
@@ -1289,8 +1297,12 @@ func _refresh_standing() -> void:
 		_standing.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		_standing.add_theme_constant_override("outline_size", 5)
 		add_child(_standing)
-	_standing.visible = Game.is_ffa() and _local_peer_id != 0
+	_standing.visible = (Game.is_ffa() or Game.is_ctf()) and _local_peer_id != 0
 	if not _standing.visible:
+		return
+	if Game.is_ctf(): # #160: captures and both flags instead of the FFA place
+		_standing.text = CtfStatus.line(Game, _local_peer_id)
+		_standing.add_theme_color_override("font_color", Color(0.92, 0.93, 0.95))
 		return
 	var board := Game.get_scores()
 	var place := 0
