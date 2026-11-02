@@ -52,6 +52,8 @@ static func start_round(game: GameState) -> void:
 			game.sync_score.rpc(id, 0, str(game.scores[id].name), int(game.scores[id].team), 0)
 			game.sync_deaths.rpc(id, 0)
 	game._clear_round_streaks()
+	if game._is_match_authority():
+		GunGame.reset(game) # #148: everyone starts the ladder again (no-op outside Gun Game)
 
 
 ## Freeze is over: the round clock starts.
@@ -72,6 +74,8 @@ static func send_match_state(game: GameState, peer_id: int) -> void:
 	if scores_arr.size() > 0:
 		game.sync_all_scores.rpc_id(peer_id, scores_arr)
 	game.sync_team_kills.rpc_id(peer_id, int(game.team_kills[0]), int(game.team_kills[1]))
+	for id in game.gun_level: # #148: everyone's Gun Game step
+		game.sync_gun_level.rpc_id(peer_id, int(id), int(game.gun_level[id]))
 	if game.round_frozen:
 		game.sync_round_frozen.rpc_id(peer_id, true)
 	if game.killcam_active:
@@ -162,6 +166,7 @@ static func get_scores(game: GameState) -> Array[Dictionary]:
 			"style": int(game.scores[id].get("style", 0)),
 			"deaths": int(game.scores[id].get("deaths", 0)),
 			"ping": int(game.pings.get(id, -1)),
+			"level": GunGame.level_of(game, int(id)) + 1, # #148: 1-based for the scoreboard
 		})
 	out.sort_custom(game._sort_scores)
 	return out

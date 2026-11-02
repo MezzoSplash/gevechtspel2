@@ -1307,6 +1307,8 @@ func _refresh_standing() -> void:
 		return
 	var lead := "  ·  leader %d" % best if place > 1 else ("  ·  leading" if mine > 0 else "")
 	_standing.text = "%s  ·  %d / %d %s%s" % [_ordinal(place), mine, Game.score_limit(), Game.score_word(), lead]
+	if Game.is_gun_game():
+		_standing.text += "  ·  " + GunGame.hud_line(GunGame.level_of(Game, _local_peer_id)) # #148
 	_standing.add_theme_color_override(
 		"font_color", Player.SELF_COLOR if place == 1 and mine > 0 else Color(0.92, 0.93, 0.95)
 	)

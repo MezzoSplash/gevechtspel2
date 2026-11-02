@@ -269,7 +269,9 @@ func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
 		mo = selected_mode()
 	var info := Maps.info(Maps.ORDER[mi])
 	var rule := "first to %d kills" % selected_kills()
-	if Game.is_style_mode(mo):
+	if Game.is_gun_game(mo):
+		rule = "first through the %d-gun ladder (knife kill = victim down a gun)" % GunGame.LADDER.size()
+	elif Game.is_style_mode(mo):
 		rule = "first to %d style" % Game.style_limit_for(selected_kills(), float(selected_time_min() * 60))
 	for b in _map_blurbs:
 		b.text = "%s\n%s · %s or %d min · %d %s bots" % [

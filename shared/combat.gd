@@ -300,7 +300,9 @@ static func register_kill(game: GameState, killer_peer_id: int, victim_peer_id: 
 		game.final_kill = kill_info # before the style award: a style-mode winning trick ends the round there
 	if not tricks.is_empty() or Combo.active(game._combos.get(killer_peer_id, {})):
 		game._award_style(kill_info, tricks)
-	if game.is_style_mode():
+	if game.is_gun_game():
+		GunGame.on_kill(game, killer_peer_id, victim_peer_id, weapon_id) # #148: the ladder, not kills, wins
+	elif game.is_style_mode():
 		pass # style modes end on style points (_check_style_win), never on kills
 	elif game.is_ffa():
 		game._check_win_player(killer_peer_id)
@@ -324,6 +326,8 @@ static func register_suicide(game: GameState, peer_id: int, weapon_id: StringNam
 	game._emit_kill_feed(n, n, weapon_id, team, team, "")
 	if game.is_networked():
 		game.sync_kill_feed.rpc(n, n, String(weapon_id), team, team, "")
+	if game.is_gun_game():
+		GunGame.on_suicide(game, peer_id) # #148: a suicide costs a step
 	game._bump_streak(0, peer_id)
 
 
