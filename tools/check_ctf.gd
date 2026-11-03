@@ -55,6 +55,12 @@ func _ready() -> void:
 	var me := Game.player_for_peer(1)
 	_ok(me != null and Game.is_ctf() and Game.flags.size() == 2, "CTF round running with two flags")
 	_ok(Game.get_node_or_null("CtfFlags") != null, "flag visuals exist")
+	# HUD layout: the status block sits under the clock, and the popup under the status block.
+	var hud = get_tree().get_first_node_in_group("hud")
+	await get_tree().create_timer(0.4).timeout
+	hud.show_popup("TEST", Color.WHITE, "x", 0)
+	var st: Control = hud._standing
+	_ok(st.offset_top >= 60.0 and hud._popup.offset_top >= st.offset_bottom, "CTF status below the clock, popup below it (%d..%d, popup %d)" % [st.offset_top, st.offset_bottom, hud._popup.offset_top])
 	var my_t := me.team_id
 	var enemy_t := 1 - my_t
 	var own_base: Vector3 = Game.flags[my_t].home
