@@ -1603,7 +1603,7 @@ func _physics_process(delta: float) -> void:
 		var p := n as Player
 		if p == null or not p.is_bot:
 			continue
-		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x])
+		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx])
 	if poses.is_empty():
 		return
 	sync_bot_poses.rpc(poses)
@@ -1634,7 +1634,7 @@ func sync_bot_poses(poses: Array) -> void:
 			continue
 		var p := player_for_peer(int(entry[0]))
 		if p and p.is_bot:
-			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]))
+			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), entry.slice(4, 6))
 
 
 ## Local human switched guns. Everyone needs the same def: sound, viewmodel, kill feed, server checks.
