@@ -24,7 +24,7 @@ const SNAP_JUMP := 4.0 # metres between snapshots that count as a teleport (resp
 
 var _clock := 0.0 # recording time; pauses with the tree like the game does
 var _snap_t := 0.0
-var _frames: Array = [] # [t, {peer_id: [pos, yaw, pitch, crouch, weapon_index, alive]}, grenade positions]
+var _frames: Array = [] # [t, {peer_id: [pos, yaw, pitch, crouch, weapon_index, alive, move_fx]}, grenade positions]
 var _events: Array = [] # [t, kind, a, b, c, d]
 var _meta: Dictionary = {} # peer_id -> [name, team]
 var _clips: Dictionary = {} # victim peer_id -> their last death, kept for rounds that end on the clock
@@ -244,7 +244,7 @@ func _snapshot() -> void:
 		if p == null or p.is_queued_for_deletion() or p.head == null:
 			continue
 		var wpn := p.weapon.armory_index() if p.weapon else 0
-		pawns[p.peer_id] = [p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, wpn, not p.is_dead]
+		pawns[p.peer_id] = [p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, wpn, not p.is_dead, p.move_fx]
 		_meta[p.peer_id] = [p.display_name, p.team_id]
 	if pawns.is_empty():
 		return
@@ -436,7 +436,7 @@ func _pose_ghost(g: Dictionary, sa: Variant, sb: Variant, w: float, is_killer: b
 	head.position.y = lerpf(Player.STAND_EYE, Player.CROUCH_EYE, crouch)
 	head.rotation.x = pitch
 	if not is_killer:
-		Player.pose_body(g.body, crouch)
+		Player.pose_body(g.body, crouch, int(s[6]) if s.size() > 6 else Player.MOVE_NONE)
 	_ghost_weapon(g, int(s[4]))
 
 
