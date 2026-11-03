@@ -1111,28 +1111,12 @@ func _pose_figure() -> void:
 	pose_body(body_mesh, crouch)
 
 
-## Crouch lowers the torso, arms, and head together. The head marker is the hit target.
-## Static so the killcam ghosts (a copy of BodyMesh) crouch the same way.
+## Stand/crouch pose (bent legs, leaned torso, arms on the gun): BodyPose. The head marker is the hit
+## target. Static so the killcam ghosts (a copy of BodyMesh) crouch the same way.
 static func pose_body(body: Node3D, crouch_amt: float) -> void:
 	if body == null:
 		return
-	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt)
-	var torso := body.get_node_or_null("Torso") as MeshInstance3D
-	var head_mesh := body.get_node_or_null("HeadMesh") as MeshInstance3D
-	var arm_l := body.get_node_or_null("ArmL") as MeshInstance3D
-	var arm_r := body.get_node_or_null("ArmR") as MeshInstance3D
-	var hit := body.get_node_or_null("HeadHit") as Node3D
-	if torso:
-		torso.position.y = lerpf(0.86, 0.50, crouch_amt)
-		torso.scale.y = lerpf(1.0, 0.62, crouch_amt)
-	if head_mesh:
-		head_mesh.position.y = head_y
-	if arm_l:
-		arm_l.position.y = lerpf(1.02, 0.58, crouch_amt)
-	if arm_r:
-		arm_r.position.y = lerpf(1.02, 0.58, crouch_amt)
-	if hit:
-		hit.position.y = head_y
+	BodyPose.apply(body, crouch_amt, lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt))
 
 
 func _ceiling_blocked() -> bool:
