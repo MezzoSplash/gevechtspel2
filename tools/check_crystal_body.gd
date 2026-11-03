@@ -79,6 +79,10 @@ func _ready() -> void:
 	wall_body.queue_free()
 	await _settle(c, 0.0, Player.MOVE_NONE)
 
+	bot.apply_network_pose(bot.global_position, bot.rotation.y, 0.0, [1.0, Player.MOVE_DIVE])
+	_ok(bot.move_fx == Player.MOVE_DIVE and is_equal_approx(bot.crouch, 1.0) and c.move_fx == Player.MOVE_DIVE, "client bot: synced stance reaches the body")
+	bot.apply_network_pose(bot.global_position, bot.rotation.y, 0.0, [0.0, Player.MOVE_NONE])
+	_ok(bot.weapon.position.z > bot.weapon._rest_pos.z, "third-person gun pulled toward the body")
 	var tmpl := (load("res://scenes/player.tscn") as PackedScene).instantiate()
 	var ghost := (tmpl.get_node("BodyMesh") as Node3D).duplicate() as Node3D
 	tmpl.free()

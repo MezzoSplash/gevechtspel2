@@ -412,6 +412,8 @@ func _apply_bot_loadout() -> void:
 ## Local: hide body, capture mouse. Remote/bot: show mesh, nametag, world gun.
 func _configure_control() -> void:
 	_apply_team_visual()
+	if weapon:
+		weapon.refit_view() # third-person guns sit closer to the body (B1)
 	if is_local():
 		body_mesh.visible = false
 		weapon.visible = true
@@ -984,7 +986,8 @@ func _tick_feet(delta: float) -> void:
 
 
 ## Client-side bot transform from Game.sync_bot_poses (Synchronizer is off for bots).
-func apply_network_pose(pos: Vector3, yaw: float, pitch: float) -> void:
+## `stance` (optional, newer servers): [crouch, move_fx], so remote bots crouch, dive and wall-run visibly.
+func apply_network_pose(pos: Vector3, yaw: float, pitch: float, stance: Array = []) -> void:
 	global_position = pos
 	rotation.y = yaw
 	_yaw = yaw
@@ -992,6 +995,10 @@ func apply_network_pose(pos: Vector3, yaw: float, pitch: float) -> void:
 	if head:
 		head.rotation.x = pitch
 	velocity = Vector3.ZERO
+	if stance.size() >= 2:
+		crouch = clampf(float(stance[0]), 0.0, 1.0)
+		move_fx = int(stance[1])
+		_apply_stance()
 	if body_mesh:
 		body_mesh.visible = not is_dead
 	if nametag:
