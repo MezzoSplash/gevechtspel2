@@ -415,8 +415,9 @@ func _configure_control() -> void:
 	if is_local():
 		body_mesh.visible = false
 		weapon.visible = true
-		if _arms_enabled() and camera.get_node_or_null("ViewArms") == null:
-			BodyArms.attach_view(camera, weapon, _body_mat) # #164: first-person forearms + hands
+		if _arms_enabled() and camera.get_node_or_null("ViewHands") == null:
+			var crystal := body_mesh.get_node_or_null("Crystal") as CrystalBody
+			CrystalHands.attach_view(camera, weapon, crystal.glow if crystal else _body_mat) # #164: first-person crystal hands
 		nametag.visible = false
 		# Online the server's (deduplicated) name from the spawn data wins.
 		if Game.player_name != "" and not Game.is_networked():
@@ -492,15 +493,15 @@ func set_display_name(n: String) -> void:
 		nametag.modulate = team_color(team_id)
 
 
-## #164: arms are visuals only; a dedicated server never draws them.
+## #164: the crystal body is visuals only; a dedicated server never builds it.
 func _arms_enabled() -> bool:
 	return not Game.is_dedicated and body_mesh != null and weapon != null
 
 
-## #164: third-person arms that hold the gun (replace the static arm boxes on the live pawn).
+## #164: B1 crystal body with floating hands that hold the gun (CrystalBody).
 func _attach_arms() -> void:
-	if _arms_enabled() and body_mesh.get_node_or_null("Arms") == null:
-		BodyArms.attach_body(body_mesh, weapon, _body_mat)
+	if _arms_enabled():
+		CrystalBody.attach(body_mesh, weapon)
 
 
 func _dup_body_mat() -> void:
@@ -525,6 +526,9 @@ func _apply_team_visual() -> void:
 		paint_body(_body_mat, team_id)
 	if nametag:
 		nametag.modulate = col
+	var crystal := body_mesh.get_node_or_null("Crystal") as CrystalBody if body_mesh else null
+	if crystal:
+		crystal.repaint(col)
 
 
 ## Body/tag/feed colour of a team. FFA has no teams: everyone gets FFA_COLOR.
@@ -1108,15 +1112,24 @@ func _apply_stance() -> void:
 
 
 func _pose_figure() -> void:
-	pose_body(body_mesh, crouch)
+	pose_body(body_mesh, crouch, move_fx)
 
 
-## Stand/crouch pose (bent legs, leaned torso, arms on the gun): BodyPose. The head marker is the hit
-## target. Static so the killcam ghosts (a copy of BodyMesh) crouch the same way.
-static func pose_body(body: Node3D, crouch_amt: float) -> void:
+## Puts the head marker (the hit target) on the stance's head height and hands the synced state to
+## the crystal body (CrystalBody/BodyPose), which poses itself every frame. Static so the killcam
+## ghosts (a copy of BodyMesh) use it too; they only know `crouch`.
+static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE) -> void:
 	if body == null:
 		return
-	BodyPose.apply(body, crouch_amt, lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt))
+	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt)
+	var hit := body.get_node_or_null("HeadHit") as Node3D
+	if hit:
+		hit.position.y = head_y
+	var crystal := CrystalBody.ensure(body)
+	if crystal:
+		crystal.crouch = crouch_amt
+		crystal.head_y = head_y
+		crystal.move_fx = fx
 
 
 func _ceiling_blocked() -> bool:

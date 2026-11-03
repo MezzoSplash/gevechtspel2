@@ -1,7 +1,6 @@
 extends Node
-## #164 headless: the pawn's arms reach the gun. For every gun: both hands sit within a few cm of
-## their grip/foregrip targets, the elbows stay below the shoulders, the old static arm boxes are
-## hidden, and the local pawn has first-person arms. Optional screenshot: shot=/path.png (needs a GPU).
+## #164 headless: the B1 crystal body's floating hands hold the gun. For every gun: both hands sit
+## within a few cm of their grip/foregrip targets, and the local pawn has first-person crystal hands. Optional screenshot: shot=/path.png (needs a GPU).
 ##   godot --headless --path . res://tools/check_arms.tscn   → "ARMS CHECK OK"
 var fails := 0
 
@@ -26,29 +25,22 @@ func _ready() -> void:
 		if Game._round_active and Game.player_for_peer(1):
 			break
 	var me := Game.player_for_peer(1)
-	_ok(me.camera.get_node_or_null("ViewArms") != null, "local pawn has first-person arms")
+	_ok(me.camera.get_node_or_null("ViewHands") is CrystalHands, "local pawn has first-person hands")
 	var bot: Player = null
 	for n in get_tree().get_nodes_in_group("player"):
 		if n is Player and n.is_bot:
 			bot = n
-	var arms := bot.body_mesh.get_node_or_null("Arms") as BodyArms
-	_ok(arms != null, "bot has third-person arms")
-	_ok(not (bot.body_mesh.get_node("ArmL") as Node3D).visible, "old static arm boxes hidden")
+	var arms := bot.body_mesh.get_node_or_null("Crystal/Hands") as CrystalHands
+	_ok(arms != null, "bot has third-person crystal hands")
 	for w in Weapon.LOADOUT:
 		bot.weapon.set_slots([w.id])
 		await get_tree().process_frame
 		await get_tree().process_frame
 		var t := arms.hand_targets()
 		var worst := 0.0
-		var elbows_ok := true
 		for i in 2:
-			worst = maxf(worst, (arms._hands[i].position as Vector3).distance_to(t[i]))
-			var sh: Vector3 = arms.shoulders[i]
-			var el: Vector3 = (arms._upper[i].position as Vector3) * 2.0 - sh
-			elbows_ok = elbows_ok and el.y <= maxf(sh.y, t[i].y) + 0.01
-			print("    %s %s reach %.2f" % [w.id, ["L", "R"][i], sh.distance_to(t[i])])
+			worst = maxf(worst, arms.hand_position(i).distance_to(t[i]))
 		_ok(worst < 0.03, "%s: hands on the gun (off by %.3f m)" % [w.id, worst])
-		_ok(elbows_ok, "%s: elbows bend down, not up" % w.id)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("shot="):
 			me.global_position = bot.global_position + bot.global_transform.basis.z * -2.2 + Vector3(0.8, 0, 0)
