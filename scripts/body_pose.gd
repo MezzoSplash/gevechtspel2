@@ -1,114 +1,81 @@
 class_name BodyPose
 extends RefCounted
-## Stand/crouch pose of the blocky body (#164 part 2). Purely visual, every machine poses its own copy
-## from the synced `crouch` amount (0 stand … 1 crouched), so remote players and killcam ghosts crouch
-## the same way. Crouching bends the legs, drops and leans the torso forward, keeps the head (and the
-## HeadHit marker, the hit target) exactly where gameplay puts it, and moves the shoulders so the arms
-## (BodyArms) stay on the gun.
-## The crouched head sits at Player.HEAD_CROUCH_Y (0.78 m), lower than a 0.92 m torso can reach by
-## bending alone, so the torso still shortens a little (CROUCH_TORSO_SCALE) on top of the lean.
+## Pose solver for the B1 crystal body (#164). Pure maths, no nodes: CrystalBody feeds it the blended
+## motion state and applies the result. Everything is in BodyMesh space (feet origin, facing -Z).
+## Layout: the head sits on Player's head height (so it matches HeadHit, which never moves here), the
+## torso hangs from a neck point under it, the detached feet float just above the floor. Dive and wall
+## run turn the whole figure (torso, feet) around the neck, so the head stays near the camera/gun.
+##
+## Input keys (all floats, already smoothed by the caller):
+##   crouch 0..1, head_y, phase (gait angle), bob (idle hover angle), walk 0..1, sprint 0..1,
+##   air 0..1, dive 0..1, wall -1..1 (sign = wall side, -1 left), dir (Vector3: local move direction)
 
-const TORSO_H := 0.92
-const HIP_STAND := Vector3(0, 0.40, 0)
-const HIP_CROUCH := Vector3(0, 0.14, 0.30) # low and back, so the leaned chest ends under the head
-const LEAN_CROUCH := deg_to_rad(30.0) # chest forward
-const CROUCH_TORSO_SCALE := 0.8
-const HIP_HALF_W := 0.12
-const THIGH := 0.23
-const SHIN := 0.23
-const LEG_T := 0.13
-const FOOT := Vector3(0.12, 0.07, 0.24)
-const SHOULDER_HALF_W := 0.30
-const SHOULDER_DROP := 0.04 # shoulders sit this far under the torso top
-
-
-## Pose `body` (a BodyMesh) for `crouch_amt`. Makes the legs on first use (not on a dedicated server).
-static func apply(body: Node3D, crouch_amt: float, head_y: float) -> void:
-	var k := clampf(crouch_amt, 0.0, 1.0)
-	var hip := HIP_STAND.lerp(HIP_CROUCH, k)
-	var lean := LEAN_CROUCH * k
-	var torso_len := TORSO_H * lerpf(1.0, CROUCH_TORSO_SCALE, k)
-	var up := Vector3(0, cos(lean), -sin(lean)) # torso axis; the body faces -Z
-	var torso := body.get_node_or_null("Torso") as Node3D
-	if torso:
-		torso.position = hip + up * torso_len * 0.5
-		torso.rotation = Vector3(-lean, 0, 0)
-		torso.scale = Vector3(1, torso_len / TORSO_H, 1)
-	var top := hip + up * torso_len
-	var arms := body.get_node_or_null("Arms") as BodyArms
-	if arms:
-		for i in 2:
-			arms.shoulders[i] = top + Vector3((-1.0 if i == 0 else 1.0) * SHOULDER_HALF_W, -SHOULDER_DROP, 0)
-	# Static arm boxes (killcam ghosts, or a body without BodyArms) hang from the same shoulders.
-	for i in 2:
-		var box := body.get_node_or_null(["ArmL", "ArmR"][i]) as Node3D
-		if box:
-			box.position = top + Vector3((-1.0 if i == 0 else 1.0) * (SHOULDER_HALF_W + 0.04), -0.29, 0)
-	var head_mesh := body.get_node_or_null("HeadMesh") as Node3D
-	if head_mesh:
-		head_mesh.position.y = head_y
-	var hit := body.get_node_or_null("HeadHit") as Node3D
-	if hit:
-		hit.position.y = head_y
-	_legs(body, hip)
+const NECK_DROP := 0.19 # neck this far under the head centre
+const TORSO_HANG := 0.41 # torso centre this far from the neck along the torso axis
+const WAIST_HANG := 0.80 # waist seam
+const PELVIS_HANG := 0.97 # floating hip shard
+const FOOT_Y := 0.07
+const FOOT_HALF_W := 0.13
+const CROUCH_SPREAD := 0.10
+const CROUCH_LEAN := deg_to_rad(40.0)
+const CROUCH_TORSO_SCALE := 0.85 # the crouched head (0.78 m) leaves less room than the torso is tall
+const SPRINT_LEAN := deg_to_rad(16.0)
+const WALK_LEAN := deg_to_rad(6.0)
+const DIVE_PITCH := deg_to_rad(-80.0) # feet swing back behind the body
+const WALL_ROLL := deg_to_rad(22.0) # top away from the wall, feet toward it
+const STRIDE_WALK := 0.22
+const STRIDE_SPRINT := 0.16 # extra on top of walking
+const LIFT_WALK := 0.10
+const LIFT_SPRINT := 0.08
 
 
-## Thigh + shin + foot per side, knees bending forward. Feet stay planted under the hips.
-static func _legs(body: Node3D, hip: Vector3) -> void:
-	var legs := body.get_node_or_null("Legs") as Node3D
-	if legs == null:
-		legs = _make_legs(body)
-		if legs == null:
-			return
+## Part transforms: torso, head, neck_seam, waist_seam, pelvis, feet (Array of 2 Transform3D).
+static func solve(p: Dictionary) -> Dictionary:
+	var k := clampf(float(p.get("crouch", 0.0)), 0.0, 1.0)
+	var head_y := float(p.get("head_y", 1.52))
+	var dive := clampf(float(p.get("dive", 0.0)), 0.0, 1.0)
+	var air := clampf(float(p.get("air", 0.0)), 0.0, 1.0) * (1.0 - dive)
+	var wall := clampf(float(p.get("wall", 0.0)), -1.0, 1.0)
+	var gait := 1.0 - maxf(air, dive)
+	var walk := clampf(float(p.get("walk", 0.0)), 0.0, 1.0) * gait
+	var sprint := clampf(float(p.get("sprint", 0.0)), 0.0, 1.0) * gait
+	var phase := float(p.get("phase", 0.0))
+	var bob := sin(float(p.get("bob", 0.0))) * 0.015 * (1.0 - walk)
+	var dir: Vector3 = p.get("dir", Vector3.FORWARD)
+	dir.y = 0.0
+	dir = dir.normalized() if dir.length_squared() > 1e-4 else Vector3.FORWARD
+
+	var neck := Vector3(0, head_y - NECK_DROP + bob, 0)
+	var lean := WALK_LEAN * walk + SPRINT_LEAN * sprint + CROUCH_LEAN * k + 0.10 * air
+	lean *= 1.0 - dive
+	var squash := lerpf(1.0, CROUCH_TORSO_SCALE, k * (1.0 - dive))
+	var torso_basis := Basis(Vector3.RIGHT, -lean) * Basis.from_scale(Vector3(1, squash, 1))
+	var up := torso_basis * Vector3.UP
+	# Whole-figure turn around the neck: dive pitch, wall-run roll.
+	var rig := Basis(Vector3.BACK, WALL_ROLL * wall) * Basis(Vector3.RIGHT, DIVE_PITCH * dive)
+
+	var out := {}
+	out["torso"] = Transform3D(rig * torso_basis, neck + rig * (-up * TORSO_HANG))
+	out["neck_seam"] = Transform3D(rig * torso_basis, neck + rig * (up * 0.02))
+	out["waist_seam"] = Transform3D(rig * torso_basis, neck + rig * (-up * WAIST_HANG))
+	out["pelvis"] = Transform3D(rig * torso_basis, neck + rig * (-up * PELVIS_HANG))
+	out["head"] = Transform3D(rig * Basis(Vector3.RIGHT, -lean * 0.3), neck + rig * Vector3(0, NECK_DROP, 0))
+
+	var feet: Array[Transform3D] = []
+	var stride := STRIDE_WALK * walk + STRIDE_SPRINT * sprint
+	var lift := LIFT_WALK * walk + LIFT_SPRINT * sprint
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
-		var h := Vector3(side * HIP_HALF_W, hip.y, hip.z)
-		var foot := Vector3(side * HIP_HALF_W, FOOT.y * 0.5 + 0.02, 0.0)
-		var knee := knee_point(h, foot)
-		_bone(legs.get_child(i * 3) as MeshInstance3D, h, knee)
-		_bone(legs.get_child(i * 3 + 1) as MeshInstance3D, knee, foot)
-		(legs.get_child(i * 3 + 2) as Node3D).position = foot + Vector3(0, 0, -0.04)
-
-
-## Knee for a hip→foot chain of THIGH + SHIN, pushed forward (-Z) by the bend.
-static func knee_point(hip: Vector3, foot: Vector3) -> Vector3:
-	var d := foot - hip
-	var dist := clampf(d.length(), 0.01, THIGH + SHIN - 0.001)
-	var dir := d.normalized()
-	var along := (dist * dist + THIGH * THIGH - SHIN * SHIN) / (2.0 * dist)
-	var out := sqrt(maxf(THIGH * THIGH - along * along, 0.0))
-	var bend := Vector3(0, 0, -1)
-	bend = (bend - dir * bend.dot(dir)).normalized()
-	return hip + dir * along + bend * out
-
-
-static func _make_legs(body: Node3D) -> Node3D:
-	if Game.is_dedicated:
-		return null
-	var torso := body.get_node_or_null("Torso") as MeshInstance3D
-	var mat: Material = torso.get_active_material(0) if torso else null
-	var legs := Node3D.new()
-	legs.name = "Legs"
-	body.add_child(legs)
-	var limb := BoxMesh.new()
-	limb.size = Vector3(LEG_T, LEG_T, 1.0)
-	var foot := BoxMesh.new()
-	foot.size = FOOT
-	var boot := StandardMaterial3D.new()
-	boot.albedo_color = Color(0.12, 0.12, 0.13)
-	for i in 2:
-		for part in [[limb, mat], [limb, mat], [foot, boot]]:
-			var m := MeshInstance3D.new()
-			m.mesh = part[0]
-			m.material_override = part[1]
-			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			legs.add_child(m)
-	return legs
-
-
-static func _bone(m: MeshInstance3D, a: Vector3, b: Vector3) -> void:
-	var v := b - a
-	if v.length_squared() < 1e-6:
-		return
-	var up := Vector3.FORWARD if absf(v.normalized().dot(Vector3.UP)) > 0.98 else Vector3.UP
-	m.transform = Transform3D(Basis.looking_at(v, up).scaled_local(Vector3(1, 1, v.length())), (a + b) * 0.5)
+		var a := phase + PI * i
+		var f := Vector3(side * (FOOT_HALF_W + CROUCH_SPREAD * k), FOOT_Y + bob * 0.5, 0)
+		f += dir * stride * sin(a)
+		f.y += lift * maxf(0.0, cos(a))
+		f.z += (-0.12 if i == 0 else 0.10) * k # crouch: one foot forward, one back
+		f += Vector3(0, 0.22 + 0.06 * i, -0.10 if i == 0 else 0.12) * air # jump: tuck, split
+		f.x += side * 0.08 * dive # dive: trail slightly apart
+		f = neck + rig * (f - neck)
+		var tilt := Basis(Vector3.RIGHT, -PI / 2) # foot mesh axis +Y → forward
+		var toe := Basis(Vector3.RIGHT, (0.5 * sin(a) * lift / maxf(LIFT_WALK, 0.01)))
+		feet.append(Transform3D(rig * toe * tilt, f))
+	out["feet"] = feet
+	return out
