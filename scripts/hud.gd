@@ -82,6 +82,9 @@ const _FEED_ICONS := KillFeed.ICONS # killcam and checks read it here
 const _POPUP_HOLD := 2.4 # streak popup under the clock: hold, then fade
 const _POPUP_FADE := 0.6
 const _POPUP_FRIENDLY := Color(1.0, 0.86, 0.4)
+const POPUP_TOP := 66.0 # streak/flag popup, px from the top (70 px tall)
+const CTF_STATUS_TOP := 78.0 # #160 CTF status block: a clear gap under the match clock
+const CTF_STATUS_H := 60.0 # three 14 px lines
 const _POPUP_HOSTILE := Color(1.0, 0.36, 0.3)
 const TRICK_COLOR := Color(1.0, 0.78, 0.22) # trickshot gold: popup, feed tag, killcam, style king
 const _TRICK_HOLD := 1.5
@@ -603,6 +606,8 @@ func show_popup(title: String, title_col: Color, by_name: String, team: int) -> 
 	if _popup == null:
 		return
 	_popup_title.text = title
+	_popup.offset_top = _popup_top()
+	_popup.offset_bottom = _popup.offset_top + 70.0
 	_popup_title.add_theme_color_override("font_color", title_col)
 	var col: Color = _name_color(by_name, team)
 	_popup_by.text = "[center][color=#d8dade]by[/color] [color=#%s]%s[/color][/center]" % [
@@ -682,8 +687,8 @@ func _build_popup() -> void:
 	_popup.anchor_right = 0.5
 	_popup.offset_left = -220.0
 	_popup.offset_right = 220.0
-	_popup.offset_top = 66.0
-	_popup.offset_bottom = 136.0
+	_popup.offset_top = POPUP_TOP
+	_popup.offset_bottom = POPUP_TOP + 70.0
 	_popup.add_theme_constant_override("separation", 0)
 	_popup.visible = false
 	add_child(_popup)
@@ -1300,6 +1305,7 @@ func _refresh_standing() -> void:
 	_standing.visible = (Game.is_ffa() or Game.is_ctf()) and _local_peer_id != 0
 	if not _standing.visible:
 		return
+	_place_standing()
 	if Game.is_ctf(): # #160: captures and both flags instead of the FFA place
 		_standing.text = CtfStatus.line(Game, _local_peer_id)
 		_standing.add_theme_color_override("font_color", Color(0.92, 0.93, 0.95))
@@ -1324,6 +1330,20 @@ func _refresh_standing() -> void:
 	_standing.add_theme_color_override(
 		"font_color", Player.SELF_COLOR if place == 1 and mine > 0 else Color(0.92, 0.93, 0.95)
 	)
+
+
+## FFA: one line right under the clock. CTF: three lines with a clear gap below the clock; the
+## streak/flag popup then moves under them (see _popup_top), so the two never overlap.
+func _place_standing() -> void:
+	var ctf := Game.is_ctf()
+	_standing.offset_top = CTF_STATUS_TOP if ctf else 46.0
+	_standing.offset_bottom = _standing.offset_top + (CTF_STATUS_H if ctf else 22.0)
+	_standing.add_theme_font_size_override("font_size", 14 if ctf else 16)
+
+
+## Top of the streak/flag popup: under the CTF status block in CTF, the usual spot otherwise.
+static func _popup_top() -> float:
+	return CTF_STATUS_TOP + CTF_STATUS_H + 8.0 if Game.is_ctf() else POPUP_TOP
 
 
 static func _ordinal(n: int) -> String:
