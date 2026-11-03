@@ -568,7 +568,7 @@ func _apply_view_for_def() -> void:
 	var model: Node3D = _view_models[def.id]
 	model.visible = true
 	var fit := fit_model(model, def.id, _rest_pos)
-	position = fit.root
+	position = fit.root + third_person_pull()
 	muzzle.position = fit.muzzle
 	_view_rest = position
 	_ads_drop = -float(fit.sight_y) - ADS_SIGHT_GAP if fit.has("sight_y") else -0.092
@@ -833,6 +833,21 @@ func refill() -> void:
 	_reload_left = 0.0
 	rotation.x = 0.0
 	_refresh_hud()
+
+
+## #164 B1: other people's guns sit lower and closer to the chest, so the floating crystal hands hug
+## the torso instead of hanging out at eye height. The own viewmodel keeps its place. Visual only.
+const THIRD_PERSON_PULL := Vector3(-0.06, -0.12, 0.14)
+
+
+func third_person_pull() -> Vector3:
+	return Vector3.ZERO if _is_local() else THIRD_PERSON_PULL
+
+
+## Re-place the model (after the pawn learns whether it is local).
+func refit_view() -> void:
+	if def != null and muzzle != null:
+		_apply_view_for_def()
 
 
 func _is_local() -> bool:
