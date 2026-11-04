@@ -151,12 +151,21 @@ func _on_peer_authentication_failed(id: int) -> void:
 	print("NET: authentication failed for peer %d" % id)
 	if multiplayer.is_server():
 		return
-	var why := "Could not join: no version reply from the server (older build?)."
-	if _version_mismatch != "":
-		why = "Version mismatch: server %s, you %s." % [_version_mismatch, Game.NET_VERSION]
+	var why := "Kon niet joinen: geen versie-antwoord van de server (oudere build?)."
+	var server_v := _version_mismatch
+	if server_v != "":
+		why = VersionNotice.message(Game.NET_VERSION, server_v).get_slice("\n", 0)
 	_version_mismatch = ""
 	# Deferred: swapping multiplayer_peer inside a SceneMultiplayer signal crashes the engine.
 	call_deferred("_drop_to_menu", why)
+	if server_v != "":
+		call_deferred("_show_version_dialog", server_v)
+
+
+## Menu pop-up for a refused join (both versions, a download button when we are the older one).
+func _show_version_dialog(server_v: String) -> void:
+	if menu:
+		VersionNotice.show(menu, Game.NET_VERSION, server_v)
 
 
 func _drop_to_menu(status: String) -> void:
