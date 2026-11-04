@@ -1,6 +1,9 @@
 extends Node
-## Solo FFA on Quay with 12 bots for ~90 s: do bots rotate guns, throw frags, and use UAV / RC-XD?
+## Solo FFA on Quay with 12 bots: do bots rotate guns, throw frags, and use UAV / RC-XD?
 ## Also checks the tension music state machine.
+## Deterministic (#124): a fixed seed, and one bot is handed both streak charges through the normal
+## charge state (re-handed while unused, a death can drop them) instead of waiting for a lucky
+## 3/5-kill streak. Stops as soon as everything was seen; MAX_TIME bounds the run.
 ##   godot --headless res://tools/check_bot_kit.tscn
 
 var _deaths := {}
@@ -10,8 +13,12 @@ var _rc := 0
 var _radar := 0
 var _seen_nades := {}
 var _seen_rc := {}
+const SEED := 124
+const MAX_TIME := 90.0 # s of match time at most
+const GRANT_EVERY := 3.0 # s between re-handing unused streak charges
 
 func _ready() -> void:
+	seed(SEED)
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	add_child(main)
 	await get_tree().create_timer(1.0).timeout
@@ -31,8 +38,16 @@ func _ready() -> void:
 	)
 	var tension_start := false
 	var tension_final := false
-	for t in 900:
+	var grant_t := 0.0
+	for t in int(MAX_TIME * 10.0):
 		await get_tree().create_timer(0.1).timeout
+		grant_t -= 0.1
+		if grant_t <= 0.0 and (used[0] == 0 or used[1] == 0):
+			grant_t = GRANT_EVERY
+			_grant_streaks(used)
+		if t > 300 and _guns.size() == Weapon.LOADOUT.size() and _nades > 0 and used[0] > 0 and used[1] > 0 and tension_start:
+			print("everything seen after %.1f s" % (t * 0.1))
+			break
 		for n in get_tree().get_nodes_in_group("player"):
 			var p := n as Player
 			if p and p.is_bot and p.weapon and p.weapon.def:
@@ -68,4 +83,20 @@ func _ready() -> void:
 	print("deaths by weapon: ", _deaths)
 	print("tension start cue played: ", tension_start, "  final cue played: ", tension_final,
 		"  leader kills=", Game.leader_kills(), "/", Game.win_kills(), " time left=", Game.get_round_time_left())
-	get_tree().quit()
+	get_tree().quit(0 if ok else 1)
+
+
+## Hand the first live bot whichever streak it has not used yet (Streaks' own charge bits).
+func _grant_streaks(used: Dictionary) -> void:
+	for n in get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p == null or not p.is_bot or p.is_dead:
+			continue
+		var bits := int(Game.streak_charges.get(p.peer_id, 0))
+		if used[0] == 0:
+			bits |= Game.CHARGE_RADAR
+		if used[1] == 0:
+			bits |= Game.CHARGE_RCXD
+		Game.streak_charges[p.peer_id] = bits
+		Streaks.push_streak(Game, p.peer_id)
+		return
