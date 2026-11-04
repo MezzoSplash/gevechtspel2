@@ -25,7 +25,7 @@ func _ready() -> void:
 	var b := UavDrone.path_transform(Vector3.ZERO, 30.0, 40.0, 0.0, 0.1)
 	_ok(absf(Vector2(a.origin.x, a.origin.z).length() - 30.0) < 0.01 and is_equal_approx(a.origin.y, 40.0), "on the circle")
 	_ok(a.origin.distance_to(b.origin) < 1.5 and (-a.basis.z).dot((b.origin - a.origin).normalized()) > 0.95, "smooth, nose along the path")
-	_ok(absf(a.basis.x.y) > 0.2, "banked into the turn")
+	_ok(a.basis.x.y < -0.2 and a.basis.x.dot(-a.origin) > 0.0, "banked into the turn (inner wing down)")
 
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	get_tree().root.add_child.call_deferred(main)
