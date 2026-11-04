@@ -101,6 +101,22 @@ static func grant_radar(g: GameState, peer_id: int) -> void:
 	if g.is_networked():
 		g.sync_radar.rpc(team, by, g.RADAR_TIME, peer_id)
 	apply_radar(g, team, by, g.RADAR_TIME, peer_id)
+	if g._is_match_authority():
+		UavDrone.launch(g, peer_id, team, g.RADAR_TIME) # the radar lives as long as the drone
+
+
+## Every machine: a UAV of `team` (FFA: of `peer`) was shot down. Its radar ends now; another live
+## friendly UAV keeps the radar for its own remaining time.
+static func uav_down(g: GameState, team: int, peer: int) -> void:
+	var mine := g.local_team()
+	if mine < 0:
+		return
+	var friendly := (peer == g.multiplayer.get_unique_id()) if g.is_ffa() else team == mine
+	if friendly and g.radar_left > 0.0:
+		g.radar_left = UavDrone.team_remaining(team, peer, g.is_ffa())
+		if g.radar_left <= 0.0:
+			g.radar_team = -1
+			g.radar_peer = 0
 
 
 ## Every machine: friendly UAV starts the minimap radar, an enemy one only shows the warning.
@@ -129,6 +145,7 @@ static func clear_radar(g: GameState) -> void:
 	if hud:
 		hud.clear_radar()
 	RcXd.abort_all()
+	UavDrone.clear_all()
 
 
 ## New round drops this life's kill count and any charge still held.

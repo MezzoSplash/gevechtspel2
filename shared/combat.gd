@@ -248,6 +248,10 @@ static func apply_shot_hit(game: GameState, shooter: Player, hit: Dictionary, da
 	if rc:
 		rc.damage(damage)
 		return {"killed": false, "headshot": false, "hit": true}
+	var uav := collider as UavDrone
+	if uav and uav.hittable_by(shooter.team_id, killer_id):
+		uav.damage(damage, killer_id, shooter.team_id, def.id)
+		return {"killed": false, "headshot": false, "hit": true}
 	return {}
 
 
