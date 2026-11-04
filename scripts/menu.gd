@@ -907,6 +907,6 @@ func _on_server_info(address: String, info: Dictionary, ping_ms: int, lan: bool)
 		str(info.get("map", "?")), str(info.get("mode", "")), ping_ms
 	]
 	if not same:
-		status.text = "%s · Other version v%s" % [status.text, str(info.get("v", "?"))]
+		status.text = "%s · %s" % [status.text, VersionNotice.row_text(Game.NET_VERSION, str(info.get("v", "?")))]
 	status.tooltip_text = "%d bots" % int(info.get("bots", 0))
 	status.add_theme_color_override("font_color", _STATUS_OK if same else _STATUS_WARN)
