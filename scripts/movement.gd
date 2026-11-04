@@ -6,7 +6,7 @@ extends RefCounted
 
 ## Sprint, or already faster than a walk, plus crouch. Plain crouch stays the slow stance.
 static func try_start_slide(p: Player, on_floor: bool, locked: bool) -> void:
-	if p._sliding or locked or p.is_dead or not on_floor:
+	if p._sliding or locked or p.is_dead or not on_floor or p._slide_cd > 0.0:
 		return
 	if not Input.is_action_just_pressed("crouch"):
 		return
@@ -40,6 +40,7 @@ static func finish_slide(p: Player) -> void:
 			break
 	if p._slide_t >= Player.SLIDE_MIN and (release or slow or wall or not p.is_on_floor()):
 		p._sliding = false
+		p._slide_cd = Player.SLIDE_COOLDOWN
 
 
 ## Quake-style stop: no Godot default air float.
@@ -287,7 +288,34 @@ static func wall_jump(p: Player) -> void:
 
 
 ## In the air: crouch pressed while holding sprint and moving. On the ground the slide jump does it.
+## Gravity multiplier this frame: light hang time near the jump apex.
+static func gravity_scale(p: Player) -> float:
+	if p._wallrunning or absf(p.velocity.y) >= Player.APEX_SPEED:
+		return 1.0
+	return Player.APEX_GRAVITY_SCALE
+
+
+## Cooldowns and the smooth fade of the dive boost (horizontal speed only, direction kept).
+static func tick_boosts(p: Player, delta: float) -> void:
+	p._slide_cd = maxf(p._slide_cd - delta, 0.0)
+	p._dive_cd = maxf(p._dive_cd - delta, 0.0)
+	if p._dive_fade_left <= 0.0:
+		return
+	var take := p._dive_fade_left * (1.0 - exp(-delta / Player.DIVE_BOOST_FADE_TIME))
+	if p._dive_fade_left < 0.02:
+		take = p._dive_fade_left
+	p._dive_fade_left -= take
+	var h := Vector2(p.velocity.x, p.velocity.z)
+	var sp := h.length()
+	if sp > Player.SPRINT_SPEED: # never fade below sprint speed
+		var k := maxf(sp - take, Player.SPRINT_SPEED) / sp
+		p.velocity.x *= k
+		p.velocity.z *= k
+
+
 static func try_air_dive(p: Player, on_floor: bool, locked: bool) -> void:
+	if p._dive_cd > 0.0:
+		return
 	if on_floor or locked or p.is_dead or p.is_bot or p._diving or p._dive_used or p._wallrunning or p._surf_t > 0.0:
 		return
 	if not Input.is_action_just_pressed("crouch") or not Input.is_action_pressed("sprint"):
@@ -304,8 +332,10 @@ static func start_dive(p: Player, from_ground: bool) -> void:
 		dir = -p.transform.basis.z
 	dir = dir.normalized()
 	var speed := minf(maxf(Vector2(p.velocity.x, p.velocity.z).length(), Player.SPRINT_SPEED) + Player.DIVE_BOOST, Player.DIVE_MAX)
+	var base := Vector2(p.velocity.x, p.velocity.z).length()
 	p.velocity.x = dir.x * speed
 	p.velocity.z = dir.z * speed
+	p._dive_fade_left = maxf(speed - base, 0.0) * Player.DIVE_BOOST_FADE
 	p.velocity.y = Player.DIVE_UP_GROUND if from_ground else maxf(p.velocity.y, Player.DIVE_UP_AIR)
 	p._diving = true
 	p._dive_used = true
@@ -327,6 +357,7 @@ static func tick_dive_roll(p: Player, delta: float) -> void:
 		if p._diving:
 			p._diving = false
 			p._roll_t = Player.ROLL_TIME
+			p._dive_cd = Player.DIVE_COOLDOWN
 			if p.land_sfx:
 				p.land_sfx.play()
 			if p.camera:
