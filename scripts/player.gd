@@ -18,12 +18,12 @@ const JUMP_SPEED := 7.6
 # In the air the wish speed is capped at AIR_WISH_CAP, so holding W adds almost nothing, but strafing
 # (A/D) while turning the mouse the same way keeps bending the velocity and adds a little speed.
 const AIR_ACCEL := 12.0 # sv_airaccelerate: how fast the capped wish speed is reached
-const AIR_WISH_CAP := 1.1 # m/s (Source's 30 u/s, at our 1.6x movement scale)
+const AIR_WISH_CAP := 1.25 # floaty pass: was 1.1; m/s (Source's 30 u/s, at our 1.6x movement scale)
 const AIR_MAX_SPEED := 13.5 # strafing cannot push horizontal speed past this (sprint is 11.4)
 # #152: light mid-air steering. Holding a direction turns the horizontal velocity toward it, at most
 # AIR_STEER_RATE rad/s, without adding speed (not a jetpack). Beyond AIR_STEER_MAX_ANGLE (e.g. holding S)
 # nothing happens, so you cannot flip around mid-air. 0.0 turns it off.
-const AIR_STEER_RATE := 1.2 # rad/s at full input (~70 deg/s)
+const AIR_STEER_RATE := 1.4 # rad/s at full input (~80 deg/s; floaty pass: was 1.2)
 const AIR_STEER_MAX_ANGLE := deg_to_rad(100.0)
 const BOT_AIR_ACCEL := 3.5 # bots never strafe-jump; they keep the old direct air control
 const JUMP_BUFFER := 0.1 # seconds a jump press is kept, so a hop on landing is not eaten
@@ -158,7 +158,20 @@ const WALLRUN_TILT := 0.16 # rad camera roll away from the wall
 # --- Dive + roll (#81) ---
 # Jump out of a slide (sprint + crouch, then jump) or press crouch in the air while holding sprint:
 # a low forward dive. Landing from it rolls you forward without losing speed, then carry keeps it.
-const DIVE_BOOST := 2.5
+## Extra horizontal speed a dive adds (m/s). Floaty pass: was 2.5, an instant permanent bump.
+const DIVE_BOOST := 1.9
+## Part of DIVE_BOOST that fades out again after the dive start (0 keeps it all, 1 fades it all).
+const DIVE_BOOST_FADE := 0.5
+## Time constant (s) of that fade: smooth decay instead of a hard cut.
+const DIVE_BOOST_FADE_TIME := 0.35
+## After landing a dive, this long (s) before the next one: no slide-jump-dive spam.
+const DIVE_COOLDOWN := 0.6
+## After a slide ends, this long (s) before a new slide can start.
+const SLIDE_COOLDOWN := 0.3
+## Hang time: gravity is scaled by APEX_GRAVITY_SCALE while |vel.y| is under APEX_SPEED (m/s) in
+## the air, so jumps float a little at the top. Not on wall runs (they set their own sink).
+const APEX_SPEED := 2.2
+const APEX_GRAVITY_SCALE := 0.6
 const DIVE_MAX := 15.0 # horizontal cap at the dive start (AIR_MAX_SPEED is 13.5, CARRY_MAX 18)
 const DIVE_UP_GROUND := 4.8
 const DIVE_UP_AIR := 2.0
@@ -182,6 +195,9 @@ var _wall_off_t := 10.0 # s since the last wallrun frame (coyote wall jump)
 var _wallruns_air := 0
 var _diving := false
 var _dive_used := false # one dive per air time
+var _dive_cd := 0.0 # DIVE_COOLDOWN left
+var _slide_cd := 0.0 # SLIDE_COOLDOWN left
+var _dive_fade_left := 0.0 # m/s of the dive boost still to fade out
 var _roll_t := 0.0
 var _roll_dir := Vector3.FORWARD
 var _carry_t := 0.0 # seconds of surf-speed retention left (local sim only)
@@ -807,12 +823,12 @@ func _physics_process(delta: float) -> void:
 		_jump_buffer = JUMP_BUFFER
 	var jumped := false
 	if not on_floor:
-		velocity.y += float(get_gravity().y) * delta
+		velocity.y += float(get_gravity().y) * delta * Movement.gravity_scale(self)
 		_sliding = false
 		if (_wallrunning or _wall_off_t <= WALLRUN_COYOTE) and (not is_dead) and (not chatting) and _jump_buffer > 0.0:
 			_wall_jump()
 			_jump_buffer = 0.0
-	elif (not is_dead) and (not chatting) and _jump_buffer > 0.0 and _sliding:
+	elif (not is_dead) and (not chatting) and _jump_buffer > 0.0 and _sliding and _dive_cd <= 0.0:
 		_sliding = false
 		_start_dive(true) # sprint + crouch (slide), then jump: dive
 		jumped = true
@@ -907,6 +923,7 @@ func _physics_process(delta: float) -> void:
 	_boost_through_strips()
 	_apply_carry_fov()
 	_finish_slide()
+	Movement.tick_boosts(self, delta)
 	_tick_wallrun(delta, input_vec, chatting)
 	_tick_dive_roll(delta)
 	_tick_move_fx(delta)
@@ -1414,6 +1431,9 @@ func _reset_style_track() -> void:
 	_wallruns_air = 0
 	_diving = false
 	_dive_used = false
+	_dive_cd = 0.0
+	_slide_cd = 0.0
+	_dive_fade_left = 0.0
 	_roll_t = 0.0
 	move_fx = MOVE_NONE
 	_wallrun_seen_t = -100.0
