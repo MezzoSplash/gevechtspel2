@@ -4,13 +4,14 @@ extends RefCounted
 ##
 ## The server keeps ~1 s of player transforms (one sample per physics tick). When a client's shot
 ## arrives, each ray is tested against the targets where that client saw them (offsets_for +
-## intersect_ray); the bodies themselves never move. The rewind is clamped (MAX_REWIND_MS + INTERP_MS) so a laggy or lying client
-## cannot reach far into the past. Static helpers on the Game autoload; the RPC stays in game.gd.
+## intersect_ray); the bodies themselves never move. The rewind is clamped so a lying client cannot
+## reach further back than that peer's measured round trip (#140). Static helpers on the Game autoload; the RPC stays in game.gd.
 
 ## How much history to keep per player.
 const HISTORY_MS := 1000
 ## Hard cap on how far back a shot may rewind, plus the snapshot interpolation allowance.
-const MAX_REWIND_MS := 200
+## 300 ms covers a real ~250 ms RTT. History is already ~1 s (#140).
+const MAX_REWIND_MS := 300
 const INTERP_MS := 50
 
 
@@ -51,9 +52,15 @@ static func note_server_time(game: GameState, server_ms: int) -> void:
 
 ## How many ms to rewind for a shot the client stamped with `view_ms` (its estimate of the server
 ## time it was looking at). 0 = no stamp: fall back to the peer's measured round trip.
+## A stamp older than that round trip is ignored past the trip plus interpolation, so claiming
+## an ancient view_ms does not rewind further than the peer's real lag. No sample yet: the absolute cap.
 static func rewind_ms_for(game: GameState, peer: int, view_ms: int) -> int:
 	var back := now_ms() - view_ms if view_ms > 0 else int(game.pings.get(peer, 0))
-	return clampi(back, 0, MAX_REWIND_MS + INTERP_MS)
+	var cap := MAX_REWIND_MS + INTERP_MS
+	var rtt := int(game.pings.get(peer, 0))
+	if rtt > 0:
+		cap = mini(cap, rtt + INTERP_MS)
+	return clampi(back, 0, cap)
 
 
 ## Transform `p` had `back_ms` ago, interpolated between samples. Null when there is no usable sample.

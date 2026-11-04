@@ -1,10 +1,11 @@
 extends SceneTree
-## Headless checks for Quay. Run after `python3 tools/gen_quay.py` (it writes /tmp/quay_probe.json):
+## Headless checks for Quay. `tools/gen_quay.py` writes tools/quay_probe.json (and /tmp/quay_probe.json):
 ##   godot --headless --path . -s res://tools/check_quay.gd
 ## Prints PROBE/WALK/NAV/SYM/HEAD lines and a final "QUAY CHECK OK" or "QUAY CHECK FAILED".
 
 var MAP := "res://scenes/maps/quay.tscn"
-const PROBE_JSON := "/tmp/quay_probe.json"
+const PROBE_JSON := "res://tools/quay_probe.json"
+const PROBE_FALLBACK := "/tmp/quay_probe.json"
 
 var fails := 0
 var space: PhysicsDirectSpaceState3D
@@ -21,6 +22,8 @@ func _fail(msg: String) -> void:
 
 
 func _run() -> void:
+	# Walks and surfs await physics frames. Same 1/60 s step, just more of them per second (#109).
+	Engine.time_scale = 12.0
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("map="):
 			MAP = a.substr(4)
@@ -37,6 +40,7 @@ func _run() -> void:
 	_symmetry()
 	_headroom()
 	print("QUAY CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
+	Engine.time_scale = 1.0
 	quit(0 if fails == 0 else 1)
 
 
@@ -67,7 +71,8 @@ func _classify(hit: Dictionary) -> String:
 
 
 func _probes() -> void:
-	var f := FileAccess.open(PROBE_JSON, FileAccess.READ)
+	var path := PROBE_JSON if FileAccess.file_exists(PROBE_JSON) else PROBE_FALLBACK
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
 		_fail("no %s (run tools/gen_quay.py first)" % PROBE_JSON)
 		return

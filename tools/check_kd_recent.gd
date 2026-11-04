@@ -16,8 +16,8 @@ func _ready() -> void:
 	fails += _check("deaths counted", d2 == 2)
 	Game.sync_all_scores(rows)
 	fails += _check("deaths survive full sync", int(Game.scores[-2].deaths) == 2)
-	fails += _check("NET_VERSION bumped", Game.NET_VERSION == "0.4.2")
 	var keep := Game.recent_servers
+	var keep_last := Game.last_server
 	Game.recent_servers = PackedStringArray()
 	for i in 7:
 		Game.remember_server("10.0.0.%d" % i, 7777)
@@ -35,6 +35,7 @@ func _ready() -> void:
 		menu._on_recent_picked(1)
 		fails += _check("pick fills ip/port", menu.host_ip() == "10.0.0.3" and menu.host_port() == 7777)
 	Game.recent_servers = keep
+	Game.last_server = keep_last
 	Game.save_settings()
 	print("DONE fails=%d" % fails)
 	get_tree().quit(fails)

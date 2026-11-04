@@ -26,6 +26,10 @@ var _drive: Callable
 
 
 func _ready() -> void:
+	# Real-time physics made 360 walks sit silent for minutes (#103). The step stays 1/60 s;
+	# time_scale only runs more of those steps per wall-clock second.
+	Engine.time_scale = 12.0
+	print("SKYLINE WALK start")
 	var map := (load("res://scenes/maps/skyline.tscn") as PackedScene).instantiate() as Node3D
 	add_child(map)
 	Game.is_offline = true
@@ -33,6 +37,7 @@ func _ready() -> void:
 		await get_tree().physics_frame
 	var runs := 0
 	for r in RAMPS:
+		print("skyline ramp %s" % r[0])
 		for half in [1.0, -1.0]:
 			for lane in [-1, 0, 1]:
 				for up in [true, false]:
@@ -45,6 +50,7 @@ func _ready() -> void:
 							print("  FAIL ", tag)
 	print("runs %d, failures %d" % [runs, fails.size()])
 	print("SKYLINE WALK CHECK: %s" % ("PASS" if fails.is_empty() else "FAIL"))
+	Engine.time_scale = 1.0
 	get_tree().quit(1 if fails.size() else 0)
 
 

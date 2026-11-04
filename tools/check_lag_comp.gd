@@ -48,8 +48,17 @@ func _ready() -> void:
 	var origin := me.global_position + Vector3(0, 1.0, 0)
 	var dir := (aim_at - origin).normalized()
 	var def := me.weapon.def
+	# Peer 2 has no ping sample here: an ancient stamp stops at the absolute cap.
 	if LagComp.rewind_ms_for(Game, 2, 1) != LagComp.MAX_REWIND_MS + LagComp.INTERP_MS:
 		_done(false, "clamp")
+		return
+	Game.pings[2] = 80
+	var rtt_cap := LagComp.rewind_ms_for(Game, 2, 1)
+	Game.pings[2] = 900
+	var abs_cap := LagComp.rewind_ms_for(Game, 2, 1)
+	Game.pings.erase(2)
+	if rtt_cap != 80 + LagComp.INTERP_MS or abs_cap != LagComp.MAX_REWIND_MS + LagComp.INTERP_MS:
+		_done(false, "rtt cap %d / %d" % [rtt_cap, abs_cap])
 		return
 	var miss := _shoot(me, origin, dir, def, 0)
 	var hit := _shoot(me, origin, dir, def, BACK_MS)

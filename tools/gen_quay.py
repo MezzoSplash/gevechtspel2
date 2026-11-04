@@ -1780,9 +1780,13 @@ def main():
     text = "\n".join(out).rstrip("\n") + "\n"
     with open(OUT, "w") as f:
         f.write(text)
-    probe_path = "/tmp/quay_probe.json"
-    with open(probe_path, "w") as f:
-        json.dump(probe, f)
+    probe_paths = [
+        "/tmp/quay_probe.json",
+        os.path.join(os.path.dirname(__file__), "quay_probe.json"),
+    ]
+    for probe_path in probe_paths:
+        with open(probe_path, "w") as f:
+            json.dump(probe, f)
     print("wrote %s (%d csg nodes, %d probe rays, %d strips)" % (
         os.path.normpath(OUT), len(nodes), len(probe), len(strips)))
     for s in strips:
