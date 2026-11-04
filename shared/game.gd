@@ -107,7 +107,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.5.2" # playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.5.3-dev" # physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -1191,6 +1191,42 @@ func _apply_rc_announce(team: int, by_name: String, by_peer: int) -> void:
 
 func _grant_radar(peer_id: int) -> void:
 	Streaks.grant_radar(self, peer_id)
+
+
+@rpc("authority", "reliable")
+func sync_uav_spawn(id: int, team: int, peer: int, c: Vector3, r: float, h: float, phase: float, seconds: float) -> void:
+	if multiplayer.is_server():
+		return
+	UavDrone.spawn(self, id, team, peer, c, r, h, phase, clampf(seconds, 0.0, RADAR_TIME), false)
+
+
+## Authority: drone `d` reached 0 HP from `shooter_peer`. Kill feed, notice, early radar end everywhere.
+func uav_shot_down(d: UavDrone, shooter_peer: int, shooter_team: int, weapon_id: StringName) -> void:
+	var shooter := _display_name_for(shooter_peer)
+	if scores.has(shooter_peer):
+		shooter = str(scores[shooter_peer].name)
+	_emit_kill_feed(shooter, "UAV", weapon_id, shooter_team, d.team, "")
+	if is_networked():
+		sync_kill_feed.rpc(shooter, "UAV", String(weapon_id), shooter_team, d.team, "")
+		sync_uav_end.rpc(d.net_id, d.team, d.owner_peer, shooter_peer)
+	_uav_end(d.net_id, d.team, d.owner_peer, shooter_peer)
+
+
+@rpc("authority", "reliable")
+func sync_uav_end(id: int, team: int, owner_peer: int, shooter_peer: int) -> void:
+	if multiplayer.is_server():
+		return
+	_uav_end(id, team, owner_peer, shooter_peer)
+
+
+func _uav_end(id: int, team: int, owner_peer: int, shooter_peer: int) -> void:
+	var d := UavDrone.by_id(id)
+	if d:
+		d.shoot_down()
+	Streaks.uav_down(self, team, owner_peer)
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	if hud and shooter_peer == multiplayer.get_unique_id():
+		hud.show_notice("UAV neergeschoten", 2.5)
 
 
 @rpc("authority", "reliable")

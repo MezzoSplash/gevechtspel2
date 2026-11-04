@@ -23,6 +23,7 @@ Status: **OK** = own work or CC0/MIT, fine for commercial use · **ATTR** = fine
 | Viewmodel `sniper.glb` (+ textures) | 1 + textures | sqorchtech (repo contributor), Paint 3D | not stated | **VERIFY** (written grant from sqorchtech) |
 | SMG viewmodel, fire anim, muzzle VFX (`assets/weapons/smg/`) | 13 | sqorchtech (repo contributor), Blender | not stated | **VERIFY** (written grant) |
 | RC-XD mesh (`assets/gadgets/RCExplody.glb` + palette) | 2 | sqorchtech | not stated | **VERIFY** (written grant) |
+| UAV mesh (`assets/gadgets/UAV.glb` + palette) | 2 | sqorchtech | not stated | **VERIFY** (written grant) |
 | Low-poly revolver, knife, LMG, slug (`*.tscn`) | 4 | `tools/build_lowpoly_weapons.py` | own | OK |
 | Kill-feed icons (`assets/ui/icon_*.svg`), `icon.svg` | 14 | Drawn for this project | own | OK |
 | Shaders (`shaders/*.gdshader`) | 2 | Written for this project | own | OK |
