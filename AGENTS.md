@@ -49,7 +49,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 - v0.5.2 (released): B1 crystal bodies and poses, crouch pose, CTF HUD fix, Gun Game, CTF, balance pass, and the stance (crouch + `move_fx`) of bots synced to clients.
 - #170: floaty movement. `DIVE_BOOST` 2.5 → 1.9 (half fades out), dive/slide cooldowns 0.6/0.3 s, `APEX_GRAVITY_SCALE` 0.6 below 2.2 m/s, `AIR_WISH_CAP` 1.25, `AIR_STEER_RATE` 1.4.
-- #171/#172: the UAV is a drone that circles the map and can be shot down (`scripts/uav_drone.gd`). `NET_VERSION` is 0.5.3-dev (not released yet).
+- #171/#172: the UAV is a drone that circles the map and can be shot down (`scripts/uav_drone.gd`). Released in v0.5.3 (`NET_VERSION` 0.5.3).
 - #173: `check_bot_kit` is deterministic (seeded, streaks handed out).
 
 ## Commands
