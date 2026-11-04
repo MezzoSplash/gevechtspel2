@@ -27,6 +27,9 @@ const WINGSPAN := 3.2
 const HIT_RADIUS := 1.7
 ## Shot-down fall before the explosion (s).
 const FALL_TIME := 1.6
+## Yaw of the model inside the drone node: UAV.glb is authored nose along +Z, the node flies along -Z.
+## Only the model turns, so the path and its bank (inner wing down, into the turn) stay as they were.
+const MODEL_YAW_OFFSET := PI
 const MODEL := preload("res://assets/gadgets/UAV.glb")
 
 static var _next_id := 1
@@ -117,7 +120,7 @@ static func path_transform(c: Vector3, r: float, h: float, phase: float, t: floa
 	var pos := c + Vector3(cos(a) * r, h, sin(a) * r)
 	var fwd := Vector3(-sin(a), 0.0, cos(a)) # d(pos)/da: counter-clockwise seen from above
 	var b := Basis.looking_at(fwd, Vector3.UP)
-	b = b * Basis(Vector3.FORWARD, -BANK) # roll toward the centre (left wing down)
+	b = b * Basis(Vector3.FORWARD, BANK) # roll toward the centre: the right wing (+X, inner side) goes down
 	return Transform3D(b, pos)
 
 
@@ -180,6 +183,8 @@ func _build_visual(col: Color) -> void:
 	if span > 0.01:
 		model.scale = Vector3.ONE * (WINGSPAN / span)
 		model.position = -box.get_center() * model.scale
+	model.rotation.y = MODEL_YAW_OFFSET
+	model.position = Basis(Vector3.UP, MODEL_YAW_OFFSET) * model.position
 	Weapon.no_shadows(model)
 	_light = OmniLight3D.new()
 	_light.light_color = col
