@@ -2,7 +2,7 @@
 
 Feel-first arena FPS built around style and movement: surf, wallrun, dive, slide, and land Tony Hawk style combos and trickshots. If a change does not make shooting, moving or pulling off tricks more satisfying, it is out of scope. When making maps, props or weapons, follow [docs/art/index.html](docs/art/index.html).
 
-Current game: 4 modes (TDM, FFA, Style TDM, Style FFA), 5 maps (Townhouses, Foundry, Rooftops, Quay, Skyline; see `scripts/maps.gd`), 8 guns plus frag, knife and melee, bots up to 16, UAV and RC-XD scorestreaks, final best-trick killcam.
+Current game: 6 modes (TDM, FFA, Style TDM, Style FFA, Gun Game, CTF on Quay), 5 maps (Townhouses, Foundry, Rooftops, Quay, Skyline; see `scripts/maps.gd`), 8 guns plus frag, knife and melee, bots up to 16, UAV (a physical drone you can shoot down) and RC-XD scorestreaks, MVP killcam, B1 crystal bodies.
 
 ## Stack
 
@@ -17,11 +17,18 @@ Current game: 4 modes (TDM, FFA, Style TDM, Style FFA), 5 maps (Townhouses, Foun
 - Bots are server pawns using the same simulation as players. They are not client puppets.
 - Hitscan first. No projectiles until the three guns feel good.
 
+## Direction
+
+- Hectic and chaotic. Avoid anything that makes players stand still or camp.
+- Movement feels very fluid and slightly floaty (light apex hang time, generous air control), but stays responsive.
+- No-scoping stays viable. Do not nerf it.
+- Characters are B1: abstract, non-gendered crystal bodies with floating hands and feet (`scripts/crystal_*.gd`, poses in `scripts/body_pose.gd`). Every new move needs a pose; wall run, crouch and dive must keep working.
+
 ## Feel rules
 
 - TTK target ~0.4–0.8s on body. Headshots matter.
 - Every shot: muzzle flash, camera kick, tracer, audio. Confirmed hit: hit marker + tick. Kill: red marker + hitstop + distinct sound.
-- Movement is snappy (quake-style accel/friction). Do not leave Godot's floaty default character.
+- Ground movement is quake-style accel/friction, not Godot's default character. Air feel is tuned in `scripts/player.gd` (`APEX_*`, `AIR_*`, `DIVE_*`).
 - Mouse look is raw. No input smoothing.
 
 ## Scope
@@ -35,8 +42,15 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Checks
 
-- `tools/run_checks.sh` imports the project and runs every headless `tools/check_*`; CI runs it on every push and PR. It must exit 0 before a merge. Known-failing and skipped checks are listed at the top of the script.
+- `tools/run_checks.sh` imports the project and runs every headless `tools/check_*`; CI runs it on every push and PR. It must exit 0 before a merge, and only merge when the PR's own CI is green: no overrides or auto-merge on red. Known-failing and skipped checks are listed at the top of the script.
 - Add a `tools/check_*.tscn` for new behaviour.
+
+## Recent work
+
+- v0.5.2 (released): B1 crystal bodies and poses, crouch pose, CTF HUD fix, Gun Game, CTF, balance pass, and the stance (crouch + `move_fx`) of bots synced to clients.
+- #170: floaty movement. `DIVE_BOOST` 2.5 → 1.9 (half fades out), dive/slide cooldowns 0.6/0.3 s, `APEX_GRAVITY_SCALE` 0.6 below 2.2 m/s, `AIR_WISH_CAP` 1.25, `AIR_STEER_RATE` 1.4.
+- #171/#172: the UAV is a drone that circles the map and can be shot down (`scripts/uav_drone.gd`). `NET_VERSION` is 0.5.3-dev (not released yet).
+- #173: `check_bot_kit` is deterministic (seeded, streaks handed out).
 
 ## Commands
 
