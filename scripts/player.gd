@@ -1411,21 +1411,25 @@ func _tick_style_track(delta: float) -> void:
 		_style_in_air = false
 		return
 	# #84: every new move feeds the combo (worth nothing until a kill lands it).
-	if move_fx == MOVE_WALLRUN:
+	# #B2: a claim only counts when the server can back it up itself. A client owns its pawn, so a
+	# modified client would otherwise farm WALLRUN / DIVE / ROLL / WALLJUMP by lying — and in the style
+	# modes those points decide the match. The local pawn and bots are trusted: their state is the sim.
+	var trust := is_local() or is_bot
+	if move_fx == MOVE_WALLRUN and (trust or _claim_backed(move_fx)):
 		if _style_clock - _wallrun_seen_t > Style.MOVE_RECENT:
 			var w2w := _style_clock - _walljump_seen_t <= Style.WALL_TO_WALL_WINDOW
 			Game.combo_move(peer_id, Combo.WALL_TO_WALL if w2w else Combo.WALLRUN)
 		_wallrun_seen_t = _style_clock
-	elif move_fx == MOVE_DIVE:
+	elif move_fx == MOVE_DIVE and (trust or _claim_backed(move_fx)):
 		if _style_clock - _dive_seen_t > Style.MOVE_RECENT:
 			Game.combo_move(peer_id, Combo.DIVE)
 		_dive_seen_t = _style_clock
-	elif move_fx == MOVE_ROLL:
+	elif move_fx == MOVE_ROLL and (trust or _claim_backed(move_fx)):
 		if _style_clock - _roll_seen_t > Style.MOVE_RECENT:
 			Game.combo_move(peer_id, Combo.ROLL)
 		_roll_seen_t = _style_clock
 	if walljumps != _walljumps_seen:
-		if _walljumps_seen >= 0:
+		if _walljumps_seen >= 0 and (trust or _claim_backed(MOVE_WALLRUN)):
 			_walljump_seen_t = _style_clock
 			Game.combo_move(peer_id, Combo.WALLJUMP)
 		_walljumps_seen = walljumps
@@ -1462,6 +1466,44 @@ func _tick_style_track(delta: float) -> void:
 			_landed_t = _style_clock
 		_style_in_air = false
 		air_time = 0.0
+
+
+## #B2: how far a wall may be for a claimed wallrun (or wall jump) to be believed. Generous on purpose:
+## our own probe must never refuse a trick the player really did.
+const CLAIM_WALL_PROBE := 1.2 # m
+
+
+## Is a claimed movement trick backed by what the server itself can see? The client owns its pawn, so
+## move_fx and walljumps arrive as claims, and in the style modes those claims are points. Every test
+## here uses something the authority observes for itself: the feet ray (`_style_in_air`), the air time,
+## the speed from the snapshots, and a wall probe. Lenient thresholds, because a false "no" costs a
+## player a real trick, while a false "yes" only costs what a liar could already claim.
+func _claim_backed(fx: int) -> bool:
+	match fx:
+		MOVE_WALLRUN:
+			return _style_in_air and _obs_speed >= Player.WALLRUN_KEEP_SPEED * 0.8 and _wall_beside()
+		MOVE_DIVE:
+			return _obs_speed >= Player.DIVE_MIN_SPEED * 0.7 or air_time > 0.2
+		MOVE_ROLL:
+			return _obs_speed >= Player.WALK_SPEED * 0.9
+		_:
+			return false
+
+
+## A near-vertical wall within CLAIM_WALL_PROBE of the body centre: eight horizontal rays.
+func _wall_beside() -> bool:
+	var space := get_world_3d().direct_space_state
+	var from := global_position + Vector3(0.0, 0.9, 0.0)
+	for i in 8:
+		var a := TAU * float(i) / 8.0
+		var to := from + Vector3(cos(a), 0.0, sin(a)) * CLAIM_WALL_PROBE
+		var query := PhysicsRayQueryParameters3D.create(from, to)
+		query.collision_mask = 1
+		query.exclude = [get_rid()]
+		var hit := space.intersect_ray(query)
+		if not hit.is_empty() and absf(float((hit.normal as Vector3).y)) < Player.WALLRUN_MAX_NY:
+			return true
+	return false
 
 
 func _feet_ray() -> Dictionary:
