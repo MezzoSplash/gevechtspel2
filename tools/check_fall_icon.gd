@@ -1,6 +1,13 @@
 extends Node
 ## Solo match on Skyline: drops a bot under kill_y and checks the kill feed row uses icon_fall.svg.
 ## Under xvfb-run it also saves /tmp/fall_icon.png (the kill feed corner).
+var fails := 0
+
+
+func _ok(c: bool, msg: String) -> void:
+	print("  %s %s" % ["PASS" if c else "FAIL", msg])
+	if not c:
+		fails += 1
 
 func _ready() -> void:
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
@@ -10,18 +17,31 @@ func _ready() -> void:
 	main.get_node("CanvasLayer/Menu").set_match_choice(&"skyline", Game.MODE_TDM)
 	main.get_node("CanvasLayer/Menu").play_local_pressed.emit()
 	await get_tree().create_timer(8.0).timeout # past the round freeze and spawn protection
+	var dropped := false
 	for n in get_tree().get_nodes_in_group("player"):
 		var p := n as Player
 		if p and p.is_bot and not p.is_dead:
+			p._spawn_protect = 0.0 # do not gamble on the timer having run out
 			p.global_position = Vector3(0, -8, 33)
+			p.velocity = Vector3(0, -10, 0) # falling, not just moved: the kill ray wants a drop
+			dropped = true
 			break
-	await get_tree().create_timer(0.5).timeout
+	_ok(dropped, "dropped a bot under kill_y")
 	var hud = main.hud
 	var found := false
-	for row in hud.kill_feed.get_children():
-		for c in row.get_children():
-			if c is TextureRect and (c as TextureRect).texture and (c as TextureRect).texture.resource_path.ends_with("icon_fall.svg"):
-				found = true
+	# Poll instead of one fixed wait: a snapshot, a physics tick and the feed row are three different
+	# clocks, and a single 0.5 s window made this check fail at random (it did, four runs in a row).
+	for i in 20:
+		await get_tree().create_timer(0.1).timeout
+		for row in hud.kill_feed.get_children():
+			for c in row.get_children():
+				if c is TextureRect and (c as TextureRect).texture and (c as TextureRect).texture.resource_path.ends_with("icon_fall.svg"):
+					found = true
+					break
+			if found:
+				break
+		if found:
+			break
 	print("FALL ICON CHECK: %s" % ("PASS" if found else "FAIL"))
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -37,4 +57,4 @@ func _ready() -> void:
 		crop.resize(crop.get_width() * 2, crop.get_height() * 2, Image.INTERPOLATE_NEAREST)
 		crop.save_png("/tmp/fall_icon.png")
 		print("saved /tmp/fall_icon.png ", r)
-	get_tree().quit(0 if found else 1)
+	get_tree().quit(0 if (found and fails == 0) else 1)
