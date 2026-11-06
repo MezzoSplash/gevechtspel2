@@ -77,6 +77,12 @@ func _ready() -> void:
 		_done()
 		return
 	me._spawn_protect = 999.0
+	# The class picker holds Game.pause_open, and move input is gated by it on purpose: a pawn does
+	# not walk behind a menu. A player closes the picker before running, so the test does too.
+	if main.class_select != null and main.class_select.is_open():
+		main.class_select.close_silently()
+	Game.pause_open = false
+	await _frames(2)
 	Game.combo_changed.connect(func(_p: int, _m: float, _t: float, l: String, _s: String, _b: int) -> void: combo_label = l)
 	# Floor far below, two parallel walls 8 m apart along Z (faces at x = +2.5 and x = -5.5).
 	_box(BASE + Vector3(0, -60, 0), Vector3(400, 1, 400))

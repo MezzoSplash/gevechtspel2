@@ -145,6 +145,7 @@ var _style_chain: Dictionary = {} # peer_id -> [trick kills in a row, time of th
 var _line_cd: Dictionary = {} # peer_id -> {strip name: seconds left}. Points only; the shove is local.
 var _line_chain: Dictionary = {} # peer_id -> [last strip name, seconds left in the carry window]
 var _line_pos: Dictionary = {} # peer_id -> last physics position (speed is the delta, not _obs_speed)
+var _line_ms: Dictionary = {} # peer_id -> ticks_msec of that position: the start of the speed window
 var _bursts: Dictionary = {} # peer_id -> {seq, t, victims}: the rifle burst (held trigger) in progress
 var _shotgun_kill_t: Dictionary = {} # peer_id -> time of their last shotgun kill (DOUBLE)
 var _hs_streak: Dictionary = {} # peer_id -> rifle headshot kills in a row (HEADSHOT STREAK)
