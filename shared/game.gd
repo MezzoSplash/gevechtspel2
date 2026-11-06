@@ -587,8 +587,10 @@ func request_weapon_fire(
 	var mult := clampf(spread_mult, floor_mult, SPREAD_MAX)
 	# Lag compensation (#105): cast against the targets where this client saw them, then put them back.
 	_shot_rewind = LagComp.offsets_for(self, shooter, LagComp.rewind_ms_for(self, peer, view_ms))
-	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped, burst, mag)
+	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped, burst, mag, true)
 	_shot_rewind = []
+	if best.get("refused", false):
+		return # empty magazine and no finished reload: no hit, no tracer (B4)
 	var from := muzzle_pos
 	if from == Vector3.ZERO or from.distance_to(origin) > 2.0:
 		from = origin
@@ -777,9 +779,10 @@ func _resolve_weapon_fire(
 	shot_seed: int = 0,
 	scoped: bool = false,
 	burst: int = 0,
-	mag: int = 0
+	mag: int = 0,
+	strict_mag: bool = false
 ) -> Dictionary:
-	return Combat.resolve_weapon_fire(self, shooter, origin, look_dir, def, spread_mult, shot_seed, scoped, burst, mag)
+	return Combat.resolve_weapon_fire(self, shooter, origin, look_dir, def, spread_mult, shot_seed, scoped, burst, mag, strict_mag)
 
 
 func _resolve_shot_rays(
