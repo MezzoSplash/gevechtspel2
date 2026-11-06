@@ -24,3 +24,19 @@ automatic = true
 falloff_start_m = 16.0
 falloff_end_m = 48.0
 falloff_min_mult = 0.5
+
+## Per-gun feel numbers (moved out of weapon.gd and bot_brain.gd).
+view_kick_z = 0.055
+flash_time = 0.045
+flash_energy = 4.5
+crosshair_punch = 1.0
+tracer_color = Color(1.0, 0.82, 0.28, 1)
+tracer_glow = Color(1.0, 0.7, 0.15, 1)
+bot_spread_mult = 2.4
+bot_fight_range = 13.0
+bot_burst_min = 2
+bot_burst_max = 5
+bot_burst_pause_min = 0.35
+bot_burst_pause_max = 0.85
+bot_aim_wobble_scale = 1.0
+bot_aim_track_scale = 1.0

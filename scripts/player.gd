@@ -10,6 +10,11 @@ signal damage_from(pos: Vector3) # local pawn took damage from there (HUD direct
 
 const WALK_SPEED := 7.6
 const SPRINT_SPEED := 11.4
+## Movement spread ladder. One source: the server's floor, the client's own value and
+## Game.SPREAD_MAX all read these, so a change cannot drift between client and server.
+const SPREAD_WALK_K := 1.15
+const SPREAD_SPRINT := 6.0
+const SPREAD_SLIDE := 8.0
 const CROUCH_SPEED := 3.5
 const GROUND_ACCEL := 14.0
 const GROUND_FRICTION := 10.0
@@ -619,7 +624,7 @@ func _check_kill_y() -> void:
 
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
-## `headshot_mult` comes from the gun's WeaponDef (rifle 3.6, sniper 2.0, SMG 1.5, other guns 1.6).
+## `headshot_mult` comes from the gun's WeaponDef — never repeat the numbers here.
 ## Grenades pass allow_headshot false. The test uses the drawn head, not a height band.
 func apply_hit(
 	point: Vector3,
@@ -807,18 +812,18 @@ func run_time() -> float:
 ## Server floor for a remote human's claimed spread: half the walk penalty at the speed we see them move.
 ## Lenient on purpose (sync lag), it only stops "always standing still" clients.
 func min_spread_multiplier() -> float:
-	return 1.0 + minf(_obs_speed / WALK_SPEED, 1.0) * 1.15 * 0.5
+	return 1.0 + minf(_obs_speed / WALK_SPEED, 1.0) * SPREAD_WALK_K * 0.5
 
 
 ## 1.0 is standing still. Walk, sprint, then slide stack on top of the gun's own spread.
 func spread_multiplier() -> float:
 	# Still is the accurate state. Slide is wider than sprint, which is wider than walking.
 	if is_sliding():
-		return 8.0
+		return SPREAD_SLIDE
 	if is_sprinting:
-		return 6.0
+		return SPREAD_SPRINT
 	var move := minf(Vector2(velocity.x, velocity.z).length() / WALK_SPEED, 1.0)
-	return 1.0 + move * 1.15
+	return 1.0 + move * SPREAD_WALK_K
 
 
 ## Server simulates bots. Remote humans/bots on a client only apply visuals + footsteps.

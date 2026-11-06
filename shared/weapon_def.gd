@@ -35,6 +35,36 @@ extends Resource
 ## Seconds to bring iron sights up (0.09 = SMG snap; the LMG is heavy).
 @export var ads_time: float = 0.09
 
+## --- Feel numbers that used to live in the gun-id match chains (weapon.gd, bot_brain.gd) ---
+## One source per gun: set them in the .tres. A new gun must not need a new branch in a script.
+
+## Viewmodel kick back per shot, in metres.
+@export var view_kick_z: float = 0.055
+## Muzzle flash visibility time, in seconds.
+@export var flash_time: float = 0.045
+## Muzzle light energy while the flash is up.
+@export var flash_energy: float = 4.5
+## HUD crosshair punch per shot (the sprinting case is gun-independent and lives in Weapon).
+@export var crosshair_punch: float = 1.0
+## Tracer body colour and its glow.
+@export var tracer_color: Color = Color(1.0, 0.82, 0.28)
+@export var tracer_glow: Color = Color(1.0, 0.7, 0.15)
+
+## Bots: extra spread on top of the movement spread, so a bot is not a laser.
+@export var bot_spread_mult: float = 2.4
+## Bots: the distance they try to hold while fighting (gun choice changes the fight distance).
+@export var bot_fight_range: float = 13.0
+## Bots: shots per burst (min/max, inclusive) and the pause after a burst, in seconds.
+@export var bot_burst_min: int = 2
+@export var bot_burst_max: int = 5
+@export var bot_burst_pause_min: float = 0.35
+@export var bot_burst_pause_max: float = 0.85
+## Bots: aim feel per gun. The SMG fights inside 12 m at 20 shots/s, where the metre wobble still
+## covers the body: a wider hand (higher scale) and a slower track (lower scale) keep a strafe alive.
+## The player's own SMG is unchanged.
+@export var bot_aim_wobble_scale: float = 1.0
+@export var bot_aim_track_scale: float = 1.0
+
 
 ## Linear falloff after start_m. If end <= start, damage is constant (no dropoff).
 func damage_at_distance(dist: float) -> float:
