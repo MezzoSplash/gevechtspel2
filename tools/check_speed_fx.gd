@@ -86,6 +86,35 @@ func _ready() -> void:
 	Game.set_speed_fx(true)
 	Game.load_settings()
 	_ok(Game.speed_fx, "restored to on")
+
+	# Speed lines: the shader loads and the overlay maps intensity to a drawn frame.
+	var shader := load("res://shaders/speed_lines.gdshader") as Shader
+	_ok(shader != null, "speed_lines.gdshader loads")
+	var lines := SpeedLines.new()
+	add_child(lines)
+	_ok(lines.intensity() == 0.0 and not lines.is_drawing(), "overlay starts dark")
+	lines.set_intensity(1.0)
+	_ok(is_equal_approx(lines.intensity(), 1.0) and lines.is_drawing(), "intensity 1 draws")
+	lines.set_intensity(0.0)
+	_ok(lines.intensity() == 0.0 and not lines.is_drawing(), "intensity 0 hides")
+	lines.set_intensity_smooth(1.0, 0.1, Player.SPEED_LINES_SMOOTH)
+	var eased := lines.intensity()
+	_ok(eased > 0.0 and eased < 1.0, "smooth eases in (%.2f)" % eased)
+	lines.set_intensity(0.0)
+	lines.queue_free()
+	_ok(Game.speed_lines != null, "Game owns the speed lines overlay")
+
+	# Wind: the asset loads, the copy the pawn plays is looped, and the ramp constants are sane.
+	var wind := load("res://assets/sounds/wind_loop.wav") as AudioStreamWAV
+	_ok(wind != null, "wind_loop.wav loads as AudioStreamWAV")
+	var looped := Player.looped_wind()
+	_ok(looped.loop_mode == AudioStreamWAV.LOOP_FORWARD, "wind copy loops forward (mode %d)" % looped.loop_mode)
+	_ok(looped.loop_end > 0 and looped.get_length() > 1.0, "wind loop covers the whole clip (%.2fs)" % looped.get_length())
+	var pawn_wind := (p._wind.stream as AudioStreamWAV) if p._wind != null else null
+	_ok(pawn_wind != null and pawn_wind.loop_mode == AudioStreamWAV.LOOP_FORWARD, "the local pawn plays a looped wind")
+	_ok(p._wind != null and p._wind.bus == "SFX", "wind is on the SFX bus (Effects slider)")
+	_ok(Player.WIND_VOL_DB_MIN < Player.WIND_VOL_DB_MAX, "wind volume ramps up")
+	_ok(Player.WIND_PITCH_MIN < Player.WIND_PITCH_MAX, "wind pitch ramps up")
 	_finish(p)
 
 
