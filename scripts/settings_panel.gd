@@ -43,6 +43,7 @@ var _minimap: CheckBox
 var _killfeed: CheckBox
 var _colorblind: OptionButton
 var _shake: CheckBox
+var _speed_fx: CheckBox
 var _bind_buttons: Dictionary = {} # action -> Button
 var _bind_note: Label
 var _waiting_action := "" # rebind: next key / mouse button goes here
@@ -129,6 +130,7 @@ func refresh() -> void:
 	_killfeed.set_pressed_no_signal(Game.show_killfeed)
 	_select_quiet(_colorblind, Game.colorblind)
 	_shake.set_pressed_no_signal(Game.reduce_shake)
+	_speed_fx.set_pressed_no_signal(Game.speed_fx)
 	_refresh_bindings()
 	_refresh_audio_labels()
 	_filling = false
@@ -306,7 +308,12 @@ func _build() -> void:
 		if not _filling:
 			Game.set_reduce_shake(on)
 	)
-	_hint(body, "Colourblind changes the team colours on bodies, name tags, scoreboard, feed and minimap. Less shake cuts hit, blast and melee camera shake and the FOV punch to a quarter; gun recoil stays.")
+	_speed_fx = _check(_row(body, "Speed effects"))
+	_speed_fx.toggled.connect(func(on: bool) -> void:
+		if not _filling:
+			Game.set_speed_fx(on)
+	)
+	_hint(body, "Colourblind changes the team colours on bodies, name tags, scoreboard, feed and minimap. Less shake cuts hit, blast and melee camera shake and the FOV punch to a quarter; gun recoil stays. Speed effects widen the view, draw speed lines, dip the camera on a hard landing and add wind while you move fast; off keeps the old sprint FOV only.")
 	_hint(root, "Saved on this PC. Applies immediately, and again the next time you start the game.")
 	show_tab(0)
 

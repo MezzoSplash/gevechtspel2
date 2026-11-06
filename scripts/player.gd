@@ -68,6 +68,28 @@ const STRIP_TELEPORT_M := 8.0 # a respawn skips the segment; a long frame at car
 const CARRY_FOV_MIN := 4.0
 const CARRY_FOV_MAX := 8.0
 const FOV_EXTRA_CAP := 10.0 # sprint FOV plus carry FOV, together
+# --- Speed FX (Game.speed_fx, local player only) ---
+# Everything here scales with the player's own horizontal speed, so going fast is felt and not only
+# seen. Only `extra_fov` and `camera.move_pitch` are touched: the hip FOV (Game.fov) and the ADS FOV
+# stay where they are, so aiming is untouched. With the toggle off the old sprint + carry FOV stack
+# runs instead (see _apply_carry_fov), and no dip, lines or wind.
+const SPEED_FOV_REF := SPRINT_SPEED # 11.4 m/s: the kick starts here
+const SPEED_FOV_EPS := 0.05 # m/s: float32 slack on the SPRINT_SPEED boundary
+const SPEED_FOV_FULL := CARRY_MAX # 18.0 m/s: full kick
+const SPEED_FOV_AT_SPRINT := 4.0 # degrees extra_fov at exactly SPEED_FOV_REF
+const SPEED_FOV_MAX := 10.0 # degrees extra_fov at SPEED_FOV_FULL (FOV_EXTRA_CAP still caps it)
+const SPEED_LINES_START := 12.0 # m/s: speed lines start showing
+const SPEED_LINES_FULL := 16.5 # m/s: full intensity
+const LAND_CAM_MIN_SPEED := 5.0 # m/s falling: below this a landing is not worth a dip
+const LAND_CAM_DIP_MAX := 0.08 # rad: deepest landing camera dip
+const LAND_CAM_DIP_PER_MS := 0.012 # rad per m/s of fall speed above LAND_CAM_MIN_SPEED
+const LAND_CAM_RECOVER := 10.0 # exp rate of the dip easing back to 0
+const WIND_START := 11.4 # m/s: wind becomes audible
+const WIND_FULL := 17.0 # m/s: full wind
+const WIND_VOL_DB_MIN := -28.0
+const WIND_VOL_DB_MAX := -8.0
+const WIND_PITCH_MIN := 0.85
+const WIND_PITCH_MAX := 1.25
 const WHOOSH := preload("res://assets/sounds/whoosh.wav")
 const REGEN_DELAY := 4.5 # seconds without damage before health comes back
 const REGEN_RATE := 12.0 # HP per second, up to MAX_HP
@@ -202,6 +224,9 @@ var _roll_t := 0.0
 var _roll_dir := Vector3.FORWARD
 var _carry_t := 0.0 # seconds of surf-speed retention left (local sim only)
 var _was_surfing := false
+var _fall_vy := 0.0 # fastest fall of the current air time (negative), for the landing camera dip
+var _was_fall := false # last physics tick was airborne (landing edge, speed_fx only)
+var _land_cam_pitch := 0.0 # rad: landing dip on top of camera.move_pitch, eases back to 0
 var _strip_cd: Dictionary = {} # strip name -> seconds until this pawn can take it again
 var _strip_prev := Vector3.INF
 var _whoosh: AudioStreamPlayer
@@ -927,6 +952,7 @@ func _physics_process(delta: float) -> void:
 	_tick_wallrun(delta, input_vec, chatting)
 	_tick_dive_roll(delta)
 	_tick_move_fx(delta)
+	_tick_speed_fx(delta)
 	_tick_feet(delta)
 	_tick_step_view(delta)
 
@@ -1206,18 +1232,56 @@ func _tick_strip_cd(delta: float) -> void:
 	Movement.tick_strip_cd(self, delta)
 
 
-## Sprint FOV plus a bit more while carrying. ADS clears it. The two together stay within FOV_EXTRA_CAP.
+## Hip FOV while running. Speed FX on: the extra FOV scales with horizontal speed from sprint on
+## (speed_fov_extra), so a surf or a dive widens the view and walking does not. Speed FX off: the old
+## plain sprint flag plus the carry stack. ADS clears it either way; Game.fov stays the hip base.
 func _apply_carry_fov() -> void:
 	if weapon == null or camera == null:
 		return
 	if weapon.is_ads():
 		camera.extra_fov = 0.0
 		return
+	if Game.speed_fx:
+		camera.extra_fov = speed_fov_extra(_hspeed())
+		return
 	var extra := SPRINT_FOV if is_sprinting else 0.0
 	if _carry_t > 0.0:
-		var speed := Vector2(velocity.x, velocity.z).length()
-		extra += lerpf(CARRY_FOV_MIN, CARRY_FOV_MAX, clampf(speed / CARRY_MAX, 0.0, 1.0))
+		extra += lerpf(CARRY_FOV_MIN, CARRY_FOV_MAX, clampf(_hspeed() / CARRY_MAX, 0.0, 1.0))
 	camera.extra_fov = minf(extra, FOV_EXTRA_CAP)
+
+
+## Horizontal speed the FOV kick, the wind and the speed lines all scale with.
+func _hspeed() -> float:
+	return Vector2(velocity.x, velocity.z).length()
+
+
+## Speed FX: extra hip FOV for a horizontal speed. 0 below sprint, SPEED_FOV_AT_SPRINT at sprint
+## itself, SPEED_FOV_MAX at CARRY_MAX. Pure, so the headless check can call it without a pawn.
+## SPEED_FOV_EPS keeps a real sprint at the kick: the velocity vector is float32, so 11.4 m/s
+## measures a hair under SPRINT_SPEED and an exact compare would leave sprinting without the kick.
+static func speed_fov_extra(hspeed: float) -> float:
+	if hspeed < SPEED_FOV_REF - SPEED_FOV_EPS:
+		return 0.0
+	var t := clampf((hspeed - SPEED_FOV_REF) / (SPEED_FOV_FULL - SPEED_FOV_REF), 0.0, 1.0)
+	return minf(lerpf(SPEED_FOV_AT_SPRINT, SPEED_FOV_MAX, t), FOV_EXTRA_CAP)
+
+
+## Speed FX: 0..1 speed-line intensity for a horizontal speed.
+static func speed_lines_intensity(hspeed: float) -> float:
+	return clampf((hspeed - SPEED_LINES_START) / (SPEED_LINES_FULL - SPEED_LINES_START), 0.0, 1.0)
+
+
+## Speed FX: 0..1 wind level for a horizontal speed.
+static func speed_wind_level(hspeed: float) -> float:
+	return clampf((hspeed - WIND_START) / (WIND_FULL - WIND_START), 0.0, 1.0)
+
+
+## Speed FX: how far the camera dips for a landing at `fall_speed` m/s (positive, rad, negative =
+## looking down). 0 below LAND_CAM_MIN_SPEED, capped at LAND_CAM_DIP_MAX. Pure.
+static func speed_land_dip(fall_speed: float) -> float:
+	if fall_speed < LAND_CAM_MIN_SPEED:
+		return 0.0
+	return -minf((fall_speed - LAND_CAM_MIN_SPEED) * LAND_CAM_DIP_PER_MS, LAND_CAM_DIP_MAX)
 
 
 ## Strip boxes are scaled Node3Ds (group speed_strip). Local space is the unit cube around the origin.
@@ -1517,7 +1581,8 @@ func _tick_move_fx(delta: float) -> void:
 	var roll_target := 0.0
 	if _wallrunning:
 		var right := transform.basis.x
-		roll_target = -signf(right.dot(_wall_n)) * WALLRUN_TILT * Game.shake_scale()
+		# Speed FX leans a touch further into the wall run; the away-from-wall direction is the feel (#80).
+		roll_target = -signf(right.dot(_wall_n)) * WALLRUN_TILT * (1.1 if Game.speed_fx else 1.0) * Game.shake_scale()
 	camera.move_roll = lerpf(camera.move_roll, roll_target, 1.0 - exp(-10.0 * delta))
 	if _roll_t > 0.0:
 		var p := 1.0 - _roll_t / ROLL_TIME
@@ -1529,3 +1594,30 @@ func _tick_move_fx(delta: float) -> void:
 		camera.move_pitch = lerpf(camera.move_pitch, -0.12, 1.0 - exp(-8.0 * delta))
 	else:
 		camera.move_pitch = lerpf(wrapf(camera.move_pitch, -PI, PI), 0.0, 1.0 - exp(-14.0 * delta))
+
+
+## Speed FX, local player only (Game.speed_fx): the landing camera dip and its easing back to 0.
+## Runs right after _tick_move_fx, so the dip is added on top of whatever pitch the dive or the roll
+## asked for and never fights it. A dive roll already pitches the camera, so it skips the dip.
+## The FOV kick lives in _apply_carry_fov; the speed lines and the wind latch onto this tick too.
+func _tick_speed_fx(delta: float) -> void:
+	if camera == null:
+		return
+	if is_dead:
+		_fall_vy = 0.0
+		_was_fall = false
+	elif is_on_floor():
+		if _was_fall:
+			if Game.speed_fx and not (_roll_t > 0.0 or _diving):
+				_land_cam_pitch = minf(_land_cam_pitch, speed_land_dip(-_fall_vy))
+			_fall_vy = 0.0
+			_was_fall = false
+	else:
+		_fall_vy = minf(_fall_vy, velocity.y)
+		_was_fall = true
+	if _land_cam_pitch != 0.0:
+		if Game.speed_fx:
+			camera.move_pitch += _land_cam_pitch
+		_land_cam_pitch = lerpf(_land_cam_pitch, 0.0, 1.0 - exp(-LAND_CAM_RECOVER * delta))
+		if absf(_land_cam_pitch) < 0.0005:
+			_land_cam_pitch = 0.0

@@ -245,6 +245,9 @@ var show_minimap := true
 var show_killfeed := true
 var colorblind := 0 # COLORBLIND_NAMES
 var reduce_shake := false
+## Local speed feel: FOV kick, speed lines, landing camera dip and wind, all scaled with the
+## player's own horizontal speed. Visual only, off keeps the old sprint FOV. See Player.SPEED_*.
+var speed_fx := true
 var _saved_keys: Dictionary = {} # action -> "k:<physical keycode>" / "m:<mouse button>" from settings.cfg
 var view_sway := 2 # viewmodel sway and landing dip: 0 off, 1 reduced, 2 full (visual only)
 var gfx_quality := 2 # Gfx.LOW/MEDIUM/HIGH: sky stays, SSAO/glow/fog/world paint scale down
@@ -2022,6 +2025,12 @@ func set_colorblind(v: int) -> void:
 
 func set_reduce_shake(on: bool) -> void:
 	reduce_shake = on
+	save_settings()
+
+
+## Speed effects (FOV kick, speed lines, landing dip, wind). Local player only; no display-apply.
+func set_speed_fx(on: bool) -> void:
+	speed_fx = on
 	save_settings()
 
 

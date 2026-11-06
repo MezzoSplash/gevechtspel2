@@ -63,6 +63,7 @@ static func load_settings(g: GameState) -> void:
 		g.show_killfeed = bool(cfg.get_value("hud", "killfeed", true))
 		g.colorblind = clampi(int(cfg.get_value("access", "colorblind", 0)), 0, g.COLORBLIND_NAMES.size() - 1)
 		g.reduce_shake = bool(cfg.get_value("access", "reduce_shake", false))
+		g.speed_fx = bool(cfg.get_value("access", "speed_fx", true))
 		g._saved_keys = {}
 		if cfg.has_section("keys"):
 			for a in cfg.get_section_keys("keys"):
@@ -115,6 +116,7 @@ static func save_settings(g: GameState) -> void:
 	cfg.set_value("hud", "killfeed", g.show_killfeed)
 	cfg.set_value("access", "colorblind", g.colorblind)
 	cfg.set_value("access", "reduce_shake", g.reduce_shake)
+	cfg.set_value("access", "speed_fx", g.speed_fx)
 	for a in g._saved_keys:
 		cfg.set_value("keys", a, g._saved_keys[a])
 	cfg.save("user://settings.cfg")
