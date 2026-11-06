@@ -14,8 +14,13 @@ func _ready() -> void:
 	add_child(main)
 	await get_tree().create_timer(1.0).timeout
 	Game.bot_count = 4
-	main.get_node("CanvasLayer/Menu").set_match_choice(&"skyline", Game.MODE_TDM)
-	main.get_node("CanvasLayer/Menu").play_local_pressed.emit()
+	var menu = main.get_node("CanvasLayer/Menu")
+	# The menu's own bot boxes decide the match; Game.bot_count alone is not enough. With zero bots
+	# spawned this check had nothing to drop and went red for the wrong reason.
+	for b in menu._bot_boxes:
+		b.value = 4
+	menu.set_match_choice(&"skyline", Game.MODE_TDM)
+	menu.play_local_pressed.emit()
 	# Wait for a real round instead of for a stopwatch: under load the "Get ready" freeze outlasts 8 s
 	# and there is no living bot yet to drop (that is exactly how this check used to go red).
 	var p: Player = null
