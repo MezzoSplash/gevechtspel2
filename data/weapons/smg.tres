@@ -28,3 +28,19 @@ move_speed_mult = 1.08
 move_spread_scale = 0.45
 ads_fov = 72.0
 ads_spread_mult = 0.6
+
+## Per-gun feel numbers (moved out of weapon.gd and bot_brain.gd).
+view_kick_z = 0.055
+flash_time = 0.045
+flash_energy = 4.5
+crosshair_punch = 1.0
+tracer_color = Color(1.0, 0.82, 0.28, 1)
+tracer_glow = Color(1.0, 0.7, 0.15, 1)
+bot_spread_mult = 2.0
+bot_fight_range = 8.0
+bot_burst_min = 5
+bot_burst_max = 9
+bot_burst_pause_min = 0.35
+bot_burst_pause_max = 0.65
+bot_aim_wobble_scale = 1.15
+bot_aim_track_scale = 0.6428571428571429

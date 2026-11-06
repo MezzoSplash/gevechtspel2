@@ -77,7 +77,8 @@ const MELEE_ANIM := 0.36 # seconds: thrust out, hold, pull back
 const MELEE_SWING := preload("res://assets/sounds/melee_swing.wav")
 const MELEE_HIT := preload("res://assets/sounds/melee_hit.wav")
 const ADS_SIGHT_GAP := 0.004 # front sight tip this far under the eye line while aiming
-const ADS_TIME := 0.09 # s to slide the SMG to the centre (fast ADS)
+## Game.view_sway index: 0 off, 1 half, 2 full. Kept as a const so _tick_sway allocates nothing.
+const VIEW_SWAY_K: Array[float] = [0.0, 0.4, 1.0]
 const THROW_ANIM := 0.34 # knife in hand: wind up, release, gun comes back
 ## Per weapon id: +1 on every fresh magazine (reload done, spawn refill). Sent with each shot so the
 ## server can tell "one magazine" apart for HOSE and SIX SHOOTER.
@@ -222,7 +223,7 @@ var _sway_fall := 0.0
 
 func _tick_sway(delta: float) -> Vector3:
 	var pl := owner as Player
-	var k: float = [0.0, 0.4, 1.0][clampi(Game.view_sway, 0, 2)]
+	var k: float = VIEW_SWAY_K[clampi(Game.view_sway, 0, 2)]
 	if pl == null or k <= 0.0 or delta <= 0.0:
 		_sway_p = Vector3.ZERO
 		_sway_v = Vector3.ZERO
@@ -640,14 +641,14 @@ func _fire() -> void:
 	# Carry at most one frame of overshoot, so a held trigger fires at the real rate at any fps.
 	var frame := maxf(get_process_delta_time(), get_physics_process_delta_time())
 	_cooldown = maxf(_cooldown, -frame) + 1.0 / def.fire_rate
-	var kick_z := 0.09 if def.id == &"shotgun" or def.id == &"slug" else 0.055
+	var kick_z := def.view_kick_z
 	_kick_offset += Vector3(0.0, 0.0, kick_z)
 	_kick_offset.y += randf_range(-0.008, 0.004)
-	_flash_left = 0.06 if def.id == &"shotgun" or def.id == &"slug" else 0.045
+	_flash_left = def.flash_time
 	var model_flash := play_fire_sfx()
 	muzzle_flash.visible = not model_flash
 	muzzle_light.visible = true
-	muzzle_light.light_energy = 5.5 if def.id == &"shotgun" or def.id == &"slug" else 4.5
+	muzzle_light.light_energy = def.flash_energy
 
 	var shooter := owner as Player
 	Game.killcam.note_fire(shooter.peer_id if shooter else 0, def.id)
@@ -663,22 +664,7 @@ func _fire() -> void:
 	var look_dir := -camera.global_transform.basis.z
 	var spread_mult := _spread_multiplier()
 	if shooter and shooter.is_bot:
-		if def.id == &"shotgun":
-			spread_mult *= 1.2
-		elif def.id == &"pistol":
-			spread_mult *= 1.9
-		elif def.id == &"sniper":
-			spread_mult *= 1.35
-		elif def.id == &"smg":
-			spread_mult *= 2.0
-		elif def.id == &"revolver":
-			spread_mult *= 1.7
-		elif def.id == &"lmg":
-			spread_mult *= 2.2
-		elif def.id == &"slug":
-			spread_mult *= 1.6
-		else:
-			spread_mult *= 2.4
+		spread_mult *= def.bot_spread_mult
 	# One seed for the tracers here and the hit rays on the server, so they line up.
 	var shot_seed := randi() | 1
 	var tracer_to := _simulate_pellets_fx(origin, look_dir, spread_mult, shot_seed)
@@ -771,11 +757,7 @@ func _crosshair_punch() -> float:
 	var p := owner as Player
 	if p and p.is_sprinting:
 		return 1.6 if def.move_spread_scale >= 1.0 else 1.2
-	if def.id == &"shotgun" or def.id == &"slug":
-		return 2.2
-	if def.id == &"revolver":
-		return 1.8
-	return 1.0
+	return def.crosshair_punch
 
 
 ## Throwing knife (F): the knife shows in the right hand for a quick overhand flick, the gun dips out.
@@ -911,12 +893,8 @@ func _spawn_tracer(from: Vector3, to: Vector3) -> void:
 	box.size = Vector3(def.tracer_width, def.tracer_width, length)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	if def.id == &"shotgun":
-		mat.albedo_color = Color(1.0, 0.65, 0.2)
-		mat.emission = Color(1.0, 0.5, 0.1)
-	else:
-		mat.albedo_color = Color(1.0, 0.82, 0.28)
-		mat.emission = Color(1.0, 0.7, 0.15)
+	mat.albedo_color = def.tracer_color
+	mat.emission = def.tracer_glow
 	mat.emission_enabled = true
 	mat.emission_energy_multiplier = 3.0
 	mesh_inst.mesh = box

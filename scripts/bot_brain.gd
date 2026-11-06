@@ -3,16 +3,9 @@ extends RefCounted
 ## Server-only AI. Same Player movement helpers. Gun choice changes fight distance.
 
 const ACQUIRE := 0.28
-const FIGHT_RANGE := 11.0
 const TOO_CLOSE := 4.0
-const SHOTGUN_FIGHT := 6.0
-const RIFLE_FIGHT := 13.0
-const PISTOL_FIGHT := 9.0
-const SNIPER_FIGHT := 18.0 # keep range; one shot then a long pause
-const LMG_FIGHT := 22.0 # holds a lane at mid range, slow to strafe
-const SLUG_FIGHT := 14.0 # closer than the rifle, farther than the pellet shotgun
-const SMG_FIGHT := 8.0 # SMG: falls off after 12 m, so it closes in like a light shotgun
-const REVOLVER_FIGHT := 12.0
+## Only used before a bot has a weapon in hand (a gun's own fight range lives in its .tres).
+const NO_GUN_FIGHT := 13.0
 const STRAFE_SPEED := 6.2
 ## One committed sidestep, then a short pause. Re-picking every half second is what made them shimmy.
 const STRAFE_HOLD_MIN := 1.3
@@ -51,10 +44,8 @@ const AIM_WOBBLE_PER_SPEED := 0.07 # and when the target moves (per m/s)
 const AIM_WOBBLE_FRESH := 1.8 # first moments on a new target
 const AIM_WOBBLE_REPICK := 0.3
 const AIM_TRACK := 14.0 # how fast the aim catches up with a moving target (1/s)
-## SMG bots fight inside 12 m, where the metre wobble still covers the body, at 20 shots/s.
-## A wider hand and a slower track keep a strafe alive; the player's SMG is unchanged.
-const SMG_WOBBLE_SCALE := 1.15
-const SMG_AIM_TRACK := 9.0
+## Per-gun aim feel (the SMG's wider hand and slower track, the fight ranges, the bursts) lives in
+## the gun's own WeaponDef/.tres. Nothing in this file branches on a gun id any more.
 
 var pawn: Player
 var agent: NavigationAgent3D
@@ -724,8 +715,9 @@ func _tick_aim_wobble(enemy: Player, delta: float) -> void:
 		_aim_err_t = AIM_WOBBLE_REPICK
 		var dist := pawn.global_position.distance_to(enemy.global_position)
 		var r := (AIM_WOBBLE_BASE + AIM_WOBBLE_PER_M * dist + AIM_WOBBLE_PER_SPEED * enemy._obs_speed) * float(Game.bot_profile().wobble)
-		if _gun_id() == &"smg":
-			r *= SMG_WOBBLE_SCALE
+		var bd := _def()
+		if bd != null:
+			r *= bd.bot_aim_wobble_scale
 		if fresh:
 			r *= AIM_WOBBLE_FRESH
 		var ang := randf() * TAU
@@ -740,34 +732,21 @@ func _tick_aim_wobble(enemy: Player, delta: float) -> void:
 	# Aim where the target really is (crouch lowers it), not at a fixed standing height.
 	# The crosshair follows the target a beat late: a fast strafe is harder to hit than standing still.
 	var goal := base + right * _aim_err.x + Vector3.UP * _aim_err.y
-	var track := (SMG_AIM_TRACK if _gun_id() == &"smg" else AIM_TRACK) * float(Game.bot_profile().track) / AIM_TRACK
+	var bd := _def()
+	var track := float(Game.bot_profile().track) * (bd.bot_aim_track_scale if bd != null else 1.0)
 	_aim_track = goal if fresh else _aim_track.lerp(goal, 1.0 - exp(-track * delta))
 
 
-func _gun_id() -> StringName:
-	if pawn and pawn.weapon and pawn.weapon.def:
-		return pawn.weapon.def.id
-	return &"rifle"
+## The held gun, or null before a bot has one. Every per-gun number comes from here.
+func _def() -> WeaponDef:
+	return pawn.weapon.def if pawn and pawn.weapon else null
 
 
+## The held gun decides the fight distance (WeaponDef.bot_fight_range). Sniper holds range, the
+## shotgun closes in, the LMG holds a lane — all of that now lives in the .tres.
 func _fight_range() -> float:
-	match _gun_id():
-		&"shotgun":
-			return SHOTGUN_FIGHT
-		&"pistol":
-			return PISTOL_FIGHT
-		&"sniper":
-			return SNIPER_FIGHT
-		&"smg":
-			return SMG_FIGHT
-		&"revolver":
-			return REVOLVER_FIGHT
-		&"lmg":
-			return LMG_FIGHT
-		&"slug":
-			return SLUG_FIGHT
-		_:
-			return RIFLE_FIGHT
+	var d := _def()
+	return d.bot_fight_range if d != null else NO_GUN_FIGHT
 
 
 func _try_shoot(enemy: Player) -> void:
@@ -777,31 +756,11 @@ func _try_shoot(enemy: Player) -> void:
 		if _burst_pause > 0.0:
 			return
 		pawn.weapon.burst_seq += 1 # a new trigger pull (SPRAY TRANSFER)
-		match _gun_id():
-			&"shotgun":
-				_burst_left = 1
-				_burst_pause = randf_range(0.55, 1.05)
-			&"sniper":
-				_burst_left = 1
-				_burst_pause = randf_range(0.85, 1.4)
-			&"pistol":
-				_burst_left = randi_range(3, 6)
-				_burst_pause = randf_range(0.28, 0.6)
-			&"smg":
-				_burst_left = randi_range(5, 9) # short hose; a full mag at 20/s deletes a still player
-				_burst_pause = randf_range(0.35, 0.65)
-			&"revolver":
-				_burst_left = 1 # deliberate single shots, a beat between them
-				_burst_pause = randf_range(0.5, 0.85)
-			&"lmg":
-				_burst_left = randi_range(8, 16) # long sustained bursts, it has 100 rounds
-				_burst_pause = randf_range(0.3, 0.6)
-			&"slug":
-				_burst_left = 1
-				_burst_pause = randf_range(0.8, 1.2)
-			_:
-				_burst_left = randi_range(2, 5)
-				_burst_pause = randf_range(0.35, 0.85)
+		var bd: WeaponDef = pawn.weapon.def
+		if bd == null:
+			return
+		_burst_left = randi_range(bd.bot_burst_min, bd.bot_burst_max)
+		_burst_pause = randf_range(bd.bot_burst_pause_min, bd.bot_burst_pause_max)
 		_burst_pause *= float(Game.bot_profile().pause)
 	if pawn.weapon.bot_try_fire():
 		_burst_left -= 1
