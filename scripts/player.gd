@@ -237,6 +237,12 @@ var _land_cam_pitch := 0.0 # rad: landing dip on top of camera.move_pitch, eases
 ## How much of that dip is currently sitting in camera.move_pitch. Taken out again at the start of the
 ## next _tick_move_fx, so the dip is a transient channel and never feeds back into the pitch decay.
 var _land_dip_applied := 0.0
+## This tick's movement keys, taken once. Movement reads these instead of the keyboard, which is what
+## lets a bot (BotBrain fills them from its own intent) run the exact same slide, wallrun and dive code
+## as a human. Set in _physics_process for a human, in BotBrain.physics_tick for a bot.
+var _in_sprint := false
+var _in_crouch := false
+var _in_crouch_down := false # just pressed this tick
 var _strip_cd: Dictionary = {} # strip name -> seconds until this pawn can take it again
 var _strip_prev := Vector3.INF
 var _whoosh: AudioStreamPlayer
@@ -853,6 +859,10 @@ func _physics_process(delta: float) -> void:
 	## or killcam, the RC view. The pause menu was missing here, so the local pawn kept walking,
 	## sprinting and jumping behind the menu while only look and fire were blocked.
 	var input_locked := Game.chat_open or Game.pause_open or Game.play_locked() or Game.rc_view
+	# The movement keys, once per tick. Movement itself never touches Input any more (see _in_sprint).
+	_in_sprint = (not input_locked) and Input.is_action_pressed("sprint")
+	_in_crouch = (not input_locked) and Input.is_action_pressed("crouch")
+	_in_crouch_down = (not input_locked) and Input.is_action_just_pressed("crouch")
 	_carry_t = maxf(_carry_t - delta, 0.0)
 	_kb_t = maxf(_kb_t - delta, 0.0)
 	_tick_strip_cd(delta)
@@ -1165,7 +1175,7 @@ func _finish_slide() -> void:
 
 
 func _update_stance(delta: float, _on_floor: bool) -> void:
-	var want := _sliding or _diving or _roll_t > 0.0 or ((not is_dead) and (not Game.chat_open) and (not Game.pause_open) and (not Game.rc_view) and Input.is_action_pressed("crouch"))
+	var want := _sliding or _diving or _roll_t > 0.0 or ((not is_dead) and _in_crouch)
 	if (not want) and crouch > 0.05 and _ceiling_blocked():
 		want = true
 	var target := 1.0 if want else 0.0

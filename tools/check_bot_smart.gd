@@ -107,6 +107,7 @@ func _ready() -> void:
 	await _ledges()
 	await _sprint()
 	await _threat_and_retreat()
+	await _tricks()
 	_done()
 
 
@@ -194,6 +195,89 @@ func _threat_and_retreat() -> void:
 		sprinting = sprinting or bot.is_sprinting
 	print("  retreat %.2f m -> %.2f m" % [before, after])
 	_ok(after > before + 1.5 and sprinting, "low HP bot sprints away from the shooter")
+
+
+## The three parkour moves. Bots run the same Movement code as a human (no `is_bot` shortcut any more),
+## so what is tested here is the shared slide, dive and wallrun, driven by the bot's own keys.
+func _tricks() -> void:
+	_clear_boxes()
+	_box(BASE + Vector3(0, -0.5, 0), Vector3(120, 1, 120))
+	var dt := 1.0 / float(Engine.physics_ticks_per_second)
+	_park(me)
+	# Drive the bot by hand: its own AI rewrites velocity and state every frame, which would fight
+	# every move this test sets up.
+	bot.set_physics_process(false)
+	other.set_physics_process(false)
+	_wake(bot, BASE + Vector3(0, 1.2, 0))
+	_wake(other, BASE + Vector3(0, 0.5, 8.0))
+	await _frames(2)
+
+	# Slide: on the floor, closing on a target at sprint speed.
+	brain._target = other
+	brain._in_fight = true
+	brain._crouch_hold = 0.0
+	brain._crouch_press = false
+	bot._slide_cd = 0.0
+	bot._sliding = false
+	bot.is_sprinting = true
+	bot.crouch = 0.0
+	bot.velocity = Vector3(0.0, -8.0, 0.0)
+	for i in 10:
+		bot.move_and_slide() # settle: is_on_floor() is only real after a move
+	var slid := false
+	for i in 8:
+		bot.velocity = Vector3(0.0, 0.0, -Player.SPRINT_SPEED)
+		brain._tick_tricks(dt)
+		if bot._sliding:
+			slid = true
+			break
+	var slide_speed := Vector2(bot.velocity.x, bot.velocity.z).length()
+	_ok(slid, "bot slides when it closes on a target at sprint speed")
+	_ok(slid and slide_speed >= Player.SPRINT_SPEED - 0.1, "the slide keeps sprint speed (%.1f m/s)" % slide_speed)
+	bot._sliding = false
+	bot.crouch = 0.0
+	bot._apply_stance()
+
+	# Dive: in the air, falling, target below.
+	brain._in_fight = false
+	brain._target = other
+	bot._dive_cd = 0.0
+	bot._dive_used = false
+	bot._diving = false
+	bot._wallrunning = false
+	bot.global_position = BASE + Vector3(0, 6.0, -4.0)
+	bot.velocity = Vector3(0.0, -6.0, Player.SPRINT_SPEED)
+	bot.move_and_slide() # one move so is_on_floor() turns false again
+	var dove := false
+	for i in 6:
+		brain._tick_tricks(dt)
+		if bot._diving:
+			dove = true
+			break
+	_ok(dove, "bot dives at a target below it")
+
+	# Wallrun: in the air, sprint held, flying along a wall 0.6 m away.
+	bot._diving = false
+	bot._roll_t = 0.0
+	bot._wallrunning = false
+	bot._wallruns_air = 0
+	bot._wall_key = ""
+	bot._surf_t = 0.0
+	bot._dive_used = false
+	_box(BASE + Vector3(3.0, 6.0, -10.0), Vector3(1.0, 30.0, 80.0))
+	# A body added this frame is not in the physics world yet: let it appear before probing for it.
+	await _frames(2)
+	bot.global_position = BASE + Vector3(1.9, 6.0, -30.0)
+	bot.velocity = Vector3(0.0, 0.0, Player.SPRINT_SPEED)
+	bot.move_and_slide() # one move so is_on_floor() is false and the wall contact is fresh
+	var ran := false
+	for i in 8:
+		bot.velocity.y = 0.0
+		brain._tick_tricks(dt)
+		if bot._wallrunning:
+			ran = true
+			break
+	_ok(ran, "bot wallruns along a wall it is flying past")
 
 
 func _who(p: Player) -> String:
