@@ -27,6 +27,7 @@ Current game: 6 modes (TDM, FFA, Style TDM, Style FFA, Gun Game, CTF on Quay), 5
 ## Feel rules
 
 - TTK target ~0.4–0.8s on body. Headshots matter.
+- The sniper (0.87s) and the slug (0.91s) are deliberately slower than that band, and the shotgun is faster (one close hit with all pellets is a kill). A sniper headshot is an instant kill: 50 damage x 2.0. Do not "fix" those three into the band.
 - Every shot: muzzle flash, camera kick, tracer, audio. Confirmed hit: hit marker + tick. Kill: red marker + hitstop + distinct sound.
 - Ground movement is quake-style accel/friction, not Godot's default character. Air feel is tuned in `scripts/player.gd` (`APEX_*`, `AIR_*`, `DIVE_*`).
 - Mouse look is raw. No input smoothing.
