@@ -5,10 +5,11 @@ extends RefCounted
 ## synced properties and thin wrappers under the old names, so nothing on the network changes.
 
 ## Sprint, or already faster than a walk, plus crouch. Plain crouch stays the slow stance.
+## The keys come from the pawn (`_in_*`), not from Input, so a bot can start a slide too.
 static func try_start_slide(p: Player, on_floor: bool, locked: bool) -> void:
 	if p._sliding or locked or p.is_dead or not on_floor or p._slide_cd > 0.0:
 		return
-	if not Input.is_action_just_pressed("crouch"):
+	if not p._in_crouch_down:
 		return
 	var speed := Vector2(p.velocity.x, p.velocity.z).length()
 	if not p.is_sprinting and speed < Player.WALK_SPEED * 1.05:
@@ -30,7 +31,7 @@ static func finish_slide(p: Player) -> void:
 		return
 	p._slide_t += p.get_physics_process_delta_time()
 	var speed := Vector2(p.velocity.x, p.velocity.z).length()
-	var release := not Input.is_action_pressed("crouch")
+	var release := not p._in_crouch
 	var slow := speed < Player.WALK_SPEED * 0.95
 	var wall := false
 	for i in p.get_slide_collision_count():
@@ -232,16 +233,17 @@ static func tick_wallrun(p: Player, delta: float, input_vec: Vector2, locked: bo
 		p._wall_off_t = 0.0
 		var w := find_wall(p)
 		var along := Vector3(p.velocity.x, 0.0, p.velocity.z).length()
-		var drop := (not Input.is_action_pressed("sprint")) or Input.is_action_pressed("crouch")
+		var drop := (not p._in_sprint) or p._in_crouch
 		if w.is_empty() or p._wallrun_t >= Player.WALLRUN_TIME or along < Player.WALLRUN_KEEP_SPEED or drop or p.is_dead or locked:
 			end_wallrun(p)
 		else:
 			p._wall_n = w.n
 		return
 	p._wall_off_t += delta
-	if p.is_dead or locked or p.is_bot or p._surf_t > 0.0 or p._diving or p._wallruns_air >= Player.WALLRUN_PER_AIR:
+	## Bots run the same wallrun: no `is_bot` shortcut, the keys come from the pawn.
+	if p.is_dead or locked or p._surf_t > 0.0 or p._diving or p._wallruns_air >= Player.WALLRUN_PER_AIR:
 		return
-	if not Input.is_action_pressed("sprint") or input_vec.y > -0.3:
+	if not p._in_sprint or input_vec.y > -0.3:
 		return
 	var w := find_wall(p)
 	if w.is_empty() or str(w.key) == p._wall_key:
@@ -316,9 +318,10 @@ static func tick_boosts(p: Player, delta: float) -> void:
 static func try_air_dive(p: Player, on_floor: bool, locked: bool) -> void:
 	if p._dive_cd > 0.0:
 		return
-	if on_floor or locked or p.is_dead or p.is_bot or p._diving or p._dive_used or p._wallrunning or p._surf_t > 0.0:
+	## Bots dive through the same door as a human: no `is_bot` shortcut.
+	if on_floor or locked or p.is_dead or p._diving or p._dive_used or p._wallrunning or p._surf_t > 0.0:
 		return
-	if not Input.is_action_just_pressed("crouch") or not Input.is_action_pressed("sprint"):
+	if not p._in_crouch_down or not p._in_sprint:
 		return
 	if Vector2(p.velocity.x, p.velocity.z).length() < Player.DIVE_MIN_SPEED:
 		return

@@ -50,6 +50,14 @@ const AIM_TRACK := 14.0 # how fast the aim catches up with a moving target (1/s)
 var pawn: Player
 var agent: NavigationAgent3D
 var _acquire_left := ACQUIRE # set from Game.bot_profile() (#90) when a target is picked
+## Slide, wallrun and dive run through the same Movement code as a human's. These are the bot's keys:
+## crouch is held for the length of a slide, and pressed for a single tick so Movement sees a real press.
+const BOT_SLIDE_HOLD := 0.45 # s of crouch hold for one slide
+const BOT_SLIDE_NEAR := 12.0 # m: closest-to-furthest band where sliding into a fight makes sense
+const BOT_SLIDE_FAR := 4.5
+const BOT_DIVE_RANGE := 14.0 # m: falling toward a target inside this range is worth a dive
+var _crouch_hold := 0.0
+var _crouch_press := false
 var _strafe_sign := 1.0
 var _strafe_hold := 0.0
 var _strafe_pause := 0.0
@@ -195,11 +203,64 @@ func physics_tick(delta: float) -> void:
 
 
 ## move_and_slide plus the same small step-up the players get (StepUp), so bots do not stall on a lip.
+## Before it moves: slide, wallrun and dive, through the very same Movement code a human runs.
 func _move(delta: float) -> void:
+	_tick_tricks(delta)
 	var pre := pawn.velocity
 	var was_floor := pawn.is_on_floor()
 	pawn.move_and_slide()
 	StepUp.try_step(pawn, pre, was_floor, delta)
+
+
+## The bot's keys for this tick. Sprint whenever it wants to move; crouch only for a slide or a dive.
+## Movement reads these off the pawn, which is what lets it run for a bot at all (no keyboard here).
+func _set_bot_input() -> void:
+	pawn._in_sprint = true
+	pawn._in_crouch = _crouch_hold > 0.0 or _crouch_press
+	pawn._in_crouch_down = _crouch_press
+	_crouch_press = false
+
+
+## Slide into a fight, wallrun along a wall, dive at a target below. All three go through Movement, so a
+## bot obeys exactly the same ranges, cooldowns and physics as the player.
+func _tick_tricks(delta: float) -> void:
+	_crouch_hold = maxf(_crouch_hold - delta, 0.0)
+	var on_floor := pawn.is_on_floor()
+	var foe := _target
+	var has_foe := foe != null and is_instance_valid(foe) and not foe.is_dead
+	# A slide to close the last stretch of a fight, on the floor, moving fast, off cooldown.
+	if on_floor and has_foe and _in_fight and not pawn._sliding and _crouch_hold <= 0.0 and pawn._slide_cd <= 0.0:
+		var dist := pawn.global_position.distance_to(foe.global_position)
+		var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.WALK_SPEED * 1.05
+		if fast and dist > BOT_SLIDE_FAR and dist < BOT_SLIDE_NEAR:
+			_crouch_press = true
+			_crouch_hold = BOT_SLIDE_HOLD
+	# A dive when it is falling toward a target: closes the gap, and it lands into a roll.
+	elif not on_floor and has_foe and pawn._dive_cd <= 0.0 and pawn.velocity.y < -1.0:
+		if pawn.global_position.distance_to(foe.global_position) < BOT_DIVE_RANGE:
+			_crouch_press = true
+			_crouch_hold = maxf(_crouch_hold, 0.2)
+	_set_bot_input()
+	Movement.try_start_slide(pawn, on_floor, false)
+	Movement.try_air_dive(pawn, on_floor, false)
+	# Forward is the travel direction (the brain faces it), so "forward held" is what walls want.
+	Movement.tick_wallrun(pawn, delta, Vector2(0.0, -1.0), false)
+	if pawn._wallrunning:
+		var horiz := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
+		var along := horiz.normalized() if horiz.length_squared() > 0.01 else -pawn.transform.basis.z
+		var h := Movement.wallrun_horiz(pawn, horiz, along, delta)
+		pawn.velocity.x = h.x
+		pawn.velocity.z = h.z
+	if pawn._sliding:
+		# Keep the slide on its own line at sprint speed; finish_slide decides when it is over.
+		var dir := pawn._slide_dir
+		var sp := maxf(Vector2(pawn.velocity.x, pawn.velocity.z).length(), Player.SPRINT_SPEED)
+		pawn.velocity.x = dir.x * sp
+		pawn.velocity.z = dir.z * sp
+	Movement.finish_slide(pawn)
+	# The same stance code the human runs: crouch follows the held key, and releases when the slide,
+	# the dive or the roll is over.
+	pawn._update_stance(delta, on_floor)
 
 
 ## Nearest enemy we can actually see; else the nearest one to hunt. Re-picked every RETARGET.
