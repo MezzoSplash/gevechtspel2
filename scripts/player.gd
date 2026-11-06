@@ -270,11 +270,22 @@ var _roll_seen_t := -100.0
 const STYLE_KEEP := 1.5
 const STYLE_RAMP_REACH := 1.0 # m from the body centre (capsule radius ~0.45, plus slack)
 const STYLE_TELEPORT_M := 3.0 # one tick moving further than this is a teleport (snapshots move < 1 m)
+## Server-side check on the position a client claims (#B1). A client owns its own pawn, so it also
+## tells us where it is — and a modified client could say "I am across the map" and shoot from there.
+## A claim is only accepted if the pawn could have got there since the last accepted one at the
+## fastest speed the game allows: CARRY_MAX sideways, a hard fall plus a dive vertically.
+const NET_CLAIM_H_CAP := CARRY_MAX * 1.4 # m/s: surf exit boost and dive stay under this
+const NET_CLAIM_V_CAP := 45.0 # m/s: free fall with a dive
+const NET_CLAIM_SLACK := 0.6 # m: a step up, a landing, one late snapshot
+const NET_CLAIM_MIN_DT := 0.05 # s: never judge against a window smaller than this
+const NET_CORRECTION_MS := 250 # ms between corrections: one is enough, we do not spam
 ## Remote human pawns on a client glide toward the last received pose instead of snapping to it.
 ## Time constant of that exponential smoothing; matches LagComp.INTERP_MS so lag compensation stays honest.
 const NET_SMOOTH_S := 0.05
 var _net_target := Vector3.ZERO # last pose received through $Sync (client side, remote humans only)
 var _net_has := false # _net_target holds a real pose
+var _net_pos_ms := 0 # server: when we last accepted a position claim (#B1)
+var _corr_ms := 0 # server: when we last sent a correction (rate limit)
 
 ## Replicated stand-in for `position` ($Sync, see _enter_tree). The owner reads its real position;
 ## a receiver stores it as a target (_smooth_remote) so lost or jittery snapshots do not stutter.
@@ -1133,12 +1144,48 @@ func _enemy_in_sight() -> bool:
 
 
 ## See net_pos. First pose, the server, or a jump past STYLE_TELEPORT_M (respawn) snaps.
+## On the server a claim is checked first: the client only gets to say where it is (#B1).
 func _receive_net_pos(v: Vector3) -> void:
+	if multiplayer.is_server() and not is_bot:
+		_accept_claim(v)
+		return
 	var smooth := is_inside_tree() and _net_has and not multiplayer.is_server()
 	_net_target = v
 	_net_has = true
 	if not smooth or v.distance_to(position) > STYLE_TELEPORT_M:
 		position = v
+
+
+## #B1 server authority over position. Accept a claim only if the pawn could have reached it since the
+## last accepted one; otherwise keep our own copy and send a correction (rate limited). Without this a
+## modified client could teleport anywhere and shoot from there — and origin_plausible would agree,
+## because it compares the shot against the position that same client just claimed.
+func _accept_claim(v: Vector3) -> void:
+	var now := Time.get_ticks_msec()
+	var dt := maxf(float(now - _net_pos_ms) / 1000.0, NET_CLAIM_MIN_DT)
+	if is_dead or _claim_reachable(v, dt):
+		position = v
+		_net_pos_ms = now
+		return
+	# Refused. Reset the window as well, so the budget cannot pile up and turn into a slow teleport.
+	_net_pos_ms = now
+	if now - _corr_ms >= NET_CORRECTION_MS and Game.is_networked() and peer_id in multiplayer.get_peers():
+		_corr_ms = now
+		Game.correct_position.rpc_id(peer_id, position)
+
+
+## Could a pawn have gone from where we have it to `v` in `dt` seconds?
+func _claim_reachable(v: Vector3, dt: float) -> bool:
+	var d := v - position
+	var h := Vector2(d.x, d.z).length()
+	return h <= NET_CLAIM_H_CAP * dt + NET_CLAIM_SLACK and absf(d.y) <= NET_CLAIM_V_CAP * dt + NET_CLAIM_SLACK
+
+
+## The server refused our claim: take its copy. Called by Game.correct_position.
+func apply_position_correction(v: Vector3) -> void:
+	position = v
+	_net_target = v
+	_net_has = true
 
 
 ## Client-side glide of a remote human toward _net_target (frame-rate independent).
