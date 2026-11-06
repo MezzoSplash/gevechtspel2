@@ -140,6 +140,7 @@ var knives := 0 # throwing knives (grenade slot, F); bots carry none
 ## Empty = bot or a remote copy: full armory, GRENADE_MAX.
 var loadout: Dictionary = {}
 var is_sprinting := false
+var los_coast := false # LOS: this pawn keeps the line it already had; the hands are the camera
 @export var crouch := 0.0
 @export var display_name := "Player"
 var _yaw := 0.0
@@ -523,8 +524,8 @@ func make_active_camera() -> void:
 func _input(event: InputEvent) -> void:
 	if not is_local():
 		return
-	if Game.chat_open or Game.pause_open or Game.killcam_active or Game.rc_view:
-		return
+	if Game.chat_open or Game.pause_open or Game.killcam_active or Game.rc_view or Game.los_view:
+		return # LOS look is the hands' camera; do not eat the mouse event or they never see it
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var sens := MOUSE_SENS * Game.mouse_sens
 		if weapon and weapon.is_ads():
@@ -548,11 +549,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if Game.chat_open or Game.pause_open:
 		return
-	if event.is_action_pressed("grenade") and not is_dead and not Game.play_locked() and not Game.rc_view:
+	if event.is_action_pressed("grenade") and not is_dead and not Game.play_locked() and not Game.rc_view and not Game.los_view:
 		_try_throw_grenade()
 		get_viewport().set_input_as_handled()
 		return
-	if event.is_action_pressed("throw_knife") and not is_dead and not Game.play_locked() and not Game.rc_view:
+	if event.is_action_pressed("throw_knife") and not is_dead and not Game.play_locked() and not Game.rc_view and not Game.los_view:
 		_try_throw_knife()
 		get_viewport().set_input_as_handled()
 		return
@@ -721,10 +722,15 @@ func _die() -> void:
 		return
 	is_dead = true
 	# The RC is gone with you, and it does not explode on the way out.
+	# LOS ends the same way: camera back on the body, no bash from a corpse.
 	if is_local() and Game.rc_view:
 		RcXd.release_view()
+	var los_id := peer_id if peer_id != 0 else _owner_peer()
 	if Game._is_match_authority():
 		RcXd.abort_for(peer_id)
+		LosHands.abort_for(los_id)
+	elif is_local():
+		LosHands.abort_for(los_id)
 	Game.killcam.note_death(peer_id)
 	velocity = Vector3.ZERO
 	_carry_t = 0.0
@@ -867,9 +873,10 @@ func _physics_process(delta: float) -> void:
 		_tick_feet(delta)
 		return
 	## Every menu or lock that takes the keys away from the pawn: chat, the pause menu, a round freeze
-	## or killcam, the RC view. The pause menu was missing here, so the local pawn kept walking,
+	## or killcam, the RC view, LOS. The pause menu was missing here, so the local pawn kept walking,
 	## sprinting and jumping behind the menu while only look and fire were blocked.
-	var input_locked := Game.chat_open or Game.pause_open or Game.play_locked() or Game.rc_view
+	## LOS locks the stick but does not zero the velocity: the body keeps the line it had.
+	var input_locked := Game.chat_open or Game.pause_open or Game.play_locked() or Game.rc_view or Game.los_view
 	# The movement keys, once per tick. Movement itself never touches Input any more (see _in_sprint).
 	_in_sprint = (not input_locked) and Input.is_action_pressed("sprint")
 	_in_crouch = (not input_locked) and Input.is_action_pressed("crouch")
@@ -939,6 +946,17 @@ func _physics_process(delta: float) -> void:
 		wish_speed = CROUCH_SPEED
 	if not _sliding:
 		wish_speed *= gun_speed_mult()
+	# LOS: wish is the speed the body already has, so friction does not park it.
+	# Below COAST_MIN it stands. No new jump, slide or dive (input_locked covers those).
+	if los_coast:
+		var hv := Vector3(velocity.x, 0.0, velocity.z)
+		var spd := hv.length()
+		if spd >= LosHands.COAST_MIN:
+			wish = hv / spd
+			wish_speed = spd
+		else:
+			wish = Vector3.ZERO
+			wish_speed = 0.0
 
 	var horiz := Vector3(velocity.x, 0.0, velocity.z)
 	if jumped or not on_floor:

@@ -2,7 +2,7 @@
 
 Feel-first arena FPS built around style and movement: surf, wallrun, dive, slide, and land Tony Hawk style combos and trickshots. If a change does not make shooting, moving or pulling off tricks more satisfying, it is out of scope. When making maps, props or weapons, follow [docs/art/index.html](docs/art/index.html).
 
-Current game: 6 modes (TDM, FFA, Style TDM, Style FFA, Gun Game, CTF on Quay), 5 maps (Townhouses, Foundry, Rooftops, Quay, Skyline; see `scripts/maps.gd`), 8 guns plus frag, knife and melee, bots up to 16, UAV (a physical drone you can shoot down) and RC-XD scorestreaks, MVP killcam, B1 crystal bodies.
+Current game: 6 modes (TDM, FFA, Style TDM, Style FFA, Gun Game, CTF on Quay), 5 maps (Townhouses, Foundry, Rooftops, Quay, Skyline; see `scripts/maps.gd`), 8 guns plus frag, knife and melee, bots up to 16, UAV (a physical drone you can shoot down), RC-XD and LOS scorestreaks, MVP killcam, B1 crystal bodies.
 
 ## Stack
 
@@ -53,6 +53,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 - #171/#172: the UAV is a drone that circles the map and can be shot down (`scripts/uav_drone.gd`). Released in v0.5.3 (`NET_VERSION` 0.5.3).
 - #173: `check_bot_kit` is deterministic (seeded, streaks handed out).
 - #177/#178: speed effects (`Game.speed_fx`, Access tab, default on). The hip FOV kicks with horizontal speed from sprint on (`Player.speed_fov_extra`), speed lines fade in above ~12 m/s (`SpeedLines` + `shaders/speed_lines.gdshader`), a hard landing dips the camera once, and a wind loop follows the speed. Local player only; off keeps the old sprint + carry FOV.
+- LOS scorestreak (slot 2, 7 kills, 3 s): the body keeps its line, the hands fly and melee from there. `NET_VERSION` 0.5.6. Check: `tools/check_los.tscn`.
 
 ## Commands
 

@@ -59,6 +59,7 @@ static func clear_peer_hp(game: GameState, peer_id: int) -> void:
 	game.streak_charges.erase(peer_id)
 	game.streak_earned.erase(peer_id)
 	RcXd.abort_for(peer_id)
+	LosHands.abort_for(peer_id)
 	game.pings.erase(peer_id)
 	game._fire_credit.erase(peer_id)
 	if game.melee:

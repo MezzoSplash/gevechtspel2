@@ -5,8 +5,9 @@ extends RefCounted
 
 
 ## Humans and bots (bots have negative ids). Death clears this life's count, not a streak already earned.
-## 3 banks the UAV, 5 banks the RC-XD. Each stays until Enter uses it,
+## 3 banks the UAV, 5 banks the RC-XD, 7 banks LOS. Each stays until Enter uses it,
 ## or until start_round clears every charge for the next round.
+## Bots never bank LOS: they do not pilot the hands.
 static func bump_streak(g: GameState, killer_peer_id: int, victim_peer_id: int) -> void:
 	if victim_peer_id != 0:
 		g.streak_progress[victim_peer_id] = 0
@@ -15,7 +16,7 @@ static func bump_streak(g: GameState, killer_peer_id: int, victim_peer_id: int) 
 	if killer_peer_id == 0:
 		return
 	var n := int(g.streak_progress.get(killer_peer_id, 0))
-	if n < g.RCXD_AT:
+	if n < g.LOS_AT:
 		n += 1
 	g.streak_progress[killer_peer_id] = n
 	var charges := int(g.streak_charges.get(killer_peer_id, 0))
@@ -26,6 +27,9 @@ static func bump_streak(g: GameState, killer_peer_id: int, victim_peer_id: int) 
 	if n >= g.RCXD_AT and (earned & g.CHARGE_RCXD) == 0:
 		earned |= g.CHARGE_RCXD
 		charges |= g.CHARGE_RCXD
+	if n >= g.LOS_AT and killer_peer_id > 0 and (earned & g.CHARGE_LOS) == 0:
+		earned |= g.CHARGE_LOS
+		charges |= g.CHARGE_LOS
 	g.streak_earned[killer_peer_id] = earned
 	g.streak_charges[killer_peer_id] = charges
 	push_streak(g, killer_peer_id)
@@ -51,9 +55,10 @@ static func apply_streak_local(g: GameState, n: int, charges: int, earned: int) 
 		hud.set_streak(n, charges, earned)
 
 
-## Slot 0 is the UAV (3), slot 1 is the RC-XD (5). Using one spends only that charge.
+## Slot 0 is the UAV (3), slot 1 is the RC-XD (5), slot 2 is LOS (7). Using one spends only that charge.
 ## UAV still spends if one is already running (time is not stacked).
-## Freeze, killcam, death, or a car already out: the charge is kept.
+## Freeze, killcam, death, a car already out, or hands already out: the charge is kept.
+## LOS and the RC-XD never run together. A failed launch (bot, dead, the other streak) does not spend.
 static func try_activate_streak(g: GameState, peer_id: int, slot: int) -> void:
 	if not g._is_match_authority():
 		return
@@ -62,19 +67,23 @@ static func try_activate_streak(g: GameState, peer_id: int, slot: int) -> void:
 	var p := g.player_for_peer(peer_id)
 	if p == null or p.is_dead:
 		return
-	if RcXd.for_owner(peer_id) != null:
+	if RcXd.for_owner(peer_id) != null or LosHands.for_owner(peer_id) != null:
 		return
 	var bit := 0
 	if slot == 0:
 		bit = g.CHARGE_RADAR
 	elif slot == 1:
 		bit = g.CHARGE_RCXD
+	elif slot == 2:
+		bit = g.CHARGE_LOS
 	else:
 		return
 	var charges := int(g.streak_charges.get(peer_id, 0))
 	if (charges & bit) == 0:
 		return
 	if bit == g.CHARGE_RCXD and not RcXd.launch(p):
+		return
+	if bit == g.CHARGE_LOS and not LosHands.launch(p):
 		return
 	charges &= ~bit
 	g.streak_charges[peer_id] = charges
@@ -145,6 +154,8 @@ static func clear_radar(g: GameState) -> void:
 	if hud:
 		hud.clear_radar()
 	RcXd.abort_all()
+	LosHands.abort_all()
+	g.los_view = false
 	UavDrone.clear_all()
 
 

@@ -107,7 +107,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.5.5" # 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.5.6" # 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -132,6 +132,7 @@ var in_lobby := false
 var round_frozen := false # look OK, no walk/shoot; bots idle
 var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
 var rc_view := false # this machine is looking out of an RC-XD; the pawn stays put and cannot shoot
+var los_view := false # this machine is looking through LOS hands; the body keeps its line and cannot shoot
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
 var flags: Array = [] # #160 CTF: [blue, orange] Objective dicts (authority decides, all mirror)
 var ctf_caps: Array = [0, 0] # #160 CTF: captures per team this round
@@ -1034,10 +1035,12 @@ const RCXD_DISPLAY_NAME := "RCXplodie"
 const RADAR_TIME := 25.0 # UAV: enemies on the minimap this long (BO2 is ~30 s)
 const CHARGE_RADAR := 1
 const CHARGE_RCXD := 2
+const LOS_AT := 7 # hands detach
+const CHARGE_LOS := 4
 
 signal flags_changed # #160: flag state or capture score changed
 signal flag_event(kind: String, team: int, by_name: String) # #160: taken / dropped / returned / captured
-signal streak_used(peer_id: int, slot: int) # authority: a UAV (0) or RC-XD (1) was spent
+signal streak_used(peer_id: int, slot: int) # authority: a UAV (0), RC-XD (1) or LOS (2) was spent
 var streak_progress: Dictionary = {} # peer -> kills this life (death clears this)
 var streak_charges: Dictionary = {} # peer -> bitmask of streaks earned and not yet used
 var streak_earned: Dictionary = {} # peer -> bitmask already passed this life (stops a second copy)
@@ -1167,6 +1170,45 @@ func sync_rc_hp(net_id: int, value: float) -> void:
 	var car := RcXd.by_id(net_id)
 	if car:
 		car.apply_hp(value)
+
+
+## LOS hands. The server spawns them; everyone else builds a visual. Poses are unreliable on purpose:
+## a lost packet must not stall the channel. The bash is reliable and only the server resolves it.
+@rpc("authority", "reliable")
+func sync_los_spawn(peer: int, pos: Vector3, yaw_in: float, pitch_in: float) -> void:
+	if multiplayer.is_server():
+		return
+	LosHands.spawn_remote(peer, pos, yaw_in, pitch_in)
+
+
+@rpc("authority", "unreliable")
+func sync_los_pose(peer: int, pos: Vector3, vel: Vector3, yaw_in: float, pitch_in: float) -> void:
+	if multiplayer.is_server():
+		return
+	LosHands.apply_pose(peer, pos, vel, yaw_in, pitch_in)
+
+
+@rpc("authority", "reliable")
+func sync_los_end(peer: int) -> void:
+	if multiplayer.is_server():
+		return
+	LosHands.abort_for(peer)
+
+
+## Owner → server, every physics tick. Wish is world space and follows the look, including up.
+@rpc("any_peer", "unreliable")
+func los_input(wish: Vector3, yaw_in: float, pitch_in: float) -> void:
+	if not multiplayer.is_server():
+		return
+	LosHands.server_input(multiplayer.get_remote_sender_id(), wish, yaw_in, pitch_in)
+
+
+## Owner → server. The origin has to be the hands, not the body's eye (that check would reject it).
+@rpc("any_peer", "reliable")
+func los_melee(origin: Vector3, dir: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	LosHands.server_swing(multiplayer.get_remote_sender_id(), origin, dir)
 
 
 ## Same popup split as the radar: your team sees RC-XD, the other team sees ENEMY RC-XD.

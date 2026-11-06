@@ -66,6 +66,10 @@ static func detect(
 		"walljump": shooter.style_walljump(),
 		"dive": shooter.style_dive(),
 		"roll": shooter.style_roll(),
+		# LOS reads the body's real horizontal speed. _obs_speed is smoothed and can still be 0
+		# the moment a velocity is set, which would drop a fast bash.
+		"los": LosHands.driving(shooter),
+		"body_speed": Vector2(shooter.velocity.x, shooter.velocity.z).length(),
 	})
 
 

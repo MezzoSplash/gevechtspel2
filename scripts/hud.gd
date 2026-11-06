@@ -237,8 +237,8 @@ func _input(event: InputEvent) -> void:
 		return
 	if Game.pause_open:
 		return
-	# Driving: the car has the mouse and LMB. Streak keys and chat wait until it is gone.
-	if Game.rc_view:
+	# Driving the car or the hands: that camera has the mouse and LMB. Streak keys and chat wait.
+	if Game.rc_view or Game.los_view:
 		if (
 			event.is_action_pressed("ui_up")
 			or event.is_action_pressed("ui_down")
@@ -602,6 +602,11 @@ func _on_flag_event(kind: String, team: int, by_name: String) -> void:
 	_standing_t = 0.0
 
 
+## LOS came on. Gold, same family as a friendly radar. The box going gold is the unlock; no voice line.
+func show_los(line: String, team: int) -> void:
+	show_popup("LOS", _POPUP_FRIENDLY, line, team)
+
+
 func show_popup(title: String, title_col: Color, by_name: String, team: int) -> void:
 	if _popup == null:
 		return
@@ -711,7 +716,7 @@ func _build_popup() -> void:
 	_popup.add_child(_popup_by)
 
 
-## Left column: slot 0 radar (3), slot 1 RC-XD (5), slot 2 empty.
+## Left column: slot 0 radar (3), slot 1 RC-XD (5), slot 2 LOS (7).
 ## The white frame is the arrow-key selection, not "ready". A gold box is a charge you still hold.
 func _refresh_streak_ui() -> void:
 	_refresh_streak_extras()
@@ -725,8 +730,10 @@ func _refresh_streak_ui() -> void:
 			ready = (_streak_charges & Game.CHARGE_RADAR) != 0
 		elif i == 1:
 			ready = (_streak_charges & Game.CHARGE_RCXD) != 0
+		elif i == 2:
+			ready = (_streak_charges & Game.CHARGE_LOS) != 0
 		var name_l := slot.get_node_or_null("Name") as Label
-		if name_l and i == 1:
+		if name_l and (i == 1 or i == 2):
 			var col := Color(1, 0.92, 0.55) if ready else Color(0.55, 0.58, 0.62)
 			name_l.add_theme_color_override("font_color", col)
 		_skin(slot)
@@ -857,9 +864,9 @@ func _facelift_hud() -> void:
 		var col := streak_label.get_parent()
 		col.add_child(_streak_pips)
 		col.move_child(_streak_pips, streak_label.get_index() + 1)
-		for i in Game.RCXD_AT:
+		for i in Game.LOS_AT:
 			var pip := Panel.new()
-			pip.custom_minimum_size = Vector2(20, 6)
+			pip.custom_minimum_size = Vector2(14, 6)
 			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			var sb := StyleBoxFlat.new()
 			sb.set_corner_radius_all(3)
@@ -869,7 +876,7 @@ func _facelift_hud() -> void:
 	for i in _streak_slots.size():
 		var slot := _streak_slots[i]
 		var cost: Label = null
-		if slot and i < 2:
+		if slot and i < 3:
 			cost = Label.new()
 			cost.name = "Cost"
 			cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -889,21 +896,27 @@ func _facelift_hud() -> void:
 func _refresh_streak_extras() -> void:
 	if streak_label:
 		streak_label.text = "SCORESTREAK"
-	var goal := Game.RCXD_AT
 	if _streak_pips:
 		for i in _streak_pips.get_child_count():
 			var pip := _streak_pips.get_child(i) as Panel
 			var sb := pip.get_theme_stylebox("panel") as StyleBoxFlat
 			var lit := i < _streak_n
-			var mark := i == Game.STREAK_AT - 1 or i == goal - 1 # UAV and RC-XD steps
+			var mark := i == Game.STREAK_AT - 1 or i == Game.RCXD_AT - 1 or i == Game.LOS_AT - 1
 			sb.bg_color = HUD_ACCENT if lit else (Color(1, 1, 1, 0.26) if mark else Color(1, 1, 1, 0.12))
 	for i in _streak_costs.size():
 		var c := _streak_costs[i]
 		if c == null:
 			continue
-		var bit := Game.CHARGE_RADAR if i == 0 else Game.CHARGE_RCXD
+		var bit := Game.CHARGE_RADAR
+		var kills := Game.STREAK_AT
+		if i == 1:
+			bit = Game.CHARGE_RCXD
+			kills = Game.RCXD_AT
+		elif i == 2:
+			bit = Game.CHARGE_LOS
+			kills = Game.LOS_AT
 		var is_ready := (_streak_charges & bit) != 0
-		c.text = "READY · ENTER" if is_ready else "%d KILLS" % (Game.STREAK_AT if i == 0 else Game.RCXD_AT)
+		c.text = "READY · ENTER" if is_ready else "%d KILLS" % kills
 		c.add_theme_color_override("font_color", HUD_ACCENT if is_ready else Color(0.62, 0.66, 0.72, 0.85))
 
 

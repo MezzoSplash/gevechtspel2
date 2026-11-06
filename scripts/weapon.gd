@@ -155,7 +155,7 @@ func _process(delta: float) -> void:
 	if trigger and not _trigger_held:
 		burst_seq += 1
 	_trigger_held = trigger
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not Game.chat_open and not Game.pause_open and not Game.play_locked() and not Game.rc_view:
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not trigger_locked():
 		if Input.is_action_just_pressed("melee"):
 			Game.melee.swing(owner_player)
 		elif Input.is_action_just_pressed("switch_weapon"):
@@ -337,6 +337,12 @@ func is_ads() -> bool:
 	return _ads
 
 
+## Chat, pause, a freeze, the killcam, the RC-XD and LOS all keep the gun from firing.
+## Mouse capture is checked separately: a click that only releases the cursor is not a shot.
+func trigger_locked() -> bool:
+	return Game.chat_open or Game.pause_open or Game.play_locked() or Game.rc_view or Game.los_view
+
+
 ## Hold RMB on a gun with `ads_fov`: sniper scope (FOV 38, viewmodel hidden) or SMG iron sights
 ## (FOV 72, gun slides to the centre, tighter spread). Other guns never ADS.
 func _update_ads() -> void:
@@ -346,10 +352,7 @@ func _update_ads() -> void:
 		and def.ads_fov > 0.0
 		and _throw_left <= 0.0
 		and _owner_alive()
-		and not Game.chat_open
-		and not Game.pause_open
-		and not Game.play_locked()
-		and not Game.rc_view
+		and not trigger_locked()
 		and not _owner_sliding()
 		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 		and Input.is_action_pressed("zoom")
