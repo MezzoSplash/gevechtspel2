@@ -199,6 +199,19 @@ static func sample_pings(game: GameState) -> void:
 ## Match authority. A human pawn crossing a speed strip fast enough banks LINE (or LINE ×2).
 ## The segment test catches a snapshot that steps through the box. Bots never surf, so they skip it.
 ## is_best stays false: a strip is not a kill, and it must not replace the round's killcam.
+## Speed of one snapshot step in m/s. The server receives positions ~30x/s while it ticks 60x/s, so a
+## tick that brought no new snapshot must neither be measured (that reads 0 m/s) nor restart the
+## window: the step is divided by the time since the last real snapshot. Dividing by the tick delta
+## instead made a walker look twice as fast, which handed out strips nobody earned. -1 = no new
+## snapshot this tick, so there is nothing to measure yet.
+static func step_speed(prev: Vector3, prev_ms: int, now_pos: Vector3, now_ms: int) -> float:
+	if now_pos.is_equal_approx(prev):
+		return -1.0
+	var step := now_pos - prev
+	var dt := maxf(float(now_ms - prev_ms) / 1000.0, 0.0001)
+	return Vector2(step.x, step.z).length() / dt
+
+
 static func tick_lines(game: GameState, delta: float) -> void:
 	if not game._is_match_authority():
 		return
@@ -206,16 +219,20 @@ static func tick_lines(game: GameState, delta: float) -> void:
 	var strips := game.get_tree().get_nodes_in_group("speed_strip")
 	if strips.is_empty():
 		return
+	var now_ms := LagComp.now_ms()
 	for n in game.get_tree().get_nodes_in_group("player"):
 		var p := n as Player
 		if p == null or p.is_bot or p.is_dead:
 			continue
 		var prev: Vector3 = game._line_pos.get(p.peer_id, p.global_position)
-		var step := p.global_position - prev
+		var prev_ms: int = game._line_ms.get(p.peer_id, now_ms)
+		var spd := step_speed(prev, prev_ms, p.global_position, now_ms)
+		if spd < 0.0:
+			continue # no new snapshot yet: keep the window open for the tick that brings one
 		game._line_pos[p.peer_id] = p.global_position
-		if step.length() > Player.STRIP_TELEPORT_M:
+		game._line_ms[p.peer_id] = now_ms
+		if (p.global_position - prev).length() > Player.STRIP_TELEPORT_M:
 			continue
-		var spd := Vector2(step.x, step.z).length() / maxf(delta, 0.0001)
 		if spd < Player.STRIP_SPEED:
 			continue
 		for s in strips:

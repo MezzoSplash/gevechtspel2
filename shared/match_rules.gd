@@ -98,6 +98,7 @@ static func clear_round_state(game: Node) -> void:
 	game._line_cd.clear()
 	game._line_chain.clear()
 	game._line_pos.clear()
+	game._line_ms.clear()
 	game._bursts.clear()
 	game._shotgun_kill_t.clear()
 	game._hs_streak.clear()

@@ -234,6 +234,9 @@ var _was_surfing := false
 var _fall_vy := 0.0 # fastest fall of the current air time (negative), for the landing camera dip
 var _was_fall := false # last physics tick was airborne (landing edge, speed_fx only)
 var _land_cam_pitch := 0.0 # rad: landing dip on top of camera.move_pitch, eases back to 0
+## How much of that dip is currently sitting in camera.move_pitch. Taken out again at the start of the
+## next _tick_move_fx, so the dip is a transient channel and never feeds back into the pitch decay.
+var _land_dip_applied := 0.0
 var _strip_cd: Dictionary = {} # strip name -> seconds until this pawn can take it again
 var _strip_prev := Vector3.INF
 var _whoosh: AudioStreamPlayer
@@ -846,7 +849,10 @@ func _physics_process(delta: float) -> void:
 		_apply_remote_visual()
 		_tick_feet(delta)
 		return
-	var chatting := Game.chat_open or Game.play_locked() or Game.rc_view
+	## Every menu or lock that takes the keys away from the pawn: chat, the pause menu, a round freeze
+	## or killcam, the RC view. The pause menu was missing here, so the local pawn kept walking,
+	## sprinting and jumping behind the menu while only look and fire were blocked.
+	var input_locked := Game.chat_open or Game.pause_open or Game.play_locked() or Game.rc_view
 	_carry_t = maxf(_carry_t - delta, 0.0)
 	_kb_t = maxf(_kb_t - delta, 0.0)
 	_tick_strip_cd(delta)
@@ -855,26 +861,26 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0
 		velocity.z = 0.0
 	var on_floor := is_on_floor()
-	_try_start_slide(on_floor, chatting)
-	_try_air_dive(on_floor, chatting)
+	_try_start_slide(on_floor, input_locked)
+	_try_air_dive(on_floor, input_locked)
 	_update_stance(delta, on_floor)
 
 	_jump_buffer = maxf(_jump_buffer - delta, 0.0)
-	if (not is_dead) and (not chatting) and Input.is_action_just_pressed("jump"):
+	if (not is_dead) and (not input_locked) and Input.is_action_just_pressed("jump"):
 		_jump_buffer = JUMP_BUFFER
 	var jumped := false
 	if not on_floor:
 		velocity.y += float(get_gravity().y) * delta * Movement.gravity_scale(self)
 		_sliding = false
-		if (_wallrunning or _wall_off_t <= WALLRUN_COYOTE) and (not is_dead) and (not chatting) and _jump_buffer > 0.0:
+		if (_wallrunning or _wall_off_t <= WALLRUN_COYOTE) and (not is_dead) and (not input_locked) and _jump_buffer > 0.0:
 			_wall_jump()
 			_jump_buffer = 0.0
-	elif (not is_dead) and (not chatting) and _jump_buffer > 0.0 and _sliding and _dive_cd <= 0.0:
+	elif (not is_dead) and (not input_locked) and _jump_buffer > 0.0 and _sliding and _dive_cd <= 0.0:
 		_sliding = false
 		_start_dive(true) # sprint + crouch (slide), then jump: dive
 		jumped = true
 		_jump_buffer = 0.0
-	elif (not is_dead) and (not chatting) and _jump_buffer > 0.0:
+	elif (not is_dead) and (not input_locked) and _jump_buffer > 0.0:
 		_sliding = false
 		_roll_t = 0.0
 		if crouch > 0.2:
@@ -890,7 +896,7 @@ func _physics_process(delta: float) -> void:
 			_jump_buffer = 0.0
 
 	var input_vec := Vector2.ZERO
-	if not is_dead and not chatting:
+	if not is_dead and not input_locked:
 		input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var wish := transform.basis * Vector3(input_vec.x, 0.0, input_vec.y)
 	wish.y = 0.0
@@ -905,7 +911,7 @@ func _physics_process(delta: float) -> void:
 		wish = _slide_dir
 		wish_speed = SPRINT_SPEED
 		is_sprinting = false
-	elif on_floor and (not is_dead) and (not chatting) and crouch < 0.2 and Input.is_action_pressed("sprint") and wish.length_squared() > 0.04:
+	elif on_floor and (not is_dead) and (not input_locked) and crouch < 0.2 and Input.is_action_pressed("sprint") and wish.length_squared() > 0.04:
 		wish_speed = SPRINT_SPEED
 		is_sprinting = true
 	elif crouch > 0.5:
@@ -965,7 +971,7 @@ func _physics_process(delta: float) -> void:
 	_apply_carry_fov()
 	_finish_slide()
 	Movement.tick_boosts(self, delta)
-	_tick_wallrun(delta, input_vec, chatting)
+	_tick_wallrun(delta, input_vec, input_locked)
 	_tick_dive_roll(delta)
 	_tick_move_fx(delta)
 	_tick_speed_fx(delta)
@@ -1159,7 +1165,7 @@ func _finish_slide() -> void:
 
 
 func _update_stance(delta: float, _on_floor: bool) -> void:
-	var want := _sliding or _diving or _roll_t > 0.0 or ((not is_dead) and (not Game.chat_open) and (not Game.rc_view) and Input.is_action_pressed("crouch"))
+	var want := _sliding or _diving or _roll_t > 0.0 or ((not is_dead) and (not Game.chat_open) and (not Game.pause_open) and (not Game.rc_view) and Input.is_action_pressed("crouch"))
 	if (not want) and crouch > 0.05 and _ceiling_blocked():
 		want = true
 	var target := 1.0 if want else 0.0
@@ -1594,6 +1600,11 @@ func _tick_move_fx(delta: float) -> void:
 		move_fx = MOVE_NONE
 	if camera == null:
 		return
+	# Take last tick's landing dip back out before the pitch is re-derived below. Without this the dip
+	# fed back into the decay: every tick added it again while the decay only shaved ~10% off, and at
+	# 60 Hz the camera dipped to ~2.3x LAND_CAM_DIP_MAX. The cap was never wrong, the channel was.
+	camera.move_pitch -= _land_dip_applied
+	_land_dip_applied = 0.0
 	var roll_target := 0.0
 	if _wallrunning:
 		var right := transform.basis.x
@@ -1634,12 +1645,14 @@ func _tick_speed_fx(delta: float) -> void:
 	if _land_cam_pitch != 0.0:
 		if Game.speed_fx:
 			camera.move_pitch += _land_cam_pitch
+			_land_dip_applied = _land_cam_pitch
 		_land_cam_pitch = lerpf(_land_cam_pitch, 0.0, 1.0 - exp(-LAND_CAM_RECOVER * delta))
 		if absf(_land_cam_pitch) < 0.0005:
 			_land_cam_pitch = 0.0
-	# Speed lines and wind run off the same horizontal speed. Aiming, death and anything that locks
-	# play (chat, pause, RC view) silences both, so a fight never reads through a blurred screen.
-	var quiet := is_dead or Game.chat_open or Game.play_locked() or Game.rc_view
+	# Speed lines and wind run off the same horizontal speed. Aiming, death, the pause menu and anything
+	# else that locks play (chat, round freeze, RC view) silences both, so a fight never reads through a
+	# blurred screen and a menu never keeps the wind howling.
+	var quiet := is_dead or Game.chat_open or Game.pause_open or Game.play_locked() or Game.rc_view
 	if not quiet and weapon != null and weapon.is_ads():
 		quiet = true
 	var fast := Game.speed_fx and not quiet

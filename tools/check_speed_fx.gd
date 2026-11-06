@@ -68,6 +68,39 @@ func _ready() -> void:
 	p.weapon._ads = false
 	cam.extra_fov = 0.0
 
+	# The landing dip is a transient channel: it may never stack past its own cap and it must leave no
+	# residue in move_pitch. This is the regression test for the ~2.3x dip that the old code produced
+	# at 60 Hz by adding the dip on top of itself every tick.
+	Game.speed_fx = true
+	cam.move_pitch = 0.0
+	p._land_cam_pitch = Player.speed_land_dip(Player.CARRY_MAX)
+	p._land_dip_applied = 0.0
+	var deepest := 0.0
+	var dt := 1.0 / 60.0
+	for i in range(240):
+		p._tick_move_fx(dt)
+		p._tick_speed_fx(dt)
+		deepest = minf(deepest, cam.move_pitch)
+	_ok(deepest >= -Player.LAND_CAM_DIP_MAX - 0.0001,
+		"landing dip stays inside its cap (%.4f vs %.4f rad)" % [deepest, -Player.LAND_CAM_DIP_MAX])
+	_ok(deepest <= -Player.LAND_CAM_DIP_MAX * 0.9, "landing dip is actually felt (%.4f rad)" % deepest)
+	_ok(absf(cam.move_pitch) < 0.001, "landing dip leaves no residue in move_pitch (%.4f)" % cam.move_pitch)
+
+	# The pause menu silences the speed lines; they must not keep drawing behind the menu.
+	Game.pause_open = true
+	p.velocity = Vector3(0.0, 0.0, -Player.CARRY_MAX)
+	for i in range(120):
+		p._tick_speed_fx(dt)
+	_ok(Game.speed_lines.intensity() < 0.05,
+		"pause menu: speed lines go dark (%.3f)" % Game.speed_lines.intensity())
+	Game.pause_open = false
+	for i in range(120):
+		p._tick_speed_fx(dt)
+	_ok(Game.speed_lines.intensity() > 0.9,
+		"menu closed: speed lines come back (%.3f)" % Game.speed_lines.intensity())
+	Game.speed_lines.set_intensity(0.0)
+	p.velocity = Vector3.ZERO
+
 	# Toggle off: the old plain sprint FOV, and the carry stack on top of it.
 	Game.speed_fx = false
 	p.is_sprinting = true
