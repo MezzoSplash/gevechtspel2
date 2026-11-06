@@ -4,6 +4,10 @@ extends RefCounted
 ## hit application, HP and regen, damage log + death report, kill/suicide/death bookkeeping, respawns,
 ## networked shot tracers. Static helpers on the Game autoload `game`; Game keeps the state and every @rpc.
 
+## B4: how much of a gun's reload time the server insists on before it accepts a fresh magazine.
+## Slack for jitter and rounding, like FIRE_RATE_SLACK; never generous enough to skip a reload.
+const RELOAD_SLACK := 0.85
+
 
 ## Current HP of a pawn as the authority sees it.
 static func hp_of(game: GameState, p: Player) -> float:
@@ -114,10 +118,16 @@ static func resolve_weapon_fire(game: GameState, shooter: Player,
 	shot_seed: int = 0,
 	scoped: bool = false,
 	burst: int = 0,
-	mag: int = 0) -> Dictionary:
+	mag: int = 0,
+	strict_mag: bool = false) -> Dictionary:
+	var magazine := mag_for(game, shooter, def, mag, strict_mag)
+	if strict_mag and magazine.is_empty():
+		# No round left and no finished reload: the shot does not happen at all (B4).
+		return {"killed": false, "headshot": false, "hit": false,
+			"end": origin + look_dir.normalized() * def.range_m, "refused": true}
 	game._shot_ctx = {
 		"shooter": shooter, "origin": origin, "scoped": scoped, "burst": burst_for(game, shooter, def, burst),
-		"mag": mag_for(game, shooter, def, mag),
+		"mag": magazine,
 	}
 	var best := resolve_shot_rays(game, shooter, origin, look_dir, def, spread_mult, shot_seed)
 	game._shot_ctx = {}
@@ -169,17 +179,37 @@ static func burst_for(game: GameState, shooter: Player, def: WeaponDef, seq: int
 	return b
 
 
-## The magazine this shot comes from: same client counter and no more shots than the gun holds
-## (a client that never bumps its counter still gets a fresh magazine every mag_size shots).
-## Kills add to it (register_kill). Every gun is tracked; only the SMG and revolver tricks read it.
-static func mag_for(game: GameState, shooter: Player, def: WeaponDef, seq: int) -> Dictionary:
+## The magazine this shot comes from. `seq` is the client's fresh-magazine counter.
+## `strict` (B4, the server deciding on a networked shot): the server counts, so a new magazine is only
+## legal once the old one is empty AND the reload time has passed, and an empty magazine refuses the
+## shot — a modified client cannot shoot forever by never reloading or by bumping the counter.
+## Returns {} when the shot must be refused. Kills are added by register_kill; the SMG and revolver
+## tricks read it.
+static func mag_for(game: GameState, shooter: Player, def: WeaponDef, seq: int, strict := false) -> Dictionary:
 	var per: Dictionary = game._mags.get(shooter.peer_id, {})
 	game._mags[shooter.peer_id] = per
 	var m: Dictionary = per.get(def.id, {})
-	if m.is_empty() or int(m.seq) != seq or int(m.shots) >= def.mag_size:
-		m = {"seq": seq, "shots": 0, "kills": 0, "weapon": def.id}
-		per[def.id] = m
+	if not strict:
+		if m.is_empty() or int(m.seq) != seq or int(m.shots) >= def.mag_size:
+			m = {"seq": seq, "shots": 0, "kills": 0, "weapon": def.id}
+			per[def.id] = m
+		m.shots = int(m.shots) + 1
+		return m
+	var now := Time.get_ticks_msec() / 1000.0
+	if m.is_empty():
+		per[def.id] = {"seq": seq, "shots": 1, "kills": 0, "weapon": def.id, "last_s": now}
+		return per[def.id]
+	if int(m.seq) != seq:
+		var empty := int(m.shots) >= def.mag_size
+		var reloaded := now - float(m.get("last_s", now)) >= def.reload_time * RELOAD_SLACK
+		if not (empty and reloaded):
+			return {} # a fresh magazine without an empty gun and a finished reload
+		m.seq = seq
+		m.shots = 0
+	if int(m.shots) >= def.mag_size:
+		return {} # empty: the client has to reload
 	m.shots = int(m.shots) + 1
+	m.last_s = now
 	return m
 
 
