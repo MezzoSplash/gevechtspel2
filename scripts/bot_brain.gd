@@ -33,6 +33,17 @@ const STUCK_DIST := 0.4
 const UNSTICK_TIME := 0.6
 const HUNT_REPATH := 0.9 # seconds a hunt path is kept before asking again
 const HUNT_SHIFT := 8.0 # enemy moved this far: the old path is about the wrong place
+## #150: who just shot us wins over a closer stranger, for a few seconds.
+const THREAT_TIME := 3.0
+## A hit below this HP is a break-off, not a stand-and-trade. Short on purpose: they
+## sprint away and come back from the other side, they do not camp the corner.
+const RETREAT_HP := 40.0
+const RETREAT_TIME := 0.9
+const RETREAT_CD := 5.0
+## Step-up clears a curb (0.32 m). Taller than that, up to what JUMP_SPEED actually
+## clears under gravity 22, is a jump. A walkable ramp is rejected by its face slope.
+const JUMP_CLEAR_MIN := 0.36
+const JUMP_CLEAR_MAX := 1.15
 ## Hand wobble around the aim point (metres at the target), so a correct aim is not an aimbot.
 const AIM_WOBBLE_BASE := 0.85
 const AIM_WOBBLE_PER_M := 0.012 # wider with distance
@@ -95,6 +106,10 @@ const RC_LAUNCH_MIN := 12.0 # only send the car at someone this far or farther (
 var _streak_wait := 0.0
 var _rc_repath := 0.0
 var _rc_point := Vector3.ZERO
+var _threat = null # untyped: may be freed. Pawn that last damaged us
+var _threat_left := 0.0
+var _hurt_retreat_left := 0.0
+var _retreat_cd := 0.0
 
 
 func setup(p: Player, nav: NavigationAgent3D) -> void:
@@ -113,6 +128,12 @@ func setup(p: Player, nav: NavigationAgent3D) -> void:
 func physics_tick(delta: float) -> void:
 	if pawn == null:
 		return
+	pawn.is_sprinting = false
+	_retreat_cd = maxf(_retreat_cd - delta, 0.0)
+	_threat_left = maxf(_threat_left - delta, 0.0)
+	_hurt_retreat_left = maxf(_hurt_retreat_left - delta, 0.0)
+	if _threat_left <= 0.0:
+		_threat = null
 	if pawn.is_dead:
 		pawn.velocity = Vector3.ZERO
 		return
@@ -134,6 +155,19 @@ func physics_tick(delta: float) -> void:
 	_track_stuck(delta)
 	var enemy := _pick_target(delta)
 	_tick_streaks(delta, enemy)
+	# #150: low HP after a hit. Sprint out, then the flipped flank brings them back in.
+	if _hurt_retreat_left > 0.0 and enemy != null:
+		_in_fight = false
+		var away := pawn.global_position - enemy.global_position
+		away.y = 0.0
+		if away.length_squared() < 0.01:
+			away = -pawn.transform.basis.z
+			away.y = 0.0
+		away = away.normalized()
+		_face_travel(away)
+		_steer_to(pawn.global_position + away * 6.0, Player.SPRINT_SPEED, delta, false)
+		_move(delta)
+		return
 	var goal := CTF.bot_goal(Game, pawn) # #160: Vector3.INF outside CTF
 	if enemy == null or (goal != Vector3.INF and not _can_see(enemy)):
 		_in_fight = false
@@ -146,7 +180,7 @@ func physics_tick(delta: float) -> void:
 			_steer_to(_home, Player.WALK_SPEED, delta)
 		_move(delta)
 		return
-	# Seen but out of weapon range (a shotgun bot at a window, the enemy across the street): walk the
+	# Seen but out of weapon range (a shotgun bot at a window, the enemy across the street): sprint the
 	# navmesh toward him instead of pushing straight at him into the wall.
 	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > _fight_range() + 4.0
 	var fighting := _can_see(enemy) and not out_of_range
@@ -182,16 +216,24 @@ func _move(delta: float) -> void:
 func _pick_target(delta: float) -> Player:
 	_retarget_t -= delta
 	if _retarget_t > 0.0 and _valid_target(_target):
-		return _target
+		# Still look now when the pawn who shot us is in sight and not the current target.
+		if not (_valid_target(_threat) and _target != _threat and _can_see(_threat)):
+			return _target
 	_retarget_t = RETARGET
 	var enemies := _enemies_by_distance()
 	var prev := _target
 	_target = null
-	for e in enemies:
-		if _can_see(e):
-			_target = e
-			break
-	if _target == null and not enemies.is_empty():
+	# #150: the shooter, if we can see them, even when someone else is closer.
+	if _valid_target(_threat) and _can_see(_threat):
+		_target = _threat
+	else:
+		for e in enemies:
+			if _can_see(e):
+				_target = e
+				break
+	if _target == null and _valid_target(_threat):
+		_target = _threat # hunt the one who shot, not whoever is nearest through a wall
+	elif _target == null and not enemies.is_empty():
 		_target = enemies[0]
 	if _target != prev:
 		_hunt_direct = false
@@ -201,6 +243,24 @@ func _pick_target(delta: float) -> Player:
 		_force_repath = true
 		_repath_t = 0.0
 	return _target
+
+
+## #150: a hit from another pawn. Prefer them as the target, and break off the trade when low.
+func note_threat(attacker: Player) -> void:
+	if not _valid_target(attacker):
+		return
+	_threat = attacker
+	_threat_left = THREAT_TIME
+	_retarget_t = 0.0
+	if Game.hp_of(pawn) <= RETREAT_HP and _retreat_cd <= 0.0:
+		_hurt_retreat_left = RETREAT_TIME
+		_retreat_cd = RETREAT_CD
+		_flank_angle += PI
+		_flank_flipped = true
+		_hunt_direct = false
+		_path_live = false
+		_force_repath = true
+		_in_fight = false
 
 
 ## Untyped on purpose: a freed pawn in a typed Player argument is a runtime error.
@@ -279,7 +339,9 @@ func _hunt(enemy: Player, delta: float) -> void:
 	# Keep the aim warm, but look along the path. Facing the enemy here is the moonwalk.
 	_tick_aim_wobble(enemy, delta)
 	_face_travel(travel)
-	_steer_to(dest, Player.WALK_SPEED, delta, true)
+	# Closing the gap at a walk is what made a chase look like a stroll. Shots stay
+	# in the fight, where the wish speed is the strafe, so sprint does not tighten aim.
+	_steer_to(dest, Player.SPRINT_SPEED, delta, true)
 
 
 ## #160: walk the navmesh to a CTF goal (flag, base). Repaths when the goal moves or every HUNT_REPATH.
@@ -532,6 +594,58 @@ func _side_open(dir: Vector3, reach: float = STRAFE_PROBE) -> bool:
 	return slope <= MAX_STEP_SLOPE + 4.0
 
 
+## Height of the lip in front of `wish`, or -1 when there is nothing to jump.
+## Chest ray finds a face steeper than a walkable ramp. A second ray, from above
+## the head down onto the far side, has to land on a top we can actually clear.
+func _ledge_climb(wish: Vector3) -> float:
+	if pawn == null:
+		return -1.0
+	wish.y = 0.0
+	if wish.length_squared() < 0.0001:
+		return -1.0
+	var dir := wish.normalized()
+	var space := pawn.get_world_3d().direct_space_state
+	var origin := pawn.global_position
+	var chest := origin + Vector3.UP * 0.45
+	var wall_q := PhysicsRayQueryParameters3D.create(chest, chest + dir * 0.85)
+	wall_q.collision_mask = WORLD_MASK
+	wall_q.exclude = [pawn.get_rid()]
+	var wall := space.intersect_ray(wall_q)
+	if wall.is_empty() or not wall.has("normal"):
+		return -1.0
+	var slope := rad_to_deg(acos(clampf((wall.normal as Vector3).dot(Vector3.UP), -1.0, 1.0)))
+	if slope <= MAX_STEP_SLOPE + 4.0:
+		return -1.0
+	var head_q := PhysicsRayQueryParameters3D.create(origin + Vector3.UP * 1.0, origin + Vector3.UP * 2.1)
+	head_q.collision_mask = WORLD_MASK
+	head_q.exclude = [pawn.get_rid()]
+	if not space.intersect_ray(head_q).is_empty():
+		return -1.0
+	var from := origin + Vector3.UP * 1.55 + dir * 0.25
+	var to := origin + dir * 1.15 + Vector3.UP * 0.15
+	var top_q := PhysicsRayQueryParameters3D.create(from, to)
+	top_q.collision_mask = WORLD_MASK
+	top_q.exclude = [pawn.get_rid()]
+	var top := space.intersect_ray(top_q)
+	if not top.has("normal") or not top.has("position"):
+		return -1.0
+	if (top.normal as Vector3).dot(Vector3.UP) < 0.7:
+		return -1.0
+	var climb := (top.position as Vector3).y - origin.y
+	if climb < JUMP_CLEAR_MIN or climb > JUMP_CLEAR_MAX:
+		return -1.0
+	return climb
+
+
+func _try_jump_ledge(wish: Vector3) -> bool:
+	if pawn == null or not pawn.is_on_floor():
+		return false
+	if _ledge_climb(wish) < 0.0:
+		return false
+	pawn.velocity.y = Player.JUMP_SPEED
+	return true
+
+
 func _steer_to(dest: Vector3, speed: float, delta: float, use_nav: bool = true) -> void:
 	var dir := Vector3.ZERO
 	if use_nav and agent and not agent.is_navigation_finished():
@@ -563,6 +677,11 @@ func _steer_to(dest: Vector3, speed: float, delta: float, use_nav: bool = true) 
 		horiz = pawn._accelerate(horiz, wish, Player.WALK_SPEED, Player.BOT_AIR_ACCEL, delta)
 	pawn.velocity.x = horiz.x
 	pawn.velocity.z = horiz.z
+	# Requested sprint, not the speed we have yet: the pose and the spread follow the
+	# intent. Fight passes STRAFE_SPEED, so a strafe does not count as sprinting.
+	pawn.is_sprinting = on_floor and _wants_move and speed >= Player.SPRINT_SPEED - 0.05
+	if on_floor and _wants_move:
+		_try_jump_ledge(wish)
 
 
 ## Turn toward _aim_track (see _tick_aim_wobble). Call _tick_aim_wobble first in the same tick.

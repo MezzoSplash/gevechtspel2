@@ -647,10 +647,13 @@ func apply_hit(
 	if killed:
 		Game.register_kill(killer_peer_id, peer_id, weapon_id, headshot)
 		Game.send_death_report(killer_peer_id, peer_id, weapon_id)
+	# #150: bots turn toward the pawn that hit them. A low HP hit also breaks the trade.
+	var attacker := Game.player_for_peer(killer_peer_id)
+	if dmg > 0 and not killed and is_bot and _bot_brain != null and attacker != null and attacker != self:
+		_bot_brain.note_threat(attacker)
 	if dmg <= 0:
 		source_pos = Vector3.INF
 	elif not source_pos.is_finite():
-		var attacker := Game.player_for_peer(killer_peer_id)
 		if attacker and attacker != self:
 			source_pos = attacker.global_position
 	if Game.is_networked():
