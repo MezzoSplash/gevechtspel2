@@ -64,3 +64,16 @@ func _ttk_table(dir: String) -> void:
 	_ok(ttk(smg, 8.0) < ttk(rifle, 8.0), "SMG beats the rifle at 8 m (%.2f vs %.2f s)" % [ttk(smg, 8.0), ttk(rifle, 8.0)])
 	_ok(ttk(rifle, 40.0) < ttk(smg, 40.0), "rifle beats the SMG at 40 m (%.2f vs %.2f s)" % [ttk(rifle, 40.0), ttk(smg, 40.0)])
 	_ok(ttk(smg, 40.0) < ttk(rifle, 40.0) * 2.0, "but not by an extreme margin (SMG under 2x the rifle at 40 m)")
+	## The body TTK band from AGENTS.md. Three guns are deliberately outside it and are therefore
+	## not in this list: the shotgun (one close hit with all pellets is already a kill), and the
+	## sniper and the slug, which stay slow on purpose — 50 x 2.0 makes a sniper headshot an instant
+	## kill, and that is the whole point of those two.
+	const BAND_MIN := 0.4
+	const BAND_MAX := 0.8
+	for id in [&"pistol", &"smg", &"lmg", &"rifle", &"revolver"]:
+		var g := load(dir + id + ".tres") as WeaponDef
+		if g == null:
+			_ok(false, "%s.tres loads" % id)
+			continue
+		var t := ttk(g, 5.0)
+		_ok(t >= BAND_MIN and t <= BAND_MAX, "%s body TTK at 5 m is inside %.1f-%.1f s (%.2f s)" % [id, BAND_MIN, BAND_MAX, t])
