@@ -90,7 +90,9 @@ static func send(game: Node, peer_id: int, c: Dictionary, state: String, banked:
 	if state == "build" and bool(c.get("frozen", false)):
 		state = "frozen" # a move while surfing: new points, the timer is still held
 	var args := [int(c.get("pts", 0)), Combo.total_mult(c), maxf(float(c.get("t", 0.0)), 0.0), Combo.label(c), state, banked]
-	if not game.is_networked() or peer_id == game.multiplayer.get_unique_id():
+	# Only the owner's own HUD ever needs this. Offline the server simulates every pawn, and this used
+	# to fire for all of them, so the player watched the bots' combo counters on their own screen.
+	if peer_id == game.multiplayer.get_unique_id():
 		game._apply_combo(args)
-	elif peer_id > 0 and peer_id in game.multiplayer.get_peers():
+	elif game.is_networked() and peer_id > 0 and peer_id in game.multiplayer.get_peers():
 		game.sync_combo.rpc_id(peer_id, args)

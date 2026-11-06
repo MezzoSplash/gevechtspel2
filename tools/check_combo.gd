@@ -100,5 +100,20 @@ func _ready() -> void:
 	# Kill tricks + combo in one award (TDM chain multiplier only on the kill tricks).
 	var tr := Style.detect({"weapon": &"sniper", "scoped": false})
 	_ok(tr.has(Style.NOSCOPE), "kill tricks still detected")
+	# A bot's combo is tracked (it scores) but must never reach this machine's combo signal: offline the
+	# server simulates every pawn, and the player was watching the bots' counters on their own screen.
+	events.clear()
+	Game._combos.clear()
+	Game.combo_move(bot, Combo.WALLRUN)
+	Game.combo_move(bot, Combo.WALLJUMP)
+	await get_tree().process_frame
+	_ok(not Game.combo_of(bot).is_empty(), "the bot's own combo is still tracked")
+	_ok(events.is_empty(), "a bot's combo never reaches the local combo signal (%d events)" % events.size())
+	events.clear()
+	Game.combo_move(1, Combo.SLIDE)
+	await get_tree().process_frame
+	_ok(not events.is_empty(), "the local player's own combo still reaches the signal")
+	Game._combos.clear()
+
 	print("COMBO CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails else 0)
