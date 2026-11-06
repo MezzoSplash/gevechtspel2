@@ -58,6 +58,14 @@ func _ready() -> void:
 		if int(id) < 0:
 			bots.append(int(id))
 	_ok(bots.size() == 2, "two bots")
+	# The bots fight on their own, and since they slide, dive and wallrun they earn real combos — a
+	# stray one outranks everything this check sets up (a 1840-point bot combo beat the scripted 51).
+	# They still have to exist, because one of them lands the biggest combo, so take their brains
+	# rather than their lives.
+	for id in bots:
+		var bp := Game.player_for_peer(id)
+		if bp != null:
+			bp._bot_brain = null
 	var big := [Combo.WALLRUN, Combo.WALLJUMP, Combo.WALL_TO_WALL, Combo.DIVE, Combo.ROLL, Combo.SLIDE, Combo.SURF]
 	var landed: Array = []
 	landed.append(await _land(1, bots[0], [Combo.SLIDE, Combo.AIR])) # small, by me
