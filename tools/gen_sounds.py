@@ -149,6 +149,30 @@ def empty_click() -> list[float]:
     return out
 
 
+def wind_loop() -> list[float]:
+    """Seamless air rush for the speed FX wind. Local pawn only, played as a forward loop."""
+    n = int(2.0 * SR)
+    rng = random.Random(97)
+    # Low-passed noise: two one-pole filters in series, so it hisses instead of crackling.
+    out = []
+    a = 0.0
+    b = 0.0
+    for i in range(n):
+        a += (rng.uniform(-1.0, 1.0) - a) * 0.18
+        b += (a - b) * 0.25
+        # A 1 Hz swell: exactly two cycles over the loop, so the loop point stays seamless.
+        t = i / SR
+        out.append(b * (1.0 + 0.2 * math.sin(2 * math.pi * 1.0 * t)))
+    # Cross-fade the tail over the head and drop the tail, so start and end match.
+    fade = int(0.15 * SR)
+    for i in range(fade):
+        k = i / fade
+        out[i] = out[i] * k + out[n - fade + i] * (1.0 - k)
+    out = out[: n - fade]
+    peak = max(abs(s) for s in out) or 1.0
+    return [s / peak * 0.8 for s in out]
+
+
 def main() -> None:
     os.makedirs(OUT, exist_ok=True)
     write_wav(os.path.join(OUT, "rifle_fire.wav"), rifle_fire(random.Random(7)))
@@ -160,6 +184,7 @@ def main() -> None:
     write_wav(os.path.join(OUT, "empty.wav"), empty_click())
     write_wav(os.path.join(OUT, "hurt.wav"), hurt_self())
     write_wav(os.path.join(OUT, "whoosh.wav"), whoosh())
+    write_wav(os.path.join(OUT, "wind_loop.wav"), wind_loop())
     print("wrote sounds to", os.path.abspath(OUT))
 
 

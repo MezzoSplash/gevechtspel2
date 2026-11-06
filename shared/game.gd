@@ -225,6 +225,9 @@ var last_server := ""
 var favorite_servers: PackedStringArray = PackedStringArray(DEFAULT_FAVORITES)
 var server_query: ServerQuery
 var freeze_grade: FreezeGrade
+## Speed lines overlay (Game.speed_fx). One instance for the whole process; the local pawn drives
+## the intensity. Created in _ready like freeze_grade, hidden until someone is moving fast.
+var speed_lines: SpeedLines
 var hosted_port := 0 # set while this process is a server; ServerQuery answers on hosted_port + 1
 var profile_name := "Player" # the name settings.cfg keeps across launches
 var window_mode := WINDOW_WINDOWED
@@ -1800,6 +1803,9 @@ func _ready() -> void:
 	freeze_grade = FreezeGrade.new()
 	freeze_grade.name = "FreezeGrade"
 	add_child(freeze_grade)
+	speed_lines = SpeedLines.new()
+	speed_lines.name = "SpeedLines"
+	add_child(speed_lines)
 	server_query = ServerQuery.new()
 	server_query.name = "ServerQuery"
 	add_child(server_query)

@@ -80,6 +80,7 @@ const SPEED_FOV_AT_SPRINT := 4.0 # degrees extra_fov at exactly SPEED_FOV_REF
 const SPEED_FOV_MAX := 10.0 # degrees extra_fov at SPEED_FOV_FULL (FOV_EXTRA_CAP still caps it)
 const SPEED_LINES_START := 12.0 # m/s: speed lines start showing
 const SPEED_LINES_FULL := 16.5 # m/s: full intensity
+const SPEED_LINES_SMOOTH := 8.0 # exp rate the overlay eases toward its target intensity
 const LAND_CAM_MIN_SPEED := 5.0 # m/s falling: below this a landing is not worth a dip
 const LAND_CAM_DIP_MAX := 0.08 # rad: deepest landing camera dip
 const LAND_CAM_DIP_PER_MS := 0.012 # rad per m/s of fall speed above LAND_CAM_MIN_SPEED
@@ -91,6 +92,7 @@ const WIND_VOL_DB_MAX := -8.0
 const WIND_PITCH_MIN := 0.85
 const WIND_PITCH_MAX := 1.25
 const WHOOSH := preload("res://assets/sounds/whoosh.wav")
+const WIND_LOOP := preload("res://assets/sounds/wind_loop.wav")
 const REGEN_DELAY := 4.5 # seconds without damage before health comes back
 const REGEN_RATE := 12.0 # HP per second, up to MAX_HP
 const TAG_CHECK := 0.1 # seconds between nametag line-of-sight rays
@@ -230,6 +232,7 @@ var _land_cam_pitch := 0.0 # rad: landing dip on top of camera.move_pitch, eases
 var _strip_cd: Dictionary = {} # strip name -> seconds until this pawn can take it again
 var _strip_prev := Vector3.INF
 var _whoosh: AudioStreamPlayer
+var _wind: AudioStreamPlayer # speed FX wind loop (local only); volume/pitch follow the speed
 # Style tracking, match authority only (Style / Game.register_kill): turn history and time in the air.
 var air_time := 0.0 # seconds with free space under the feet
 var _style_clock := 0.0
@@ -349,6 +352,11 @@ func _ready() -> void:
 		_whoosh.bus = "SFX"
 		_whoosh.volume_db = -4.0
 		add_child(_whoosh)
+		_wind = AudioStreamPlayer.new()
+		_wind.stream = looped_wind()
+		_wind.bus = "SFX"
+		_wind.volume_db = WIND_VOL_DB_MIN
+		add_child(_wind)
 	call_deferred("_configure_control")
 
 
@@ -1621,3 +1629,49 @@ func _tick_speed_fx(delta: float) -> void:
 		_land_cam_pitch = lerpf(_land_cam_pitch, 0.0, 1.0 - exp(-LAND_CAM_RECOVER * delta))
 		if absf(_land_cam_pitch) < 0.0005:
 			_land_cam_pitch = 0.0
+	# Speed lines and wind run off the same horizontal speed. Aiming, death and anything that locks
+	# play (chat, pause, RC view) silences both, so a fight never reads through a blurred screen.
+	var quiet := is_dead or Game.chat_open or Game.play_locked() or Game.rc_view
+	if not quiet and weapon != null and weapon.is_ads():
+		quiet = true
+	var fast := Game.speed_fx and not quiet
+	var hspeed := _hspeed()
+	_tick_speed_lines(speed_lines_intensity(hspeed) if fast else 0.0, delta)
+	_tick_wind(speed_wind_level(hspeed) if fast else 0.0)
+
+
+## Speed FX: eases the speed-lines overlay toward `target` (0..1). A missing overlay (headless,
+## dedicated server) is not an error: there is simply nothing on screen to draw on.
+func _tick_speed_lines(target: float, delta: float) -> void:
+	if Game.speed_lines == null:
+		return
+	Game.speed_lines.set_intensity_smooth(target, delta, SPEED_LINES_SMOOTH)
+
+
+## The wind wav has no loop point of its own (the wav importer's loop params do not survive the
+## import here), so the copy the local pawn plays is looped in code: forward, whole file.
+static func looped_wind() -> AudioStreamWAV:
+	var s := (WIND_LOOP as AudioStreamWAV).duplicate() as AudioStreamWAV
+	s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	s.loop_begin = 0
+	# Frames, not bytes: 16-bit mono is 2 bytes a frame, 8-bit mono 1, and either is doubled in stereo.
+	var per_frame := 2 if s.format == AudioStreamWAV.FORMAT_16_BITS else 1
+	if s.stereo:
+		per_frame *= 2
+	s.loop_end = s.data.size() / maxi(per_frame, 1)
+	return s
+
+
+## Speed FX wind: one looped player, louder and a little higher with speed, stopped when slow.
+## Local pawn only, so it is on the SFX bus (the Effects slider) and never on the Enemies bus.
+func _tick_wind(level: float) -> void:
+	if _wind == null:
+		return
+	if level <= 0.0:
+		if _wind.playing:
+			_wind.stop()
+		return
+	if not _wind.playing:
+		_wind.play()
+	_wind.volume_db = lerpf(WIND_VOL_DB_MIN, WIND_VOL_DB_MAX, level)
+	_wind.pitch_scale = lerpf(WIND_PITCH_MIN, WIND_PITCH_MAX, level)
