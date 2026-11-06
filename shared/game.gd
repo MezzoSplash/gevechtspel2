@@ -112,7 +112,7 @@ const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
 const FIRE_ORIGIN_TOLERANCE := 4.0 # metres between the client's eye and our copy of it
-const SPREAD_MAX := 8.0 # slide spread; clients cannot ask for more (or less than standing)
+const SPREAD_MAX := Player.SPREAD_SLIDE # slide spread; clients cannot ask for more (or less than standing)
 const WEAPON_DEFS := {
 	&"rifle": preload("res://data/weapons/rifle.tres"),
 	&"pistol": preload("res://data/weapons/pistol.tres"),
