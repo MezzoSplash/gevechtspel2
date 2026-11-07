@@ -30,11 +30,15 @@ func _ready() -> void:
 	# Bumping the counter does not skip the reload.
 	_ok(Combat.mag_for(Game, p, def, 2, true).is_empty(), "a bumped counter does not skip the reload")
 
-	# A "fresh magazine" halfway through the gun is refused too: the counter is not the truth.
+	# A tactical reload (pressing R with rounds left) has to work: fire a few, reload, fire again.
+	# It was refused while the server demanded an empty magazine, which made a mid-mag reload end
+	# the match for that player.
 	Game._mags.clear()
-	Combat.mag_for(Game, p, def, 1, true)
-	Combat.mag_for(Game, p, def, 1, true)
-	_ok(Combat.mag_for(Game, p, def, 2, true).is_empty(), "a fresh magazine on a half-full gun is refused")
+	for i in 3:
+		Combat.mag_for(Game, p, def, 1, true)
+	_ok(Combat.mag_for(Game, p, def, 2, true).is_empty(), "a tactical reload before the reload time is refused")
+	Game._mags[11][def.id]["last_s"] -= def.reload_time
+	_ok(not Combat.mag_for(Game, p, def, 2, true).is_empty(), "a tactical reload after the reload time is accepted")
 
 	# After the reload time it is a real fresh magazine.
 	Game._mags.clear()
