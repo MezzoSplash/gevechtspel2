@@ -71,7 +71,10 @@ const ROLL := &"roll"
 const WALL_TO_WALL := &"wall2wall" # not a kill (now a combo move, see Combo)
 const RCXD := &"rcxdkill" # #87: the RC-XD streak had no tricks, so in style modes its kills were worth nothing
 const LOS := &"los" # melee kill during the hands streak, only if the BODY is still fast
+const LOS_LONG := &"loslong" # the same, snapped in from far: the hands cross the map
 const COMBO := &"combo" # a landed combo rides on the kill's award; its points come from Combo, not POINTS
+## A snap from at least this far is its own trick: the hands are a way to cross the map, not a bash.
+const LOS_LONG_M := 25.0
 
 ## A good rifle or shotgun play lands near a 360 noscope (250): a slide point blank double is
 ## 100 + 150, a spray transfer 150 (x chain), the third headshot in a row 200.
@@ -80,7 +83,7 @@ const POINTS := {
 	POINT_BLANK: 100, DOUBLE: 150, SPRAY: 150, HS_STREAK: 200, SURF: 150, DROP: 100,
 	RUN_GUN: 125, HOSE: 150, QUICKDRAW: 150, SIX_SHOOTER: 200, MOW: 200, SLUG_SNIPE: 125, YEET: 250, YEET_X2: 500,
 	LINE: 100, LINE_X2: 200,
-	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, WALL_TO_WALL: 75, RCXD: 150, LOS: 175, COMBO: 0,
+	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, WALL_TO_WALL: 75, RCXD: 150, LOS: 175, LOS_LONG: 350, COMBO: 0,
 }
 const LABELS := {
 	NOSCOPE: "NOSCOPE", SPIN: "360 NOSCOPE", AIRSHOT: "AIRSHOT", LONGSHOT: "LONGSHOT",
@@ -91,11 +94,11 @@ const LABELS := {
 	YEET: "YEET", YEET_X2: "YEET ×2",
 	LINE: "LINE", LINE_X2: "LINE ×2",
 	WALLRUN: "WALLRUN KILL", WALLJUMP: "WALL JUMP KILL", DIVE: "DIVE KILL", ROLL: "ROLL KILL",
-	WALL_TO_WALL: "WALL TO WALL", RCXD: "RCXPLODIE KILL", LOS: "LOS", COMBO: "COMBO",
+	WALL_TO_WALL: "WALL TO WALL", RCXD: "RCXPLODIE KILL", LOS: "LOS", LOS_LONG: "LOS LONG", COMBO: "COMBO",
 }
 ## Biggest first in popups and the kill feed.
 const ORDER: Array[StringName] = [
-	COMBO, LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, WALLJUMP, WALLRUN, LOS, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF, RCXD,
+	COMBO, LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, LOS_LONG, WALLJUMP, WALLRUN, LOS, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF, RCXD,
 	SLUG_SNIPE, DIVE, RUN_GUN, POINT_BLANK, ROLL, DROP, AIRSHOT, LONGSHOT,
 ]
 const MOVE_RECENT := 0.3 # s: wallrun/dive state seen on the server this recently still counts (sync jitter)
@@ -196,7 +199,11 @@ static func detect(c: Dictionary) -> Array[StringName]:
 			out.append(DROP)
 		# The hands can be flying while the body stands. LOS pays only for a fast body.
 		if weapon == &"melee" and bool(c.get("los", false)) and float(c.get("body_speed", 0.0)) >= Player.CARRY_ENTER_SPEED:
-			out.append(LOS)
+			# Snap in from far and it is its own trick: the hands are a way to cross the map.
+			if float(c.get("los_dist", 0.0)) >= LOS_LONG_M:
+				out.append(LOS_LONG)
+			else:
+				out.append(LOS)
 	if gun:
 		var moved := bool(c.get("wallrun", false)) or bool(c.get("walljump", false)) or bool(c.get("dive", false))
 		var shooter_air := float(c.get("shooter_air", 0.0)) >= AIR_MIN_TIME and not surf and not drop and not moved

@@ -15,6 +15,9 @@ const EYE_H := 1.3 # m: where the hands leave the body, and how far the body lan
 const SNAP_RADIUS := 0.45 # m: the body capsule plus a margin; a snap into a wall is worse than none
 const COAST_MIN := 1.0 # m/s: slower than this, the body just stands
 const ORIGIN_SLACK := 2.5 # m: a client's swing must start near the server's hands
+const SNAP_SEARCH := [0.5, 1.0, 1.5, 2.0] # m: rings tried when the body does not fit under the hands
+const SNAP_DIRS := 8
+const WHOOSH := preload("res://assets/sounds/whoosh.wav")
 const GROUP := &"los_hands"
 
 var owner_peer := 0
@@ -25,6 +28,7 @@ var _yaw := 0.0
 var _pitch := 0.0
 var _cam: Camera3D
 var _swing_cd := 0.0
+var snap_m := 0.0 # hands↔body distance at the last swing, read by Style for LOS_LONG
 
 static var _live: Dictionary = {} # peer id -> LosHands
 
@@ -37,10 +41,40 @@ static func for_owner(peer: int) -> LosHands:
 
 
 static func driving(p: Player) -> bool:
+	return _for_player(p) != null
+
+
+## The hands this machine is driving, if any. Offline the local peer is 1, same as online.
+static func local() -> LosHands:
+	return _for_player(Game.player_for_peer(Game.multiplayer.get_unique_id()))
+
+
+static func _for_player(p: Player) -> LosHands:
 	if p == null:
-		return false
+		return null
 	var id := p.peer_id if p.peer_id != 0 else p._owner_peer()
-	return for_owner(id) != null
+	return for_owner(id)
+
+
+## Hands↔body distance at the last swing. Style pays LOS_LONG from Style.LOS_LONG_M on.
+static func snap_m_for(p: Player) -> float:
+	var hands := _for_player(p)
+	return hands.snap_m if hands else 0.0
+
+
+## The local driver pressed the streak key again: end it now, without a snap.
+## Only the server may end it (it owns the hands and the body), so a client asks.
+static func recall_local() -> void:
+	var hands := local()
+	if hands and hands._drives_here():
+		hands._request_recall()
+
+
+## Server: a recall request from `peer`. No snap, the charge is already spent.
+static func server_recall(peer: int) -> void:
+	var hands := for_owner(peer)
+	if hands:
+		hands._end(true)
 
 
 ## Authority. False when the charge must be kept (already out, dead, a car is out, a bot).
@@ -156,6 +190,17 @@ func _ready() -> void:
 	_cam = Camera3D.new()
 	_cam.fov = Game.fov if Game.fov > 1.0 else 90.0
 	add_child(_cam)
+	# Everyone else hears the hands leave. The driver gets Player.play_los_sfx instead, and a
+	# dedicated server has no ears.
+	if not _drives_here() and not Game.is_dedicated:
+		var sfx := AudioStreamPlayer3D.new()
+		sfx.stream = WHOOSH
+		sfx.bus = "SFX"
+		sfx.unit_size = 18.0
+		sfx.max_distance = 45.0
+		sfx.volume_db = -3.0
+		add_child(sfx)
+		sfx.play()
 
 
 func _physics_process(delta: float) -> void:
@@ -232,6 +277,15 @@ func _fly(delta: float) -> void:
 	move_and_slide()
 
 
+## Local driver pressed the streak key again: get out early, without a snap.
+## The server owns the hands and the body, so a client only asks and the server ends it.
+func _request_recall() -> void:
+	if Game.is_networked() and not multiplayer.is_server():
+		Game.los_recall.rpc_id(1)
+		return
+	_end(true)
+
+
 func _request_swing() -> void:
 	if _swing_cd > 0.0:
 		return
@@ -253,7 +307,9 @@ func _resolve_swing(dir: Vector3) -> void:
 	var p := Game.player_for_peer(owner_peer)
 	if p == null or Game.melee == null:
 		return
-	# One bash is the whole payoff: three seconds of flying, one hit that counts.
+	# One bash is the whole payoff: five seconds of flying, one hit that counts.
+	# Measure the snap now: Style scores it inside resolve, and the body moves right after.
+	snap_m = global_position.distance_to(p.global_position)
 	var res: Dictionary = Game.melee.resolve(p, global_position, dir, Melee.RANGE, BASH_DAMAGE)
 	var hit := bool(res.get("hit", false))
 	if hit and p.weapon:
@@ -285,16 +341,30 @@ func _landing() -> Vector3:
 	var eye := EYE_H
 	if p.head:
 		eye = maxf(p.head.global_position.y - p.global_position.y, 0.6)
-	var feet := Vector3(global_position.x, global_position.y - eye, global_position.z)
+	var target := Vector3(global_position.x, global_position.y - eye, global_position.z)
+	var space := p.get_world_3d().direct_space_state
 	var probe := SphereShape3D.new()
 	probe.radius = SNAP_RADIUS
 	var q := PhysicsShapeQueryParameters3D.new()
 	q.shape = probe
-	q.transform = Transform3D(Basis.IDENTITY, feet + Vector3.UP * 0.9)
 	q.collision_mask = Melee.WORLD_MASK
-	if not p.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty():
-		return Vector3.INF
-	return feet
+	if _free(space, q, target):
+		return target
+	# The hands fit where the body does not (nose in a corner, under a ledge). Look around them
+	# before giving up: the nearest free spot beats no snap at all.
+	for r in SNAP_SEARCH:
+		for i in SNAP_DIRS:
+			var a := TAU * float(i) / float(SNAP_DIRS)
+			var c := target + Vector3(cos(a), 0.0, sin(a)) * float(r)
+			if _free(space, q, c):
+				return c
+	return Vector3.INF
+
+
+## Is the body capsule free with its feet at `feet`? Same probe radius every time.
+func _free(space: PhysicsDirectSpaceState3D, q: PhysicsShapeQueryParameters3D, feet: Vector3) -> bool:
+	q.transform = Transform3D(Basis.IDENTITY, feet + Vector3.UP * 0.9)
+	return space.intersect_shape(q, 1).is_empty()
 
 
 func _take_view(p: Player) -> void:
@@ -343,8 +413,9 @@ func _end(tell_net: bool, snap_to: Vector3 = Vector3.INF) -> void:
 		# Move the body first, so the camera that comes back is already in the new spot.
 		if snap_to.is_finite():
 			p.apply_snap(snap_to)
-			if p.is_local():
-				p.play_los_sfx(0.85)
+		# A snap lands heavy, a recall or a timeout just settles back into the body.
+		if p.is_local():
+			p.play_los_sfx(0.7 if snap_to.is_finite() else 0.95)
 		if p.is_local():
 			Game.los_view = false
 			p._yaw = _yaw

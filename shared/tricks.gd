@@ -69,6 +69,9 @@ static func detect(
 		# LOS reads the body's real horizontal speed. _obs_speed is smoothed and can still be 0
 		# the moment a velocity is set, which would drop a fast bash.
 		"los": LosHands.driving(shooter),
+		# How far the hands were from the body when the bash landed: the snap the killer is about
+		# to get. Only meaningful while driving.
+		"los_dist": LosHands.snap_m_for(shooter),
 		"body_speed": Vector2(shooter.velocity.x, shooter.velocity.z).length(),
 	})
 
