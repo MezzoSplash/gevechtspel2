@@ -7,10 +7,10 @@ extends CharacterBody3D
 ## The hands have no HP: shooting them does nothing. The body dying ends it.
 ## Server decides the bash. Poses go out unreliable so one lost packet does not stall the rest.
 
-const DURATION := 3.0
+const DURATION := 5.0 # 3 s was tight for a 2 m bash at 14 m/s; five leaves room to line one up
 const SPEED := 14.0 # m/s, between sprint (11.4) and a full carry (18)
 const ACCEL := 48.0
-const BASH_DAMAGE := 999.0 # lethal on purpose: the hands get one hit in three seconds, so it must count
+const BASH_DAMAGE := 999.0 # lethal on purpose: the hands get a few swings, but only a hit counts
 const EYE_H := 1.3 # m: where the hands leave the body, and how far the body lands under them
 const SNAP_RADIUS := 0.45 # m: the body capsule plus a margin; a snap into a wall is worse than none
 const COAST_MIN := 1.0 # m/s: slower than this, the body just stands

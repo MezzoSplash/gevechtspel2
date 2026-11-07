@@ -4,7 +4,7 @@ extends Node
 ## 5 kills bank the RC-XD and not LOS. 7 banks LOS. The body keeps its speed, one bash from the
 ## hands kills and the gun stays quiet, and a landed bash snaps the body to the hands and ends the
 ## streak (a whiff does not). Killing the body ends it. The trick needs the body's speed, not the
-## hands being airborne. After 3 s the camera is back on the body.
+## hands being airborne. After 5 s the camera is back on the body.
 var fails := 0
 
 
@@ -204,9 +204,13 @@ func _activate(p: Player, bot: Player) -> void:
 	p.is_dead = false
 	p._spawn_protect = 0.0
 	_ok(LosHands.launch(p) and Game.los_view, "LOS view on for the timer")
-	for _i in 200:
+	# The window is 5 s: still out at 4 s, gone by 6 s. Asserts the window, not the constant.
+	for _i in 240:
 		await get_tree().physics_frame
-	_ok(not Game.los_view and LosHands.for_owner(1) == null, "after 3 s the flag is clear")
+	_ok(Game.los_view and LosHands.for_owner(1) != null, "still out after 4 s")
+	for _i in 120:
+		await get_tree().physics_frame
+	_ok(not Game.los_view and LosHands.for_owner(1) == null, "gone after 6 s")
 	_ok(p.camera != null and p.camera.current, "camera is back on the body")
 	p.velocity = Vector3.ZERO
 	_ok(LosHands.launch(p) and Game.los_view, "LOS again, to die in it")
