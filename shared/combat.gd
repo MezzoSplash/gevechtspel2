@@ -182,8 +182,10 @@ static func burst_for(game: GameState, shooter: Player, def: WeaponDef, seq: int
 
 ## The magazine this shot comes from. `seq` is the client's fresh-magazine counter.
 ## `strict` (B4, the server deciding on a networked shot): the server counts, so a new magazine is only
-## legal once the old one is empty AND the reload time has passed, and an empty magazine refuses the
-## shot — a modified client cannot shoot forever by never reloading or by bumping the counter.
+## legal once the reload time has passed since the last accepted shot, and an empty magazine refuses
+## the shot — a modified client cannot shoot forever by never reloading or by bumping the counter.
+## A tactical reload (pressing R with rounds left) is legal: the clock is what bounds the rate, and
+## requiring an empty magazine turned every mid-mag reload into a match-long "I cannot hit anything".
 ## Returns {} when the shot must be refused. Kills are added by register_kill; the SMG and revolver
 ## tricks read it.
 static func mag_for(game: GameState, shooter: Player, def: WeaponDef, seq: int, strict := false) -> Dictionary:
@@ -201,10 +203,9 @@ static func mag_for(game: GameState, shooter: Player, def: WeaponDef, seq: int, 
 		per[def.id] = {"seq": seq, "shots": 1, "kills": 0, "weapon": def.id, "last_s": now}
 		return per[def.id]
 	if int(m.seq) != seq:
-		var empty := int(m.shots) >= def.mag_size
 		var reloaded := now - float(m.get("last_s", now)) >= def.reload_time * RELOAD_SLACK
-		if not (empty and reloaded):
-			return {} # a fresh magazine without an empty gun and a finished reload
+		if not reloaded:
+			return {} # a fresh magazine without a finished reload
 		m.seq = seq
 		m.shots = 0
 	if int(m.shots) >= def.mag_size:
