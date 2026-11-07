@@ -856,14 +856,14 @@ operation = 2
 material = SubResource("Mat_concrete")
 
 [node name="TowerHatch_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 11.5, 26.8)
-size = Vector3(3, 1.6, 4.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 11.5, 26.3)
+size = Vector3(3.8, 1.6, 5.6)
 operation = 2
 material = SubResource("Mat_concrete")
 
 [node name="TowerHatch_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 11.5, -26.8)
-size = Vector3(3, 1.6, 4.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 11.5, -26.3)
+size = Vector3(3.8, 1.6, 5.6)
 operation = 2
 material = SubResource("Mat_concrete")
 
