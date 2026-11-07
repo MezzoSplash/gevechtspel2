@@ -78,13 +78,16 @@ func _ready() -> void:
 	ended.clear()
 	main._reset_match_state()
 	menu.set_match_choice(&"quay", Game.MODE_STYLE_TDM)
+	# A teammate bot for the team total; ask for one instead of trusting the saved bot split
+	# (0 is "no such peer", not -1: a bot peer id can legitimately be -1).
+	menu.set_bots_total(3)
 	for b in menu._kill_boxes:
 		b.value = 5
 	menu.play_local_pressed.emit()
 	await _wait_round()
 	var me := Game.player_for_peer(1)
 	var team := me.team_id
-	var mate := -1
+	var mate := 0 # 0 = nobody found; bot peer ids are negative, and -1 is a real bot
 	for id in Game.scores:
 		if int(id) < 0 and int(Game.scores[id].get("team", 0)) == team:
 			mate = int(id)
@@ -92,7 +95,7 @@ func _ready() -> void:
 	for i in 4:
 		Game.award_move_trick(1, Style.WALL_TO_WALL) # 300
 	_ok(Game.team_score(team) == 300 and ended.is_empty(), "team style sums (300), no winner yet")
-	if mate != -1:
+	if mate != 0:
 		for i in 3:
 			Game.award_move_trick(mate, Style.WALL_TO_WALL) # +225 from a teammate
 	await get_tree().process_frame

@@ -398,9 +398,11 @@ func _play_locally() -> void:
 	Game.is_dedicated = false
 	Game.player_name = Game.clean_name(menu.player_name())
 	Game.preferred_team = menu.selected_team()
+	Game.bot_team_base = Game.preferred_team
 	Game.set_match_config(
 		menu.selected_map(), menu.selected_mode(),
-		menu.selected_kills(), float(menu.selected_time_min() * 60), menu.selected_bots()
+		menu.selected_kills(), float(menu.selected_time_min() * 60), menu.selected_bots(),
+		menu.selected_bot_allies(), menu.selected_bot_enemies()
 	)
 	_enter_play()
 	_match_state = MatchState.WARMUP
@@ -412,9 +414,11 @@ func _play_locally() -> void:
 func _host_game() -> void:
 	Game.player_name = Game.clean_name(menu.player_name(), "Host")
 	Game.preferred_team = menu.selected_team()
+	Game.bot_team_base = Game.preferred_team
 	Game.set_match_config(
 		menu.selected_map(), menu.selected_mode(),
-		menu.selected_kills(), float(menu.selected_time_min() * 60), menu.selected_bots()
+		menu.selected_kills(), float(menu.selected_time_min() * 60), menu.selected_bots(),
+		menu.selected_bot_allies(), menu.selected_bot_enemies()
 	)
 	_start_server(menu.host_port(), false, menu.selected_map(), menu.selected_mode())
 
@@ -433,7 +437,10 @@ func _start_server(port: int, dedicated: bool, map_id: StringName, mode: int) ->
 	Game.is_offline = false
 	Game.is_dedicated = dedicated
 	Game.hosted_port = port # ServerQuery answers info on port + 1
-	Game.set_match_config(map_id, mode, Game.last_kills, float(Game.last_time_min * 60), Game.last_bots)
+	# A dedicated server has no own pawn: the allies sit on the team from the settings / CLI.
+	Game.bot_team_base = Game.preferred_team
+	Game.set_match_config(map_id, mode, Game.last_kills, float(Game.last_time_min * 60), Game.last_bots,
+		Game.last_bot_allies, Game.last_bot_enemies)
 	print("SERVER: Server started on port %d, dedicated=%s, %s on %s" % [
 		port, dedicated, Game.mode_name(), Maps.display_name(Game.map_id)
 	])
@@ -908,8 +915,47 @@ func _spawn_bot(team: int) -> void:
 func _fill_bots() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
+	if Game.bot_split_active():
+		# Per-side match (you and a friend against ten bots): fill each team up to its own target.
+		while true:
+			var team := _team_short_of_bots()
+			if team < 0:
+				break
+			_spawn_bot(team)
+		return
 	while _bot_pawn_count() < Game.bot_count:
 		_spawn_bot(_smaller_team())
+
+
+## The first team still below its bot target (bot split), -1 when both are full.
+func _team_short_of_bots() -> int:
+	for team in [Game.TEAM_A, Game.TEAM_B]:
+		var want := Game.bot_target(team)
+		if want < 0:
+			continue
+		if _bot_count_on(team) < want:
+			return team
+	return -1
+
+
+## The first team holding more bots than its target, -1 when neither does.
+func _team_over_bots() -> int:
+	for team in [Game.TEAM_A, Game.TEAM_B]:
+		var want := Game.bot_target(team)
+		if want < 0:
+			continue
+		if _bot_count_on(team) > want and _first_bot_on(team) != null:
+			return team
+	return -1
+
+
+func _bot_count_on(team: int) -> int:
+	var n := 0
+	for child in players_root.get_children():
+		var p := child as Player
+		if p and p.is_bot and p.team_id == team and not p.is_queued_for_deletion():
+			n += 1
+	return n
 
 
 func _first_bot_on(team: int) -> Player:
@@ -920,9 +966,17 @@ func _first_bot_on(team: int) -> Player:
 	return null
 
 
-## Drop extra bots after a human joins so the match stays at bot_count bots.
+## Drop extra bots after a human joins so the match stays at bot_count bots. A per-side match keeps
+## its bots: that is the point of "two of us against ten bots", a friend joining must not shrink them.
 func _trim_bots() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
+		return
+	if Game.bot_split_active():
+		while true:
+			var over := _team_over_bots()
+			if over < 0:
+				break
+			_drop_bot(_first_bot_on(over))
 		return
 	while _bot_pawn_count() > Game.bot_count:
 		var bot := _first_bot_on(_larger_team())
@@ -932,9 +986,15 @@ func _trim_bots() -> void:
 			bot = _first_bot_on(Game.TEAM_B)
 		if bot == null:
 			break
-		Game.net_hp.erase(bot.peer_id)
-		Game.drop_score(bot.peer_id)
-		bot.queue_free()
+		_drop_bot(bot)
+
+
+func _drop_bot(bot: Player) -> void:
+	if bot == null:
+		return
+	Game.net_hp.erase(bot.peer_id)
+	Game.drop_score(bot.peer_id)
+	bot.queue_free()
 
 
 func _on_local_player_ready(player: Player) -> void:
