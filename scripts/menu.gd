@@ -25,7 +25,9 @@ var _map_opts: Array[ChoiceRow] = [] # Solo + Mp (host) pickers, kept in sync
 var _mode_opts: Array[ChoiceRow] = []
 var _kill_boxes: Array[SpinBox] = []
 var _time_boxes: Array[SpinBox] = []
-var _bot_boxes: Array[SpinBox] = []
+var _bot_boxes: Array[SpinBox] = [] # the total (FFA, and the sum in team modes)
+var _ally_boxes: Array[SpinBox] = [] # team modes: bots on your side
+var _enemy_boxes: Array[SpinBox] = [] # team modes: bots on the other side
 var _skill_opts: Array[OptionButton] = [] # #90 bot difficulty, Solo + Host twins
 var _map_blurbs: Array[Label] = []
 var _lobby_info: Label
@@ -122,6 +124,10 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 	var kill_box := _make_spin(Game.KILLS_MIN, Game.KILLS_MAX, 1, "")
 	var time_box := _make_spin(Game.TIME_MIN_MINUTES, Game.TIME_MAX_MINUTES, 1, "min")
 	var bot_box := _make_spin(0, Game.BOT_COUNT_MAX, 1, "")
+	var ally_box := _make_spin(0, Game.BOT_COUNT_MAX, 1, "")
+	var enemy_box := _make_spin(0, Game.BOT_COUNT_MAX, 1, "")
+	# Team modes pick a side each instead of one total: you (and whoever joins you) against a
+	# number of enemy bots. FFA keeps the single row, because it has no sides.
 	var skill_opt := OptionButton.new()
 	skill_opt.name = "BotSkillOption"
 	skill_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -140,6 +146,8 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 		_labeled_row("KillsRow", "Kills", kill_box),
 		_labeled_row("TimeRow", "Time", time_box),
 		_labeled_row("BotsRow", "Bots", bot_box),
+		_labeled_row("BotsAllyRow", "Bots with you", ally_box),
+		_labeled_row("BotsEnemyRow", "Bots against you", enemy_box),
 		_labeled_row("BotSkillRow", "Bot skill", skill_opt),
 		blurb,
 	]
@@ -151,6 +159,8 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 	_kill_boxes.append(kill_box)
 	_time_boxes.append(time_box)
 	_bot_boxes.append(bot_box)
+	_ally_boxes.append(ally_box)
+	_enemy_boxes.append(enemy_box)
 	_skill_opts.append(skill_opt)
 	skill_opt.item_selected.connect(func(i: int) -> void:
 		_sync_opts(_skill_opts, i)
@@ -164,7 +174,9 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 		_on_mode_changed())
 	kill_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_kill_boxes, v))
 	time_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_time_boxes, v))
-	bot_box.value_changed.connect(func(v: float) -> void: _on_spin_changed(_bot_boxes, v))
+	bot_box.value_changed.connect(func(v: float) -> void: _on_bots_total_changed(v))
+	ally_box.value_changed.connect(func(_v: float) -> void: _on_bot_split_changed())
+	enemy_box.value_changed.connect(func(_v: float) -> void: _on_bot_split_changed())
 
 
 func _labeled_row(row_name: String, label_text: String, field: Control) -> HBoxContainer:
@@ -224,10 +236,67 @@ func _on_spin_changed(boxes: Array[SpinBox], v: float) -> void:
 	_on_choice_changed()
 
 
+## The total row (FFA, or a check that just wants a small match): split it evenly over the two
+## sides, so switching to a team mode still starts from that number.
+func _on_bots_total_changed(v: float) -> void:
+	if _filling_match:
+		return
+	var n := clampi(int(v), 0, Game.BOT_COUNT_MAX)
+	var ally := int(ceil(n / 2.0))
+	_filling_match = true
+	for b in _bot_boxes:
+		b.set_value_no_signal(n)
+	for b in _ally_boxes:
+		b.set_value_no_signal(ally)
+	for b in _enemy_boxes:
+		b.set_value_no_signal(n - ally)
+	_filling_match = false
+	_on_choice_changed()
+
+
+## One of the two side boxes: the pair together is the bot total, so clamp the other one and keep
+## the (hidden) total row in step.
+func _on_bot_split_changed() -> void:
+	if _filling_match or _ally_boxes.is_empty():
+		return
+	var ally := clampi(int(_ally_boxes[0].value), 0, Game.BOT_COUNT_MAX)
+	var enemy := clampi(int(_enemy_boxes[0].value), 0, Game.BOT_COUNT_MAX)
+	if ally + enemy > Game.BOT_COUNT_MAX:
+		enemy = Game.BOT_COUNT_MAX - ally
+	_filling_match = true
+	for b in _ally_boxes:
+		b.set_value_no_signal(ally)
+	for b in _enemy_boxes:
+		b.set_value_no_signal(enemy)
+	for b in _bot_boxes:
+		b.set_value_no_signal(ally + enemy)
+	_filling_match = false
+	_on_choice_changed()
+
+
+## Sets the bot total from one number (a balanced split), the way the Bots row does it.
+## Used by the checks that only want a small match, in any mode.
+func set_bots_total(n: int) -> void:
+	_on_bots_total_changed(float(clampi(n, 0, Game.BOT_COUNT_MAX)))
+
+
+func selected_bot_allies() -> int:
+	if _ally_boxes.is_empty():
+		return Game.last_bot_allies
+	return clampi(int(_ally_boxes[0].value), 0, Game.BOT_COUNT_MAX)
+
+
+func selected_bot_enemies() -> int:
+	if _enemy_boxes.is_empty():
+		return Game.last_bot_enemies
+	return clampi(int(_enemy_boxes[0].value), 0, Game.BOT_COUNT_MAX)
+
+
 func _on_choice_changed() -> void:
 	if _filling_match:
 		return
-	Game.remember_match_choice(selected_map(), selected_mode(), selected_kills(), selected_time_min(), selected_bots(), selected_bot_difficulty())
+	Game.remember_match_choice(selected_map(), selected_mode(), selected_kills(), selected_time_min(), selected_bots(),
+		selected_bot_difficulty(), selected_bot_allies(), selected_bot_enemies())
 	set_match_choice(selected_map(), selected_mode())
 	match_choice_changed.emit(selected_map(), selected_mode())
 
@@ -250,13 +319,25 @@ func set_match_choice(map_id: StringName, mode: int) -> void:
 		b.set_value_no_signal(Game.last_kills)
 	for b in _time_boxes:
 		b.set_value_no_signal(Game.last_time_min)
+	var total := Game.last_bots
+	var ally := Game.last_bot_allies
+	var enemy := Game.last_bot_enemies
+	if ally < 0 or enemy < 0 or ally + enemy != total:
+		# A total was set from outside (CLI, a check, an older settings file): split it evenly.
+		ally = int(ceil(total / 2.0))
+		enemy = total - ally
 	for b in _bot_boxes:
-		b.set_value_no_signal(Game.last_bots)
+		b.set_value_no_signal(total)
+	for b in _ally_boxes:
+		b.set_value_no_signal(ally)
+	for b in _enemy_boxes:
+		b.set_value_no_signal(enemy)
 	for o in _skill_opts:
 		o.select(Game.last_bot_difficulty)
 	_filling_match = false
 	_refresh_match_blurb(mi, mo)
 	$Center/Solo/TeamRow.visible = not Game.is_ffa(mo)
+	_refresh_bot_rows(mo)
 	_refresh_limit_labels(mo)
 
 
@@ -273,6 +354,17 @@ func _refresh_limit_labels(mo: int) -> void:
 			(row.get_child(0) as Label).text = "Style" if style else "Kills"
 
 
+## FFA: one Bots row (no sides). Team modes: bots with you and bots against you.
+func _refresh_bot_rows(mo: int) -> void:
+	var teams := not Game.is_ffa(mo)
+	for b in _bot_boxes:
+		(b.get_parent() as Control).visible = not teams
+	for b in _ally_boxes:
+		(b.get_parent() as Control).visible = teams
+	for b in _enemy_boxes:
+		(b.get_parent() as Control).visible = teams
+
+
 func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
 	if mi < 0:
 		mi = maxi(Maps.ORDER.find(selected_map()), 0)
@@ -286,11 +378,13 @@ func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
 		rule = "first through the %d-gun ladder (knife kill = victim down a gun)" % GunGame.LADDER.size()
 	elif Game.is_style_mode(mo):
 		rule = "first to %d style" % Game.style_limit_for(selected_kills(), float(selected_time_min() * 60))
-	for b in _map_blurbs:
-		b.text = "%s\n%s · %s or %d min · %d %s bots" % [
-			info.blurb, Game.mode_name(mo), rule, selected_time_min(), selected_bots(),
-			Game.BOT_DIFFICULTY_IDS[selected_bot_difficulty()]
+	var bots_line := "%d %s bots" % [selected_bots(), Game.BOT_DIFFICULTY_IDS[selected_bot_difficulty()]]
+	if not Game.is_ffa(mo):
+		bots_line = "%d %s bots with you, %d against" % [
+			selected_bot_allies(), Game.BOT_DIFFICULTY_IDS[selected_bot_difficulty()], selected_bot_enemies()
 		]
+	for b in _map_blurbs:
+		b.text = "%s\n%s · %s or %d min · %s" % [info.blurb, Game.mode_name(mo), rule, selected_time_min(), bots_line]
 
 
 func selected_map() -> StringName:
