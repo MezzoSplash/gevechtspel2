@@ -20,7 +20,7 @@ func _h(p: Player) -> float:
 
 func _ready() -> void:
 	Game.mode = Game.MODE_FFA
-	_ok(Game.NET_VERSION == "0.5.8", "NET_VERSION is 0.5.8")
+	_ok(Game.NET_VERSION == "0.5.10", "NET_VERSION is 0.5.10")
 	_charges()
 	_style_rules()
 	var floor := StaticBody3D.new()

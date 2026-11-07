@@ -107,7 +107,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.5.8" # 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.5.10" # 0.5.10: the reliable RPCs are split over ENet channels (1 gameplay, 2 cosmetic, 0 state) so one lost packet for the HUD no longer holds back a shot; a 0.5.7 peer must be refused. 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -436,7 +436,7 @@ func is_enemy_ids(team_a: int, team_b: int, peer_a: int = 0, peer_b: int = 1) ->
 
 
 ## Server → one client (join) or everyone: which map, mode, kill limit and round length this server runs.
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_match_config(new_map: String, new_mode: int, kills: int = 0, time_sec: float = 0.0) -> void:
 	if multiplayer.is_server():
 		return
@@ -481,7 +481,7 @@ func send_death_report(killer_peer: int, victim_peer: int, weapon_id: StringName
 	Combat.send_death_report(self, killer_peer, victim_peer, weapon_id)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_death_report(args: Array) -> void:
 	if args.size() >= 7:
 		_show_death_report(args)
@@ -510,7 +510,7 @@ func drop_score(peer_id: int) -> void:
 		sync_score_removed.rpc(peer_id)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_score_removed(peer_id: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -554,7 +554,7 @@ func weapon_display_name(weapon_id: StringName) -> String:
 ## Client → server fire. Hits resolve here; tracers/sfx go back out via broadcast_shot_fx.
 ## The server checks: equipped gun, fire rate, freeze, and that the shot starts near our copy of the shooter.
 ## `shot_seed` makes the server's pellets the same as the client's tracers.
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 1)
 func request_weapon_fire(
 	origin: Vector3,
 	look_dir: Vector3,
@@ -621,7 +621,7 @@ func predict_grenade(thrower: Player, origin: Vector3, dir: Vector3) -> int:
 
 
 ## Client throw. Server re-checks ammo, death, and freeze.
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 1)
 func request_grenade(origin: Vector3, dir: Vector3, client_seq: int = 0) -> void:
 	if not multiplayer.is_server():
 		return
@@ -634,7 +634,7 @@ func request_grenade(origin: Vector3, dir: Vector3, client_seq: int = 0) -> void
 	throw_grenade(thrower, origin, dir, client_seq)
 
 
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable", 0)
 func sync_grenade_count(peer_id: int, n: int) -> void:
 	var p := player_for_peer(peer_id)
 	if p == null:
@@ -645,7 +645,7 @@ func sync_grenade_count(peer_id: int, n: int) -> void:
 
 ## Visual copy on clients, flying on its own from the spawn velocity. Damage stays on the server grenade.
 ## The thrower's own predicted copy is adopted instead of spawning a second one.
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_grenade_spawn(net_id: int, pos: Vector3, vel: Vector3, thrower_peer: int, client_seq: int) -> void:
 	if multiplayer.is_server() or _grenade_done.has(net_id):
 		return
@@ -662,7 +662,7 @@ func sync_grenade_spawn(net_id: int, pos: Vector3, vel: Vector3, thrower_peer: i
 	_grenade_visual(net_id, pos, vel)
 
 
-@rpc("authority", "unreliable")
+@rpc("authority", "call_remote", "unreliable", 1)
 func sync_grenade_pose(net_id: int, pos: Vector3) -> void:
 	# Unreliable can arrive after the reliable boom; that would leave a ghost grenade.
 	if multiplayer.is_server() or _grenade_done.has(net_id):
@@ -673,7 +673,7 @@ func sync_grenade_pose(net_id: int, pos: Vector3) -> void:
 
 
 ## Drop the flying mesh, then play the same boom the server already showed.
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_grenade_boom(pos: Vector3, net_id: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -696,7 +696,7 @@ func throw_knife(thrower: Player, origin: Vector3, dir: Vector3) -> void:
 	Throwables.throw_knife(self, thrower, origin, dir)
 
 
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 1)
 func request_knife(origin: Vector3, dir: Vector3) -> void:
 	if not multiplayer.is_server():
 		return
@@ -709,7 +709,7 @@ func request_knife(origin: Vector3, dir: Vector3) -> void:
 	throw_knife(thrower, origin, dir)
 
 
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable", 0)
 func sync_knife_count(peer_id: int, n: int) -> void:
 	var p := player_for_peer(peer_id)
 	if p == null:
@@ -719,7 +719,7 @@ func sync_knife_count(peer_id: int, n: int) -> void:
 
 
 ## Clients fly a visual copy from the release; sync_knife_done ends it where the server says.
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_knife_spawn(net_id: int, pos: Vector3, vel: Vector3) -> void:
 	if multiplayer.is_server():
 		return
@@ -736,7 +736,7 @@ func sync_knife_spawn(net_id: int, pos: Vector3, vel: Vector3) -> void:
 
 
 ## `end`: ThrowingKnife.END_* (stuck in the world at `pos` for a moment, hit a body, or flew off).
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_knife_done(net_id: int, pos: Vector3, normal: Vector3, end: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -825,12 +825,12 @@ func _apply_shot_hit(shooter: Player, hit: Dictionary, damage: float, def: Weapo
 	return Combat.apply_shot_hit(self, shooter, hit, damage, def)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func notify_hit(killed: bool, headshot: bool) -> void:
 	hit_confirmed.emit(killed, headshot)
 
 
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 0)
 func submit_display_name(n: String, team: int = -1) -> void:
 	if not multiplayer.is_server():
 		return
@@ -851,7 +851,7 @@ func submit_display_name(n: String, team: int = -1) -> void:
 ## dedicated server the name can also win the race: then there is no pawn yet and the row would be
 ## made with team 0. The pawn's team wins when it exists, then the row's, then the joiner's pick;
 ## register_participant corrects the team again when the pawn spawns.
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable", 0)
 func apply_display_name(peer_id: int, n: String) -> void:
 	var p := player_for_peer(peer_id)
 	var team := int(pending_teams.get(peer_id, 0))
@@ -867,7 +867,7 @@ func apply_display_name(peer_id: int, n: String) -> void:
 
 ## `from_pos`: where the damage came from (shooter, melee attacker, grenade blast) for the
 ## victim's damage direction indicator. Vector3.INF when unknown.
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable", 1)
 func broadcast_hurt(peer_id: int, new_hp: float, killed: bool, from_pos: Vector3 = Vector3.INF) -> void:
 	var p := player_for_peer(peer_id)
 	if p:
@@ -883,7 +883,7 @@ func _reroll_bot_gun(p: Player) -> void:
 
 
 ## `xform`: the spawn point the server picked (FFA picks a new one every time).
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable", 0)
 func broadcast_respawn(peer_id: int, xform: Transform3D) -> void:
 	var p := player_for_peer(peer_id)
 	if p:
@@ -933,7 +933,7 @@ func _relay_chat(peer_id: int, text: String) -> void:
 
 
 ## Client → server. Strip/cap here again in case of a bad peer.
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 2)
 func submit_chat(text: String) -> void:
 	if not multiplayer.is_server():
 		return
@@ -949,7 +949,7 @@ func submit_chat(text: String) -> void:
 
 
 ## call_local so the listen-server HUD sees the line too.
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable", 2)
 func broadcast_chat(n: String, team: int, text: String) -> void:
 	_deliver_chat(n, team, text)
 
@@ -970,7 +970,7 @@ func _push_lobby() -> void:
 	Lobby.push_lobby(self)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_lobby(data: Dictionary) -> void:
 	if multiplayer.is_server():
 		return
@@ -978,7 +978,7 @@ func sync_lobby(data: Dictionary) -> void:
 	lobby_changed.emit()
 
 
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 0)
 func request_lobby_team(team: int) -> void:
 	if not multiplayer.is_server() or not in_lobby:
 		return
@@ -992,7 +992,7 @@ func request_lobby_team(team: int) -> void:
 	_push_lobby()
 
 
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_local", "reliable", 0)
 func begin_match() -> void:
 	in_lobby = false
 	match_starting.emit()
@@ -1002,7 +1002,7 @@ func announce_presence(player_name: String, joined: bool, team: int) -> void:
 	Lobby.announce_presence(self, player_name, joined, team)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_presence(player_name: String, joined: bool, team: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -1023,7 +1023,7 @@ func _add_team_kill(team_id: int) -> void:
 	Combat.add_team_kill(self, team_id)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_team_kills(blue: int, orange: int) -> void:
 	team_kills = [blue, orange]
 
@@ -1054,7 +1054,7 @@ func _push_streak(peer_id: int) -> void:
 	Streaks.push_streak(self, peer_id)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_streak(n: int, charges: int, earned: int) -> void:
 	_apply_streak_local(n, charges, earned)
 
@@ -1076,7 +1076,7 @@ func request_use_streak(slot: int) -> void:
 		try_activate_streak(id, slot)
 
 
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 1)
 func request_streak(slot: int) -> void:
 	if not multiplayer.is_server():
 		return
@@ -1096,7 +1096,7 @@ func mark_rc_done(net_id: int) -> void:
 
 
 ## Driver's aim (where the car should head; it turns toward it) and throttle. The server car is the one that explodes.
-@rpc("any_peer", "unreliable")
+@rpc("any_peer", "call_remote", "unreliable", 1)
 func rc_drive(net_id: int, yaw_in: float, throttle_in: float) -> void:
 	if not multiplayer.is_server():
 		return
@@ -1107,7 +1107,7 @@ func rc_drive(net_id: int, yaw_in: float, throttle_in: float) -> void:
 	car.apply_remote_input(yaw_in, throttle_in)
 
 
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 1)
 func rc_detonate(net_id: int) -> void:
 	if not multiplayer.is_server() or play_locked():
 		return
@@ -1119,7 +1119,7 @@ func rc_detonate(net_id: int) -> void:
 
 
 ## Blast push for one player, sent to the machine that simulates that pawn.
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_knockback(peer_id: int, impulse: Vector3) -> void:
 	var p := player_for_peer(peer_id)
 	if p and p.is_local():
@@ -1127,7 +1127,7 @@ func sync_knockback(peer_id: int, impulse: Vector3) -> void:
 
 
 ## Blast push for the driver's predicted RC-XD copy (the server car got it already).
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_rc_kick(net_id: int, impulse: Vector3) -> void:
 	var car := RcXd.by_id(net_id)
 	if car and car.predict:
@@ -1135,14 +1135,14 @@ func sync_rc_kick(net_id: int, impulse: Vector3) -> void:
 
 
 ## Visual copy on clients. The driver's copy simulates; the rest follow poses.
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_rc_spawn(net_id: int, peer: int, team: int, pos: Vector3, yaw_in: float) -> void:
 	if multiplayer.is_server() or _rc_done.has(net_id):
 		return
 	RcXd.spawn_visual(net_id, peer, team, pos, yaw_in)
 
 
-@rpc("authority", "unreliable")
+@rpc("authority", "call_remote", "unreliable", 1)
 func sync_rc_pose(net_id: int, pos: Vector3, yaw_in: float, life_in: float, vel_in: Vector3) -> void:
 	if multiplayer.is_server() or _rc_done.has(net_id):
 		return
@@ -1151,7 +1151,7 @@ func sync_rc_pose(net_id: int, pos: Vector3, yaw_in: float, life_in: float, vel_
 		car.apply_net_pose(pos, yaw_in, life_in, vel_in)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_rc_end(net_id: int, pos: Vector3, exploded: bool) -> void:
 	if multiplayer.is_server():
 		return
@@ -1163,7 +1163,7 @@ func sync_rc_end(net_id: int, pos: Vector3, exploded: bool) -> void:
 		Grenade.play_boom(pos, true)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_rc_hp(net_id: int, value: float) -> void:
 	if multiplayer.is_server():
 		return
@@ -1174,21 +1174,21 @@ func sync_rc_hp(net_id: int, value: float) -> void:
 
 ## LOS hands. The server spawns them; everyone else builds a visual. Poses are unreliable on purpose:
 ## a lost packet must not stall the channel. The bash is reliable and only the server resolves it.
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_los_spawn(peer: int, pos: Vector3, yaw_in: float, pitch_in: float) -> void:
 	if multiplayer.is_server():
 		return
 	LosHands.spawn_remote(peer, pos, yaw_in, pitch_in)
 
 
-@rpc("authority", "unreliable")
+@rpc("authority", "call_remote", "unreliable", 1)
 func sync_los_pose(peer: int, pos: Vector3, vel: Vector3, yaw_in: float, pitch_in: float) -> void:
 	if multiplayer.is_server():
 		return
 	LosHands.apply_pose(peer, pos, vel, yaw_in, pitch_in)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_los_end(peer: int, snap_to: Vector3 = Vector3.INF) -> void:
 	if multiplayer.is_server():
 		return
@@ -1196,7 +1196,7 @@ func sync_los_end(peer: int, snap_to: Vector3 = Vector3.INF) -> void:
 
 
 ## Owner → server, every physics tick. Wish is world space and follows the look, including up.
-@rpc("any_peer", "unreliable")
+@rpc("any_peer", "call_remote", "unreliable", 1)
 func los_input(wish: Vector3, yaw_in: float, pitch_in: float) -> void:
 	if not multiplayer.is_server():
 		return
@@ -1204,7 +1204,7 @@ func los_input(wish: Vector3, yaw_in: float, pitch_in: float) -> void:
 
 
 ## Owner → server. The origin has to be the hands, not the body's eye (that check would reject it).
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 1)
 func los_melee(origin: Vector3, dir: Vector3) -> void:
 	if not multiplayer.is_server():
 		return
@@ -1213,7 +1213,7 @@ func los_melee(origin: Vector3, dir: Vector3) -> void:
 
 ## Owner → server. Stop the hands now, without a snap (the streak key again). Reliable: a lost
 ## recall would leave the client standing with no hands for the rest of the window.
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 1)
 func los_recall() -> void:
 	if not multiplayer.is_server():
 		return
@@ -1230,7 +1230,7 @@ func announce_rc(peer_id: int, team: int) -> void:
 	_apply_rc_announce(team, by, peer_id)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_rc_announce(team: int, by_name: String, by_peer: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -1254,7 +1254,7 @@ func _grant_radar(peer_id: int) -> void:
 	Streaks.grant_radar(self, peer_id)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_uav_spawn(id: int, team: int, peer: int, c: Vector3, r: float, h: float, phase: float, seconds: float) -> void:
 	if multiplayer.is_server():
 		return
@@ -1273,7 +1273,7 @@ func uav_shot_down(d: UavDrone, shooter_peer: int, shooter_team: int, weapon_id:
 	_uav_end(d.net_id, d.team, d.owner_peer, shooter_peer)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_uav_end(id: int, team: int, owner_peer: int, shooter_peer: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -1290,7 +1290,7 @@ func _uav_end(id: int, team: int, owner_peer: int, shooter_peer: int) -> void:
 		hud.show_notice("UAV neergeschoten", 2.5)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_radar(team: int, by_name: String, seconds: float, by_peer: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -1311,7 +1311,7 @@ func _emit_kill_feed(
 	kill_feed.emit(killer_name, victim_name, weapon_id, killer_team, victim_team, tricks)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_kill_feed(
 	killer_name: String, victim_name: String, weapon_id: String, killer_team: int, victim_team: int, tricks: String = ""
 ) -> void:
@@ -1338,7 +1338,7 @@ func _award_style(kill_info: Dictionary, tricks_in: Array[StringName]) -> void:
 	ComboLedger.award_style(self, kill_info, tricks_in)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_trick(
 	killer_peer_id: int, victim_peer_id: int, tricks: String, points: int, multiplier: float, total: int,
 	trick_id: int, is_best: bool
@@ -1417,7 +1417,7 @@ func _send_combo(peer_id: int, c: Dictionary, state: String, banked: int) -> voi
 	ComboLedger.send(self, peer_id, c, state, banked)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_combo(args: Array) -> void:
 	if args.size() >= 6:
 		_apply_combo(args)
@@ -1432,41 +1432,41 @@ func _add_death(peer_id: int) -> void:
 
 
 ## #B1: the server's copy of a remote pawn is the truth. A claim it refused puts the client back on it.
-@rpc("authority", "unreliable_ordered")
+@rpc("authority", "call_remote", "reliable", 1)
 func correct_position(peer_id: int, v: Vector3) -> void:
 	var p := player_for_peer(peer_id)
 	if p != null:
 		p.apply_position_correction(v)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_deaths(peer_id: int, deaths: int) -> void:
 	if scores.has(peer_id):
 		scores[peer_id].deaths = maxi(deaths, 0)
 
 
 ## `style` -1 keeps the row's style (only the round reset sends 0).
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_score(peer_id: int, score: int, n: String, team: int = 0, style: int = -1) -> void:
 	_apply_score(peer_id, score, n, team)
 	if style >= 0 and scores.has(peer_id):
 		scores[peer_id].style = style
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_round_end(winner_peer_id: int, winner_name: String, round_scores: Dictionary) -> void:
 	_round_active = false # hides the HUD clock on clients too
 	clear_radar()
 	round_ended.emit(winner_peer_id, winner_name, round_scores)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 2)
 func sync_round_time(time_left: float) -> void:
 	_round_timer = round_time - time_left
 	_round_active = time_left > 0.0
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_all_scores(scores_data: Array) -> void:
 	for entry in scores_data:
 		if typeof(entry) != TYPE_DICTIONARY:
@@ -1504,7 +1504,7 @@ func notify_intermission() -> void:
 	MatchFlow.notify_intermission(self)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_intermission() -> void:
 	if multiplayer.is_server():
 		return
@@ -1525,7 +1525,7 @@ func set_round_frozen(on: bool) -> void:
 		sync_round_frozen.rpc(on)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_round_frozen(on: bool) -> void:
 	if multiplayer.is_server():
 		return
@@ -1637,7 +1637,7 @@ func broadcast_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int) -> void
 
 
 ## Skip the shooter: they already spawned tracers locally in Weapon._fire.
-@rpc("authority", "unreliable")
+@rpc("authority", "call_remote", "unreliable", 2)
 func sync_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int = 0) -> void:
 	if shooter_peer_id != 0 and shooter_peer_id == multiplayer.get_unique_id():
 		return
@@ -1660,7 +1660,7 @@ func _sample_pings() -> void:
 	MatchFlow.sample_pings(self)
 
 
-@rpc("authority", "unreliable")
+@rpc("authority", "call_remote", "unreliable", 2)
 ## `server_ms` is the server clock when sent, for LagComp.view_ms (lag compensation, #105).
 func sync_pings(data: Dictionary, server_ms: int = 0) -> void:
 	if multiplayer.is_server():
@@ -1718,7 +1718,7 @@ func _tick_regen(delta: float) -> void:
 	Combat.tick_regen(self, delta)
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_regen(batch: Array) -> void:
 	if multiplayer.is_server():
 		return
@@ -1730,7 +1730,7 @@ func sync_regen(batch: Array) -> void:
 			p.apply_regen_hp(clampf(float(entry[1]), 0.0, Player.MAX_HP))
 
 
-@rpc("authority", "unreliable")
+@rpc("authority", "call_remote", "unreliable", 2)
 func sync_bot_poses(poses: Array) -> void:
 	if multiplayer.is_server():
 		return
@@ -1755,7 +1755,7 @@ func announce_weapon(p: Player, weapon_id: StringName) -> void:
 
 ## Reliable and on the same channel as request_weapon_fire, so the server sees the switch before the shot.
 ## A gun outside the sender's class is refused (the server copy keeps the old one, so its shots fail too).
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_remote", "reliable", 1)
 func request_weapon_switch(weapon_id: String) -> void:
 	if not multiplayer.is_server():
 		return
@@ -1772,7 +1772,7 @@ func request_weapon_switch(weapon_id: String) -> void:
 
 
 ## #160: both flags and the capture score (authority → everyone, on every change and to late joiners).
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_flags(packed: Array, caps_a: int, caps_b: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -1789,7 +1789,7 @@ func _apply_flags(packed: Array, caps_a: int, caps_b: int) -> void:
 
 
 ## #160: a flag event for the HUD/killfeed: kind is taken / dropped / returned / captured.
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_flag_event(kind: String, team: int, peer: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -1801,7 +1801,7 @@ func _apply_flag_event(kind: String, team: int, peer: int) -> void:
 
 
 ## #148: a peer's Gun Game step changed (authority → everyone).
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_gun_level(peer_id: int, level: int) -> void:
 	if multiplayer.is_server():
 		return
@@ -1816,7 +1816,7 @@ func _apply_gun_level(peer_id: int, level: int) -> void:
 		score_changed.emit(peer_id, int(scores[peer_id].kills), str(scores[peer_id].name))
 
 
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 1)
 func sync_weapon(peer_id: int, weapon_id: String) -> void:
 	if multiplayer.is_server():
 		return
@@ -1835,7 +1835,7 @@ func broadcast_roster() -> void:
 
 
 ## Client deletes pawns the server no longer has (ghost bots after join-replace).
-@rpc("authority", "reliable")
+@rpc("authority", "call_remote", "reliable", 0)
 func sync_roster(ids: Array) -> void:
 	if multiplayer.is_server():
 		return
