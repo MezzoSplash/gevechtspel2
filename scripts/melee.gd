@@ -95,7 +95,8 @@ func _take_cooldown(peer: int) -> bool:
 ## Authority only. Nearest living enemy whose body is within `reach` of the eye, inside the cone,
 ## with no wall in between. Damage goes through Player.apply_hit, so kills, the kill feed
 ## (weapon "melee"), streaks, and the killcam work as for guns.
-func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float) -> Dictionary:
+## `damage` is normally DAMAGE; the LOS hands pass a lethal number, which is that streak's payoff.
+func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float, damage: float = DAMAGE) -> Dictionary:
 	var out := {"hit": false, "killed": false}
 	if not Game._is_match_authority() or look_dir.length_squared() < 0.0001:
 		return out
@@ -132,15 +133,10 @@ func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float)
 	if killer_id <= 0:
 		killer_id = attacker._owner_peer()
 	Game.begin_melee_ctx(attacker, origin) # SURF / DROP KILL use the swing. During LOS that origin is the hands, not the eye.
-	var r := best.apply_hit(best_pt, -dir, DAMAGE, false, killer_id, WEAPON_ID, 1.0, attacker.global_position)
+	var r := best.apply_hit(best_pt, -dir, damage, false, killer_id, WEAPON_ID, 1.0, attacker.global_position)
 	Game.end_melee_ctx()
 	out.hit = int(r.get("damage", 0)) > 0
 	out.killed = bool(r.get("killed", false))
-	# LOS shove: horizontal, on top of the bash. A kill already zeroed the body, so skip it.
-	if out.hit and not out.killed and LosHands.driving(attacker):
-		var flat := Vector3(dir.x, 0.0, dir.z)
-		if flat.length_squared() > 0.0001:
-			Knockback._push_player(best, flat.normalized() * LosHands.PUSH)
 	return out
 
 

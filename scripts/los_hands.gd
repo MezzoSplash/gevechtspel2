@@ -2,13 +2,17 @@ class_name LosHands
 extends CharacterBody3D
 ## LOS scorestreak (# slot 2, 7 kills). The pawn stays the body and keeps its line.
 ## For DURATION seconds the driver looks through this pair of hands and melees from here.
+## One bash from the hands is a kill, and that hit is the payoff: the body snaps to the hands
+## and the streak ends right there, so the whole thing is a way to get somewhere you could not walk.
 ## The hands have no HP: shooting them does nothing. The body dying ends it.
 ## Server decides the bash. Poses go out unreliable so one lost packet does not stall the rest.
 
 const DURATION := 3.0
 const SPEED := 14.0 # m/s, between sprint (11.4) and a full carry (18)
 const ACCEL := 48.0
-const PUSH := 6.0 # m/s horizontal, on top of the normal bash
+const BASH_DAMAGE := 999.0 # lethal on purpose: the hands get one hit in three seconds, so it must count
+const EYE_H := 1.3 # m: where the hands leave the body, and how far the body lands under them
+const SNAP_RADIUS := 0.45 # m: the body capsule plus a margin; a snap into a wall is worse than none
 const COAST_MIN := 1.0 # m/s: slower than this, the body just stands
 const ORIGIN_SLACK := 2.5 # m: a client's swing must start near the server's hands
 const GROUP := &"los_hands"
@@ -53,7 +57,7 @@ static func launch(p: Player) -> bool:
 	hands._yaw = p.rotation.y
 	hands._pitch = p.head.rotation.x if p.head else 0.0
 	p.get_parent().add_child(hands)
-	hands.global_position = p.global_position + Vector3.UP * 1.3
+	hands.global_position = p.global_position + Vector3.UP * EYE_H
 	hands._pose_cam()
 	_live[id] = hands
 	hands._hide_body_hands(p, true)
@@ -86,10 +90,10 @@ static func spawn_remote(peer_id: int, pos: Vector3, yaw: float, pitch: float) -
 		hands._popup(p)
 
 
-static func abort_for(peer: int) -> void:
+static func abort_for(peer: int, snap_to: Vector3 = Vector3.INF) -> void:
 	var hands := for_owner(peer)
 	if hands:
-		hands._end(true) # only the server actually sends sync_los_end
+		hands._end(true, snap_to) # only the server actually sends sync_los_end
 
 
 static func abort_all() -> void:
@@ -249,16 +253,48 @@ func _resolve_swing(dir: Vector3) -> void:
 	var p := Game.player_for_peer(owner_peer)
 	if p == null or Game.melee == null:
 		return
-	var res: Dictionary = Game.melee.resolve(p, global_position, dir, Melee.RANGE)
-	if res.get("hit", false) and p.weapon:
+	# One bash is the whole payoff: three seconds of flying, one hit that counts.
+	var res: Dictionary = Game.melee.resolve(p, global_position, dir, Melee.RANGE, BASH_DAMAGE)
+	var hit := bool(res.get("hit", false))
+	if hit and p.weapon:
 		p.weapon.play_melee_hit()
 		if p.is_local():
 			Game.hit_confirmed.emit(bool(res.get("killed", false)), false)
 			p.weapon.play_hit_feedback(bool(res.get("killed", false)), false)
 	if Game.is_networked() and multiplayer.is_server():
-		Game.melee.sync_melee.rpc(owner_peer, bool(res.get("hit", false)))
-		if res.get("hit", false):
+		Game.melee.sync_melee.rpc(owner_peer, hit)
+		if hit:
 			Game.notify_hit.rpc_id(owner_peer, bool(res.get("killed", false)), false)
+	if hit:
+		_snap_back()
+
+
+## The payoff: the body snaps to where the hands just landed the hit, and the streak ends there.
+## A blocked landing still ends the streak, it just leaves the body where it was.
+func _snap_back() -> void:
+	_end(true, _landing())
+
+
+## Where the body would stand under the hands, or INF when the capsule would end up inside a wall.
+## The hands are a 0.18 m sphere, the body a crouchable capsule: the hands fit in places the body
+## does not, and a snap into geometry is worse than no snap.
+func _landing() -> Vector3:
+	var p := Game.player_for_peer(owner_peer)
+	if p == null:
+		return Vector3.INF
+	var eye := EYE_H
+	if p.head:
+		eye = maxf(p.head.global_position.y - p.global_position.y, 0.6)
+	var feet := Vector3(global_position.x, global_position.y - eye, global_position.z)
+	var probe := SphereShape3D.new()
+	probe.radius = SNAP_RADIUS
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = probe
+	q.transform = Transform3D(Basis.IDENTITY, feet + Vector3.UP * 0.9)
+	q.collision_mask = Melee.WORLD_MASK
+	if not p.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty():
+		return Vector3.INF
+	return feet
 
 
 func _take_view(p: Player) -> void:
@@ -266,6 +302,7 @@ func _take_view(p: Player) -> void:
 		return
 	Game.los_view = true
 	p.los_coast = true
+	p.play_los_sfx(1.15) # the hands leave the body: higher, lighter than a carry whoosh
 	if p.weapon:
 		p.weapon.visible = false # the gun is gone; the click is the hand
 	if p.camera:
@@ -294,7 +331,8 @@ func _popup(p: Player) -> void:
 		hud.show_los("Handen los.", p.team_id)
 
 
-func _end(tell_net: bool) -> void:
+## `snap_to`: a landed bash puts the body there. INF means the streak just ran out or the body died.
+func _end(tell_net: bool, snap_to: Vector3 = Vector3.INF) -> void:
 	if not _live.has(owner_peer):
 		return
 	_live.erase(owner_peer)
@@ -302,6 +340,11 @@ func _end(tell_net: bool) -> void:
 	if p:
 		p.los_coast = false
 		_hide_body_hands(p, false)
+		# Move the body first, so the camera that comes back is already in the new spot.
+		if snap_to.is_finite():
+			p.apply_snap(snap_to)
+			if p.is_local():
+				p.play_los_sfx(0.85)
 		if p.is_local():
 			Game.los_view = false
 			p._yaw = _yaw
@@ -313,5 +356,5 @@ func _end(tell_net: bool) -> void:
 			if p.weapon and not p.is_dead:
 				p.weapon.visible = true
 	if tell_net and Game.is_networked() and multiplayer.is_server():
-		Game.sync_los_end.rpc(owner_peer)
+		Game.sync_los_end.rpc(owner_peer, snap_to)
 	queue_free()
