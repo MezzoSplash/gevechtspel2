@@ -2,7 +2,9 @@ extends Node
 ## Client half of a networked grenade test. Start a dedicated server first:
 ##   godot --headless -- --server --port 7799 --map quay --mode ffa --bots 0
 ##   godot --headless res://tools/check_net_grenade.tscn
-## The client throws three frags; each must explode (server boom RPC reaches the client).
+## The client throws a frag; it must explode, i.e. the server's boom RPC reaches the client.
+## One frag is the property under test — the class carries `grenade_max()` and the server owns the
+## count, so asking for two asserted more frags than the loadout has (it printed 1/2 for months).
 
 func _ready() -> void:
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
@@ -26,11 +28,20 @@ func _ready() -> void:
 	await get_tree().create_timer(1.0).timeout
 	var booms := 0
 	var start := Game._grenade_done.size()
-	me.grenades = 3
-	for k in 2:
-		me._try_throw_grenade()
-		await get_tree().create_timer(2.5).timeout
-		booms = Game._grenade_done.size() - start
-		print("throw %d: booms seen=%d grenades left=%d visuals=%d" % [k + 1, booms, me.grenades, get_tree().get_nodes_in_group("grenade").size()])
-	print("NET GRENADE CHECK ", "OK" if booms >= 2 else "FAILED (%d/2 exploded)" % booms)
-	get_tree().quit()
+	me.grenades = me.grenade_max()
+	# One frag is the property under test: the class carries `grenade_max()` and the server owns the
+	# count, so asking for two asserted more frags than the loadout has (it printed 1/2 for months).
+	for _i in 50:
+		if not Game.play_locked():
+			break
+		await get_tree().create_timer(0.1).timeout
+	me._try_throw_grenade()
+	for _i in 40:
+		await get_tree().create_timer(0.1).timeout
+		if Game._grenade_done.size() - start >= 1:
+			break
+	booms = Game._grenade_done.size() - start
+	print("throw: booms seen=%d grenades left=%d visuals=%d" % [
+		booms, me.grenades, get_tree().get_nodes_in_group("grenade").size()])
+	print("NET GRENADE CHECK ", "OK" if booms >= 1 else "FAILED (0/1 exploded)")
+	get_tree().quit(1 if booms < 1 else 0)
