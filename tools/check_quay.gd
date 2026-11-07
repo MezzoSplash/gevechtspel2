@@ -175,7 +175,9 @@ func _walk(label: String, pts: Array, speed := 6.0) -> void:
 		var target: Vector3 = pts[wi]
 		var to := target - body.global_position
 		to.y = 0.0
-		if to.length() < 0.45:
+		# 0.75 m: a 0.4 m capsule cannot put its centre closer than that to a wall, and several
+		# waypoints sit against geometry (the lane ends, the surf foot).
+		if to.length() < 0.75:
 			wi += 1
 			stuck = 0
 			continue
