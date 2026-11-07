@@ -1,9 +1,10 @@
 extends Node
 ## LOS scorestreak. Headless:
 ##   ./run.sh --headless res://tools/check_los.tscn   → "LOS CHECK OK"
-## 5 kills bank the RC-XD and not LOS. 7 banks LOS. The body keeps its speed, a bash from the
-## hands deals 50 and the gun stays quiet. Killing the body ends it. The trick needs the body's
-## speed, not the hands being airborne. After 3 s the camera is back on the body.
+## 5 kills bank the RC-XD and not LOS. 7 banks LOS. The body keeps its speed, one bash from the
+## hands kills and the gun stays quiet, and a landed bash snaps the body to the hands and ends the
+## streak (a whiff does not). Killing the body ends it. The trick needs the body's speed, not the
+## hands being airborne. After 3 s the camera is back on the body.
 var fails := 0
 
 
@@ -19,7 +20,7 @@ func _h(p: Player) -> float:
 
 func _ready() -> void:
 	Game.mode = Game.MODE_FFA
-	_ok(Game.NET_VERSION == "0.5.6", "NET_VERSION is 0.5.6")
+	_ok(Game.NET_VERSION == "0.5.7", "NET_VERSION is 0.5.7")
 	_charges()
 	_style_rules()
 	var floor := StaticBody3D.new()
@@ -145,10 +146,20 @@ func _activate(p: Player, bot: Player) -> void:
 	_ok(hands.velocity.y > 4.0, "looking up and holding W climbs (vy %.1f)" % hands.velocity.y)
 	_ok(hands.global_position.y > climb_y + 0.4, "the hands gained height")
 	_ok(absf(p.global_position.y - body_y) < 0.35, "the body stays on its line while the hands climb")
-	hands.velocity = Vector3.ZERO
-	hands.global_position = p.global_position + Vector3.UP * 1.3
-	hands._pitch = 0.0
-	hands._pose_cam()
+	# A whiff has to keep the hands out: only a landed bash is the payoff.
+	hands._swing_cd = 0.0
+	p.weapon._melee_cd = 0.0
+	hands._request_swing()
+	_ok(LosHands.for_owner(1) != null, "a missed bash keeps the hands out")
+	_ok(p.weapon.trigger_locked(), "LOS locks the trigger")
+	var ammo := p.weapon.ammo
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	Input.action_press("fire")
+	for _i in 6:
+		await get_tree().physics_frame
+	Input.action_release("fire")
+	_ok(p.weapon.ammo == ammo, "the gun does not fire during LOS (%d -> %d)" % [ammo, p.weapon.ammo])
+	# The style trick needs the body's speed, not the hands being out.
 	p.velocity = Vector3(13.0, 0.0, 0.0)
 	p._obs_speed = 0.0
 	Game._shot_ctx = {"shooter": p, "origin": hands.global_position, "scoped": false, "burst": {}}
@@ -159,30 +170,37 @@ func _activate(p: Player, bot: Player) -> void:
 	_ok(not tagged.has(Style.LOS), "5 m/s on the body is not LOS")
 	Game._shot_ctx = {}
 	p.velocity = Vector3.ZERO
+	# The payoff: one bash kills, and the body snaps to the hands and the streak ends there.
+	var eye := p.head.global_position.y - p.global_position.y
+	var feet := Vector3(6.0, 1.7, 6.0)
+	hands.global_position = feet + Vector3.UP * LosHands.EYE_H
+	hands.velocity = Vector3.ZERO
+	hands._pitch = 0.0 # the climb test pitched the camera up; a level bash needs a level look
+	hands._pose_cam()
 	var flat := Vector3(hands.look.x, 0.0, hands.look.z)
 	if flat.length_squared() < 0.0001:
 		flat = Vector3(0, 0, -1)
 	flat = flat.normalized()
-	bot.global_position = p.global_position + flat * 1.35
+	bot.global_position = feet + flat * 1.35
+	bot.velocity = Vector3.ZERO
 	bot.hp = Player.MAX_HP
 	bot.is_dead = false
 	bot._spawn_protect = 0.0
-	var hp0 := bot.hp
+	hands._swing_cd = 0.0
+	p.weapon._melee_cd = 0.0
 	hands._request_swing()
-	_ok(is_equal_approx(bot.hp, hp0 - Melee.DAMAGE), "melee from the hands deals 50 (hp %.0f)" % bot.hp)
-	_ok(_h(bot) > 4.0, "the bash shoves (%.1f m/s)" % _h(bot))
-	_ok(p.weapon.trigger_locked(), "LOS locks the trigger")
-	var ammo := p.weapon.ammo
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	Input.action_press("fire")
-	for _i in 6:
-		await get_tree().physics_frame
-	Input.action_release("fire")
-	_ok(p.weapon.ammo == ammo, "the gun does not fire during LOS (%d -> %d)" % [ammo, p.weapon.ammo])
-	LosHands.abort_for(1)
-	await get_tree().physics_frame
+	_ok(bot.is_dead and is_zero_approx(bot.hp), "one bash from the hands is a kill (hp %.0f)" % bot.hp)
+	_ok(LosHands.for_owner(1) == null and not Game.los_view, "a landed bash ends the streak")
+	_ok(p.camera != null and p.camera.current, "camera is back on the body after the snap")
+	var snap := Vector3(feet.x, feet.y + LosHands.EYE_H - eye, feet.z)
+	var drift := p.global_position.distance_to(snap)
+	_ok(drift < 0.45, "the body snapped to the hands (%.2f m off, at %.1f/%.1f/%.1f)" % [
+		drift, p.global_position.x, p.global_position.y, p.global_position.z])
 	p.velocity = Vector3.ZERO
 	p.global_position = Vector3(0, 0.05, 0)
+	p.rotation = Vector3.ZERO
+	await get_tree().physics_frame
+	p.velocity = Vector3.ZERO
 	p.is_dead = false
 	p._spawn_protect = 0.0
 	_ok(LosHands.launch(p) and Game.los_view, "LOS view on for the timer")

@@ -107,7 +107,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.5.6" # 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.5.7" # 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -1189,10 +1189,10 @@ func sync_los_pose(peer: int, pos: Vector3, vel: Vector3, yaw_in: float, pitch_i
 
 
 @rpc("authority", "reliable")
-func sync_los_end(peer: int) -> void:
+func sync_los_end(peer: int, snap_to: Vector3 = Vector3.INF) -> void:
 	if multiplayer.is_server():
 		return
-	LosHands.abort_for(peer)
+	LosHands.abort_for(peer, snap_to)
 
 
 ## Owner → server, every physics tick. Wish is world space and follows the look, including up.

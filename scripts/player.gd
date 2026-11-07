@@ -247,6 +247,7 @@ var _in_crouch_down := false # just pressed this tick
 var _strip_cd: Dictionary = {} # strip name -> seconds until this pawn can take it again
 var _strip_prev := Vector3.INF
 var _whoosh: AudioStreamPlayer
+var _los_sfx: AudioStreamPlayer # LOS only: the hands leaving and the body snapping back
 var _wind: AudioStreamPlayer # speed FX wind loop (local only); volume/pitch follow the speed
 # Style tracking, match authority only (Style / Game.register_kill): turn history and time in the air.
 var air_time := 0.0 # seconds with free space under the feet
@@ -378,6 +379,12 @@ func _ready() -> void:
 		_whoosh.bus = "SFX"
 		_whoosh.volume_db = -4.0
 		add_child(_whoosh)
+		# Its own node: the carry whoosh belongs to Movement, with its own pitch.
+		_los_sfx = AudioStreamPlayer.new()
+		_los_sfx.stream = WHOOSH
+		_los_sfx.bus = "SFX"
+		_los_sfx.volume_db = -2.0
+		add_child(_los_sfx)
 		_wind = AudioStreamPlayer.new()
 		_wind.stream = looped_wind()
 		_wind.bus = "SFX"
@@ -1204,6 +1211,26 @@ func apply_position_correction(v: Vector3) -> void:
 	position = v
 	_net_target = v
 	_net_has = true
+
+
+## LOS: the hands landed a bash and the body snaps to them. Both the server's copy and the owner's
+## move here, so the claim check does not read the jump as a teleport and pull the body back.
+## Velocity is dropped: the snap is a cut, not a carry. INF-safe (the caller checks).
+func apply_snap(v: Vector3) -> void:
+	global_position = v
+	_net_target = v
+	_net_has = true
+	_net_pos_ms = Time.get_ticks_msec()
+	velocity = Vector3.ZERO
+	_style_last_pos = Vector3.INF # a teleport, so it is never counted as a fall
+
+
+## LOS hand sounds, local machine only: leaving the body (pitch > 1) and snapping back (< 1).
+func play_los_sfx(pitch: float) -> void:
+	if _los_sfx == null:
+		return
+	_los_sfx.pitch_scale = pitch
+	_los_sfx.play()
 
 
 ## Client-side glide of a remote human toward _net_target (frame-rate independent).
