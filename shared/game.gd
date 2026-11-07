@@ -107,7 +107,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.5.7" # 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.5.8" # 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -1209,6 +1209,15 @@ func los_melee(origin: Vector3, dir: Vector3) -> void:
 	if not multiplayer.is_server():
 		return
 	LosHands.server_swing(multiplayer.get_remote_sender_id(), origin, dir)
+
+
+## Owner → server. Stop the hands now, without a snap (the streak key again). Reliable: a lost
+## recall would leave the client standing with no hands for the rest of the window.
+@rpc("any_peer", "reliable")
+func los_recall() -> void:
+	if not multiplayer.is_server():
+		return
+	LosHands.server_recall(multiplayer.get_remote_sender_id())
 
 
 ## Same popup split as the radar: your team sees RC-XD, the other team sees ENEMY RC-XD.

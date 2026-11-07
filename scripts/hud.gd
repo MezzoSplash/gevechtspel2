@@ -239,6 +239,9 @@ func _input(event: InputEvent) -> void:
 		return
 	# Driving the car or the hands: that camera has the mouse and LMB. Streak keys and chat wait.
 	if Game.rc_view or Game.los_view:
+		# LOS: the same key that fired the streak brings the hands back early, without a snap.
+		if Game.los_view and event.is_action_pressed("use_streak"):
+			LosHands.recall_local()
 		if (
 			event.is_action_pressed("ui_up")
 			or event.is_action_pressed("ui_down")
@@ -1495,6 +1498,16 @@ func _draw() -> void:
 			draw_circle(c, (2.2 if style == 2 else 1.4) * sz, col)
 		if _sniper_ads:
 			draw_arc(c, 22.0, 0.0, TAU, 48, Color(0.05, 0.05, 0.05, 0.45), 2.0, true)
+
+	# LOS: one thin bar under the crosshair draining with the hands' time left. Local only and
+	# drawn here, so it needs no node of its own. Gold, the streak family colour.
+	var hands := LosHands.local()
+	if hands:
+		var frac := clampf(hands.time_left / LosHands.DURATION, 0.0, 1.0)
+		var bar_w := 96.0
+		var bar_y := c.y + 34.0
+		draw_rect(Rect2(c.x - bar_w * 0.5, bar_y, bar_w, 4.0), Color(1, 1, 1, 0.16))
+		draw_rect(Rect2(c.x - bar_w * 0.5, bar_y, bar_w * frac, 4.0), Color(1, 0.92, 0.55, 0.95))
 
 	if _hurt_flash > 0.0:
 		var a := _hurt_flash * 0.55

@@ -20,7 +20,7 @@ func _h(p: Player) -> float:
 
 func _ready() -> void:
 	Game.mode = Game.MODE_FFA
-	_ok(Game.NET_VERSION == "0.5.7", "NET_VERSION is 0.5.7")
+	_ok(Game.NET_VERSION == "0.5.8", "NET_VERSION is 0.5.8")
 	_charges()
 	_style_rules()
 	var floor := StaticBody3D.new()
@@ -67,10 +67,15 @@ func _charges() -> void:
 
 func _style_rules() -> void:
 	_ok(int(Style.POINTS[Style.LOS]) == 175, "LOS is 175 style")
+	_ok(int(Style.POINTS[Style.LOS_LONG]) == 350, "LOS LONG is 350 style")
 	var fast := Style.detect({"weapon": &"melee", "los": true, "body_speed": 13.0})
 	_ok(fast.has(Style.LOS), "melee + LOS + 13 m/s on the body counts")
+	var near := Style.detect({"weapon": &"melee", "los": true, "body_speed": 13.0, "los_dist": 8.0})
+	_ok(near.has(Style.LOS) and not near.has(Style.LOS_LONG), "an 8 m snap stays LOS")
+	var far := Style.detect({"weapon": &"melee", "los": true, "body_speed": 13.0, "los_dist": 30.0})
+	_ok(far.has(Style.LOS_LONG) and not far.has(Style.LOS), "a 30 m snap is LOS LONG, not LOS")
 	var slow := Style.detect({"weapon": &"melee", "los": true, "body_speed": 5.0, "shooter_air": 2.0})
-	_ok(not slow.has(Style.LOS), "a slow body does not get LOS just because the hands are up")
+	_ok(not slow.has(Style.LOS) and not slow.has(Style.LOS_LONG), "a slow body does not get LOS just because the hands are up")
 	var plain := Style.detect({"weapon": &"melee", "los": false, "body_speed": 18.0})
 	_ok(not plain.has(Style.LOS), "a fast bash without the streak is not LOS")
 
@@ -168,6 +173,12 @@ func _activate(p: Player, bot: Player) -> void:
 	p.velocity = Vector3(5.0, 0.0, 0.0)
 	tagged = Tricks.detect(Game, 1, -3, &"melee", false)
 	_ok(not tagged.has(Style.LOS), "5 m/s on the body is not LOS")
+	# The trick reads how far the hands were from the body at the swing (LosHands.snap_m).
+	p.velocity = Vector3(13.0, 0.0, 0.0)
+	hands.snap_m = 30.0
+	tagged = Tricks.detect(Game, 1, -3, &"melee", false)
+	_ok(tagged.has(Style.LOS_LONG) and not tagged.has(Style.LOS), "a 30 m snap reads LOS LONG through Tricks")
+	hands.snap_m = 0.0
 	Game._shot_ctx = {}
 	p.velocity = Vector3.ZERO
 	# The payoff: one bash kills, and the body snaps to the hands and the streak ends there.
@@ -196,6 +207,37 @@ func _activate(p: Player, bot: Player) -> void:
 	var drift := p.global_position.distance_to(snap)
 	_ok(drift < 0.45, "the body snapped to the hands (%.2f m off, at %.1f/%.1f/%.1f)" % [
 		drift, p.global_position.x, p.global_position.y, p.global_position.z])
+	# A landing that would put the capsule in a wall: look around the hands instead of refusing.
+	var wall := StaticBody3D.new()
+	var wcol := CollisionShape3D.new()
+	var wbox := BoxShape3D.new()
+	wbox.size = Vector3(0.4, 4.0, 4.0)
+	wcol.shape = wbox
+	wall.add_child(wcol)
+	wall.position = Vector3(6.9, 2.0, 6.0)
+	add_child(wall)
+	await get_tree().physics_frame
+	p.is_dead = false
+	p._spawn_protect = 0.0
+	_ok(LosHands.launch(p), "launch next to a wall")
+	var hug := LosHands.for_owner(1)
+	hug.global_position = Vector3(6.55, 3.0, 6.0)
+	var land := hug._landing()
+	var off := -1.0
+	if land.is_finite():
+		off = Vector2(land.x - 6.55, land.z - 6.0).length()
+	_ok(land.is_finite() and off > 0.3, "a blocked landing moves aside (%.2f m)" % off)
+	LosHands.abort_for(1)
+	wall.queue_free()
+	await get_tree().physics_frame
+	# The streak key again: out early, and the body stays where it stood.
+	_ok(LosHands.launch(p) and Game.los_view, "launch for a recall")
+	var hold := LosHands.for_owner(1)
+	hold.global_position = Vector3(4.0, 3.0, 4.0)
+	var body_pos := p.global_position
+	LosHands.recall_local()
+	_ok(LosHands.for_owner(1) == null and not Game.los_view, "a recall ends the streak")
+	_ok(p.global_position.distance_to(body_pos) < 0.2, "a recall does not move the body")
 	p.velocity = Vector3.ZERO
 	p.global_position = Vector3(0, 0.05, 0)
 	p.rotation = Vector3.ZERO

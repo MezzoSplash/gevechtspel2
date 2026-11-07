@@ -53,7 +53,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 - #171/#172: the UAV is a drone that circles the map and can be shot down (`scripts/uav_drone.gd`). Released in v0.5.3 (`NET_VERSION` 0.5.3).
 - #173: `check_bot_kit` is deterministic (seeded, streaks handed out).
 - #177/#178: speed effects (`Game.speed_fx`, Access tab, default on). The hip FOV kicks with horizontal speed from sprint on (`Player.speed_fov_extra`), speed lines fade in above ~12 m/s (`SpeedLines` + `shaders/speed_lines.gdshader`), a hard landing dips the camera once, and a wind loop follows the speed. Local player only; off keeps the old sprint + carry FOV.
-- LOS scorestreak (slot 2, 7 kills, 5 s): the body keeps its line, the hands fly and melee from there. One bash from the hands is a kill, and a landed bash snaps the body to the hands and ends the streak early — that snap is the payoff. `NET_VERSION` 0.5.7. Check: `tools/check_los.tscn`.
+- LOS scorestreak (slot 2, 7 kills, 5 s): the body keeps its line, the hands fly and melee from there. One bash from the hands is a kill, and a landed bash snaps the body to the hands and ends the streak early — that snap is the payoff. A snap from `Style.LOS_LONG_M` (25 m) or more pays `LOS LONG` (350) instead of `LOS` (175), and the body lands in the nearest free spot when the capsule does not fit under the hands. The streak key again recalls the hands early without a snap. A thin gold bar under the crosshair is the window. `NET_VERSION` 0.5.8. Check: `tools/check_los.tscn`.
 
 ## Commands
 
