@@ -101,6 +101,33 @@ func _init() -> void:
 	t.set_color("font_pressed_color", "MenuButtonBig", Color.WHITE)
 	t.set_constant("h_separation", "MenuButtonBig", 0)
 
+	# Choice chips: one per option of a match setting, in a grid (ChoiceRow). The selected chip is
+	# the amber "pressed" state and keeps its dark text, so the current map/mode reads at a glance.
+	t.add_type("ChoiceChip")
+	t.set_type_variation("ChoiceChip", "Button")
+	var chip := _sb(FIELD, Color(1, 1, 1, 0.09), 0, 1, 3, 10, 6)
+	var chip_hover := _sb(FIELD_HOVER, Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.7), 0, 1, 3, 10, 6)
+	var chip_on := _sb(Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.92), ACCENT, 0, 1, 3, 10, 6)
+	var chip_on_hover := _sb(Color(1.0, 0.82, 0.4), Color.WHITE, 0, 1, 3, 10, 6)
+	var chip_off := _sb(Color(0.09, 0.1, 0.12, 0.5), Color(1, 1, 1, 0.04), 0, 1, 3, 10, 6)
+	var chip_focus := _sb(Color(0, 0, 0, 0), Color.WHITE, 0, 2, 3, 10, 6)
+	chip_focus.draw_center = false
+	t.set_stylebox("normal", "ChoiceChip", chip)
+	t.set_stylebox("hover", "ChoiceChip", chip_hover)
+	t.set_stylebox("pressed", "ChoiceChip", chip_on)
+	t.set_stylebox("hover_pressed", "ChoiceChip", chip_on_hover)
+	t.set_stylebox("disabled", "ChoiceChip", chip_off)
+	t.set_stylebox("focus", "ChoiceChip", chip_focus)
+	t.set_font("font", "ChoiceChip", bold)
+	t.set_font_size("font_size", "ChoiceChip", 14)
+	t.set_color("font_color", "ChoiceChip", Color(0.80, 0.83, 0.88))
+	t.set_color("font_hover_color", "ChoiceChip", Color.WHITE)
+	t.set_color("font_focus_color", "ChoiceChip", Color.WHITE)
+	t.set_color("font_pressed_color", "ChoiceChip", Color(0.07, 0.07, 0.09))
+	t.set_color("font_hover_pressed_color", "ChoiceChip", Color(0.07, 0.07, 0.09))
+	t.set_color("font_disabled_color", "ChoiceChip", Color(MUTED.r, MUTED.g, MUTED.b, 0.45))
+	t.set_constant("h_separation", "ChoiceChip", 4)
+
 	# Text fields and spin boxes.
 	var le := _sb(FIELD, Color(1, 1, 1, 0.08), 0, 1, 2, 10, 6)
 	var le_focus := _sb(Color(0, 0, 0, 0), ACCENT, 0, 2, 2, 10, 6)
@@ -129,12 +156,38 @@ func _init() -> void:
 	t.set_stylebox("focus", "HSlider", sl_focus)
 	t.set_constant("center_grabber", "HSlider", 1)
 
-	# Popups (OptionButton lists).
-	t.set_stylebox("panel", "PopupMenu", _sb(Color(0.07, 0.08, 0.1, 0.98), Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.5), 0, 1, 2, 6, 6))
-	t.set_stylebox("hover", "PopupMenu", _sb(Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.25), ACCENT, 3, 0, 0))
+	# OptionButton: same slab as a field, with a gutter on the right for the arrow.
+	var opt_normal := _sb(FIELD, Color(1, 1, 1, 0.08), 0, 1, 2, 12, 7)
+	opt_normal.content_margin_right = 30
+	var opt_hover := _sb(FIELD_HOVER, Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.75), 0, 1, 2, 12, 7)
+	opt_hover.content_margin_right = 30
+	var opt_pressed := _sb(Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.18), ACCENT, 0, 1, 2, 12, 7)
+	opt_pressed.content_margin_right = 30
+	t.set_stylebox("normal", "OptionButton", opt_normal)
+	t.set_stylebox("hover", "OptionButton", opt_hover)
+	t.set_stylebox("pressed", "OptionButton", opt_pressed)
+	t.set_stylebox("hover_pressed", "OptionButton", opt_pressed)
+	t.set_color("font_color", "OptionButton", TEXT)
+	t.set_color("font_hover_color", "OptionButton", Color.WHITE)
+	t.set_color("font_pressed_color", "OptionButton", ACCENT)
+	t.set_color("font_focus_color", "OptionButton", Color.WHITE)
+	t.set_font_size("font_size", "OptionButton", 16)
+	t.set_constant("arrow_margin", "OptionButton", 12)
+
+	# Popups (OptionButton lists): dark card, amber border, one padded row per entry, and a left
+	# amber bar on the hovered row so the pointer is never ambiguous.
+	t.set_stylebox("panel", "PopupMenu", _sb(Color(0.06, 0.07, 0.09, 0.99), Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.55), 0, 1, 4, 6, 6))
+	t.set_stylebox("hover", "PopupMenu", _sb(Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.22), ACCENT, 3, 0, 2, 8, 4))
+	t.set_stylebox("separator", "PopupMenu", _sb(Color(1, 1, 1, 0.08), Color(0, 0, 0, 0), 0, 0, 0, 0, 1))
 	t.set_color("font_color", "PopupMenu", TEXT)
 	t.set_color("font_hover_color", "PopupMenu", Color.WHITE)
+	t.set_color("font_disabled_color", "PopupMenu", Color(MUTED.r, MUTED.g, MUTED.b, 0.55))
+	t.set_color("font_separator_color", "PopupMenu", MUTED)
 	t.set_font_size("font_size", "PopupMenu", 16)
+	t.set_constant("v_separation", "PopupMenu", 8)
+	t.set_constant("item_start_padding", "PopupMenu", 10)
+	t.set_constant("item_end_padding", "PopupMenu", 10)
+	t.set_constant("h_separation", "PopupMenu", 8)
 
 	# Scroll bars: slim.
 	var bar := _sb(Color(1, 1, 1, 0.04), Color(0, 0, 0, 0), 0, 0, 3, 3, 0)
