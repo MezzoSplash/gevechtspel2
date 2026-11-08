@@ -56,6 +56,16 @@ const MODE_CTF := 5 # #160: Capture the Flag (teams), see shared/ctf.gd; only on
 const MODE_LAST := MODE_CTF
 const MODE_IDS := ["tdm", "ffa", "style-tdm", "style-ffa", "gungame", "ctf"]
 const MODE_NAMES := ["Team Deathmatch", "Free For All", "Style Team Deathmatch", "Style Free For All", "Gun Game", "Capture the Flag"]
+## Menu chips: the same modes, short enough to read side by side. The tooltip carries the full name.
+const MODE_SHORT_NAMES := ["TDM", "FFA", "Style TDM", "Style FFA", "Gun Game", "CTF"]
+const MODE_HINTS := [
+	"Team Deathmatch - Blue vs Orange, first team to the kill limit.",
+	"Free For All - everyone against everyone, first player to the kill limit.",
+	"Style Team Deathmatch - Blue vs Orange, the team with the most style points wins.",
+	"Style Free For All - everyone against everyone, the most style points wins.",
+	"Gun Game - work through the gun ladder; a knife kill sends the victim back one gun.",
+	"Capture the Flag - steal the other team's flag and carry it home (maps with flag bases).",
+]
 ## Style modes reuse kill_limit as a style RATE: STYLE_UNIT points per minute of round time, so the limit
 ## grows with the round (FFA default 25 → 2500/min → 25 000 in 10 min). Measured: one landed combo is
 ## ~1 000–6 000 (moves 30–120 each, up to ×6), bots alone make ~300–500/min; the old flat 2 000/3 000 ended
@@ -391,6 +401,16 @@ func player_score(peer_id: int) -> int:
 
 func mode_name(m: int = -1) -> String:
 	return MODE_NAMES[clampi(mode if m < 0 else m, 0, MODE_NAMES.size() - 1)]
+
+
+## "TDM" for the menu chips; mode_name() stays the full name for the HUD and the lobby.
+func mode_short_name(m: int = -1) -> String:
+	return MODE_SHORT_NAMES[clampi(mode if m < 0 else m, 0, MODE_SHORT_NAMES.size() - 1)]
+
+
+## One-line explanation for a mode chip's tooltip.
+func mode_hint(m: int = -1) -> String:
+	return MODE_HINTS[clampi(mode if m < 0 else m, 0, MODE_HINTS.size() - 1)]
 
 
 ## "ffa", "FFA", "free" or "2" → MODE_FFA. Unknown → -1.

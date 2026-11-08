@@ -21,8 +21,8 @@ signal match_choice_changed(map_id: StringName, mode: int)
 var _team := 0
 var _applying_name := false
 var class_editor: ClassEditor
-var _map_opts: Array[OptionButton] = [] # Solo + Mp (host) pickers, kept in sync
-var _mode_opts: Array[OptionButton] = []
+var _map_opts: Array[ChoiceRow] = [] # Solo + Mp (host) pickers, kept in sync
+var _mode_opts: Array[ChoiceRow] = []
 var _kill_boxes: Array[SpinBox] = []
 var _time_boxes: Array[SpinBox] = []
 var _bot_boxes: Array[SpinBox] = []
@@ -107,16 +107,18 @@ func _ready() -> void:
 ## Map, mode, kills, time and bots (singleplayer, and host settings under Multiplayer).
 ## Built here so both screens share one list (Maps.ORDER) and stay in sync.
 func _build_match_rows(screen: VBoxContainer, at: int) -> void:
-	var map_opt := OptionButton.new()
+	# Every map and mode is a chip on screen: one click, and the current pick is the amber chip.
+	# A dropdown hid the other options and its popup was still the stock one from the early builds.
+	var map_opt := ChoiceRow.new()
 	map_opt.name = "MapOption"
-	map_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	map_opt.setup("Map", 3)
 	for id in Maps.ORDER:
-		map_opt.add_item(Maps.display_name(id))
-	var mode_opt := OptionButton.new()
+		map_opt.add_item(Maps.display_name(id), Maps.info(id).blurb)
+	var mode_opt := ChoiceRow.new()
 	mode_opt.name = "ModeOption"
-	mode_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mode_opt.setup("Mode", 3)
 	for m in Game.MODE_NAMES.size():
-		mode_opt.add_item(Game.mode_name(m))
+		mode_opt.add_item(Game.mode_short_name(m), "%s  ·  %s" % [Game.mode_name(m), Game.mode_hint(m)])
 	var kill_box := _make_spin(Game.KILLS_MIN, Game.KILLS_MAX, 1, "")
 	var time_box := _make_spin(Game.TIME_MIN_MINUTES, Game.TIME_MAX_MINUTES, 1, "min")
 	var bot_box := _make_spin(0, Game.BOT_COUNT_MAX, 1, "")
@@ -133,8 +135,8 @@ func _build_match_rows(screen: VBoxContainer, at: int) -> void:
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var rows: Array = [
-		_labeled_row("MapRow", "Map", map_opt),
-		_labeled_row("ModeRow", "Mode", mode_opt),
+		map_opt,
+		mode_opt,
 		_labeled_row("KillsRow", "Kills", kill_box),
 		_labeled_row("TimeRow", "Time", time_box),
 		_labeled_row("BotsRow", "Bots", bot_box),
@@ -203,7 +205,7 @@ func _on_mode_changed() -> void:
 
 ## The picker the player touched wins: copy it to the twin on the other screen before anything
 ## reads selected_map()/selected_mode() (those read the first picker, the Solo one).
-func _sync_opts(opts: Array[OptionButton], i: int) -> void:
+func _sync_opts(opts: Array, i: int) -> void:
 	if _filling_match:
 		return
 	_filling_match = true
