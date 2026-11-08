@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/check_hud_layout.gd" id="1"]
+
+[node name="CheckHudLayout" type="Node"]
+script = ExtResource("1")
