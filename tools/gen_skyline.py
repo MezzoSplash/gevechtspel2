@@ -210,6 +210,12 @@ box("MidRoof", -13, 13, 5.7, 6.0, -13, 13, "roof")
 box_h("MidBridge", -3, 3, 5.6, 6.0, 13, 20, "plank")
 box_h("MidBridgeBeamW", -3, -2.7, 4.6, 5.6, 13, 20, "steel")
 box_h("MidBridgeBeamE", 2.7, 3, 4.6, 5.6, 13, 20, "steel")
+# Under the centre bridge: a steel deck at 9 with its own 37 deg way back up, so a miss on the
+# spawn->tower jump is a 3 m drop and a short climb, not a death.
+box_h("SpineCatch", -8.0, 8.0, 8.7, 9.0, 31.0, 36.0, "steel")
+# The ramp has to land on the deck with walkable deck behind it: the spawn building rises
+# solid from the street, so a ramp that runs to z 36 dead-ends against its wall.
+ramp_h("SpineCatchRamp", "z", 4.0, 7.0, 34.5, 31.0, 9.0, 12.0, "steel")
 
 # ================================================================ centre tower: room + stairwell (CQB)
 # Room y 6..11 inside the tower; the roof slab above is 1 m. Door north to the Mid bridge, a
@@ -227,8 +233,11 @@ box_h("TowerCrateB", -2.2, -0.6, 6.0, 7.1, 23.0, 24.6, "plank")
 # Ledge outside the east door, low step down onto the bridge level is a drop to the street side.
 box_h("TowerLedgeE", 7, 9, 5.7, 6.0, 21.5, 26.5, "steel")
 # Roof: a sign block on the centre line breaks the spawn-to-spawn sight over both towers.
-box_h("TowerSign", -1.6, 1.6, 12.0, 14.6, 22.0, 23.2, "steel")
-box_h("TowerTank", 2.5, 5.5, 12.0, 14.4, 24.5, 27.5, "plank")
+box_h("TowerSign", -6.8, -4.2, 12.0, 14.6, 22.0, 23.2, "steel")
+box_h("TowerTank", 0.2, 3.0, 12.0, 14.4, 25.0, 28.0, "plank")
+# Spine wall: the centre run (spawn -> bridge -> tower roof) ends here in an 11 m wallrun face.
+box_h("SpineWall", 3.0, 3.4, 12.0, 15.4, 21.0, 29.2, "steel")
+box_h("SpineWallCapN", 2.6, 3.8, 15.4, 15.7, 28.8, 29.2, "hazard")
 box_h("TowerHatchRailN", -6.0, -3.0, 12.0, 12.9, 24.3, 24.6, "steel")
 
 # ================================================================ spawn roof
@@ -236,25 +245,27 @@ box_h("SpawnBack", -17, 17, 12.0, 13.2, 49.4, 50.0, "team_blue", "team_orange")
 box_h("SpawnSideW", -17, -16.6, 12.0, 13.0, 41.0, 50.0, "brick")
 box_h("SpawnSideE", 16.6, 17.0, 12.0, 13.0, 38.0, 50.0, "brick")
 # Front baffles with a jog behind the bridge gap, so the bridge line does not hit a spawn point.
-box_h("SpawnBaffleW", -10, -2.2, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
-box_h("SpawnBaffleE", 2.2, 10, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
-box_h("SpawnJog", -3.0, 3.0, 12.0, 14.2, 37.6, 38.2, "concrete")
+box_h("SpawnBaffleW", -10, -2.9, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
+box_h("SpawnBaffleE", 2.9, 10, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
+# No jog across the spine any more: the centre lane is a straight 30 m run from the back of the
+# spawn roof to the tower roof, and the sight line is broken by SpineWall on the tower instead.
+box_h("SpawnJogEdge", -2.6, 2.6, 12.0, 12.35, 37.4, 37.8, "hazard")
 box_h("SpawnAC_W", -13.5, -11.5, 12.0, 13.2, 37.0, 38.6, "ac")
 box_h("SpawnAC_E", 11.5, 13.5, 12.0, 13.2, 37.0, 38.6, "ac")
 
 # Spawn -> Tower: plank bridge across the 5 m gap (a sprint jump also makes it).
-box_h("SpawnBridge", -1.25, 1.25, 11.7, 12.0, 31, 36, "plank")
-box_h("SpawnBridgeEdgeN", -1.25, 1.25, 11.94, 12.0, 31, 31.25, "hazard")
+box_h("SpawnBridge", -2.6, 2.6, 11.7, 12.0, 31, 36, "plank")
+box_h("SpawnBridgeEdgeN", -2.6, 2.6, 11.94, 12.0, 31, 31.25, "hazard")
 
 # ================================================================ west lane (low, stepped)
 # Spawn (12) -> WA (9): stair across the 5 m gap.
-ramp_h("WestStair", "x", 37.2, 40.0, -21.0, -17.0, 9.0, 12.0, "concrete")
+ramp_h("WestStair", "x", 36.4, 41.0, -21.0, -17.0, 9.0, 12.0, "concrete")
 # WA (9) -> WB (6): plank down across the 4 m gap, or jump it.
-ramp_h("WestPlank", "z", -30.0, -27.0, 22.0, 26.0, 6.0, 9.0, "plank")
+ramp_h("WestPlank", "z", -32.0, -26.0, 22.0, 26.0, 6.0, 9.0, "plank")
 # WB (6) -> WM (4)
-ramp_h("WestRamp", "z", -31.0, -28.0, 5.0, 8.0, 4.0, 6.0, "concrete")
+ramp_h("WestRamp", "z", -33.0, -27.0, 5.0, 8.0, 4.0, 6.0, "concrete")
 # WM (4) -> Mid (6): long plank, the half-turn is the east cross plank.
-ramp_h("CrossPlank", "x", -1.1, 1.1, -20.0, -13.0, 4.0, 6.0, "plank")
+ramp_h("CrossPlank", "x", -3.0, 3.0, -20.0, -13.0, 4.0, 6.0, "plank")
 box_h("WA_Tank", -33.0, -30.0, 9.0, 11.6, 33.0, 36.0, "plank")
 box_h("WA_Vent", -28.0, -26.5, 9.0, 10.1, 27.0, 29.0, "ac")
 box_h("WB_AC1", -27.0, -25.0, 6.0, 7.2, 14.0, 15.8, "ac")
@@ -266,13 +277,13 @@ box_h("WM_Edge", -34.0, -33.6, 4.0, 4.9, -7.0, 5.0, "brick")
 # ================================================================ east lane (high)
 # Fire escape up the west face of EA: landing at spawn height, a flight up the face, top landing.
 box_h("FireLanding", 17.0, 19.8, 11.7, 12.0, 34.0, 37.0, "steel")
-ramp_h("FireEscape", "z", 17.0, 19.8, 34.0, 27.0, 12.0, 15.0, "steel")
+ramp_h("FireEscape", "z", 17.0, 20.0, 34.0, 27.0, 12.0, 15.0, "steel")
 box_h("FireTop", 17.0, 19.8, 14.7, 15.0, 25.2, 27.0, "steel")
 box_h("FireRail", 16.8, 17.0, 12.0, 13.0, 27.0, 35.8, "steel")
 for i, z in enumerate((27.5, 31.0, 34.5)):
     box_h("FireStrut%d" % i, 17.1, 17.4, BASE, 11.7, z, z + 0.3, "steel")
 # EA (15) -> EB (9)
-ramp_h("EastStair", "z", 19.6, 22.0, 14.0, 22.0, 9.0, 15.0, "concrete")
+ramp_h("EastStair", "z", 19.6, 24.0, 14.0, 22.0, 9.0, 15.0, "concrete")
 # EA cover: knee wall on the north edge, gap where the stair lands.
 box_h("EA_LipW", 22.4, 34.0, 15.0, 16.0, 22.0, 22.4, "concrete")
 box_h("EA_Vent", 30.5, 33.0, 15.0, 16.3, 29.0, 31.0, "ac")
@@ -285,8 +296,11 @@ box_h("RunWallE", 28.8, 29.2, 15.0, 18.6, 24.0, 37.0, "concrete")
 box_h("RunWallLipN", 21.2, 28.8, 15.0, 15.3, 36.6, 37.0, "hazard")
 box_h("RunWallLipS", 21.2, 28.8, 15.0, 15.3, 24.0, 24.4, "hazard")
 # EB (9) -> Mid (6)
-ramp_h("EastPlank", "x", 9.0, 11.0, 13.0, 19.0, 6.0, 9.0, "plank")
+ramp_h("EastPlank", "x", 8.0, 13.5, 13.0, 19.0, 6.0, 9.0, "plank")
 box_h("EB_AC", 29.0, 31.0, 9.0, 10.2, 10.0, 11.6, "ac")
+# Catch tongues: the lower lane reaches into its gap, so a fall lands on a roof.
+box_h("EBCatch", 24.4, 30.0, 8.7, 9.0, 13.8, 18.0, "steel")
+box_h("WBCatch", -34.0, -32.2, 5.7, 6.0, 21.8, 25.2, "steel")
 
 # ================================================================ mid
 box("Kiosk", -2.0, 2.0, 6.0, 8.6, -2.0, 2.0, "brick")
@@ -347,6 +361,12 @@ def surf_wedge(name, x, z_high, sign):
 
 
 surf_wedge("SurfStreet_B", SURF_X, SURF_Z_HIGH, 1)
+# Surf entry: a drop-in pad beside the crest, reached on foot from WA over a gentle ramp. The ridge
+# itself is a knife edge (two 46 deg faces), so it can never be a walking route - the check would be
+# right to refuse it. From the pad you step off onto the crest and the surf line starts there.
+ramp_h("SurfPadLink", "x", 29.0, 32.0, -21.0, -18.0, 9.0, 9.6, "plank")
+box_h("SurfPad", -18.0, -13.6, 9.3, 9.6, 28.0, 33.0, "steel")
+box_h("SurfPadLip", -14.0, -13.6, 9.6, 9.9, 28.0, 33.0, "hazard")
 surf_wedge("SurfStreet_O", -SURF_X, -SURF_Z_HIGH, -1)
 # Exit deck: Mid widened west to x -18 (z 2..10.5), clear of the cross plank (|z| < 1.1).
 building_h("SurfDeck", -22, -13, 13, 21, 6.0, "brick_dark")

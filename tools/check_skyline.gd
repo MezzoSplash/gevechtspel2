@@ -9,6 +9,7 @@ const TARGETS := {
 	"EM": Vector3(25, 4, 1), "EA_B": Vector3(22, 15, 33), "EB_B": Vector3(26, 9, 9.2),
 	"EA_O": Vector3(-22, 15, -33), "surf_deck_B": Vector3(-20, 6, 18), "surf_deck_O": Vector3(20, 6, -18), "WA_O": Vector3(24.5, 9, -39),
 	"run_alley_B": Vector3(25, 15, 30), "run_alley_O": Vector3(-25, 15, -30),
+	"spine_catch": Vector3(0, 9, 33), "surf_pad": Vector3(-17.5, 9.6, 30), "EB_catch": Vector3(27, 9, 16), "WB_catch": Vector3(-33, 6, 23.5),
 }
 
 func _ready() -> void:
