@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- v0.5.12 (released): perf overlay modes + a renderer setting (Settings > HUD / Graphics; the renderer choice relaunches once with `--rendering-method`), and a movement pass on the other three maps — Rooftops skybridges, Foundry roof wallrun walls, Townhouses plaza alleys. `NET_VERSION` 0.5.12 (their collision changed).
+
 - Townhouses movement pass: two 14 m wallrun alleys in the mid plaza (faces 3.4 m tall, 7.4 m apart, one each side of the street) — the plaza was 52 m of open floor with the bus as the only cover. The scene is hand-written, so the nodes are plain `CSGBox3D` children of `Arena` with `Mat_wall` + a `Mat_trim` cap. `tools/check_townhouses` bakes the navmesh and asserts both alleys are lane-clear end to end (a path that squeezes around the walls fails) and that plaza, street, backyards and both spawns stay connected.
 
 - Foundry movement pass: two 18 m, 3.2 m tall wallrun walls along the skylight edges of the hall roof, split at the bridge (z ±1.9..9.0) so the roof crossing stays open, with a hazard cap. The outer roof edge is left open on purpose: dropping off it is the fast way down. `tools/check_foundry` bakes the navmesh and asserts the west roof reaches the east roof over the skylight bridge, that the mezzanine/container hill/courtyard/roofs are reachable, and that the spawn-to-spawn route stays on the floor. `tools/probe_clear` prints a free-space grid (with `--y0/--y1` for a height band) — that is how a wallrun pair gets placed on floor that is actually clear instead of guessed.
