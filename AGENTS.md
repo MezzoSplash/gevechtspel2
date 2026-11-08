@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Rooftops movement pass: two 4 m skybridges at 6 m across the court, flush with both block roofs, and the court parapet gets a matching gap at each bridge mouth (without it the 1.15 m parapet sat across the landing). Additive only — the surf/deck geometry is untouched. `tools/check_rooftops` bakes the navmesh and asserts the roof route crosses a bridge at 6 m, that the ground route stays on the floor, and that the deck/bridge/spawn targets are all reachable. `tools/shot_map` renders a map from `-- --map <id>`.
+
 - v0.5.2 (released): B1 crystal bodies and poses, crouch pose, CTF HUD fix, Gun Game, CTF, balance pass, and the stance (crouch + `move_fx`) of bots synced to clients.
 - #170: floaty movement. `DIVE_BOOST` 2.5 → 1.9 (half fades out), dive/slide cooldowns 0.6/0.3 s, `APEX_GRAVITY_SCALE` 0.6 below 2.2 m/s, `AIR_WISH_CAP` 1.25, `AIR_STEER_RATE` 1.4.
 - #171/#172: the UAV is a drone that circles the map and can be shot down (`scripts/uav_drone.gd`). Released in v0.5.3 (`NET_VERSION` 0.5.3).

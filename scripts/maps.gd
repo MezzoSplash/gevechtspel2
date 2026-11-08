@@ -47,7 +47,7 @@ const INFO := {
 	},
 	&"rooftops": {
 		"name": "Rooftops",
-		"blurb": "Two roofed blocks, a court, flank surfs, and a ramp across the middle.",
+		"blurb": "Two roofed blocks, a court, flank surfs, and skybridges at roof height.",
 		"scene": "res://scenes/maps/rooftops.tscn",
 		"menu_cam": [Vector3(34, 26, 54), Vector3(0, 2, 0)],
 		# Two rows behind the spawn wall (ends z=31). The truck sits at z 33.2–36.4, the crates beside it.
