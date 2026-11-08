@@ -356,6 +356,11 @@ func is_ffa(m: int = -1) -> bool:
 
 ## True when this match fills bots per team instead of balancing one total.
 func bot_split_active() -> bool:
+	# A dedicated server always balances: it has no owner whose side the allies would be on, and the
+	# per-side fill would keep every bot when humans join, so a public server would fill up with ten
+	# bots plus ten players. Local and listen-host matches run the split.
+	if is_dedicated:
+		return false
 	return not is_ffa() and bot_allies >= 0 and bot_enemies >= 0 and (bot_allies + bot_enemies) > 0
 
 
