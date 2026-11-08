@@ -19,6 +19,12 @@ const VIEWS := {
 		"hall": [Vector3(0, 3.0, 9.5), Vector3(-6, 3, -6)],
 		"west_yard": [Vector3(-16, 6, 10), Vector3(-18, 1.5, -6)],
 	},
+	"townhouses": {
+		"overview": [Vector3(40, 34, 52), Vector3(0, 2, 0)],
+		"plaza": [Vector3(0, 9, 22), Vector3(-10, 2, -4)],
+		"alley_w": [Vector3(-15.2, 2.6, 12), Vector3(-15.2, 1.6, -9)],
+		"street": [Vector3(0, 2.6, 26), Vector3(0, 2.4, -10)],
+	},
 }
 
 
