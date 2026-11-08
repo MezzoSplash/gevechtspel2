@@ -10,16 +10,26 @@ Every building is a CSGPolygon3D body (not drawn on the minimap) plus a thin CSG
 slab (drawn as floor). Gaps between buildings drop into the street far below; the map root
 carries metadata kill_y, and a pawn under it dies (Game / player.gd).
 
-Roof heights (top of slab), Blue half. Orange is the half-turn.
-  Spawn roof          y 12   x -16..16, z 36..46
-  Centre tower        y 12   x -7..7,  z 20..31  hollow: room y 6..11, stairwell up to a roof hatch
-  Mid bridge          y 6    x -3..3,  z 10..20  tower door -> Mid
-  Mid (shared)        y 6    x -10..10, z -10..10
-  West: WA y 9 (ramp from spawn), WB y 6 (plank ramp or jump), WM y 4 (ramp), plank up to Mid
-  East: fire escape up the face of EA (y 15, the perch), ramp down to EB (y 9), plank to Mid,
-        or a 5 m drop to EM (y 4, the half-turn of WM)
-Lanes: west (low, stepped), centre (tower CQB), east (high, fire escape). Ramps stay <= 37 deg
-(walk limit 45, nav 46), planks are >= 2 m wide so the nav agent (r 0.5) fits.
+Roof heights (top of slab), Blue half. Orange is the half-turn, so every half-turn deck below
+also exists mirrored at -x/-z.
+  Spawn roof          y 12   x -17..17, z 36..50   (34 x 14, the deepest deck on the map)
+  Centre tower        y 12   x -7..7,  z 20..31    hollow: room y 6..11, stairwell up to a hatch
+  Mid bridge          y 6    x -3..3,  z 13..20    tower door -> Mid
+  Mid (shared)        y 6    x -13..13, z -13..13
+  West: WA y 9 (13 x 16, stair from spawn), WB y 6 (14 x 14), WM y 4 (14 x 12)
+  East: EA y 15 (14 x 16, fire escape up its west face), EB y 9 (15 x 8), EM y 4 (half-turn of WM)
+  SurfDeck            y 6    x -22..-13, z 13..21  run-out of the surf street
+Lanes: west (low, stepped), centre (spine + tower CQB), east (high, fire escape + wallrun alley).
+Every connector between two roofs is a 5-6 m wide ramp deck (SpawnBridge 5.2, WestStair 5,
+WestPlank 6, WestRamp 6, CrossPlank 6, EastStair 4.4, EastPlank 5.5, FireEscape 3) so a lane is
+one surface you can sprint and slide; the ramp decks stay <= 37 deg (walk limit 45, nav 46).
+Centre spine: a straight 30 m run from the back of the spawn roof over the bridge to the tower
+roof, ending along SpineWall (8.2 m) for a wallrun. It stops at the tower on purpose: the tower
+room and the Mid bridge are the way down, so the spine never becomes a straight spawn-to-mid
+highway for the sniper.
+Surf: the ridge is a knife edge (two 46 deg faces) and can never be a walking route. Entry is the
+drop-in pad beside the crest, reached on foot from WA over an 11 deg link ramp - gentler than the
+25 deg bank the other maps use, because the ridge gives the speed.
 """
 import math
 import os
@@ -213,9 +223,10 @@ box_h("MidBridgeBeamE", 2.7, 3, 4.6, 5.6, 13, 20, "steel")
 # Under the centre bridge: a steel deck at 9 with its own 37 deg way back up, so a miss on the
 # spawn->tower jump is a 3 m drop and a short climb, not a death.
 box_h("SpineCatch", -8.0, 8.0, 8.7, 9.0, 31.0, 36.0, "steel")
-# The ramp has to land on the deck with walkable deck behind it: the spawn building rises
-# solid from the street, so a ramp that runs to z 36 dead-ends against its wall.
-ramp_h("SpineCatchRamp", "z", 4.0, 7.0, 34.5, 31.0, 9.0, 12.0, "steel")
+# The ramp has to land on the deck with walkable deck behind it: the spawn building rises solid
+# from the street, so a ramp that runs to z 36 dead-ends against its wall. 3 m over 4 m = 36.9 deg,
+# inside the 37 deg the walk limit is tuned around.
+ramp_h("SpineCatchRamp", "z", 4.0, 7.0, 35.0, 31.0, 9.0, 12.0, "steel")
 
 # ================================================================ centre tower: room + stairwell (CQB)
 # Room y 6..11 inside the tower; the roof slab above is 1 m. Door north to the Mid bridge, a
@@ -232,10 +243,14 @@ box_h("TowerCrateA", 1.5, 3.3, 6.0, 7.1, 25.6, 27.6, "plank")
 box_h("TowerCrateB", -2.2, -0.6, 6.0, 7.1, 23.0, 24.6, "plank")
 # Ledge outside the east door, low step down onto the bridge level is a drop to the street side.
 box_h("TowerLedgeE", 7, 9, 5.7, 6.0, 21.5, 26.5, "steel")
-# Roof: a sign block on the centre line breaks the spawn-to-spawn sight over both towers.
-box_h("TowerSign", -6.8, -4.2, 12.0, 14.6, 22.0, 23.2, "steel")
-box_h("TowerTank", 0.2, 3.0, 12.0, 14.4, 25.0, 28.0, "plank")
-# Spine wall: the centre run (spawn -> bridge -> tower roof) ends here in an 11 m wallrun face.
+# Roof: the sign sits on the centre line at the south end and breaks the spawn-to-spawn sight line
+# (the wall alone is off-centre, so it never covered the middle).
+box_h("TowerSign", -1.6, 1.6, 12.0, 14.6, 21.2, 22.4, "steel")
+# The tank lives in the east margin, clear of both the centre line and the wall's run face.
+box_h("TowerTank", 4.2, 6.8, 12.0, 14.4, 25.0, 28.0, "plank")
+# Spine wall: 8.2 m long, 3.4 m tall face on the east side of the tower roof; the centre run
+# (spawn -> bridge -> tower roof) turns along it for a wallrun. Deliberately not on the centre
+# line: a wall there would cut the spine itself in half.
 box_h("SpineWall", 3.0, 3.4, 12.0, 15.4, 21.0, 29.2, "steel")
 box_h("SpineWallCapN", 2.6, 3.8, 15.4, 15.7, 28.8, 29.2, "hazard")
 box_h("TowerHatchRailN", -6.0, -3.0, 12.0, 12.9, 24.3, 24.6, "steel")
@@ -244,7 +259,7 @@ box_h("TowerHatchRailN", -6.0, -3.0, 12.0, 12.9, 24.3, 24.6, "steel")
 box_h("SpawnBack", -17, 17, 12.0, 13.2, 49.4, 50.0, "team_blue", "team_orange")
 box_h("SpawnSideW", -17, -16.6, 12.0, 13.0, 41.0, 50.0, "brick")
 box_h("SpawnSideE", 16.6, 17.0, 12.0, 13.0, 38.0, 50.0, "brick")
-# Front baffles with a jog behind the bridge gap, so the bridge line does not hit a spawn point.
+# Front baffles either side of the bridge mouth, so the bridge line does not hit a spawn point.
 box_h("SpawnBaffleW", -10, -2.9, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
 box_h("SpawnBaffleE", 2.9, 10, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
 # No jog across the spine any more: the centre lane is a straight 30 m run from the back of the
@@ -253,7 +268,7 @@ box_h("SpawnJogEdge", -2.6, 2.6, 12.0, 12.35, 37.4, 37.8, "hazard")
 box_h("SpawnAC_W", -13.5, -11.5, 12.0, 13.2, 37.0, 38.6, "ac")
 box_h("SpawnAC_E", 11.5, 13.5, 12.0, 13.2, 37.0, 38.6, "ac")
 
-# Spawn -> Tower: plank bridge across the 5 m gap (a sprint jump also makes it).
+# Spawn -> Tower: a 5.2 m wide deck across the 5 m gap (a sprint jump also makes it).
 box_h("SpawnBridge", -2.6, 2.6, 11.7, 12.0, 31, 36, "plank")
 box_h("SpawnBridgeEdgeN", -2.6, 2.6, 11.94, 12.0, 31, 31.25, "hazard")
 
