@@ -16,14 +16,12 @@ groups = ["hud"]
 script = ExtResource("1_hud")
 
 [node name="StreakSlots" type="VBoxContainer" parent="."]
-layout_mode = 1
-anchor_top = 0.42
-anchor_bottom = 0.42
+layout_mode = 0
 offset_left = 16.0
-offset_top = -148.0
-offset_right = 150.0
-offset_bottom = 110.0
-theme_override_constants/separation = 8
+offset_top = 252.0
+offset_right = 216.0
+offset_bottom = 406.0
+theme_override_constants/separation = 6
 mouse_filter = 2
 
 [node name="Streak" type="Label" parent="StreakSlots"]
@@ -36,7 +34,7 @@ text = "STREAK 0/3"
 horizontal_alignment = 1
 
 [node name="Slot0" type="ColorRect" parent="StreakSlots"]
-custom_minimum_size = Vector2(128, 64)
+custom_minimum_size = Vector2(200, 36)
 layout_mode = 2
 mouse_filter = 2
 color = Color(0.08, 0.09, 0.11, 0.82)
@@ -48,13 +46,15 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 16
+offset_left = 10.0
+offset_right = -74.0
+theme_override_font_sizes/font_size = 15
 text = "UAV"
-horizontal_alignment = 1
+horizontal_alignment = 0
 vertical_alignment = 1
 
 [node name="Slot1" type="ColorRect" parent="StreakSlots"]
-custom_minimum_size = Vector2(128, 64)
+custom_minimum_size = Vector2(200, 36)
 layout_mode = 2
 mouse_filter = 2
 color = Color(0.08, 0.09, 0.11, 0.55)
@@ -66,14 +66,16 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+offset_left = 10.0
+offset_right = -74.0
 theme_override_colors/font_color = Color(0.45, 0.48, 0.52, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "RCXplodie"
-horizontal_alignment = 1
+horizontal_alignment = 0
 vertical_alignment = 1
 
 [node name="Slot2" type="ColorRect" parent="StreakSlots"]
-custom_minimum_size = Vector2(128, 64)
+custom_minimum_size = Vector2(200, 36)
 layout_mode = 2
 mouse_filter = 2
 color = Color(0.08, 0.09, 0.11, 0.55)
@@ -85,10 +87,12 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+offset_left = 10.0
+offset_right = -74.0
 theme_override_colors/font_color = Color(0.45, 0.48, 0.52, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "LOS"
-horizontal_alignment = 1
+horizontal_alignment = 0
 vertical_alignment = 1
 
 [node name="Minimap" type="Control" parent="."]
@@ -100,25 +104,6 @@ offset_bottom = 240.0
 mouse_filter = 2
 script = ExtResource("2_minimap")
 
-[node name="Reloading" type="Label" parent="."]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -80.0
-offset_top = -196.0
-offset_right = 80.0
-offset_bottom = -168.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
-theme_override_font_sizes/font_size = 18
-text = "RELOAD"
-horizontal_alignment = 1
-visible = false
-
 [node name="Bottom" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 7
@@ -127,14 +112,22 @@ anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
 offset_left = -260.0
-offset_top = -188.0
+offset_top = -248.0
 offset_right = 260.0
 offset_bottom = -18.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
 alignment = 2
 mouse_filter = 2
+
+[node name="Reloading" type="Label" parent="Bottom"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_font_sizes/font_size = 18
+text = "RELOAD"
+horizontal_alignment = 1
+visible = false
 
 [node name="Grenades" type="Label" parent="Bottom"]
 layout_mode = 2
@@ -384,11 +377,16 @@ caret_blink = true
 
 [node name="PresenceFeed" type="VBoxContainer" parent="."]
 layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
 offset_left = 236.0
-offset_top = 72.0
+offset_top = -548.0
 offset_right = 640.0
-offset_bottom = 280.0
+offset_bottom = -310.0
+grow_vertical = 0
 theme_override_constants/separation = 4
+alignment = 2
 mouse_filter = 2
 
 [node name="KillFeed" type="VBoxContainer" parent="."]

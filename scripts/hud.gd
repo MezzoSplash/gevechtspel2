@@ -51,7 +51,7 @@ var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # 
 
 @onready var hint_label: Label = $Hint
 @onready var fps_label: Label = $Fps
-@onready var reload_label: Label = $Reloading
+@onready var reload_label: Label = $Bottom/Reloading
 @onready var hp_fill: ColorRect = $Bottom/HpWrap/HpFill
 @onready var hp_label: Label = $Bottom/HpWrap/HpLabel
 @onready var death_layer: ColorRect = $Death
@@ -82,8 +82,8 @@ const _FEED_ICONS := KillFeed.ICONS # killcam and checks read it here
 const _POPUP_HOLD := 2.4 # streak popup under the clock: hold, then fade
 const _POPUP_FADE := 0.6
 const _POPUP_FRIENDLY := Color(1.0, 0.86, 0.4)
-const POPUP_TOP := 66.0 # streak/flag popup, px from the top (70 px tall)
-const CTF_STATUS_TOP := 78.0 # #160 CTF status block: a clear gap under the match clock
+const POPUP_TOP := 92.0 # streak/flag popup, px from the top (70 px tall): clear of the clock and the standing line
+const CTF_STATUS_TOP := 72.0 # #160 CTF status block: a clear gap under the match clock
 const CTF_STATUS_H := 60.0 # three 14 px lines
 const _POPUP_HOSTILE := Color(1.0, 0.36, 0.3)
 const TRICK_COLOR := Color(1.0, 0.78, 0.22) # trickshot gold: popup, feed tag, killcam, style king
@@ -670,21 +670,20 @@ func _build_notice() -> void:
 	_notice = Label.new()
 	_notice.name = "Notice"
 	_notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_notice.anchor_left = 0.5
-	_notice.anchor_right = 0.5
-	_notice.anchor_top = 1.0
-	_notice.anchor_bottom = 1.0
-	_notice.offset_left = -300.0
-	_notice.offset_right = 300.0
-	_notice.offset_top = -196.0
-	_notice.offset_bottom = -168.0
 	_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_notice.add_theme_font_size_override("font_size", 18)
 	_notice.add_theme_color_override("font_color", Color(1, 0.92, 0.55))
 	_notice.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_notice.add_theme_constant_override("outline_size", 6)
 	_notice.visible = false
-	add_child(_notice)
+	# Inside the bottom stack (a row of its own, hidden by default) so it can never land on the
+	# HP bar or the weapon boxes, whatever the screen height.
+	var bottom := get_node_or_null("Bottom") as VBoxContainer
+	if bottom:
+		bottom.add_child(_notice)
+		bottom.move_child(_notice, 0)
+	else:
+		add_child(_notice)
 
 
 func _build_popup() -> void:
@@ -887,10 +886,11 @@ func _facelift_hud() -> void:
 			cost.anchor_right = 1.0
 			cost.anchor_top = 1.0
 			cost.anchor_bottom = 1.0
-			cost.offset_top = -20.0
-			cost.offset_bottom = -4.0
-			cost.offset_right = -8.0
+			cost.offset_top = -25.0
+			cost.offset_bottom = -7.0
+			cost.offset_right = -10.0
 			cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			cost.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			cost.add_theme_font_size_override("font_size", 11)
 			slot.add_child(cost)
 		_streak_costs.append(cost)
@@ -1311,8 +1311,8 @@ func _refresh_standing() -> void:
 		_standing.anchor_right = 0.5
 		_standing.offset_left = -220.0
 		_standing.offset_right = 220.0
-		_standing.offset_top = 46.0
-		_standing.offset_bottom = 68.0
+		_standing.offset_top = 64.0
+		_standing.offset_bottom = 86.0
 		_standing.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_standing.add_theme_font_size_override("font_size", 16)
 		_standing.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
@@ -1352,7 +1352,7 @@ func _refresh_standing() -> void:
 ## streak/flag popup then moves under them (see _popup_top), so the two never overlap.
 func _place_standing() -> void:
 	var ctf := Game.is_ctf()
-	_standing.offset_top = CTF_STATUS_TOP if ctf else 46.0
+	_standing.offset_top = CTF_STATUS_TOP if ctf else 64.0
 	_standing.offset_bottom = _standing.offset_top + (CTF_STATUS_H if ctf else 22.0)
 	_standing.add_theme_font_size_override("font_size", 14 if ctf else 16)
 
