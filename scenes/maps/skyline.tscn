@@ -550,10 +550,10 @@ emission = Color(0.9, 0.72, 0.2, 1)
 emission_energy_multiplier = 0.45
 
 [sub_resource type="BoxShape3D" id="RS_0"]
-size = Vector3(3, 0.3, 4.6098)
+size = Vector3(3, 0.3, 5)
 
 [sub_resource type="BoxShape3D" id="RS_1"]
-size = Vector3(3, 0.3, 4.6098)
+size = Vector3(3, 0.3, 5)
 
 [sub_resource type="BoxShape3D" id="RS_2"]
 size = Vector3(3, 0.3, 9.6047)
@@ -930,23 +930,23 @@ size = Vector3(2, 0.3, 5)
 material = SubResource("Mat_steel")
 
 [node name="TowerSign_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 13.3, 22.6)
-size = Vector3(2.6, 2.6, 1.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.3, 21.8)
+size = Vector3(3.2, 2.6, 1.2)
 material = SubResource("Mat_steel")
 
 [node name="TowerSign_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 13.3, -22.6)
-size = Vector3(2.6, 2.6, 1.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.3, -21.8)
+size = Vector3(3.2, 2.6, 1.2)
 material = SubResource("Mat_steel")
 
 [node name="TowerTank_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 13.2, 26.5)
-size = Vector3(2.8, 2.4, 3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 13.2, 26.5)
+size = Vector3(2.6, 2.4, 3)
 material = SubResource("Mat_plank")
 
 [node name="TowerTank_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 13.2, -26.5)
-size = Vector3(2.8, 2.4, 3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 13.2, -26.5)
+size = Vector3(2.6, 2.4, 3)
 material = SubResource("Mat_plank")
 
 [node name="SpineWall_B" type="CSGBox3D" parent="Arena"]
@@ -1451,13 +1451,13 @@ material = SubResource("Mat_brick")
 use_collision = false
 
 [node name="SpineCatchRamp_B" type="CSGBox3D" parent="Ramps"]
-transform = Transform3D(-1, 0, 0, 0, 0.7593, 0.6508, 0, 0.6508, -0.7593, 5.5, 10.3861, 32.6524)
-size = Vector3(3, 0.3, 4.6098)
+transform = Transform3D(-1, 0, 0, 0, 0.8, 0.6, 0, 0.6, -0.8, 5.5, 10.38, 32.91)
+size = Vector3(3, 0.3, 5)
 material = SubResource("Mat_steel")
 
 [node name="SpineCatchRamp_O" type="CSGBox3D" parent="Ramps"]
-transform = Transform3D(1, 0, 0, 0, 0.7593, 0.6508, 0, -0.6508, 0.7593, -5.5, 10.3861, -32.6524)
-size = Vector3(3, 0.3, 4.6098)
+transform = Transform3D(1, 0, 0, 0, 0.8, 0.6, 0, -0.6, 0.8, -5.5, 10.38, -32.91)
+size = Vector3(3, 0.3, 5)
 material = SubResource("Mat_steel")
 
 [node name="TowerStair_B" type="CSGBox3D" parent="Ramps"]
@@ -1555,11 +1555,11 @@ collision_layer = 1
 collision_mask = 0
 
 [node name="SpineCatchRamp_B" type="CollisionShape3D" parent="Arena/RampColliders"]
-transform = Transform3D(-1, 0, 0, 0, 0.7593, 0.6508, 0, 0.6508, -0.7593, 5.5, 10.3861, 32.6524)
+transform = Transform3D(-1, 0, 0, 0, 0.8, 0.6, 0, 0.6, -0.8, 5.5, 10.38, 32.91)
 shape = SubResource("RS_0")
 
 [node name="SpineCatchRamp_O" type="CollisionShape3D" parent="Arena/RampColliders"]
-transform = Transform3D(1, 0, 0, 0, 0.7593, 0.6508, 0, -0.6508, 0.7593, -5.5, 10.3861, -32.6524)
+transform = Transform3D(1, 0, 0, 0, 0.8, 0.6, 0, -0.6, 0.8, -5.5, 10.38, -32.91)
 shape = SubResource("RS_1")
 
 [node name="TowerStair_B" type="CollisionShape3D" parent="Arena/RampColliders"]
