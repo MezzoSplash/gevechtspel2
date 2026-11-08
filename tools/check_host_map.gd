@@ -7,8 +7,8 @@ func _ready() -> void:
 	await get_tree().create_timer(1.0).timeout
 	var menu = main.get_node("CanvasLayer/Menu")
 	var fails := 0
-	var host: OptionButton = menu._map_opts[menu._map_opts.size() - 1]
-	var host_mode: OptionButton = menu._mode_opts[menu._mode_opts.size() - 1]
+	var host: ChoiceRow = menu._map_opts[menu._map_opts.size() - 1]
+	var host_mode: ChoiceRow = menu._mode_opts[menu._mode_opts.size() - 1]
 	for i in Maps.ORDER.size():
 		host.select(i)
 		host.item_selected.emit(i)

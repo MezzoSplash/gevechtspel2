@@ -22,7 +22,7 @@ func _ready() -> void:
 	var menu = main.get_node("CanvasLayer/Menu")
 	Game.round_ended.connect(func(w: int, n: String, _s: Dictionary) -> void: ended.append([w, n]))
 	# Menu: picking a style mode relabels the limit row.
-	var mo: OptionButton = menu._mode_opts[menu._mode_opts.size() - 1]
+	var mo: ChoiceRow = menu._mode_opts[menu._mode_opts.size() - 1]
 	_ok(mo.item_count == Game.MODE_NAMES.size(), "Host/Solo mode pickers list every mode")
 	mo.select(Game.MODE_STYLE_FFA)
 	mo.item_selected.emit(Game.MODE_STYLE_FFA)
