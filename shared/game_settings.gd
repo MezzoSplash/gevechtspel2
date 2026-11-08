@@ -21,6 +21,8 @@ static func load_settings(g: GameState) -> void:
 		g.last_kills = clampi(int(cfg.get_value("match", "kills", g.default_kills_for(g.last_mode))), g.KILLS_MIN, g.KILLS_MAX)
 		g.last_time_min = clampi(int(cfg.get_value("match", "time_min", 10)), g.TIME_MIN_MINUTES, g.TIME_MAX_MINUTES)
 		g.last_bots = clampi(int(cfg.get_value("match", "bots", g.BOT_COUNT_DEFAULT)), 0, g.BOT_COUNT_MAX)
+		g.last_bot_allies = clampi(int(cfg.get_value("match", "bots_allies", g.BOT_ALLIES_DEFAULT)), 0, g.BOT_COUNT_MAX)
+		g.last_bot_enemies = clampi(int(cfg.get_value("match", "bots_enemies", g.BOT_ENEMIES_DEFAULT)), 0, g.BOT_COUNT_MAX)
 		g.last_bot_difficulty = clampi(int(cfg.get_value("match", "bot_difficulty", g.BOT_MEDIUM)), g.BOT_EASY, g.BOT_HARD)
 		g.bot_difficulty = g.last_bot_difficulty
 		g.kill_limit = g.last_kills
@@ -90,6 +92,8 @@ static func save_settings(g: GameState) -> void:
 	cfg.set_value("match", "kills", g.last_kills)
 	cfg.set_value("match", "time_min", g.last_time_min)
 	cfg.set_value("match", "bots", g.last_bots)
+	cfg.set_value("match", "bots_allies", g.last_bot_allies)
+	cfg.set_value("match", "bots_enemies", g.last_bot_enemies)
 	cfg.set_value("match", "bot_difficulty", g.last_bot_difficulty)
 	cfg.set_value("profile", "name", g.profile_name)
 	cfg.set_value("net", "recent", g.recent_servers)

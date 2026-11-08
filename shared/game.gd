@@ -80,6 +80,9 @@ const TIME_MIN_MINUTES := 1
 const TIME_MAX_MINUTES := 20
 const BOT_COUNT_DEFAULT := 9
 const BOT_COUNT_MAX := 16
+## Split default: 9 bots over two teams, the player's side one shorter (5v5 with you on Blue).
+const BOT_ALLIES_DEFAULT := 4
+const BOT_ENEMIES_DEFAULT := 5
 const MOUSE_SENS_MIN := 0.1
 const MOUSE_SENS_MAX := 4.0
 const ADS_SENS_MIN := 0.1
@@ -180,6 +183,9 @@ var last_mode := MODE_TDM
 var last_kills := WIN_KILLS
 var last_time_min := 10
 var last_bots := BOT_COUNT_DEFAULT
+## Menu: bots on your own side and bots on the other side (team modes). -1 = not chosen (FFA).
+var last_bot_allies := BOT_ALLIES_DEFAULT
+var last_bot_enemies := BOT_ENEMIES_DEFAULT
 ## #90 bot difficulty (server/offline only; bots run there). HARD is how bots played up to v0.4.1.
 const BOT_EASY := 0
 const BOT_MEDIUM := 1
@@ -213,7 +219,10 @@ static func parse_bot_difficulty(raw: String) -> int:
 	return -1
 var kill_limit := WIN_KILLS # this match: TDM team total, FFA personal
 var round_time := ROUND_TIME # this match, seconds
-var bot_count := BOT_COUNT_DEFAULT # this match: how many bot pawns to keep
+var bot_count := BOT_COUNT_DEFAULT # this match: how many bot pawns to keep (FFA: the only number)
+var bot_allies := -1 # team modes: bots on bot_team_base's side (-1 = fill by bot_count, balanced)
+var bot_enemies := -1 # team modes: bots on the other side
+var bot_team_base := TEAM_A # whose side "allies" are: the team the match owner starts on
 ## main.gd: Callable(Player) -> Transform3D. Every respawn asks it (FFA: spot farthest from enemies).
 var spawn_picker: Callable
 ## main.gd: Callable(map_id, mode) -> void. Clients load the server's map before their pawn spawns.
@@ -345,6 +354,18 @@ func is_ffa(m: int = -1) -> bool:
 	return mm == MODE_FFA or mm == MODE_STYLE_FFA or mm == MODE_GUN_GAME
 
 
+## True when this match fills bots per team instead of balancing one total.
+func bot_split_active() -> bool:
+	return not is_ffa() and bot_allies >= 0 and bot_enemies >= 0 and (bot_allies + bot_enemies) > 0
+
+
+## Bots wanted on `team`: the allies sit on bot_team_base, everyone else is an enemy bot.
+func bot_target(team: int) -> int:
+	if bot_allies < 0:
+		return -1
+	return bot_allies if team == bot_team_base else bot_enemies
+
+
 ## #160: Capture the Flag.
 func is_ctf(m: int = -1) -> bool:
 	return (mode if m < 0 else m) == MODE_CTF
@@ -463,7 +484,8 @@ func sync_match_config(new_map: String, new_mode: int, kills: int = 0, time_sec:
 	set_match_config(StringName(new_map), new_mode, kills, time_sec)
 
 
-func set_match_config(new_map: StringName, new_mode: int, kills: int = -1, time_sec: float = -1.0, bots: int = -1) -> void:
+func set_match_config(new_map: StringName, new_mode: int, kills: int = -1, time_sec: float = -1.0, bots: int = -1,
+		allies: int = -1, enemies: int = -1) -> void:
 	map_id = new_map if Maps.has(new_map) else Maps.DEFAULT
 	mode = clampi(new_mode, MODE_TDM, MODE_LAST)
 	if mode == MODE_CTF and not CTF.available(map_id):
@@ -475,6 +497,14 @@ func set_match_config(new_map: StringName, new_mode: int, kills: int = -1, time_
 	round_time = time_sec if time_sec >= 60.0 else float(last_time_min * 60)
 	round_time = clampf(round_time, float(TIME_MIN_MINUTES * 60), float(TIME_MAX_MINUTES * 60))
 	bot_count = clampi(bots if bots >= 0 else last_bots, 0, BOT_COUNT_MAX)
+	# Team modes may run an uneven match on purpose (you and a friend against ten bots). FFA has no
+	# sides, so it always uses the single bot_count.
+	if is_ffa() or allies < 0 or enemies < 0:
+		bot_allies = -1
+		bot_enemies = -1
+	else:
+		bot_allies = clampi(allies, 0, BOT_COUNT_MAX)
+		bot_enemies = clampi(enemies, 0, BOT_COUNT_MAX)
 	if match_config_handler.is_valid():
 		match_config_handler.call(map_id, mode)
 
@@ -2028,7 +2058,8 @@ func set_invert_y(on: bool) -> void:
 
 
 ## Menu choice for solo/host, remembered for next time.
-func remember_match_choice(m: StringName, md: int, kills: int = -1, time_min: int = -1, bots: int = -1, skill: int = -1) -> void:
+func remember_match_choice(m: StringName, md: int, kills: int = -1, time_min: int = -1, bots: int = -1, skill: int = -1,
+		allies: int = -1, enemies: int = -1) -> void:
 	last_map = m
 	if skill >= 0:
 		last_bot_difficulty = clampi(skill, BOT_EASY, BOT_HARD)
@@ -2038,6 +2069,9 @@ func remember_match_choice(m: StringName, md: int, kills: int = -1, time_min: in
 		last_kills = clampi(kills, KILLS_MIN, KILLS_MAX)
 	if time_min >= 0:
 		last_time_min = clampi(time_min, TIME_MIN_MINUTES, TIME_MAX_MINUTES)
+	if allies >= 0 and enemies >= 0:
+		last_bot_allies = clampi(allies, 0, BOT_COUNT_MAX)
+		last_bot_enemies = clampi(enemies, 0, BOT_COUNT_MAX)
 	if bots >= 0:
 		last_bots = clampi(bots, 0, BOT_COUNT_MAX)
 	save_settings()
