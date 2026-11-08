@@ -42,7 +42,18 @@ func _check_size(sz: Vector2) -> void:
 	_ok(not _hit(rects, "StreakSlots", "ChatLog"), "streak column clear of the chat log")
 	_ok(not _hit(rects, "PresenceFeed", "StreakPopup"), "presence feed clear of the streak popup")
 	_ok(not _hit(rects, "PresenceFeed", "StreakSlots"), "presence feed clear of the streak column")
-	# The FPS/perf overlay is a three-line block in the bottom-right corner: it must clear the chat,
+	# The perf overlay carries up to five lines in Full mode; every mode must clear the rest.
+	for mode in range(1, Game.PERF_NAMES.size()):
+		Game.perf_overlay = mode
+		hud._apply_hud_settings()
+		await get_tree().process_frame
+		var fr := (hud.get_node("Fps") as Control).get_global_rect()
+		_ok(sz.x >= fr.end.x and sz.y >= fr.end.y, "perf overlay mode %d inside the screen (%s)" % [mode, fr])
+		_ok(not fr.intersects((hud.get_node("Bottom/Weapons") as Control).get_global_rect()), "perf overlay mode %d clear of the weapon boxes" % mode)
+	Game.perf_overlay = 3
+	hud._apply_hud_settings()
+	await get_tree().process_frame
+	# The FPS/perf overlay is a block in the bottom-right corner: it must clear the chat,
 	# the weapon boxes and the kill feed.
 	_ok(not _hit(rects, "Fps", "ChatLog"), "perf overlay clear of the chat log")
 	_ok(not _hit(rects, "Fps", "Bottom/Weapons"), "perf overlay clear of the weapon boxes")

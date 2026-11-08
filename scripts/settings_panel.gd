@@ -29,12 +29,13 @@ var _sfx: HSlider
 var _sfx_val: Label
 var _enemies: HSlider
 var _enemies_val: Label
-var _show_fps: CheckBox
+var _perf: OptionButton
 var _music: HSlider
 var _music_val: Label
 var _ui: HSlider
 var _ui_val: Label
 var _shadows: OptionButton
+var _renderer: OptionButton
 var _xh_color: OptionButton
 var _xh_style: OptionButton
 var _xh_size: HSlider
@@ -118,10 +119,11 @@ func refresh() -> void:
 	_master.set_value_no_signal(Game.master_vol * 100.0)
 	_sfx.set_value_no_signal(Game.sfx_vol * 100.0)
 	_enemies.set_value_no_signal(Game.enemies_vol * 100.0)
-	_show_fps.set_pressed_no_signal(Game.show_fps)
+	_select_quiet(_perf, Game.perf_overlay)
 	_music.set_value_no_signal(Game.music_vol * 100.0)
 	_ui.set_value_no_signal(Game.ui_vol * 100.0)
 	_select_quiet(_shadows, Game.shadow_quality)
+	_select_quiet(_renderer, Game.renderer_choice)
 	_select_quiet(_xh_color, Game.crosshair_color)
 	_select_quiet(_xh_style, Game.crosshair_style)
 	_xh_size.set_value_no_signal(Game.crosshair_size * 100.0)
@@ -293,8 +295,21 @@ func _build() -> void:
 		if not _filling:
 			Game.set_show_killfeed(on)
 	)
-	_show_fps = _check(_row(body, "FPS counter"))
-	_show_fps.toggled.connect(_on_show_fps)
+	_perf = _options(_row(body, "Perf overlay"), Game.PERF_NAMES)
+	_perf.tooltip_text = "FPS, frame time, and for the full one: CPU time, physics, draw calls, renderer and GPU."
+	_perf.item_selected.connect(func(i: int) -> void:
+		if not _filling:
+			Game.set_perf_overlay(i)
+	)
+
+	body = _pages[1] # Graphics: the renderer is a restart, so it sits with the rest of the video setup.
+	var renderer_row := _row(body, "Renderer")
+	_renderer = _options(renderer_row, Game.RENDERER_NAMES)
+	_renderer.tooltip_text = "Changing this restarts the game once. Mobile and Compatibility are lighter; on a weak GPU they can be a lot faster."
+	_renderer.item_selected.connect(func(i: int) -> void:
+		if not _filling:
+			Game.set_renderer_choice(i)
+	)
 
 	body = _pages[5] # Access
 	_section(body, "ACCESSIBILITY")
@@ -473,12 +488,6 @@ func _on_sfx(v: float) -> void:
 		return
 	Game.set_sfx_vol(v / 100.0)
 	_refresh_audio_labels()
-
-
-func _on_show_fps(on: bool) -> void:
-	if _filling:
-		return
-	Game.set_show_fps(on)
 
 
 func _fill_resolutions() -> void:

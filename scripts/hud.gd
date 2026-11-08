@@ -171,14 +171,23 @@ func _apply_hud_settings() -> void:
 ## frame ms and cpu ms together mean the CPU is. Bottom-right so it never lands on the minimap.
 func _perf_text() -> String:
 	var fps := Engine.get_frames_per_second()
+	# Settings > HUD: fps only, fps + frame time, or everything a bottleneck question needs.
+	if Game.perf_overlay <= 1:
+		return "%d fps" % fps
 	var frame_ms := maxf(get_process_delta_time(), 0.0001) * 1000.0
+	if Game.perf_overlay == 2:
+		return "%d fps   %.1f ms" % [fps, frame_ms]
 	var cpu_ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 	var phys_ms := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
 	var draws := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
 	var prims := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
 	var bound := "gpu" if frame_ms > cpu_ms * 1.35 else "cpu"
-	return "%d fps   %.1f ms   [%s]\ncpu %.1f ms   physics %.1f ms\ndraws %d   prims %dk" % [
-		fps, frame_ms, bound, cpu_ms, phys_ms, draws, roundi(float(prims) / 1000.0)
+	# Which renderer and GPU are actually running: two builds of the same code can differ here, and a
+	# performance report has to name it.
+	var method := String(ProjectSettings.get_setting("rendering/renderer/rendering_method", "?"))
+	var adapter := RenderingServer.get_video_adapter_name()
+	return "%d fps   %.1f ms   [%s]\ncpu %.1f ms   physics %.1f ms\ndraws %d   prims %dk\n%s · %s" % [
+		fps, frame_ms, bound, cpu_ms, phys_ms, draws, roundi(float(prims) / 1000.0), method, adapter
 	]
 
 

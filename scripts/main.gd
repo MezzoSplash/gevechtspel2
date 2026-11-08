@@ -40,6 +40,7 @@ func _ready() -> void:
 	Game.spawn_picker = _pick_respawn
 	Game.match_config_handler = _on_match_config
 	var args := _parse_args()
+	_try_renderer_relaunch(args)
 	# Menu backdrop: the map you played last (or the one the server CLI asks for).
 	Game.map_id = args.map if args.map != &"" else Game.last_map
 	Game.mode = int(args.mode) if int(args.mode) >= 0 else Game.last_mode
@@ -116,6 +117,19 @@ func _ready() -> void:
 		_connect_to_server()
 		return
 	menu.visible = true
+
+
+## Graphics > Renderer: Godot can only choose its renderer at startup, so a preference that is not
+## "Auto" relaunches this process once with --rendering-method (and a marker so it cannot loop).
+func _try_renderer_relaunch(args: Dictionary) -> void:
+	var headless := Game.display_headless()
+	var editor := OS.has_feature("editor")
+	if not Game.should_relaunch(Game.renderer_choice, OS.get_cmdline_user_args(), bool(args.get("server", false)), headless, editor):
+		return
+	var method: String = Game.RENDERER_IDS[Game.renderer_choice]
+	if Game.relaunch_with_renderer(method):
+		print("RENDERER: restarting with --rendering-method %s" % method)
+		get_tree().quit()
 
 
 ## ENet auth step: both sides send NET_VERSION before the peer counts as connected.
