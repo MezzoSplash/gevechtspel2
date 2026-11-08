@@ -16,6 +16,7 @@ const Brain := preload("res://scripts/bot_brain.gd")
 const ROUTES: Array[String] = [
 	"TowerStair", "WestStair", "WestPlank", "WestRamp", "CrossPlank",
 	"FireEscape", "EastStair", "EastPlank", "SpawnBridge", "MidBridge",
+	"SurfPadLink", "SpineCatchRamp",
 ]
 const RUN_OUT := 0.0 # m past the lip: the lip IS the target, so a run cannot walk off the edge
 const LANES := 3

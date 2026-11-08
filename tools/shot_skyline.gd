@@ -7,6 +7,8 @@ const VIEWS := {
 	"surf": [Vector3(-13, 22, 40), Vector3(-13, 7, 12)],
 	"run_alley": [Vector3(25, 21, 14), Vector3(25, 16, 32)],
 	"mid_wide": [Vector3(0, 24, 40), Vector3(0, 6, 4)],
+	"spine": [Vector3(-2, 15, 46), Vector3(0, 12, 24)],
+	"surf_entry": [Vector3(-26, 15, 36), Vector3(-15, 9, 28)],
 	"spawn_blue": [Vector3(-6, 13.7, 44), Vector3(0, 10, 20)],
 	"tower_room": [Vector3(4.5, 7.7, 28), Vector3(-3, 8.5, 22)],
 	"mid": [Vector3(-8, 7.7, 8), Vector3(8, 6.5, -8)],
