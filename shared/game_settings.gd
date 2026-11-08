@@ -52,7 +52,10 @@ static func load_settings(g: GameState) -> void:
 		g.fov = clampf(roundf(float(cfg.get_value("video", "fov", 90.0))), g.FOV_MIN, g.FOV_MAX)
 		g.render_scale = snap_scale(g, float(cfg.get_value("video", "render_scale", 1.0)))
 		g.msaa = clampi(int(cfg.get_value("video", "msaa", 2)), 0, 3)
-		g.show_fps = bool(cfg.get_value("hud", "show_fps", true))
+		# Older settings files only carry the bool: on -> the full overlay, off -> nothing.
+		var perf_default := 3 if bool(cfg.get_value("hud", "show_fps", true)) else 0
+		g.perf_overlay = clampi(int(cfg.get_value("hud", "perf_overlay", perf_default)), 0, g.PERF_NAMES.size() - 1)
+		g.renderer_choice = clampi(int(cfg.get_value("video", "renderer", 0)), 0, g.RENDERER_NAMES.size() - 1)
 		g.gfx_quality = clampi(int(cfg.get_value("video", "quality", 2)), 0, 2)
 		g.view_sway = clampi(int(cfg.get_value("video", "view_sway", 2)), 0, 2)
 		g.music_vol = clampf(float(cfg.get_value("audio", "music", 1.0)), 0.0, 1.0)
@@ -107,7 +110,8 @@ static func save_settings(g: GameState) -> void:
 	cfg.set_value("video", "fov", g.fov)
 	cfg.set_value("video", "render_scale", g.render_scale)
 	cfg.set_value("video", "msaa", g.msaa)
-	cfg.set_value("hud", "show_fps", g.show_fps)
+	cfg.set_value("hud", "perf_overlay", g.perf_overlay)
+	cfg.set_value("video", "renderer", g.renderer_choice)
 	cfg.set_value("video", "quality", g.gfx_quality)
 	cfg.set_value("video", "view_sway", g.view_sway)
 	cfg.set_value("audio", "music", g.music_vol)

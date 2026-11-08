@@ -258,7 +258,21 @@ var max_fps := 0 # 0 = no Engine cap. VSync, when on, still follows the monitor.
 var fov := 90.0 # hip fire. Weapon ADS fov stays absolute so a scope does not scale with this.
 var render_scale := 1.0 # 3D buffer only (Viewport.scaling_3d_scale). HUD stays at the window size.
 var msaa := 2 # Viewport.MSAA: 0 off, 1 = 2x, 2 = 4x, 3 = 8x. Matches project.godot msaa_3d=2 (4x).
-var show_fps := true
+## Performance overlay in the HUD: 0 off, 1 fps, 2 fps + frame time, 3 everything (cpu, physics,
+## draws, primitives, renderer, GPU). PERF_NAMES is the settings row.
+const PERF_NAMES := ["Off", "FPS", "FPS + frame time", "Full"]
+## Graphics > Renderer. Godot picks its renderer at startup and cannot switch it while running, so a
+## change restarts this process once (see relaunch_with_renderer). Auto = whatever the build was
+## exported with.
+const RENDERER_NAMES := ["Auto (build default)", "Forward+", "Mobile", "Compatibility"]
+const RENDERER_IDS := ["", "forward_plus", "mobile", "gl_compatibility"]
+const RENDERER_MARKER := "--renderer-set" # travels in the user args of the relaunched process
+var renderer_choice := 0
+var perf_overlay := 3
+
+var show_fps: bool:
+	get:
+		return perf_overlay > 0
 var music_vol := 1.0
 var ui_vol := 1.0
 var shadow_quality := 0 # SHADOWS_AUTO follows Graphics; then Off/Low/Medium/High
@@ -2175,11 +2189,43 @@ func apply_shadows(map: Node) -> void:
 	GameSettings.apply_shadows(self, map)
 
 
-func set_show_fps(on: bool) -> void:
-	show_fps = on
+## True when the game has to restart to honour `choice`. Never for a dedicated server (systemd would
+## restart it in a loop), never headless, never from the editor, and never twice: the relaunched
+## process carries RENDERER_MARKER in its user args.
+static func should_relaunch(choice: int, user_args: PackedStringArray, is_server: bool, headless: bool, editor: bool) -> bool:
+	if choice <= 0 or choice >= RENDERER_IDS.size():
+		return false
+	if is_server or headless or editor:
+		return false
+	return not user_args.has(RENDERER_MARKER)
+
+
+## Restarts the game with --rendering-method <method>, keeping every other user argument.
+## False when the executable cannot be started (the caller then just keeps running).
+func relaunch_with_renderer(method: String) -> bool:
+	if method == "":
+		return false
+	var exe := OS.get_executable_path()
+	if exe.is_empty() or not FileAccess.file_exists(exe):
+		return false
+	var argv := PackedStringArray(["--rendering-method", method, "--", RENDERER_MARKER])
+	for a in OS.get_cmdline_user_args():
+		if a != RENDERER_MARKER:
+			argv.append(a)
+	return OS.create_process(exe, argv) > 0
+
+
+func set_renderer_choice(v: int) -> void:
+	renderer_choice = clampi(v, 0, RENDERER_NAMES.size() - 1)
+	save_settings()
+
+
+func set_perf_overlay(v: int) -> void:
+	perf_overlay = clampi(v, 0, PERF_NAMES.size() - 1)
 	save_settings()
 	if not is_inside_tree():
 		return
+	hud_settings_changed.emit()
 	var label := get_tree().root.get_node_or_null("Main/CanvasLayer/Hud/Fps") as Label
 	if label:
 		label.visible = show_fps
