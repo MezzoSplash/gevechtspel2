@@ -288,6 +288,14 @@ box("RoofBridge", -4.4, 4.4, HH, ROOF_TOP, -1.6, 1.6, "hall_trim")
 box("RoofCrateW", -9.6, -7.4, ROOF_TOP, ROOF_TOP + 1.1, 4.6, 6.6, "crate")
 box("RoofCrateE", 5.2, 7.4, ROOF_TOP, ROOF_TOP + 1.1, -6.8, -4.8, "crate")
 box("RoofVent", -8.4, -6.8, ROOF_TOP, ROOF_TOP + 0.7, -6.2, -4.6, "steel")
+# Movement pass: a wallrun face along each side of the skylight. Two 18 m runs on the roof that also
+# make the skylight edge safe, split at the bridge (+/- 1.6) so the crossing stays open. The roof
+# keeps its outer edge open on purpose: dropping off it is how you get down fast.
+for _sx in (-1.0, 1.0):
+    for _tag, _z0, _z1 in (("N", 1.9, 9.0), ("S", -9.0, -1.9)):
+        _x0 = 4.15 * _sx if _sx > 0 else -4.45
+        box("RoofWall%s_%s" % ("E" if _sx > 0 else "W", _tag), _x0, _x0 + 0.30, ROOF_TOP, ROOF_TOP + 3.2, _z0, _z1, "hall_trim")
+        box("RoofWallHaz%s_%s" % ("E" if _sx > 0 else "W", _tag), _x0 - 0.02, _x0 + 0.32, ROOF_TOP + 2.9, ROOF_TOP + 3.2, _z0, _z1, "hazard")
 
 # Surf wedges on the hall's west face, split by the wall container (z -3..3).
 # Origin is the end nearer the container; extrusion runs toward the spawn yards.

@@ -26,7 +26,7 @@ KNOWN_FAIL=()
 # Engine shutdown noise (leaks at exit) is not a test failure.
 IGNORE_RE="resources still in use at exit|were leaked at exit|ObjectDB instances"
 # Per-check timeout overrides (seconds).
-declare -A SLOW=([check_bot_kit]=200 [check_new_guns]=200 [check_quay]=240 [check_skyline_walk]=240 [check_rooftops]=240)
+declare -A SLOW=([check_bot_kit]=200 [check_new_guns]=200 [check_quay]=240 [check_skyline_walk]=240 [check_rooftops]=240 [check_foundry]=240)
 
 in_list() { local x="$1"; shift; for y in "$@"; do [[ "$x" == "$y" ]] && return 0; done; return 1; }
 

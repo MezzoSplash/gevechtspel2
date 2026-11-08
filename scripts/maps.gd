@@ -28,7 +28,7 @@ const INFO := {
 	},
 	&"foundry": {
 		"name": "Foundry",
-		"blurb": "Warehouse hall with roof ramps, west surf, a container yard and sheds.",
+		"blurb": "Warehouse hall with roof ramps, a wallrun roof, west surf, container yard and sheds.",
 		"scene": "res://scenes/maps/foundry.tscn",
 		"menu_cam": [Vector3(34, 30, 46), Vector3(0, 0, 2)],
 		# One row on the floor in front of the dock (dock face z=30.6, spawn wall ends z=24.5).

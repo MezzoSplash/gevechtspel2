@@ -12,6 +12,13 @@ const VIEWS := {
 		"bridge_side": [Vector3(2, 9, 16), Vector3(-13, 6, 0)],
 		"spawn_blue": [Vector3(0, 3.6, 39), Vector3(0, 3, 14)],
 	},
+	"foundry": {
+		"overview": [Vector3(38, 40, 44), Vector3(0, 3, 0)],
+		"roof": [Vector3(-16, 12.5, 16), Vector3(0, 8, -2)],
+		"roof_wall": [Vector3(-6.5, 8.6, 9), Vector3(-4.3, 9.6, -4)],
+		"hall": [Vector3(0, 3.0, 9.5), Vector3(-6, 3, -6)],
+		"west_yard": [Vector3(-16, 6, 10), Vector3(-18, 1.5, -6)],
+	},
 }
 
 

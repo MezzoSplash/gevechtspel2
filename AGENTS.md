@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Foundry movement pass: two 18 m, 3.2 m tall wallrun walls along the skylight edges of the hall roof, split at the bridge (z ±1.9..9.0) so the roof crossing stays open, with a hazard cap. The outer roof edge is left open on purpose: dropping off it is the fast way down. `tools/check_foundry` bakes the navmesh and asserts the west roof reaches the east roof over the skylight bridge, that the mezzanine/container hill/courtyard/roofs are reachable, and that the spawn-to-spawn route stays on the floor. `tools/probe_clear` prints a free-space grid (with `--y0/--y1` for a height band) — that is how a wallrun pair gets placed on floor that is actually clear instead of guessed.
+
 - Rooftops movement pass: two 4 m skybridges at 6 m across the court, flush with both block roofs, and the court parapet gets a matching gap at each bridge mouth (without it the 1.15 m parapet sat across the landing). Additive only — the surf/deck geometry is untouched. `tools/check_rooftops` bakes the navmesh and asserts the roof route crosses a bridge at 6 m, that the ground route stays on the floor, and that the deck/bridge/spawn targets are all reachable. `tools/shot_map` renders a map from `-- --map <id>`.
 
 - v0.5.2 (released): B1 crystal bodies and poses, crouch pose, CTF HUD fix, Gun Game, CTF, balance pass, and the stance (crouch + `move_fx`) of bots synced to clients.
