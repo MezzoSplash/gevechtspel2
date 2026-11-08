@@ -7,7 +7,8 @@ const TARGETS := {
 	"tower_roof_B": Vector3(4, 12, 29.5), "tower_room_B": Vector3(2, 6, 23), "tower_room_O": Vector3(-2, 6, -23),
 	"mid": Vector3(5, 6, -6), "WA_B": Vector3(-24.5, 9, 39), "WB_B": Vector3(-22, 6, 12), "WM": Vector3(-25, 4, -1),
 	"EM": Vector3(25, 4, 1), "EA_B": Vector3(22, 15, 33), "EB_B": Vector3(26, 9, 9.2),
-	"EA_O": Vector3(-22, 15, -33), "surf_deck_B": Vector3(-14, 6, 6), "surf_deck_O": Vector3(14, 6, -6), "WA_O": Vector3(24.5, 9, -39),
+	"EA_O": Vector3(-22, 15, -33), "surf_deck_B": Vector3(-20, 6, 18), "surf_deck_O": Vector3(20, 6, -18), "WA_O": Vector3(24.5, 9, -39),
+	"run_alley_B": Vector3(25, 15, 30), "run_alley_O": Vector3(-25, 15, -30),
 }
 
 func _ready() -> void:

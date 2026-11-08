@@ -94,7 +94,7 @@ const INFO := {
 	},
 	&"skyline": {
 		"name": "Skyline",
-		"blurb": "City rooftops from 4 to 15 m: stairs, planks, a fire escape and a tower stairwell.",
+		"blurb": "City rooftops from 4 to 15 m: a 10 m surf ridge, a wallrun alley, stairs and a tower stairwell.",
 		"scene": "res://scenes/maps/skyline.tscn",
 		"menu_cam": [Vector3(46, 40, 66), Vector3(0, 6, 0)],
 		# Spawn roof at y 12 (x -16..16, z 36..46), behind the baffles and the jog. Half-turn for Orange.
@@ -113,6 +113,8 @@ const INFO := {
 			Vector3(4, 6, 8), Vector3(-4, 6, -8),
 			Vector3(-1, 12, 28.5), Vector3(1, 12, -28.5),
 			Vector3(2, 6, 23), Vector3(-2, 6, -23),
+			Vector3(-20, 6, 18), Vector3(20, 6, -18),
+			Vector3(25, 15, 31), Vector3(-25, 15, -31),
 		],
 	},
 }
