@@ -60,6 +60,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 - Skyline room pass (`tools/gen_skyline.py`, regenerate the scene after editing): footprints 40–90% larger at the same heights (Spawn 34×14, Mid 26×26, WA 13×18, EA 14×16), a 13 m wallrun alley with 3.6 m faces on the EA roof, and a 10 m × 20 m surf ridge that lands on the SurfDeck. Two traps: a roof parapet that runs past a ramp landing walls the navmesh route off, and a ramp whose upper end sits inside a building body is dropped by the bake — keep both clear of each other. Checks: `check_skyline`, `check_skyline_walk`, `check_skyline_bots`.
 - Skyline review pass: `TowerTank` moved to the east margin (it sat on the spine and against the wallrun face), the sign back on the centre line so the spawn-to-spawn sight break is real (the wall is deliberately off-centre — a wall there would cut the spine in half), and `SpineCatchRamp` at 37° like every other walkable ramp.
 
+- v0.5.11 (released): HUD layout pass, map/mode chips + rebuilt dropdown theme, bots per team (listen host), Skyline rebuilt (bigger roofs, spine, wallrun alley, wider surf street, catch ledges). `NET_VERSION` 0.5.11 — Skyline's collision changed, so 0.5.10 peers are refused.
+
 ## Commands
 
 ```
