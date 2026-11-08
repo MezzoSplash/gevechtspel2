@@ -1162,6 +1162,48 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23.2, 0.55, -16.5)
 size = Vector3(2.2, 1.1, 1.4)
 material = SubResource("Mat_cover")
 
+# Movement pass: wallrun alleys in the mid plaza. The plaza was 52 m of empty floor with the bus as
+# the only cover; these give it two lanes you can cross on foot without a 50 m sprint in the open.
+[node name="AlleyWInner" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.600, 1.700, 0.000)
+size = Vector3(0.40, 3.40, 14.00)
+material = SubResource("Mat_wall")
+
+[node name="AlleyWFace" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18.800, 1.700, 0.000)
+size = Vector3(0.40, 3.40, 14.00)
+material = SubResource("Mat_wall")
+
+[node name="AlleyWInnerCap" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.600, 3.475, 0.000)
+size = Vector3(0.50, 0.15, 14.00)
+material = SubResource("Mat_trim")
+
+[node name="AlleyWFaceCap" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18.800, 3.475, 0.000)
+size = Vector3(0.50, 0.15, 14.00)
+material = SubResource("Mat_trim")
+
+[node name="AlleyEInner" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.600, 1.700, 0.000)
+size = Vector3(0.40, 3.40, 14.00)
+material = SubResource("Mat_wall")
+
+[node name="AlleyEFace" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.800, 1.700, 0.000)
+size = Vector3(0.40, 3.40, 14.00)
+material = SubResource("Mat_wall")
+
+[node name="AlleyEInnerCap" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.600, 3.475, 0.000)
+size = Vector3(0.50, 0.15, 14.00)
+material = SubResource("Mat_trim")
+
+[node name="AlleyEFaceCap" type="CSGBox3D" parent="Arena"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.800, 3.475, 0.000)
+size = Vector3(0.50, 0.15, 14.00)
+material = SubResource("Mat_trim")
+
 [node name="SurfWest" type="CSGPolygon3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -28.000, 0, 24.000)
 polygon = PackedVector2Array(-0.1000, -0.1000, 2.6558, -0.1000, -0.1000, 4.6732)

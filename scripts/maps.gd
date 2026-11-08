@@ -10,7 +10,7 @@ const ORDER: Array[StringName] = [&"townhouses", &"foundry", &"rooftops", &"quay
 const INFO := {
 	&"townhouses": {
 		"name": "Townhouses",
-		"blurb": "Two rows of houses, a street with a bus, backyards and flanks.",
+		"blurb": "Two rows of houses, a street with a bus, plaza wallrun alleys, backyards and flanks.",
 		"scene": "res://scenes/maps/townhouses.tscn",
 		"menu_cam": [Vector3(26, 24, 62), Vector3(0, 2, 0)],
 		# Two rows in the backyard, past the wings (they end at z=33.5) and short of the south wall (z=41).
