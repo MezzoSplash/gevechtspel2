@@ -247,9 +247,11 @@ def parapet_court(prefix, z0, z1, gaps):
         box("%sParEnd" % prefix, x, 15.2, ROOF_Y, ROOF_Y + 1.15, z0, z1, "concrete")
 
 
-# Gaps at -8..-4.6, -1.5..1.5, 4.6..8. Landing in the court under them is kept clear.
-parapet_court("South", 13.0, 13.5, [(-8.0, -4.6), (-1.5, 1.5), (4.6, 8.0)])
-parapet_court("North", -13.5, -13.0, [(-8.0, -4.6), (-1.5, 1.5), (4.6, 8.0)])
+# Gaps at -8..-4.6, -1.5..1.5, 4.6..8. Landing in the court under them is kept clear. The outer two
+# gaps (x 11.2..15.2 and its mirror) exist for the roof skybridges: without them the 1.15 m parapet
+# sits across the bridge mouth and the route is a 1.15 m climb instead of a run.
+parapet_court("South", 13.0, 13.5, [(-15.2, -11.2), (-8.0, -4.6), (-1.5, 1.5), (4.6, 8.0), (11.2, 15.2)])
+parapet_court("North", -13.5, -13.0, [(-15.2, -11.2), (-8.0, -4.6), (-1.5, 1.5), (4.6, 8.0), (11.2, 15.2)])
 # Side parapets. The gap on the south-west (and the north-east mirror) is where the deck step
 # meets the roof. Stairs come up through the roof, so the other edges stay closed.
 box("SouthParSpawnL", -15.2, -13.6, ROOF_Y, ROOF_Y + 1.15, 27.7, 28.2, "concrete")
@@ -290,6 +292,18 @@ box("WestPostB", -18.6, -17.6, 0, DECK_Y - 0.15, 24.4, 25.4, "concrete")
 box("EastPostA", 21.6, 22.6, 0, DECK_Y - 0.15, -23.6, -22.6, "concrete")
 box("EastPostB", 17.6, 18.6, 0, DECK_Y - 0.15, -25.4, -24.4, "concrete")
 
+# ---------------------------------------------------------------- movement pass
+# The court was one open shooting gallery with the two block roofs as islands: no route at roof level.
+# One addition, entirely additive so the tuned surf/deck geometry is untouched.
+#
+# Roof skybridges: the two block roofs were islands. Each bridge is 26 m of roof-level run at 6 m,
+#    so the map gets a spawn-roof -> bridge -> enemy-roof route that never touches the floor.
+box("WestBridge", -15.2, -11.2, ROOF_Y - 0.3, ROOF_Y, -13.0, 13.0, "roof")
+box("EastBridge", 11.2, 15.2, ROOF_Y - 0.3, ROOF_Y, -13.0, 13.0, "roof")
+box("WestBridgeLipA", -15.2, -14.8, ROOF_Y, ROOF_Y + 0.45, -13.0, 13.0, "concrete")
+box("WestBridgeLipB", -11.6, -11.2, ROOF_Y, ROOF_Y + 0.45, -13.0, 13.0, "concrete")
+box("EastBridgeLipA", 14.8, 15.2, ROOF_Y, ROOF_Y + 0.45, -13.0, 13.0, "concrete")
+box("EastBridgeLipB", 11.2, 11.6, ROOF_Y, ROOF_Y + 0.45, -13.0, 13.0, "concrete")
 # ---------------------------------------------------------------- surfs
 # 60° face, pitched so the toe climbs CLIMB_RISE over the extrusion.
 # The basis is a real rotation (det +1). A mirror makes CSG drop the collision.
