@@ -55,6 +55,10 @@ func _ready() -> void:
 		Game.last_kills = clampi(rate, Game.KILLS_MIN, Game.KILLS_MAX)
 	if int(args.bots) >= 0:
 		Game.last_bots = clampi(int(args.bots), 0, Game.BOT_COUNT_MAX)
+	if int(args.get("bots_allies", -1)) >= 0:
+		Game.last_bot_allies = clampi(int(args.bots_allies), 0, Game.BOT_COUNT_MAX)
+	if int(args.get("bots_enemies", -1)) >= 0:
+		Game.last_bot_enemies = clampi(int(args.bots_enemies), 0, Game.BOT_COUNT_MAX)
 	Game.kill_limit = Game.last_kills
 	Game.round_time = float(Game.last_time_min * 60)
 	Game.bot_count = Game.last_bots
@@ -437,14 +441,14 @@ func _start_server(port: int, dedicated: bool, map_id: StringName, mode: int) ->
 	Game.is_offline = false
 	Game.is_dedicated = dedicated
 	Game.hosted_port = port # ServerQuery answers info on port + 1
-	# A dedicated server has no own pawn: the allies sit on the team from the settings / CLI.
-	Game.bot_team_base = Game.preferred_team
-	Game.set_match_config(map_id, mode, Game.last_kills, float(Game.last_time_min * 60), Game.last_bots,
-		Game.last_bot_allies, Game.last_bot_enemies)
 	print("SERVER: Server started on port %d, dedicated=%s, %s on %s" % [
 		port, dedicated, Game.mode_name(), Maps.display_name(Game.map_id)
 	])
 	if dedicated:
+		# No owner on a dedicated server, so it keeps the balanced fill (bot_allies stays -1 and
+		# bot_split_active() refuses the split). A listen host was configured by _host_game already,
+		# with its per-side numbers - re-applying here would wipe them.
+		Game.set_match_config(map_id, mode, Game.last_kills, float(Game.last_time_min * 60), Game.last_bots)
 		Engine.max_fps = 60 # headless has no vsync; no need to spin a Pi core on menus/HUD
 		_enter_play()
 		hud.visible = false
@@ -917,7 +921,8 @@ func _fill_bots() -> void:
 		return
 	if Game.bot_split_active():
 		# Per-side match (you and a friend against ten bots): fill each team up to its own target.
-		while true:
+		# Bounded like every spawn loop: a target that cannot be satisfied must not spin forever.
+		for _i in Game.BOT_COUNT_MAX * 2:
 			var team := _team_short_of_bots()
 			if team < 0:
 				break
@@ -949,6 +954,7 @@ func _team_over_bots() -> int:
 	return -1
 
 
+## Bots alive on `team` (pawns queued for deletion do not count).
 func _bot_count_on(team: int) -> int:
 	var n := 0
 	for child in players_root.get_children():
@@ -972,7 +978,7 @@ func _trim_bots() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
 	if Game.bot_split_active():
-		while true:
+		for _i in Game.BOT_COUNT_MAX * 2:
 			var over := _team_over_bots()
 			if over < 0:
 				break
@@ -989,6 +995,7 @@ func _trim_bots() -> void:
 		_drop_bot(bot)
 
 
+## Removes one bot pawn: clears its HP entry and scoreboard row first, so no machine keeps a ghost.
 func _drop_bot(bot: Player) -> void:
 	if bot == null:
 		return
