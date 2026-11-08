@@ -1,12 +1,14 @@
 class_name LaunchArgs
 extends RefCounted
 ## Command line after `--` (#106): --server, --port, --connect host[:port], --name, --map, --mode, --kills,
-## --style, --time, --bots, --bot-difficulty. Unknown values print a hint and keep the default.
+## --style, --time, --bots, --bot-difficulty, --bots-allies, --bots-enemies. Unknown values print a hint
+## and keep the default. --bots-allies/--bots-enemies are stored for the menu and a listen host; a
+## dedicated server always fills by balance, so they change nothing there.
 
 
 ## Parses the user args after `--` into a Dictionary with defaults for anything missing.
 static func parse(args: PackedStringArray) -> Dictionary:
-	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "style": -1, "time_min": -1, "bots": -1, "bot_difficulty": -1}
+	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "style": -1, "time_min": -1, "bots": -1, "bot_difficulty": -1, "bots_allies": -1, "bots_enemies": -1}
 	var i := 0
 	while i < args.size():
 		var a := args[i]
@@ -59,6 +61,14 @@ static func parse(args: PackedStringArray) -> Dictionary:
 				i += 1
 				if i < args.size():
 					out.bots = int(args[i])
+			"--bots-allies":
+				i += 1
+				if i < args.size():
+					out.bots_allies = int(args[i])
+			"--bots-enemies":
+				i += 1
+				if i < args.size():
+					out.bots_enemies = int(args[i])
 			"--bot-difficulty":
 				i += 1
 				if i < args.size():

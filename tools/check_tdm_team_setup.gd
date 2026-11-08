@@ -85,6 +85,13 @@ func _ready() -> void:
 	_ok(_bots_on(main, Game.TEAM_A) == 6, "six enemy bots on Blue (%d)" % _bots_on(main, Game.TEAM_A))
 	_ok(Game.bot_target(Game.TEAM_B) == 2 and Game.bot_target(Game.TEAM_A) == 6, "allies follow the team you picked")
 
+	# A dedicated server must never run the split: it has no owner, and a per-side fill would keep
+	# every bot when humans join, so a public server would end up with ten bots plus ten players.
+	Game.is_dedicated = true
+	_ok(not Game.bot_split_active(), "a dedicated server ignores the per-side split")
+	Game.is_dedicated = false
+	_ok(Game.bot_split_active(), "a local or listen-host match still runs it")
+
 	print("TDM TEAM SETUP CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
 
