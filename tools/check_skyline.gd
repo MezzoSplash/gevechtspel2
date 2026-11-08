@@ -32,16 +32,21 @@ func _ready() -> void:
 	NavigationServer3D.bake_from_source_geometry_data(nav, src)
 	region.navigation_mesh = nav
 	print("navmesh polygons: %d, kill_y %s" % [nav.get_polygon_count(), map.get_meta(&"kill_y", "none")])
-	var nav_map := NavigationServer3D.map_create()
-	NavigationServer3D.map_set_cell_size(nav_map, nav.cell_size)
-	NavigationServer3D.map_set_cell_height(nav_map, nav.cell_height)
-	NavigationServer3D.map_set_active(nav_map, true)
-	var reg := NavigationServer3D.region_create()
-	NavigationServer3D.region_set_map(reg, nav_map)
-	NavigationServer3D.region_set_navigation_mesh(reg, nav)
-	for i in 10:
+	# Query the world's own navigation map instead of a private one: the scene's region already lives
+	# there, so the map is synchronized before the bake lands and a query can never hit the
+	# "made before first map synchronization" engine ERROR (the runner counts an ERROR line as a
+	# failure even when every assertion passed). What we do wait for is the baked mesh reaching the
+	# map, and for that a probe query is the only honest signal - it just no longer errors.
+	var nav_map := get_world_3d().navigation_map
+	var synced := false
+	for i in 240: # up to 4 s
 		await get_tree().physics_frame
-	var fails := 0
+		if NavigationServer3D.map_get_closest_point(nav_map, TARGETS.blue_spawn) != Vector3.ZERO:
+			synced = true
+			break
+	if not synced:
+		print("  FAIL the baked navmesh never reached the navigation map (%d polygons)" % nav.get_polygon_count())
+	var fails := 0 if synced else 1
 	var from: Vector3 = TARGETS.blue_spawn
 	for k in TARGETS:
 		var to: Vector3 = TARGETS[k]
