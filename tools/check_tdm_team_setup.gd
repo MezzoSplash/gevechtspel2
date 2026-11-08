@@ -28,6 +28,22 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_ok(not _row_visible(menu, "_ally_boxes") and _row_visible(menu, "_bot_boxes"), "FFA shows the single Bots row only")
 
+	# The Multiplayer copies of the match rows belong to the Host tab. They leaked onto Join, where
+	# they pushed the server list down (found in a screenshot, not by a check).
+	menu.show_screen("mp")
+	menu.set_mp_tab(1)
+	await get_tree().process_frame
+	# Index 1 is the Multiplayer copy of each row; index 0 is the Solo one.
+	_ok(not _row_visible(menu, "_bot_boxes", 1) and not _row_visible(menu, "_ally_boxes", 1)
+		and not _row_visible(menu, "_enemy_boxes", 1), "Join tab shows no bot rows")
+	var kills_row := (menu._kill_boxes[1] as SpinBox).get_parent() as Control
+	_ok(not kills_row.visible, "Join tab shows no Kills row")
+	menu.set_match_choice(&"townhouses", Game.MODE_TDM) # FFA has no side rows, so pick a team mode
+	menu.set_mp_tab(0)
+	await get_tree().process_frame
+	_ok(_row_visible(menu, "_ally_boxes", 1) and not _row_visible(menu, "_bot_boxes", 1), "Host tab shows the per-side rows again")
+	menu.show_screen("solo")
+
 	# --- the two numbers are the match: 0 beside you, 10 against you.
 	menu.set_match_choice(&"townhouses", Game.MODE_TDM)
 	menu.set_team(Game.TEAM_A)
@@ -95,9 +111,9 @@ func _wait_for_bots(main: Node, want: int) -> void:
 			return
 
 
-func _row_visible(menu: Node, field: String) -> bool:
+func _row_visible(menu: Node, field: String, idx: int = 0) -> bool:
 	var boxes: Array = menu.get(field)
-	if boxes.is_empty():
+	if boxes.size() <= idx:
 		return false
-	var row := boxes[0].get_parent() as Control
+	var row := boxes[idx].get_parent() as Control
 	return row.visible

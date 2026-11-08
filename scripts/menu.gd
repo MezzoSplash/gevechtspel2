@@ -347,9 +347,8 @@ func _refresh_limit_labels(mo: int) -> void:
 	var style := Game.is_style_mode(mo)
 	for b in _kill_boxes:
 		b.suffix = "×100 style/min" if style else ""
+		_show_match_row(b, not Game.has_fixed_limit(mo)) # Gun Game: the ladder; CTF: CTF.CAPTURES_TO_WIN
 		var row := b.get_parent()
-		if row:
-			row.visible = not Game.has_fixed_limit(mo) # Gun Game: the ladder; CTF: CTF.CAPTURES_TO_WIN
 		if row and row.get_child_count() > 0 and row.get_child(0) is Label:
 			(row.get_child(0) as Label).text = "Style" if style else "Kills"
 
@@ -358,11 +357,23 @@ func _refresh_limit_labels(mo: int) -> void:
 func _refresh_bot_rows(mo: int) -> void:
 	var teams := not Game.is_ffa(mo)
 	for b in _bot_boxes:
-		(b.get_parent() as Control).visible = not teams
+		_show_match_row(b, not teams)
 	for b in _ally_boxes:
-		(b.get_parent() as Control).visible = teams
+		_show_match_row(b, teams)
 	for b in _enemy_boxes:
-		(b.get_parent() as Control).visible = teams
+		_show_match_row(b, teams)
+
+
+## A match row exists on both screens; the Multiplayer copies belong to the Host tab, so a row the
+## mode wants visible must still not appear on the Join tab (it did: Kills and the two bot rows
+## leaked through and pushed the server list down).
+func _show_match_row(field: Control, on: bool) -> void:
+	var row := field.get_parent() as Control
+	if row == null:
+		return
+	if row.get_parent() == $Center/Mp:
+		on = on and _mp_tab == 0
+	row.visible = on
 
 
 func _refresh_match_blurb(mi: int = -1, mo: int = -1) -> void:
@@ -844,6 +855,10 @@ func set_mp_tab(i: int) -> void:
 		(n as CanvasItem).visible = _mp_tab == 0
 	for n in _join_nodes:
 		(n as CanvasItem).visible = _mp_tab == 1
+	# The host nodes are all shown on tab 0; the mode still decides which match rows belong there.
+	if _mp_tab == 0:
+		_refresh_bot_rows(selected_mode())
+		_refresh_limit_labels(selected_mode())
 	if _recent_pick and _mp_tab == 1:
 		_recent_pick.visible = Game.recent_servers.size() > 0
 	if _tab_buttons.size() == 2:
