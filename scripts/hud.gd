@@ -160,7 +160,26 @@ func _apply_hud_settings() -> void:
 		mm.visible = Game.show_minimap
 	if kill_feed:
 		kill_feed.visible = Game.show_killfeed
+	if fps_label:
+		fps_label.visible = Game.show_fps
+		fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	queue_redraw()
+
+
+## Debug overlay (Settings > HUD > Show FPS): fps, the frame the engine measured, the CPU time it
+## took, physics time and the draw-call count. Frame ms well above cpu ms means the GPU is behind;
+## frame ms and cpu ms together mean the CPU is. Bottom-right so it never lands on the minimap.
+func _perf_text() -> String:
+	var fps := Engine.get_frames_per_second()
+	var frame_ms := maxf(get_process_delta_time(), 0.0001) * 1000.0
+	var cpu_ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	var phys_ms := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+	var draws := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+	var prims := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+	var bound := "gpu" if frame_ms > cpu_ms * 1.35 else "cpu"
+	return "%d fps   %.1f ms   [%s]\ncpu %.1f ms   physics %.1f ms\ndraws %d   prims %dk" % [
+		fps, frame_ms, bound, cpu_ms, phys_ms, draws, roundi(float(prims) / 1000.0)
+	]
 
 
 func bind_player(player: Player) -> void:
@@ -1417,7 +1436,8 @@ func _process(delta: float) -> void:
 		_standing_t = 0.25
 		_refresh_standing()
 	fps_label.visible = Game.show_fps
-	fps_label.text = "%d fps" % roundi(Engine.get_frames_per_second())
+	if Game.show_fps:
+		fps_label.text = _perf_text()
 	
 	var time_left: float = Game.get_round_time_left()
 	var mins: int = int(time_left / 60)

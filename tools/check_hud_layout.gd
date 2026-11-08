@@ -26,7 +26,7 @@ func _check_size(sz: Vector2) -> void:
 	var hud := await _live_hud(sz, Game.MODE_FFA)
 	var rects := {}
 	for n in ["Timer", "FfaStanding", "StreakPopup", "Minimap", "StreakSlots", "PresenceFeed", "ChatLog",
-			"Bottom/Notice", "Bottom/Reloading", "Bottom/HpRow", "Bottom/Weapons"]:
+			"Bottom/Notice", "Bottom/Reloading", "Bottom/HpRow", "Bottom/Weapons", "Fps", "KillFeed"]:
 		var c := hud.get_node_or_null(n) as Control
 		if c == null:
 			_ok(false, "%s exists" % n)
@@ -42,6 +42,11 @@ func _check_size(sz: Vector2) -> void:
 	_ok(not _hit(rects, "StreakSlots", "ChatLog"), "streak column clear of the chat log")
 	_ok(not _hit(rects, "PresenceFeed", "StreakPopup"), "presence feed clear of the streak popup")
 	_ok(not _hit(rects, "PresenceFeed", "StreakSlots"), "presence feed clear of the streak column")
+	# The FPS/perf overlay is a three-line block in the bottom-right corner: it must clear the chat,
+	# the weapon boxes and the kill feed.
+	_ok(not _hit(rects, "Fps", "ChatLog"), "perf overlay clear of the chat log")
+	_ok(not _hit(rects, "Fps", "Bottom/Weapons"), "perf overlay clear of the weapon boxes")
+	_ok(not _hit(rects, "Fps", "KillFeed"), "perf overlay clear of the kill feed")
 	# Bottom stack: the notice and RELOAD are rows of it now, not free-floating labels.
 	var rows := ["Bottom/Notice", "Bottom/Reloading", "Bottom/HpRow", "Bottom/Weapons"]
 	for i in rows.size():
