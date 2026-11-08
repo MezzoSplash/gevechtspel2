@@ -185,6 +185,9 @@ func _threat_and_retreat() -> void:
 	_ok(turned == other, "a hit from the farther pawn pulls the aim (got %s)" % _who(turned))
 	Game.set_hp(bot, 30.0)
 	var before := bot.global_position.distance_to(me.global_position)
+	# The retreat has its own cooldown and an earlier phase can have started one: clear it, or this
+	# step silently tests nothing (it read "low HP starts a retreat" FAIL on a loaded machine).
+	brain._retreat_cd = 0.0
 	brain.note_threat(me)
 	_ok(brain._hurt_retreat_left > 0.0, "low HP starts a retreat")
 	var after := before
