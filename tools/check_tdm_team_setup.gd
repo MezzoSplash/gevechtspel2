@@ -96,7 +96,7 @@ func _ready() -> void:
 	# _start_server() itself wiped a listen host's per-side numbers; only a call proves that.
 	Game.bot_team_base = Game.TEAM_B
 	Game.set_match_config(&"townhouses", Game.MODE_TDM, -1, -1.0, -1, 3, 7)
-	main._start_server(7901, false, &"townhouses", Game.MODE_TDM)
+	main._start_server(0, false, &"townhouses", Game.MODE_TDM)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_ok(Game.bot_target(Game.TEAM_B) == 3 and Game.bot_target(Game.TEAM_A) == 7,
@@ -104,7 +104,7 @@ func _ready() -> void:
 			Game.bot_target(Game.TEAM_B), Game.bot_target(Game.TEAM_A)])
 	# The other half of the rule: a dedicated server re-balances on purpose, so the split is gone.
 	Game.set_match_config(&"townhouses", Game.MODE_TDM, -1, -1.0, -1, 3, 7)
-	main._start_server(7902, true, &"townhouses", Game.MODE_TDM)
+	main._start_server(0, true, &"townhouses", Game.MODE_TDM)
 	await get_tree().physics_frame
 	_ok(not Game.bot_split_active(),
 		"a dedicated server drops the split through _start_server (bot_allies %d)" % Game.bot_allies)
