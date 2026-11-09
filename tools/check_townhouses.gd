@@ -8,7 +8,7 @@ const TARGETS := {
 	"plaza": Vector3(0, 0, 10), "street": Vector3(4, 0, 22),
 	"alley_w_s": Vector3(-15.2, 0, -6), "alley_w_n": Vector3(-15.2, 0, 6),
 	"alley_e_s": Vector3(15.2, 0, -6), "alley_e_n": Vector3(15.2, 0, 6),
-	"backyard_w": Vector3(-24, 0, 0),
+	"west_flank": Vector3(-24, 0, 0),
 }
 
 var fails := 0
@@ -66,6 +66,21 @@ func _ready() -> void:
 				inside = false
 				break
 		_ok(inside, "alley %s is lane-clear end to end (%d pts)" % [tag, lane.size()])
+
+	# #224: the alleys only matter if the faces are what the wallrun probe actually looks for — a
+	# static collider whose normal is flatter than Player.WALLRUN_MAX_NY at chest height. A
+	# visual-only wall passes every navmesh assertion and still cannot be run.
+	var space := get_world_3d().direct_space_state
+	for tag in ["w", "e"]:
+		var centre_x: float = TARGETS["alley_%s_s" % tag].x
+		for side in [-1.0, 1.0]:
+			var eye := Vector3(centre_x, 1.5, 0.0)
+			var q := PhysicsRayQueryParameters3D.create(eye, eye + Vector3(side * 5.0, 0.0, 0.0))
+			q.collision_mask = 1
+			var hit := space.intersect_ray(q)
+			var wall := not hit.is_empty() and absf((hit["normal"] as Vector3).y) < Player.WALLRUN_MAX_NY
+			_ok(wall, "alley %s %s face is a wallrun surface (normal %s)" % [
+				tag, "west" if side < 0.0 else "east", hit.get("normal", "no hit")])
 
 	print("TOWNHOUSES CHECK: %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
