@@ -550,6 +550,7 @@ func _on_peer_connected(id: int) -> void:
 		return
 	# Map + mode first, so the client loads the right arena before its pawn and the bots arrive.
 	Game.sync_match_config.rpc_id(id, String(Game.map_id), Game.mode, Game.kill_limit, Game.round_time)
+	Pickups.sync_to_peer(Game, id) # after the config, same channel: the pads exist by the time it lands
 	if Game.in_lobby:
 		return
 	call_deferred("_finish_peer_join", id)

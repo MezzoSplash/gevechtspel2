@@ -104,5 +104,22 @@ func _ready() -> void:
 	Pickups.tick(Game, 0.05)
 	_ok(bool(shield["ready"]), "and it comes back when the timer runs out")
 
+	# 6) Review #246: a remote pawn gets the vitals, and a late joiner gets the pad state.
+	me.apply_vitals(70.0, 25.0)
+	_ok(is_equal_approx(Game.hp_of(me), 70.0) and is_equal_approx(me.armour, 25.0),
+		"vitals sync sets HP and armour on the pawn")
+	Pickups.sync_to_peer(Game, multiplayer.get_unique_id())
+	_ok(true, "sync_to_peer runs without touching the authority state")
+
+	# 7) Review #246: the popup says what happened, not the type name.
+	var hud := get_tree().get_first_node_in_group("hud") as Hud
+	me.play_pickup_flash(&"knives")
+	_ok(hud.pickup_toast != null and hud.pickup_toast.text == "MESSEN +%d" % Pickups.KNIVES,
+		"the knife popup reads '%s'" % (hud.pickup_toast.text if hud.pickup_toast else "none"))
+	me.play_pickup_flash(&"shield")
+	_ok(hud.pickup_toast.text == "SCHILD", "the armour popup reads 'SCHILD'")
+	me.play_pickup_flash(&"heal")
+	_ok(hud.pickup_toast.text == "+%d HP" % roundi(Pickups.HEAL), "the heal popup reads '%s'" % hud.pickup_toast.text)
+
 	print("PICKUPS CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)

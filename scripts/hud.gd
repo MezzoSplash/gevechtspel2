@@ -1008,6 +1008,15 @@ func flash_pickup(label: String, col: Color) -> void:
 	_sound_pickup_hint(label, col)
 
 
+## Extra Messen taken: the knife counter blinks so the new count is noticed (#144).
+func blink_knives() -> void:
+	if grenade_label == null:
+		return
+	var tw := create_tween()
+	tw.tween_property(grenade_label, "modulate", Color(1.6, 1.6, 1.6, 1), 0.08)
+	tw.tween_property(grenade_label, "modulate", Color.WHITE, 0.35)
+
+
 func _sound_pickup_hint(text: String, col: Color) -> void:
 	if pickup_toast == null:
 		pickup_toast = Label.new()

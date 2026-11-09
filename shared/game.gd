@@ -959,10 +959,18 @@ func apply_display_name(peer_id: int, n: String) -> void:
 ## `from_pos`: where the damage came from (shooter, melee attacker, grenade blast) for the
 ## victim's damage direction indicator. Vector3.INF when unknown.
 @rpc("authority", "call_local", "reliable", 1)
-func broadcast_hurt(peer_id: int, new_hp: float, killed: bool, from_pos: Vector3 = Vector3.INF) -> void:
+func broadcast_hurt(peer_id: int, new_hp: float, killed: bool, from_pos: Vector3 = Vector3.INF, armour := -1) -> void:
 	var p := player_for_peer(peer_id)
 	if p:
-		p.apply_hurt_state(new_hp, killed, from_pos)
+		p.apply_hurt_state(new_hp, killed, from_pos, armour)
+
+
+## A pickup changed the victim's vitals without damage (#144): heal, armour. No hurt feedback.
+@rpc("authority", "call_local", "reliable", 0)
+func sync_vitals(peer_id: int, hp_now: float, armour_now: float) -> void:
+	var p := player_for_peer(peer_id)
+	if p:
+		p.apply_vitals(hp_now, armour_now)
 
 
 func respawn_pawn(p: Player) -> void:

@@ -14,7 +14,7 @@ const INFO := {
 		"pickups": [
 			{"type": &"knives", "pos": Vector3(-8.0, 0.0, 0.0)},
 			{"type": &"heal", "pos": Vector3(8.0, 0.0, 0.0)},
-			{"type": &"shield", "pos": Vector3(0.0, 0.0, 11.0)},
+			{"type": &"shield", "pos": Vector3(-24.0, 0.0, 4.0)},
 		],
 		"scene": "res://scenes/maps/townhouses.tscn",
 		"menu_cam": [Vector3(26, 24, 62), Vector3(0, 2, 0)],

@@ -128,6 +128,9 @@ static func apply(game, pl: Player, t: StringName) -> bool:
 			if pl.armour >= ARMOUR:
 				return false
 			pl.set_armour(ARMOUR)
+			# The pawn that took it can be a remote one: the armour has to reach that machine's HUD.
+			if game.is_networked():
+				game.sync_vitals.rpc(pl.peer_id, game.hp_of(pl), pl.armour)
 			return true
 		&"heal":
 			var hp: float = game.hp_of(pl)
@@ -135,8 +138,17 @@ static func apply(game, pl: Player, t: StringName) -> bool:
 				return false
 			game.set_hp(pl, minf(hp + HEAL, Player.MAX_HP))
 			pl.apply_heal_visual(float(game.hp_of(pl)))
+			if game.is_networked():
+				game.sync_vitals.rpc(pl.peer_id, game.hp_of(pl), pl.armour)
 			return true
 	return false
+
+
+## A peer joined mid-match: hand it the current pad state, or it draws a taken pad as full until the
+## next respawn (#246 review). Same channel and order as the match config, so the pads exist first.
+static func sync_to_peer(game, peer_id: int) -> void:
+	for p in state:
+		game.sync_pickup_state.rpc_id(peer_id, int(p["id"]), bool(p["ready"]), float(p["timer"]))
 
 
 ## Client side: a pickup is gone (or back). Called from the RPCs on GameState.

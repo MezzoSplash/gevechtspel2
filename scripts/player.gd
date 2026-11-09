@@ -1328,15 +1328,34 @@ func play_pickup_flash(t: StringName) -> void:
 		pickup_sfx.pitch_scale = float(info["pitch"])
 		pickup_sfx.play()
 	var h := get_tree().get_first_node_in_group("hud") as Hud
-	if h and h.has_method("flash_pickup"):
-		h.flash_pickup(info["label"], info["color"])
+	if h == null or not h.has_method("flash_pickup"):
+		return
+	# The popup says what happened, not which type it was (#246 review).
+	var text := String(info["label"])
+	match t:
+		&"knives":
+			text = "MESSEN +%d" % Pickups.KNIVES
+		&"shield":
+			text = "SCHILD"
+		&"heal":
+			text = "+%d HP" % roundi(Pickups.HEAL)
+	h.flash_pickup(text, info["color"])
+	if t == &"knives" and h.has_method("blink_knives"):
+		h.blink_knives()
+
+
+## Herstelkern / Schildplaat on a remote pawn (#144): HP and armour without any hurt feedback.
+func apply_vitals(hp_now: float, armour_now: float) -> void:
+	hp = hp_now
+	armour = clampf(armour_now, 0.0, Pickups.ARMOUR)
+	if is_local():
+		health_changed.emit(hp, MAX_HP)
+		armour_changed.emit(armour)
 
 
 ## Herstelkern (#144): HP went up without damage, so only the HUD needs telling.
 func apply_heal_visual(hp_now: float) -> void:
-	hp = hp_now
-	if is_local():
-		health_changed.emit(hp, MAX_HP)
+	apply_vitals(hp_now, armour)
 
 
 ## 0..1 through the current reload, 0 when the weapon is not reloading (#164).
