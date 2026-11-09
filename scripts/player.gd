@@ -869,6 +869,7 @@ func _physics_process(delta: float) -> void:
 		_check_kill_y()
 	if is_bot:
 		if Game.is_networked() and not multiplayer.is_server():
+			_tick_remote_anim(delta)
 			_apply_remote_visual()
 			_tick_feet(delta)
 			return
@@ -878,6 +879,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if not is_local():
 		_smooth_remote(delta)
+		_tick_remote_anim(delta)
 		_apply_remote_visual()
 		_tick_feet(delta)
 		return
@@ -1110,8 +1112,14 @@ func apply_network_pose(pos: Vector3, yaw: float, pitch: float, stance: Array = 
 	velocity = Vector3.ZERO
 	if stance.size() >= 2:
 		crouch = clampf(float(stance[0]), 0.0, 1.0)
+		var was := move_fx
 		move_fx = int(stance[1])
 		_apply_stance()
+		# A remote pawn never runs Movement.tick_dive_roll, so _roll_t stays 0 and the roll was
+		# invisible on everyone else's screen and in the killcam (#236). The synced move_fx is the
+		# signal: the frame it turns MOVE_ROLL, run the local timer that drives the body's flip.
+		if move_fx == MOVE_ROLL and was != MOVE_ROLL:
+			_roll_t = ROLL_TIME
 	if body_mesh:
 		body_mesh.visible = not is_dead
 	if nametag:
@@ -1762,6 +1770,14 @@ func _tick_dive_roll(delta: float) -> void:
 
 
 ## Synced state + the camera: tilt away from the wall, a forward flip while rolling.
+## Remote pawns never run the local movement tick, so nothing would ever expire their roll and throw
+## timers: the body would stay flipped after the synced move_fx has moved on (#236). They are also
+## shorter than a snapshot interval, so they run here at full tick rate instead.
+func _tick_remote_anim(delta: float) -> void:
+	_roll_t = maxf(_roll_t - delta, 0.0)
+	_throw_t = maxf(_throw_t - delta, 0.0)
+
+
 func _tick_move_fx(delta: float) -> void:
 	_throw_t = maxf(_throw_t - delta, 0.0)
 	if _wallrunning:
