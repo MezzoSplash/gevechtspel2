@@ -17,7 +17,7 @@ const PELVIS_HANG := 0.97 # floating hip shard
 const FOOT_Y := 0.07
 const FOOT_HALF_W := 0.13
 const CROUCH_SPREAD := 0.10
-const CROUCH_LEAN := deg_to_rad(40.0)
+const CROUCH_LEAN := deg_to_rad(68.0) # a real crouch: the torso goes near-horizontal over the hips
 const CROUCH_TORSO_SCALE := 0.85 # the crouched head (0.78 m) leaves less room than the torso is tall
 const SPRINT_LEAN := deg_to_rad(16.0)
 const WALK_LEAN := deg_to_rad(6.0)
@@ -25,6 +25,15 @@ const DIVE_PITCH := deg_to_rad(-80.0) # feet swing back behind the body
 const WALL_ROLL := deg_to_rad(22.0) # top away from the wall, feet toward it
 const THROW_PITCH := deg_to_rad(-14.0) # the knife throw leans over the front foot (#25)
 const THROW_TWIST := deg_to_rad(-16.0) # and turns the shoulders with the throwing hand
+const HIP_HALF_W := 0.09
+const HIP_Y := 0.80 # standing hips: the legs have to be long enough to read as legs (#164)
+const HIP_CROUCH_Y := 0.40 # folded: hips down, knees forward, feet planted
+const KNEE_FWD := 0.02 # standing: knees almost straight
+const KNEE_CROUCH_FWD := 0.20 # crouched: knees push forward
+const KNEE_CROUCH_OUT := 0.05
+const SHOULDER_LOCAL := Vector3(0.31, 0.27, 0.0) # the shoulder shard, in torso space
+const RELOAD_TILT := deg_to_rad(26.0) # the mag dip, timed on the weapon's reload_time (#164)
+const RELOAD_DROP := 0.06 # m, the torso settles while reloading
 const STRIDE_WALK := 0.22
 const STRIDE_SPRINT := 0.16 # extra on top of walking
 const LIFT_WALK := 0.10
@@ -50,8 +59,14 @@ static func solve(p: Dictionary) -> Dictionary:
 	var neck := Vector3(0, head_y - NECK_DROP + bob, 0)
 	var lean := WALK_LEAN * walk + SPRINT_LEAN * sprint + CROUCH_LEAN * k + 0.10 * air
 	lean *= 1.0 - dive
-	var squash := lerpf(1.0, CROUCH_TORSO_SCALE, k * (1.0 - dive))
-	var torso_basis := Basis(Vector3.RIGHT, -lean) * Basis.from_scale(Vector3(1, squash, 1))
+	# A crouch folds the figure (#164): hips drop, knees push forward, feet stay planted. The torso then
+	# tucks under the head (it used to be the only thing that moved) and keeps a mild compression so it
+	# does not poke out above a head that came down 0.74 m.
+	var pelvis_y := lerpf(HIP_Y, HIP_CROUCH_Y, k * (1.0 - dive))
+	var reload := clampf(float(p.get("reload", 0.0)), 0.0, 1.0)
+	var torso_basis := Basis(Vector3.RIGHT, -lean + RELOAD_TILT * reload * 0.5) \
+			* Basis.from_scale(Vector3(1, lerpf(1.0, 0.95, k * (1.0 - dive)), 1))
+	var torso_y := lerpf(neck.y + bob - TORSO_HANG, pelvis_y + 0.12, k * (1.0 - dive)) - RELOAD_DROP * reload
 	var up := torso_basis * Vector3.UP
 	# Whole-figure turn around the neck: dive pitch, wall-run roll, and the landing roll's forward flip
 	# (#205 - a rolling player used to stand upright in every view but their own camera).
@@ -64,13 +79,18 @@ static func solve(p: Dictionary) -> Dictionary:
 			* Basis(Vector3.UP, THROW_TWIST * thr)
 
 	var out := {}
-	out["torso"] = Transform3D(rig * torso_basis, neck + rig * (-up * TORSO_HANG))
+	var torso_tf := Transform3D(rig * torso_basis, Vector3(neck.x, torso_y, neck.z))
+	out["torso"] = torso_tf
 	out["neck_seam"] = Transform3D(rig * torso_basis, neck + rig * (up * 0.02))
-	out["waist_seam"] = Transform3D(rig * torso_basis, neck + rig * (-up * WAIST_HANG))
-	out["pelvis"] = Transform3D(rig * torso_basis, neck + rig * (-up * PELVIS_HANG))
+	out["waist_seam"] = Transform3D(rig * torso_basis, Vector3(neck.x, (torso_y + pelvis_y) * 0.5, neck.z))
+	out["pelvis"] = Transform3D(rig * torso_basis, Vector3(neck.x, pelvis_y, neck.z))
 	out["head"] = Transform3D(rig * Basis(Vector3.RIGHT, -lean * 0.3), neck + rig * Vector3(0, NECK_DROP, 0))
 
+	# Legs: hip -> knee -> foot, bending with the crouch. Detached like the rest of the figure, so the
+	# shin and thigh read as crystal segments rather than a mesh skin.
 	var feet: Array[Transform3D] = []
+	var legs: Array[Transform3D] = []
+	var hips: Array[Vector3] = []
 	var stride := STRIDE_WALK * walk + STRIDE_SPRINT * sprint
 	var lift := LIFT_WALK * walk + LIFT_SPRINT * sprint
 	for i in 2:
@@ -82,9 +102,43 @@ static func solve(p: Dictionary) -> Dictionary:
 		f.z += (-0.12 if i == 0 else 0.10) * k # crouch: one foot forward, one back
 		f += Vector3(0, 0.22 + 0.06 * i, -0.10 if i == 0 else 0.12) * air # jump: tuck, split
 		f.x += side * 0.08 * dive # dive: trail slightly apart
+		var f_unrot := f
+		hips.append(Vector3(neck.x + side * HIP_HALF_W, pelvis_y, neck.z) + rig * Vector3.ZERO)
 		f = neck + rig * (f - neck)
 		var tilt := Basis(Vector3.RIGHT, -PI / 2) # foot mesh axis +Y → forward
 		var toe := Basis(Vector3.RIGHT, (0.5 * sin(a) * lift / maxf(LIFT_WALK, 0.01)))
 		feet.append(Transform3D(rig * toe * tilt, f))
+		# Knee between hip and foot, pushed forward (and slightly out) with the crouch.
+		var hip: Vector3 = hips[i]
+		var knee := hip.lerp(f, 0.52)
+		knee.z += -KNEE_FWD - KNEE_CROUCH_FWD * k * (1.0 - dive)
+		knee.x += side * KNEE_CROUCH_OUT * k
+		knee.y += 0.02 * (1.0 - f_unrot.y) # keep the knee above the straight line when the foot lifts
+		legs.append(_segment(hip, knee))
+		legs.append(_segment(knee, f))
 	out["feet"] = feet
+	out["legs"] = legs
+
+	# Arms: from the shoulder shard to the hand on the gun, so the figure holds the weapon instead of
+	# floating two blocks beside the torso (#164). Hand positions come from CrystalHands, in body space.
+	var arms: Array[Transform3D] = []
+	var hands: Array = p.get("hands", [])
+	for i in 2:
+		var side := -1.0 if i == 0 else 1.0
+		var shoulder: Vector3 = torso_tf * Vector3(SHOULDER_LOCAL.x * side, SHOULDER_LOCAL.y, SHOULDER_LOCAL.z)
+		var hand: Vector3 = hands[i] if hands.size() > i else torso_tf * Vector3(side * 0.22, -0.02, -0.26)
+		arms.append(_segment(shoulder, hand))
+	out["arms"] = arms
 	return out
+
+
+## A limb segment: base at `a`, +Y along a->b, Y scaled to the length (CrystalMesh builds unit limbs).
+static func _segment(a: Vector3, b: Vector3) -> Transform3D:
+	var d := b - a
+	# 2 cm longer than the gap: the two segments overlap at the joint instead of leaving a hole there.
+	var l := maxf(d.length(), 0.02) + 0.02
+	var y := d / l if d.length_squared() > 1e-8 else Vector3.UP
+	var ref := Vector3.BACK if absf(y.dot(Vector3.BACK)) < 0.9 else Vector3.RIGHT
+	var x := y.cross(ref).normalized()
+	var z := x.cross(y).normalized()
+	return Transform3D(Basis(x, y * l, z), a)

@@ -60,6 +60,10 @@ static func _build(id: StringName) -> ArrayMesh:
 			return ring_stack([[-0.12, 0.0, 0.0], [-0.06, 0.06, 0.045], [0.08, 0.065, 0.05], [0.14, 0.0, 0.0]], 4, PI / 4)
 		&"seam": # flat glowing ring between parts
 			return ring_stack([[-0.012, 0.12, 0.09], [0.012, 0.12, 0.09]], 6, PI / 6)
+		&"limb": # unit segment along +Y, base at y=0; the pose scales Y to the bone length
+			return ring_stack([[0.0, 0.065, 0.065], [0.4, 0.058, 0.058], [0.75, 0.048, 0.048], [1.0, 0.036, 0.036]], 5)
+		&"limb_leg": # same, heavier: the legs have to read at 20 m
+			return ring_stack([[0.0, 0.088, 0.088], [0.45, 0.080, 0.080], [0.8, 0.066, 0.066], [1.0, 0.052, 0.052]], 5)
 		&"spark": # small floating glow shard (ankles, wrists)
 			return ring_stack([[-0.04, 0.0, 0.0], [0.0, 0.025, 0.025], [0.04, 0.0, 0.0]], 4)
 	return ring_stack([[-0.05, 0.0, 0.0], [0.0, 0.05, 0.05], [0.05, 0.0, 0.0]], 4)

@@ -45,8 +45,24 @@ func _ready() -> void:
 	var torso := body.get_node("Torso") as Node3D
 	var t_stand := torso.position
 	var f_stand := _feet_x(c)
+	var knee_stand := c._legs[1].position.z if c._legs.size() > 1 else 0.0
 	_pose(c, 1.0, Player.MOVE_NONE)
-	_ok(torso.position.y < t_stand.y - 0.4, "crouch: torso lowered (%.2f → %.2f)" % [t_stand.y, torso.position.y])
+	# 0.35 not 0.4: a real crouch folds the figure instead of squashing the torso, so the torso stops
+	# above the hips (it used to be scaled down and pushed through them).
+	_ok(torso.position.y < t_stand.y - 0.35, "crouch: torso lowered (%.2f → %.2f)" % [t_stand.y, torso.position.y])
+	var crystal := CrystalBody.ensure(body)
+	_ok(crystal._legs.size() == 4 and crystal._arms.size() == 2, "the figure has %d leg segments and %d arms" % [crystal._legs.size(), crystal._arms.size()])
+	_ok(torso.position.y > crystal._legs[0].position.y, "crouch: the torso stays above the hips instead of being squashed through them")
+	# Legs bend: the knee moves forward (facing -Z) when crouched.
+	_ok(crystal._legs[1].position.z < knee_stand - 0.05,
+		"crouch: the knees push forward (%.2f → %.2f)" % [knee_stand, crystal._legs[1].position.z])
+	# Arms reach the hands: the segment is a real length, and its far end is on the gun hand.
+	var arm: Node3D = crystal._arms[0]
+	var arm_len: float = (arm.basis.y).length()
+	var far_end: Vector3 = arm.position + arm.basis.y
+	var hand: Vector3 = (crystal.hands.hand_targets()[0] if crystal.hands else far_end)
+	_ok(arm_len > 0.15 and far_end.distance_to(hand) < 0.12,
+		"the arm runs from the shoulder to the hand (%.2f m, off by %.2f)" % [arm_len, far_end.distance_to(hand)])
 	_ok((torso.basis * Vector3.UP).z < -0.4, "crouch: torso leans forward")
 	_ok(_feet_x(c) > f_stand + 0.1, "crouch: feet spread (%.2f → %.2f)" % [f_stand, _feet_x(c)])
 	_ok(is_equal_approx((body.get_node("HeadHit") as Node3D).position.y, Player.HEAD_CROUCH_Y), "HeadHit on HEAD_CROUCH_Y")
