@@ -1286,13 +1286,22 @@ func _apply_stance() -> void:
 
 
 func _pose_figure() -> void:
-	pose_body(body_mesh, crouch, move_fx)
+	pose_body(body_mesh, crouch, move_fx, roll_flip())
+
+
+## The landing roll as a rotation for the body, the same forward flip the local camera does (#205).
+## 0 outside a roll, so a body that is not tumbling reads as flat.
+func roll_flip() -> float:
+	if _roll_t <= 0.0:
+		return 0.0
+	var pr := 1.0 - _roll_t / ROLL_TIME
+	return -TAU * ease(pr, -1.8)
 
 
 ## Puts the head marker (the hit target) on the stance's head height and hands the synced state to
 ## the crystal body (CrystalBody/BodyPose), which poses itself every frame. Static so the killcam
 ## ghosts (a copy of BodyMesh) use it too; they only know `crouch`.
-static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE) -> void:
+static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 0.0) -> void:
 	if body == null:
 		return
 	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt)
@@ -1304,6 +1313,7 @@ static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE) -> void:
 		crystal.crouch = crouch_amt
 		crystal.head_y = head_y
 		crystal.move_fx = fx
+		crystal.flip = flip
 
 
 func _ceiling_blocked() -> bool:

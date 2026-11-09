@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #205: a landing roll is visible to everyone now, not only to the player doing it. The body has a `flip` channel (`Player.roll_flip()` → `pose_body(..., flip)` → `CrystalBody.flip` → `BodyPose` rig), so the figure tumbles forward like the local camera already did, and the killcam records it as snapshot field 7 and interpolates it. `check_killcam_roll` drives a real pawn through a roll and asserts the flip turns, that pose_body forwards it, that the rig tilts 90° on a quarter turn, and that the snapshot carries it.
+
 - A `.tscn` has **no comment syntax**: two `#` lines above a node in Townhouses made the scene parser drop the node that followed them, so the west alley had one wall in the game and two in the file. The map check now raycasts each alley face at chest height and asserts the hit normal is flatter than `Player.WALLRUN_MAX_NY` (the same rule `Movement.find_wall` uses) — a visual-only or missing wall passes every navmesh assertion.
 
 - #212: Skyline spawn sightlines. The outer spawn columns (x = ±13) saw their half-turn counterpart straight across the map because the front baffles stopped at |x| 10; they now reach 13.6, and the tower-roof sign went 1.6 → 2.2 m wide because the inner columns (±3.4) passed it by 10 cm. `check_skyline` asserts all 144 spawn pairs are blocked at eye height (1.6 m above the roof).

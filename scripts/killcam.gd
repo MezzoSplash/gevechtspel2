@@ -244,7 +244,9 @@ func _snapshot() -> void:
 		if p == null or p.is_queued_for_deletion() or p.head == null:
 			continue
 		var wpn := p.weapon.armory_index() if p.weapon else 0
-		pawns[p.peer_id] = [p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, wpn, not p.is_dead, p.move_fx]
+		# Index 7 is the body's roll flip (#205): the pose used to be yaw + head pitch only, so a
+		# player who rolled to their death stood upright in the replay.
+		pawns[p.peer_id] = [p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, wpn, not p.is_dead, p.move_fx, p.roll_flip()]
 		_meta[p.peer_id] = [p.display_name, p.team_id]
 	if pawns.is_empty():
 		return
@@ -422,6 +424,7 @@ func _pose_ghost(g: Dictionary, sa: Variant, sb: Variant, w: float, is_killer: b
 	var yaw := float(s[1])
 	var pitch := float(s[2])
 	var crouch := float(s[3])
+	var flip := float(s[7]) if s.size() > 7 else 0.0
 	if sa != null and sb != null and bool(sa[5]) == bool(sb[5]):
 		var a: Array = sa
 		var b: Array = sb
@@ -430,13 +433,15 @@ func _pose_ghost(g: Dictionary, sa: Variant, sb: Variant, w: float, is_killer: b
 			yaw = lerp_angle(float(a[1]), float(b[1]), w)
 			pitch = lerpf(float(a[2]), float(b[2]), w)
 			crouch = lerpf(float(a[3]), float(b[3]), w)
+			if a.size() > 7 and b.size() > 7:
+				flip = lerpf(float(a[7]), float(b[7]), w)
 	root.global_position = pos
 	root.rotation = Vector3(0.0, yaw, 0.0)
 	var head: Node3D = g.head
 	head.position.y = lerpf(Player.STAND_EYE, Player.CROUCH_EYE, crouch)
 	head.rotation.x = pitch
 	if not is_killer:
-		Player.pose_body(g.body, crouch, int(s[6]) if s.size() > 6 else Player.MOVE_NONE)
+		Player.pose_body(g.body, crouch, int(s[6]) if s.size() > 6 else Player.MOVE_NONE, flip)
 	_ghost_weapon(g, int(s[4]))
 
 

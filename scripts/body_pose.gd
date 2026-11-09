@@ -51,8 +51,10 @@ static func solve(p: Dictionary) -> Dictionary:
 	var squash := lerpf(1.0, CROUCH_TORSO_SCALE, k * (1.0 - dive))
 	var torso_basis := Basis(Vector3.RIGHT, -lean) * Basis.from_scale(Vector3(1, squash, 1))
 	var up := torso_basis * Vector3.UP
-	# Whole-figure turn around the neck: dive pitch, wall-run roll.
-	var rig := Basis(Vector3.BACK, WALL_ROLL * wall) * Basis(Vector3.RIGHT, DIVE_PITCH * dive)
+	# Whole-figure turn around the neck: dive pitch, wall-run roll, and the landing roll's forward flip
+	# (#205 - a rolling player used to stand upright in every view but their own camera).
+	var flip := float(p.get("flip", 0.0))
+	var rig := Basis(Vector3.BACK, WALL_ROLL * wall) * Basis(Vector3.RIGHT, DIVE_PITCH * dive + flip)
 
 	var out := {}
 	out["torso"] = Transform3D(rig * torso_basis, neck + rig * (-up * TORSO_HANG))
