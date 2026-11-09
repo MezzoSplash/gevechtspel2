@@ -179,6 +179,18 @@ stream = ExtResource("8_kill")
 volume_db = -3.0
 bus = "UI"
 
+[node name="ThudSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
+stream = ExtResource("6_hit")
+volume_db = -9.0
+pitch_scale = 0.58
+bus = "UI"
+
+[node name="TickSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
+stream = ExtResource("7_head")
+volume_db = -13.0
+pitch_scale = 1.55
+bus = "UI"
+
 [node name="EmptySfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("9_empty")
 volume_db = -8.0

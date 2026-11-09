@@ -44,6 +44,10 @@ const KNIFE_SCENE := preload("res://assets/weapons/knife.tscn")
 @onready var hit_sfx: AudioStreamPlayer = $HitSfx
 @onready var head_sfx: AudioStreamPlayer = $HeadSfx
 @onready var kill_sfx: AudioStreamPlayer = $KillSfx
+## #207: two extra layers so a hit has weight and a combo climbs. The same two samples, pitched -
+## no new assets until #135 settles licensing.
+@onready var thud_sfx: AudioStreamPlayer = $ThudSfx
+@onready var tick_sfx: AudioStreamPlayer = $TickSfx
 @onready var empty_sfx: AudioStreamPlayer = $EmptySfx
 @onready var reload_sfx: AudioStreamPlayer3D = $ReloadSfx
 
@@ -730,15 +734,46 @@ func _on_confirmed_hit(killed: bool, headshot: bool) -> void:
 
 
 ## Headshot tick plays on a kill too, under the kill sting.
+## #207: body and headshot have to be distinguishable blind, a kill has to feel heavier than a hit,
+## and the fifth hit of a combo has to sound like the fifth hit. The pitch ladder is the combo meter's
+## own (PITCH_STEP per MULT_STEP), so the bar climbing and the sound climbing are one thing.
 func _play_hit_fx(killed: bool, headshot: bool) -> void:
+	var ladder := _hit_ladder()
 	if headshot and head_sfx.stream:
+		# Sharp and high: the head sample pushed up, a short transient above it, and only a light thump
+		# underneath so it still has weight.
+		head_sfx.pitch_scale = minf(ladder * 1.35, 2.2)
 		head_sfx.play()
+		_layer(tick_sfx, minf(ladder * 1.9, 2.8), -9.0)
+		_layer(thud_sfx, 0.7, -12.0)
+	elif not headshot and hit_sfx.stream:
+		# Low and round: the body sample with a small random offset (the same shot twice must not be the
+		# same sample) over a pitched-down thump.
+		hit_sfx.pitch_scale = minf(ladder * randf_range(0.94, 1.06), 2.0)
+		hit_sfx.play()
+		_layer(thud_sfx, 0.58, -10.0)
 	if killed:
 		if kill_sfx.stream:
+			kill_sfx.pitch_scale = minf(ladder, 1.3)
 			kill_sfx.play()
 		Game.hitstop()
-	elif not headshot and hit_sfx.stream:
-		hit_sfx.play()
+
+
+## The combo meter's ladder, read from this shooter's combo: 1.0 flat, up to ComboMeter.PITCH_MAX.
+func _hit_ladder() -> float:
+	var p := owner as Player
+	if p == null:
+		return 1.0
+	var mult := float(Game.combo_of(p.peer_id).get("mult", Combo.MULT_START))
+	return minf(1.0 + ComboMeter.PITCH_STEP * (mult - Combo.MULT_START) / Combo.MULT_STEP, ComboMeter.PITCH_MAX)
+
+
+func _layer(player: AudioStreamPlayer, pitch: float, db: float) -> void:
+	if player == null or player.stream == null:
+		return
+	player.pitch_scale = pitch
+	player.volume_db = db
+	player.play()
 
 
 func _spread_multiplier() -> float:
