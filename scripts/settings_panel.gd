@@ -303,9 +303,11 @@ func _build() -> void:
 	)
 
 	body = _pages[1] # Graphics: the renderer is a restart, so it sits with the rest of the video setup.
-	var renderer_row := _row(body, "Renderer")
+	var renderer_row := _row(body, "Renderer (next start)")
 	_renderer = _options(renderer_row, Game.RENDERER_NAMES)
-	_renderer.tooltip_text = "Changing this restarts the game once. Mobile and Compatibility are lighter; on a weak GPU they can be a lot faster."
+	# Honest about when it lands: Godot picks the renderer while starting, so a change cannot apply to
+	# the running game (and restarting mid-match would throw the player out).
+	_renderer.tooltip_text = "Applies the next time the game starts: Godot cannot switch renderer while running. Mobile and Compatibility are lighter; on a weak GPU they can be a lot faster."
 	_renderer.item_selected.connect(func(i: int) -> void:
 		if not _filling:
 			Game.set_renderer_choice(i)

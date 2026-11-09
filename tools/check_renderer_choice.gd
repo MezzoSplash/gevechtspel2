@@ -24,6 +24,8 @@ func _ready() -> void:
 	_ok(not Game.should_relaunch(2, none, false, true, false), "never headless")
 	_ok(not Game.should_relaunch(2, none, false, false, true), "never from the editor")
 	_ok(not Game.should_relaunch(2, marked, false, false, false), "the relaunched process does not relaunch again")
+	_ok(not Game.should_relaunch(2, none, false, false, false, "mobile"), "no relaunch when that renderer already runs")
+	_ok(Game.should_relaunch(2, none, false, false, false, "forward_plus"), "a relaunch when another renderer runs")
 	_ok(not Game.should_relaunch(99, none, false, false, false), "an out-of-range choice is ignored")
 	_ok(not Game.should_relaunch(-1, none, false, false, false), "a negative choice is ignored")
 
@@ -33,7 +35,10 @@ func _ready() -> void:
 	_ok(Game.renderer_choice == Game.RENDERER_NAMES.size() - 1, "the setter clamps to the last renderer")
 	Game.set_renderer_choice(-4)
 	_ok(Game.renderer_choice == 0, "and to the first")
+	# set_renderer_choice() writes settings.cfg, so putting the value back in memory only would leave
+	# the developer's own settings file on the last renderer.
 	Game.renderer_choice = before
+	Game.save_settings()
 
 	print("RENDERER CHOICE CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
