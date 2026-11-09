@@ -21,6 +21,7 @@ var crouch := 0.0
 var head_y := 1.52
 var move_fx := 0
 var flip := 0.0 # rad, the landing roll (#205): the body tumbles forward, the camera already did
+var throw_amt := 0.0 # 0..1, the knife throw's wind-up and follow-through (#25)
 var glow: StandardMaterial3D
 var hands: CrystalHands
 var _torso: Node3D
@@ -145,6 +146,7 @@ func tick(delta: float) -> void:
 	p["crouch"] = crouch
 	p["head_y"] = head_y
 	p["flip"] = flip
+	p["throw"] = throw_amt
 	p["phase"] = _phase
 	p["bob"] = _bob
 	p["dir"] = Vector3(local_v.x, 0, local_v.z)

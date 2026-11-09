@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/check_knife_throw_anim.gd" id="1"]
+
+[node name="CheckKnifeThrowAnim" type="Node"]
+script = ExtResource("1")

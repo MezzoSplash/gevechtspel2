@@ -783,6 +783,11 @@ func sync_knife_count(peer_id: int, n: int) -> void:
 	var p := player_for_peer(peer_id)
 	if p == null:
 		return
+	# A count that drops is a throw, and this RPC already reaches every client: that is how the body
+	# animation gets the right thrower without a new field in sync_knife_spawn (#25). A refill (respawn,
+	# Game reset) goes up and stays silent.
+	if n < p.knives:
+		p.play_throw_anim()
 	p.knives = n
 	p._notify_grenades()
 

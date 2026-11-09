@@ -23,6 +23,8 @@ const SPRINT_LEAN := deg_to_rad(16.0)
 const WALK_LEAN := deg_to_rad(6.0)
 const DIVE_PITCH := deg_to_rad(-80.0) # feet swing back behind the body
 const WALL_ROLL := deg_to_rad(22.0) # top away from the wall, feet toward it
+const THROW_PITCH := deg_to_rad(-14.0) # the knife throw leans over the front foot (#25)
+const THROW_TWIST := deg_to_rad(-16.0) # and turns the shoulders with the throwing hand
 const STRIDE_WALK := 0.22
 const STRIDE_SPRINT := 0.16 # extra on top of walking
 const LIFT_WALK := 0.10
@@ -54,7 +56,12 @@ static func solve(p: Dictionary) -> Dictionary:
 	# Whole-figure turn around the neck: dive pitch, wall-run roll, and the landing roll's forward flip
 	# (#205 - a rolling player used to stand upright in every view but their own camera).
 	var flip := float(p.get("flip", 0.0))
-	var rig := Basis(Vector3.BACK, WALL_ROLL * wall) * Basis(Vector3.RIGHT, DIVE_PITCH * dive + flip)
+	# The knife throw (#25): the torso turns away from the throwing side and pitches over the front
+	# foot. Small numbers, because the figure has no arms of its own - the hands follow the weapon.
+	var thr := clampf(float(p.get("throw", 0.0)), 0.0, 1.0)
+	var rig := Basis(Vector3.BACK, WALL_ROLL * wall) \
+			* Basis(Vector3.RIGHT, DIVE_PITCH * dive + flip + THROW_PITCH * thr) \
+			* Basis(Vector3.UP, THROW_TWIST * thr)
 
 	var out := {}
 	out["torso"] = Transform3D(rig * torso_basis, neck + rig * (-up * TORSO_HANG))
