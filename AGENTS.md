@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- v0.5.15 (released): pickup pads on all five maps (same three types). `NET_VERSION` 0.5.15 - a 0.5.14 client knows no pads outside Townhouses.
+
 - v0.5.14 (released): map pickups on Townhouses (#144) — Extra Messen, Schildplaat, Herstelkern, server-authoritative with a late-joiner state sync and vitals sync for remote pawns; armour absorbs damage before HP. `NET_VERSION` 0.5.14.
 
 - #144 pickups: three server-authoritative pads on every map now - Townhouses (Extra Messen x ±8, Herstelkern, Schildplaat on the west flank), Foundry, Rooftops, Quay and Skyline (their pads are listed in docs/MAPS.md). `shared/pickups.gd` holds the state `{id, type, pos, ready, timer}` and decides on the match authority; clients draw the same nodes from the same map data (`Maps.pickups(id)`), and `sync_pickup_taken` / `sync_pickup_state` carry the rest. Effects per spec: knives +2 capped at 3, armour 40 (never stacked, gone on death), heal +45 capped at 100, and a pickup does nothing (and stays) when it would do nothing. Armour absorbs damage in `Player.apply_hit` before HP and rides `broadcast_hurt` to the victim HUD. Visuals are procedural (`CrystalMesh.part(&"pickup_*")` + a real annulus from `ring_mesh`), the ring dims and an arc fills to respawn. No new audio asset: the take chime is the existing knife hit, pitched per type (#135 is still open). `check_pickups` covers the effects, the caps, armour absorption, touch and respawn; `check_pickup_pads` loads every map and asserts each pad stands on floor, has clearance, is 7 m or more from a spawn/base and is reachable on the navmesh. `NET_VERSION` 0.5.14.
