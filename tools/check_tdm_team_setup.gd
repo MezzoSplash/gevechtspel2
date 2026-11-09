@@ -92,6 +92,23 @@ func _ready() -> void:
 	Game.is_dedicated = false
 	_ok(Game.bot_split_active(), "a local or listen-host match still runs it")
 
+	# #214: the wiring, not only the predicate. bot_split_active() was tested, but the bug was that
+	# _start_server() itself wiped a listen host's per-side numbers; only a call proves that.
+	Game.bot_team_base = Game.TEAM_B
+	Game.set_match_config(&"townhouses", Game.MODE_TDM, -1, -1.0, -1, 3, 7)
+	main._start_server(0, false, &"townhouses", Game.MODE_TDM)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_ok(Game.bot_target(Game.TEAM_B) == 3 and Game.bot_target(Game.TEAM_A) == 7,
+		"a listen host keeps its split through _start_server (with you %d, against %d)" % [
+			Game.bot_target(Game.TEAM_B), Game.bot_target(Game.TEAM_A)])
+	# The other half of the rule: a dedicated server re-balances on purpose, so the split is gone.
+	Game.set_match_config(&"townhouses", Game.MODE_TDM, -1, -1.0, -1, 3, 7)
+	main._start_server(0, true, &"townhouses", Game.MODE_TDM)
+	await get_tree().physics_frame
+	_ok(not Game.bot_split_active(),
+		"a dedicated server drops the split through _start_server (bot_allies %d)" % Game.bot_allies)
+
 	print("TDM TEAM SETUP CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
 
