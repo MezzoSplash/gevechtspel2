@@ -41,10 +41,11 @@ func _ready() -> void:
 	# 1) The ladder follows the combo multiplier, and has a ceiling.
 	Game._combos[me.peer_id] = _combo(Combo.MULT_START)
 	var flat := w._hit_ladder()
-	Game._combos[me.peer_id] = _combo(Combo.MULT_START + Combo.MULT_STEP * 5.0)
+	var top_mult := Combo.MULT_START + Combo.MULT_STEP * 5.0
+	Game._combos[me.peer_id] = _combo(top_mult)
 	var high := w._hit_ladder()
 	_ok(is_equal_approx(flat, 1.0), "no combo, no pitch offset (%.2f)" % flat)
-	_ok(high > flat + 0.2, "a 3.5x combo lifts the hit by %.2f-1.0" % high)
+	_ok(high > flat + 0.2, "a %.1fx combo lifts the hit to %.2f" % [top_mult, high])
 	Game._combos[me.peer_id] = _combo(Combo.MULT_MAX)
 	_ok(w._hit_ladder() <= ComboMeter.PITCH_MAX + 0.001, "the ladder stops at PITCH_MAX")
 
@@ -69,7 +70,18 @@ func _ready() -> void:
 		seen[snappedf(w.hit_sfx.pitch_scale, 0.001)] = true
 	_ok(seen.size() > 3, "body hits vary in pitch (%d distinct of 10)" % seen.size())
 
-	# 4) A kill is heavier than a hit: the kill sting plays on top.
+	# 4) The UI bus has a limiter once a hit has played, and the top of the ladder has its own tick.
+	var idx := AudioServer.get_bus_index(&"UI")
+	var limited := false
+	for i in AudioServer.get_bus_effect_count(idx):
+		if AudioServer.get_bus_effect(idx, i) is AudioEffectLimiter:
+			limited = true
+	_ok(limited, "the UI bus carries a limiter after the first hit")
+	Game._combos[me.peer_id] = _combo(Combo.MULT_MAX)
+	w._play_hit_fx(false, false)
+	_ok(w.tick_sfx.pitch_scale > 2.0, "the top of the ladder adds the special tick (%.2f)" % w.tick_sfx.pitch_scale)
+
+	# 5) A kill is heavier than a hit: the kill sting plays on top.
 	await get_tree().create_timer(0.25).timeout
 	w._play_hit_fx(true, false)
 	_ok(w.kill_sfx.pitch_scale > 0.5 and w.kill_sfx.playing, "a kill adds the sting")
