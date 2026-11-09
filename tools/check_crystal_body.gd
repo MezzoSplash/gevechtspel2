@@ -52,7 +52,18 @@ func _ready() -> void:
 	_ok(torso.position.y < t_stand.y - 0.35, "crouch: torso lowered (%.2f → %.2f)" % [t_stand.y, torso.position.y])
 	var crystal := CrystalBody.ensure(body)
 	_ok(crystal._legs.size() == 4 and crystal._arms.size() == 2, "the figure has %d leg segments and %d arms" % [crystal._legs.size(), crystal._arms.size()])
-	_ok(torso.position.y > crystal._legs[0].position.y, "crouch: the torso stays above the hips instead of being squashed through them")
+	_ok(torso.position.y > crystal._legs[0].position.y,
+		"crouch: the torso stays above the hips instead of being squashed through them (torso %.2f, hip %.2f)" % [
+			torso.position.y, crystal._legs[0].position.y])
+	# #243 review: "de torso draait niet mee". The torso has to travel along the rotated spine, not hang
+	# vertically, or a dive and a roll pitch the figure while the torso stays upright.
+	var dive_pose := BodyPose.solve({"crouch": 0.0, "head_y": Player.HEAD_STAND_Y, "dive": 1.0})
+	var dive_up: Vector3 = (dive_pose["torso"] as Transform3D).basis.y
+	_ok(dive_up.dot(Vector3.UP) < 0.7, "dive: the torso pitches with the body (up·Y %.2f)" % dive_up.dot(Vector3.UP))
+	var flip_pose := BodyPose.solve({"crouch": 0.0, "head_y": Player.HEAD_STAND_Y, "flip": PI})
+	var flip_up: Vector3 = (flip_pose["torso"] as Transform3D).basis.y
+	_ok(flip_up.dot(Vector3.UP) < -0.5, "roll: the torso turns over with the body (up·Y %.2f)" % flip_up.dot(Vector3.UP))
+
 	# Legs bend: the knee moves forward (facing -Z) when crouched.
 	_ok(crystal._legs[1].position.z < knee_stand - 0.05,
 		"crouch: the knees push forward (%.2f → %.2f)" % [knee_stand, crystal._legs[1].position.z])
