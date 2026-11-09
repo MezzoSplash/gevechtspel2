@@ -56,6 +56,7 @@ var ammo: int = 30
 var _cooldown := 0.0
 var _click_left := 0.0 # buffered semi-auto click (see _wants_fire)
 var _reload_left := 0.0
+var _reload_dip := Vector3.ZERO
 var _flash_left := 0.0
 var _kick_offset := Vector3.ZERO
 var _bob_t := 0.0
@@ -181,7 +182,11 @@ func _process(delta: float) -> void:
 	if _reload_left > 0.0:
 		_reload_left = maxf(_reload_left - delta, 0.0)
 		var t := 1.0 - (_reload_left / def.reload_time)
+		# Procedural reload (#164): tilt, dip, and a small mag "pop" at the swap. Timed on the weapon's
+		# own reload_time, so a shotgun and a rifle read differently without per-weapon animation data.
 		rotation.x = sin(t * PI) * 0.55
+		_reload_dip = Vector3(0.0, -0.05 * sin(t * PI), 0.02 * sin(t * PI)) \
+				+ Vector3(0.0, -0.012, 0.0) * sin(clampf((t - 0.45) / 0.2, 0.0, 1.0) * PI)
 		if _reload_left <= 0.0:
 			ammo = def.mag_size
 			_new_mag(def.id)
@@ -198,7 +203,7 @@ func _process(delta: float) -> void:
 	_ads_k = move_toward(_ads_k, 1.0 if (_ads and not def.ads_hides_model) else 0.0, delta / maxf(def.ads_time, 0.01))
 	var rest := _view_rest.lerp(_ads_pose(), smoothstep(0.0, 1.0, _ads_k))
 	var sway := _tick_sway(delta)
-	position = rest + _kick_offset + bob * (1.0 - _ads_k * 0.7) + sway
+	position = rest + _kick_offset + bob * (1.0 - _ads_k * 0.7) + sway + _reload_dip
 	rotation.y = _sway_rot.y
 	rotation.z = _sway_rot.z
 	_tick_melee_pose(delta, _kick_offset + bob + sway)
@@ -852,6 +857,13 @@ func play_throw() -> void:
 	_throw_left = THROW_ANIM
 	_cooldown = maxf(_cooldown, THROW_ANIM * 0.8)
 	_tick_throw_pose(0.0)
+
+
+## 0..1 through the current reload, 0 when not reloading: the body's reload pose reads this (#164).
+func reload_anim() -> float:
+	if _reload_left <= 0.0 or def == null or def.reload_time <= 0.0:
+		return 0.0
+	return clampf(1.0 - _reload_left / def.reload_time, 0.0, 1.0)
 
 
 func is_throwing() -> bool:

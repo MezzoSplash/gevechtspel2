@@ -1,8 +1,10 @@
 class_name CrystalBody
 extends Node3D
-## B1 crystal humanoid (#164 facelift): faceted team-coloured torso with a pale chest plate,
-## shoulder shards and a floating hip shard, an angular pale head with a glowing visor, glowing seams at neck and waist,
-## detached floating hands on the gun (CrystalHands) and detached floating feet. No arm/leg meshes.
+## B1 crystal humanoid (#164 facelift): faceted team-coloured torso with a pale chest plate, shoulder
+## shards and a hip shard, an angular pale head with a glowing visor, glowing seams at neck and waist,
+## arms from the shoulder shard to the hands on the gun, legs (thigh + shin) down to the feet, and
+## detached floating hands (CrystalHands) and feet. The limbs are separate crystal segments, not a
+## skinned mesh - that is what keeps the figure readable at 20 m without any art assets.
 ## Lives as the "Crystal" child of a BodyMesh and reuses its Torso/HeadMesh nodes (their team
 ## material too, so killcam ghosts that repaint those nodes get the right colour).
 ##
@@ -22,6 +24,7 @@ var head_y := 1.52
 var move_fx := 0
 var flip := 0.0 # rad, the landing roll (#205): the body tumbles forward, the camera already did
 var throw_amt := 0.0 # 0..1, the knife throw's wind-up and follow-through (#25)
+var reload_amt := 0.0 # 0..1, the procedural reload dip (#164), timed on the weapon's reload_time
 var glow: StandardMaterial3D
 var hands: CrystalHands
 var _torso: Node3D
@@ -30,6 +33,8 @@ var _neck_seam: Node3D
 var _waist_seam: Node3D
 var _pelvis: Node3D
 var _feet: Array[Node3D] = []
+var _arms: Array[Node3D] = []
+var _legs: Array[Node3D] = []
 var _w := {"walk": 0.0, "sprint": 0.0, "air": 0.0, "dive": 0.0, "wall": 0.0}
 var _phase := 0.0
 var _bob := 0.0
@@ -43,7 +48,7 @@ static func ensure(body: Node3D) -> CrystalBody:
 	if Game.is_dedicated or body == null:
 		return null
 	var c := body.get_node_or_null("Crystal") as CrystalBody
-	if c == null or c._feet.is_empty(): # a duplicate (corpse) keeps its copied meshes as they are
+	if c == null or c._feet.is_empty() or c._legs.is_empty(): # a duplicate (corpse) keeps its copied meshes as they are
 		if c != null:
 			return null
 		c = CrystalBody.new()
@@ -106,6 +111,19 @@ func _build(body: Node3D) -> void:
 		mesh_part(foot, &"foot", shell)
 		mesh_part(foot, &"spark", glow).position = Vector3(0, 0.02, 0.10) # ankle glow, above the heel
 		_feet.append(foot)
+	# Legs (thigh + shin per side) and arms (shoulder shard to the hand on the gun): the figure was a
+	# floating torso with two blocks beside it (#164).
+	for i in 4:
+		var leg := Node3D.new()
+		add_child(leg)
+		mesh_part(leg, &"limb_leg", team_mat if i < 2 else shell)
+		mesh_part(leg, &"spark", glow).position = Vector3(0, 1.0, 0) # joint glow at the far end
+		_legs.append(leg)
+	for i in 2:
+		var arm := Node3D.new()
+		add_child(arm)
+		mesh_part(arm, &"limb", shell)
+		_arms.append(arm)
 	# The old box arms of #165 / the placeholder arm boxes: gone (scene) or hidden (old copies).
 	for n in ["ArmL", "ArmR", "Arms", "Legs"]:
 		var old := body.get_node_or_null(n) as Node3D
@@ -147,6 +165,8 @@ func tick(delta: float) -> void:
 	p["head_y"] = head_y
 	p["flip"] = flip
 	p["throw"] = throw_amt
+	p["reload"] = reload_amt
+	p["hands"] = hands.hand_targets() if hands else []
 	p["phase"] = _phase
 	p["bob"] = _bob
 	p["dir"] = Vector3(local_v.x, 0, local_v.z)
@@ -163,6 +183,12 @@ func _apply(pose: Dictionary) -> void:
 	_pelvis.transform = pose["pelvis"]
 	for i in 2:
 		_feet[i].transform = pose["feet"][i]
+	var legs: Array = pose.get("legs", [])
+	for i in mini(legs.size(), _legs.size()):
+		_legs[i].transform = legs[i]
+	var arms: Array = pose.get("arms", [])
+	for i in mini(arms.size(), _arms.size()):
+		_arms[i].transform = arms[i]
 	if hands:
 		var w := absf(_w["wall"])
 		var reach_i := 0 if _w["wall"] < 0.0 else 1

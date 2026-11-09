@@ -78,10 +78,11 @@ func _ready() -> void:
 		for peer in pawns:
 			if int(peer) == me.peer_id:
 				var s: Array = pawns[peer]
-				stored = s.size() == 9
+				stored = s.size() == 10
 				if stored:
 					_ok(is_equal_approx(float(s[7]), me.roll_flip()), "the snapshot stores the flip")
 					_ok(is_equal_approx(float(s[8]), me.throw_amt()), "and the knife-throw pose next to it")
+					_ok(is_equal_approx(float(s[9]), me.reload_amt()), "and the reload progress")
 	_ok(stored, "the killcam snapshot has the flip field")
 
 	print("KILLCAM ROLL CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])

@@ -1296,7 +1296,12 @@ func _apply_stance() -> void:
 
 
 func _pose_figure() -> void:
-	pose_body(body_mesh, crouch, move_fx, roll_flip(), throw_amt())
+	pose_body(body_mesh, crouch, move_fx, roll_flip(), throw_amt(), reload_amt())
+
+
+## 0..1 through the current reload, 0 when the weapon is not reloading (#164).
+func reload_amt() -> float:
+	return weapon.reload_anim() if weapon else 0.0
 
 
 ## A knife leaves the hand: the body does the overhand flick too, so other players (and the killcam)
@@ -1327,7 +1332,7 @@ func roll_flip() -> float:
 ## Puts the head marker (the hit target) on the stance's head height and hands the synced state to
 ## the crystal body (CrystalBody/BodyPose), which poses itself every frame. Static so the killcam
 ## ghosts (a copy of BodyMesh) use it too; they only know `crouch`.
-static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 0.0, throw_amt := 0.0) -> void:
+static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 0.0, throw_amt := 0.0, reload := 0.0) -> void:
 	if body == null:
 		return
 	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt)
@@ -1341,6 +1346,7 @@ static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 
 		crystal.move_fx = fx
 		crystal.flip = flip
 		crystal.throw_amt = throw_amt
+		crystal.reload_amt = reload
 
 
 func _ceiling_blocked() -> bool:
