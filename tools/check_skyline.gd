@@ -38,14 +38,10 @@ func _ready() -> void:
 	# failure even when every assertion passed). What we do wait for is the baked mesh reaching the
 	# map, and for that a probe query is the only honest signal - it just no longer errors.
 	var nav_map := get_world_3d().navigation_map
-	var synced := false
-	for i in 240: # up to 4 s
-		await get_tree().physics_frame
-		if NavigationServer3D.map_get_closest_point(nav_map, TARGETS.blue_spawn) != Vector3.ZERO:
-			synced = true
-			break
+	var synced := await _wait_for_nav(nav_map, region, nav, TARGETS.blue_spawn)
 	if not synced:
-		print("  FAIL the baked navmesh never reached the navigation map (%d polygons)" % nav.get_polygon_count())
+		print("  FAIL the baked navmesh never reached the navigation map (%d polygons, iteration %d)" % [
+			nav.get_polygon_count(), NavigationServer3D.map_get_iteration_id(nav_map)])
 	var fails := 0 if synced else 1
 	var from: Vector3 = TARGETS.blue_spawn
 	for k in TARGETS:
@@ -92,3 +88,24 @@ func _ready() -> void:
 	print("  clear lines from the surf exit / WB into Blue spawn points: %d of 36" % open)
 	print("SKYLINE CHECK: %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	get_tree().quit(fails)
+
+
+## Waits for a baked mesh to reach the world's navigation map, and nudges it if it does not.
+## A frame count is the wrong unit: this loop runs as fast as the machine allows, so 900 frames is six
+## seconds on a loaded box and fifteen on an idle one. Time budget instead, with a periodic
+## re-assignment of the mesh plus map_force_update, because a dropped assignment never lands at all.
+## The closest-point query is only asked once the map reports a synchronization: asking earlier is the
+## ENGINE ERROR that made these checks flaky (#211).
+func _wait_for_nav(nav_map: RID, region: NavigationRegion3D, nav: NavigationMesh, probe: Vector3, budget_ms := 25000) -> bool:
+	var start := Time.get_ticks_msec()
+	var beat := 0
+	while Time.get_ticks_msec() - start < budget_ms:
+		await get_tree().physics_frame
+		beat += 1
+		if NavigationServer3D.map_get_iteration_id(nav_map) > 0 \
+				and NavigationServer3D.map_get_closest_point(nav_map, probe) != Vector3.ZERO:
+			return true
+		if beat % 60 == 0:
+			region.navigation_mesh = nav
+			NavigationServer3D.map_force_update(nav_map)
+	return false
