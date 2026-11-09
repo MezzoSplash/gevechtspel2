@@ -39,17 +39,17 @@ func _ready() -> void:
 		"every hit layer plays on the UI bus")
 
 	# 1) The ladder follows the combo multiplier, and has a ceiling.
-	Game._combos[me.peer_id] = {"mult": Combo.MULT_START}
+	Game._combos[me.peer_id] = _combo(Combo.MULT_START)
 	var flat := w._hit_ladder()
-	Game._combos[me.peer_id] = {"mult": Combo.MULT_START + Combo.MULT_STEP * 5.0}
+	Game._combos[me.peer_id] = _combo(Combo.MULT_START + Combo.MULT_STEP * 5.0)
 	var high := w._hit_ladder()
 	_ok(is_equal_approx(flat, 1.0), "no combo, no pitch offset (%.2f)" % flat)
 	_ok(high > flat + 0.2, "a 3.5x combo lifts the hit by %.2f-1.0" % high)
-	Game._combos[me.peer_id] = {"mult": Combo.MULT_MAX}
+	Game._combos[me.peer_id] = _combo(Combo.MULT_MAX)
 	_ok(w._hit_ladder() <= ComboMeter.PITCH_MAX + 0.001, "the ladder stops at PITCH_MAX")
 
 	# 2) Body and headshot differ: high tick against a low body layer, not just "louder".
-	Game._combos[me.peer_id] = {"mult": Combo.MULT_START}
+	Game._combos[me.peer_id] = _combo(Combo.MULT_START)
 	w._play_hit_fx(false, false)
 	var body_pitch := w.hit_sfx.pitch_scale
 	var body_thud := w.thud_sfx.pitch_scale
@@ -77,3 +77,11 @@ func _ready() -> void:
 
 	print("HIT SFX CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
+
+
+## A real combo dictionary (Combo.fresh() shape) at a given multiplier: Game ticks these every frame and
+## reads the timer, so a hand-built {"mult": x} crashed with "Invalid access to key 't'".
+func _combo(mult: float) -> Dictionary:
+	var c := Combo.fresh()
+	c["mult"] = mult
+	return c
