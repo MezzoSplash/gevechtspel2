@@ -2192,10 +2192,13 @@ func apply_shadows(map: Node) -> void:
 ## True when the game has to restart to honour `choice`. Never for a dedicated server (systemd would
 ## restart it in a loop), never headless, never from the editor, and never twice: the relaunched
 ## process carries RENDERER_MARKER in its user args.
-static func should_relaunch(choice: int, user_args: PackedStringArray, is_server: bool, headless: bool, editor: bool) -> bool:
+static func should_relaunch(choice: int, user_args: PackedStringArray, is_server: bool, headless: bool, editor: bool, current_method := "") -> bool:
 	if choice <= 0 or choice >= RENDERER_IDS.size():
 		return false
 	if is_server or headless or editor:
+		return false
+	# Already running the chosen renderer: relaunching would flash the window on every single start.
+	if current_method != "" and current_method == RENDERER_IDS[choice]:
 		return false
 	return not user_args.has(RENDERER_MARKER)
 

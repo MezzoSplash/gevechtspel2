@@ -124,7 +124,7 @@ func _ready() -> void:
 func _try_renderer_relaunch(args: Dictionary) -> void:
 	var headless := Game.display_headless()
 	var editor := OS.has_feature("editor")
-	if not Game.should_relaunch(Game.renderer_choice, OS.get_cmdline_user_args(), bool(args.get("server", false)), headless, editor):
+	if not Game.should_relaunch(Game.renderer_choice, OS.get_cmdline_user_args(), bool(args.get("server", false)), headless, editor, RenderingServer.get_current_rendering_method()):
 		return
 	var method: String = Game.RENDERER_IDS[Game.renderer_choice]
 	if Game.relaunch_with_renderer(method):
