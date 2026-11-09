@@ -121,6 +121,16 @@ func _ledges() -> void:
 	await _frames(2)
 	var lip := brain._ledge_climb(dir)
 	_ok(lip > 0.5 and lip < 1.1, "0.8 m lip reads as a jump (climb %.2f)" % lip)
+	# _try_jump_ledge() bails on `not is_on_floor()`, and after the zeroed velocity the pawn can be a
+	# frame airborne. Wait for the floor instead of assuming it: that assumption is what read as a
+	# flaky FAIL on a loaded runner.
+	var grounded := false
+	for i in 20:
+		await _frames(1)
+		if bot.is_on_floor():
+			grounded = true
+			break
+	_ok(grounded, "the bot is back on the test floor before the jump")
 	bot.velocity = Vector3.ZERO
 	var jumped := brain._try_jump_ledge(dir)
 	_ok(jumped and bot.velocity.y >= Player.JUMP_SPEED - 0.01, "on the floor, that lip sets the jump")
