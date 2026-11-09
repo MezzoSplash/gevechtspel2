@@ -245,7 +245,9 @@ box_h("TowerCrateB", -2.2, -0.6, 6.0, 7.1, 23.0, 24.6, "plank")
 box_h("TowerLedgeE", 7, 9, 5.7, 6.0, 21.5, 26.5, "steel")
 # Roof: the sign sits on the centre line at the south end and breaks the spawn-to-spawn sight line
 # (the wall alone is off-centre, so it never covered the middle).
-box_h("TowerSign", -1.6, 1.6, 12.0, 14.6, 21.2, 22.4, "steel")
+# 2.2 m wide, not 1.6: the inner spawn columns (x = +/-3.4) crossed the centre lane and passed the
+# sign by 10 cm on each side (#212). Still narrower than the 5.2 m bridge mouth it splits.
+box_h("TowerSign", -2.2, 2.2, 12.0, 14.6, 21.2, 22.4, "steel")
 # The tank lives in the east margin, clear of both the centre line and the wall's run face.
 box_h("TowerTank", 4.2, 6.8, 12.0, 14.4, 25.0, 28.0, "plank")
 # Spine wall: 8.2 m long, 3.4 m tall face on the east side of the tower roof; the centre run
@@ -260,10 +262,14 @@ box_h("SpawnBack", -17, 17, 12.0, 13.2, 49.4, 50.0, "team_blue", "team_orange")
 box_h("SpawnSideW", -17, -16.6, 12.0, 13.0, 41.0, 50.0, "brick")
 box_h("SpawnSideE", 16.6, 17.0, 12.0, 13.0, 38.0, 50.0, "brick")
 # Front baffles either side of the bridge mouth, so the bridge line does not hit a spawn point.
-box_h("SpawnBaffleW", -10, -2.9, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
-box_h("SpawnBaffleE", 2.9, 10, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
+# They reach past |x| = 13.6 on purpose (#212): the outer spawn columns (x = +/-13) looked straight
+# across the map at their half-turn counterpart, and a baffle that stopped at 10 left that diagonal
+# open. 14.2 m tall clears standing eye height (1.6 m above the 12 m roof).
+box_h("SpawnBaffleW", -13.6, -2.9, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
+box_h("SpawnBaffleE", 2.9, 13.6, 12.0, 14.2, 35.6, 36.2, "team_blue", "team_orange")
 # No jog across the spine any more: the centre lane is a straight 30 m run from the back of the
-# spawn roof to the tower roof, and the sight line is broken by SpineWall on the tower instead.
+# spawn roof to the tower roof, and the line is broken by TowerSign on the tower roof since #210
+# (SpineWall covers the wallrun face, not the centre).
 box_h("SpawnJogEdge", -2.6, 2.6, 12.0, 12.35, 37.4, 37.8, "hazard")
 box_h("SpawnAC_W", -13.5, -11.5, 12.0, 13.2, 37.0, 38.6, "ac")
 box_h("SpawnAC_E", 11.5, 13.5, 12.0, 13.2, 37.0, 38.6, "ac")
