@@ -217,6 +217,7 @@ const LAND_DIP := 0.12 # m/s of downward kick per m/s of fall speed
 const SWAY_ADS := 0.15 # share of the sway left while aiming down sights
 
 var _sway_p := Vector3.ZERO
+var _ui_limiter_done := false
 var _sway_v := Vector3.ZERO
 var _sway_rot := Vector3.ZERO
 var _sway_last_yaw := 0.0
@@ -738,6 +739,9 @@ func _on_confirmed_hit(killed: bool, headshot: bool) -> void:
 ## and the fifth hit of a combo has to sound like the fifth hit. The pitch ladder is the combo meter's
 ## own (PITCH_STEP per MULT_STEP), so the bar climbing and the sound climbing are one thing.
 func _play_hit_fx(killed: bool, headshot: bool) -> void:
+	if not _ui_limiter_done:
+		_ui_limiter_done = true
+		_ensure_ui_limiter()
 	var ladder := _hit_ladder()
 	if headshot and head_sfx.stream:
 		# Sharp and high: the head sample pushed up, a short transient above it, and only a light thump
@@ -752,20 +756,52 @@ func _play_hit_fx(killed: bool, headshot: bool) -> void:
 		hit_sfx.pitch_scale = minf(ladder * randf_range(0.94, 1.06), 2.0)
 		hit_sfx.play()
 		_layer(thud_sfx, 0.58, -10.0)
+	# The top of the ladder gets its own tick (#239): the combo meter has a "special" for the last
+	# multiplier step, and the hit confirm should reach the same peak before it falls back.
+	# Gate on the multiplier, not on the pitch: the ladder reaches 1.24 at MULT_MAX, so a PITCH_MAX
+	# threshold would never fire.
+	if _combo_mult() >= Combo.MULT_MAX - 0.001:
+		_layer(tick_sfx, 2.35, -11.0)
 	if killed:
 		if kill_sfx.stream:
 			kill_sfx.pitch_scale = minf(ladder, 1.3)
 			kill_sfx.play()
+		# Four or five layers at once (hit, thud, tick, sting, top tick): pull the thump back on a kill
+		# so the mix does not close up. The limiter below is the second half of that guard.
+		if thud_sfx:
+			thud_sfx.volume_db = -15.0
 		Game.hitstop()
 
 
-## The combo meter's ladder, read from this shooter's combo: 1.0 flat, up to ComboMeter.PITCH_MAX.
-func _hit_ladder() -> float:
+## This shooter's combo multiplier: 1.0 when there is no combo.
+func _combo_mult() -> float:
 	var p := owner as Player
 	if p == null:
-		return 1.0
-	var mult := float(Game.combo_of(p.peer_id).get("mult", Combo.MULT_START))
+		return Combo.MULT_START
+	return float(Game.combo_of(p.peer_id).get("mult", Combo.MULT_START))
+
+
+## The combo meter's ladder: 1.0 flat, up to ComboMeter.PITCH_MAX.
+func _hit_ladder() -> float:
+	var mult := _combo_mult()
 	return minf(1.0 + ComboMeter.PITCH_STEP * (mult - Combo.MULT_START) / Combo.MULT_STEP, ComboMeter.PITCH_MAX)
+
+
+## A limiter on the UI bus, added once: a kill plays up to five layers at the same instant and the
+## acceptance for #207 is "heavier, without the mix closing up".
+func _ensure_ui_limiter() -> void:
+	var idx := AudioServer.get_bus_index(&"UI")
+	if idx < 0:
+		return
+	for i in AudioServer.get_bus_effect_count(idx):
+		if AudioServer.get_bus_effect(idx, i) is AudioEffectLimiter:
+			return
+	var lim := AudioEffectLimiter.new()
+	lim.ceiling_db = -1.0
+	lim.threshold_db = -1.0
+	lim.soft_clip_db = 2.0
+	lim.soft_clip_ratio = 4.0
+	AudioServer.add_bus_effect(idx, lim)
 
 
 func _layer(player: AudioStreamPlayer, pitch: float, db: float) -> void:
