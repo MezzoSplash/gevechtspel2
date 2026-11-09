@@ -13,7 +13,6 @@ extends RefCounted
 const NECK_DROP := 0.19 # neck this far under the head centre
 const TORSO_HANG := 0.41 # torso centre this far from the neck along the torso axis
 const WAIST_HANG := 0.80 # waist seam
-const PELVIS_HANG := 0.97 # floating hip shard
 const FOOT_Y := 0.07
 const FOOT_HALF_W := 0.13
 const CROUCH_SPREAD := 0.10
@@ -60,30 +59,44 @@ static func solve(p: Dictionary) -> Dictionary:
 	var lean := WALK_LEAN * walk + SPRINT_LEAN * sprint + CROUCH_LEAN * k + 0.10 * air
 	lean *= 1.0 - dive
 	# A crouch folds the figure (#164): hips drop, knees push forward, feet stay planted. The torso then
-	# tucks under the head (it used to be the only thing that moved) and keeps a mild compression so it
-	# does not poke out above a head that came down 0.74 m.
+	# tucks under the head and keeps a mild compression so it does not poke out above a head that came
+	# down 0.74 m.
 	var pelvis_y := lerpf(HIP_Y, HIP_CROUCH_Y, k * (1.0 - dive))
 	var reload := clampf(float(p.get("reload", 0.0)), 0.0, 1.0)
+	var fold := k * (1.0 - dive)
 	var torso_basis := Basis(Vector3.RIGHT, -lean + RELOAD_TILT * reload * 0.5) \
-			* Basis.from_scale(Vector3(1, lerpf(1.0, 0.95, k * (1.0 - dive)), 1))
-	var torso_y := lerpf(neck.y + bob - TORSO_HANG, pelvis_y + 0.12, k * (1.0 - dive)) - RELOAD_DROP * reload
+			* Basis.from_scale(Vector3(1, lerpf(1.0, 0.95, fold), 1))
 	var up := torso_basis * Vector3.UP
 	# Whole-figure turn around the neck: dive pitch, wall-run roll, and the landing roll's forward flip
 	# (#205 - a rolling player used to stand upright in every view but their own camera).
 	var flip := float(p.get("flip", 0.0))
-	# The knife throw (#25): the torso turns away from the throwing side and pitches over the front
-	# foot. Small numbers, because the figure has no arms of its own - the hands follow the weapon.
+	# The knife throw (#25): the torso turns away from the throwing side and pitches over the front foot.
 	var thr := clampf(float(p.get("throw", 0.0)), 0.0, 1.0)
 	var rig := Basis(Vector3.BACK, WALL_ROLL * wall) \
 			* Basis(Vector3.RIGHT, DIVE_PITCH * dive + flip + THROW_PITCH * thr) \
 			* Basis(Vector3.UP, THROW_TWIST * thr)
 
+	# The torso and the hip joint travel along the *rotated* spine (`rig`), exactly like the seams and the
+	# head. The torso used to be a vertical-only offset, so a dive or a roll pitched the figure while the
+	# torso hung straight down - "de torso draait niet mee" (#243 review). The crouch only shortens the
+	# hang, and the clamp that keeps it above the hips applies to the crouch alone, never to a dive.
+	var hang := lerpf(TORSO_HANG, TORSO_HANG * 0.62, fold)
+	var torso_pos: Vector3 = neck + rig * (-up * hang) + Vector3(0.0, bob - RELOAD_DROP * reload, 0.0)
+	if fold > 0.0:
+		torso_pos.y = maxf(torso_pos.y, pelvis_y + 0.10)
+	# The hip joint sits on the crouch height (pelvis_y), not on a fixed hang: that is what lets the legs
+	# stay long and still fold. Rotated with the rig so a dive keeps them attached.
+	# Drop along world up (not the spine's up): the hips sit at the crouch height regardless of the lean,
+	# and `rig` still carries them through a dive or a roll.
+	var hip_pos: Vector3 = neck + rig * Vector3(0.0, pelvis_y - neck.y, 0.0)
+
 	var out := {}
-	var torso_tf := Transform3D(rig * torso_basis, Vector3(neck.x, torso_y, neck.z))
+	var torso_tf := Transform3D(rig * torso_basis, torso_pos)
 	out["torso"] = torso_tf
 	out["neck_seam"] = Transform3D(rig * torso_basis, neck + rig * (up * 0.02))
-	out["waist_seam"] = Transform3D(rig * torso_basis, Vector3(neck.x, (torso_y + pelvis_y) * 0.5, neck.z))
-	out["pelvis"] = Transform3D(rig * torso_basis, Vector3(neck.x, pelvis_y, neck.z))
+	out["waist_seam"] = Transform3D(rig * torso_basis, (torso_pos + hip_pos) * 0.5)
+	out["pelvis"] = Transform3D(rig * torso_basis, hip_pos)
+	out["hips_y"] = pelvis_y
 	out["head"] = Transform3D(rig * Basis(Vector3.RIGHT, -lean * 0.3), neck + rig * Vector3(0, NECK_DROP, 0))
 
 	# Legs: hip -> knee -> foot, bending with the crouch. Detached like the rest of the figure, so the
@@ -103,7 +116,7 @@ static func solve(p: Dictionary) -> Dictionary:
 		f += Vector3(0, 0.22 + 0.06 * i, -0.10 if i == 0 else 0.12) * air # jump: tuck, split
 		f.x += side * 0.08 * dive # dive: trail slightly apart
 		var f_unrot := f
-		hips.append(Vector3(neck.x + side * HIP_HALF_W, pelvis_y, neck.z) + rig * Vector3.ZERO)
+		hips.append(hip_pos + rig * Vector3(side * HIP_HALF_W, 0.0, 0.0))
 		f = neck + rig * (f - neck)
 		var tilt := Basis(Vector3.RIGHT, -PI / 2) # foot mesh axis +Y → forward
 		var toe := Basis(Vector3.RIGHT, (0.5 * sin(a) * lift / maxf(LIFT_WALK, 0.01)))
