@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- v0.5.13 (released): character facelift (limbs, crouch, reload animation), knife-throw and roll visible to every client and in the killcam, hit-confirm layers + combo ladder + UI limiter, perf-overlay vsync/GPU hint, renderer choice, Skyline spawn sightlines. `NET_VERSION` 0.5.13 (Skyline collision changed).
+
 - #164 facelift: the crystal figure has real limbs and a real crouch. `BodyPose` now emits `arms` (shoulder shard -> hand on the gun) and `legs` (thigh + shin per side, 2 cm overlap at the knee), the hips stand at 0.80 m and fold to 0.40 m when crouched instead of the torso being squashed through them, and `CROUCH_LEAN` went 40 -> 68 deg so the torso goes near-horizontal under a head that drops 0.74 m. The reload is procedural and timed on the weapon's own `reload_time`: the viewmodel tilts, dips and pops at the mag swap (`Weapon.reload_anim()`, `_reload_dip`), the body takes the same progress through `pose_body(..., reload)`, and the killcam records it as snapshot field 9. Remote pawns show no reload yet: reload state is not synced (that would be a protocol change), so only the owner sees it. `check_crystal_body` and `check_reload_anim` cover the geometry and the timing.
 
 - #25: the knife throw is visible to every client. `Player.play_throw_anim()` (0.42 s wind-up + snap) rides `pose_body()` → `CrystalBody.throw_amt` → `BodyPose` (14° over the front foot, 16° with the throwing shoulder), and the trigger needs no protocol change: `sync_knife_count()` already reaches every client with the thrower's peer id, and a count that drops is a throw (a refill stays silent). `check_knife_throw_anim` covers it.
