@@ -207,6 +207,7 @@ const DIVE_UP_GROUND := 4.8
 const DIVE_UP_AIR := 2.0
 const DIVE_MIN_SPEED := 6.0
 const ROLL_TIME := 0.55
+const THROW_ANIM_TIME := 0.42 # s, the body's knife-throw flick (#25); the viewmodel uses its own
 const ROLL_FRICTION := 0.25
 const ROLL_CARRY := 1.5 # s of surf-style carry after the roll, so the speed survives it
 const MOVE_NONE := 0
@@ -229,6 +230,7 @@ var _dive_cd := 0.0 # DIVE_COOLDOWN left
 var _slide_cd := 0.0 # SLIDE_COOLDOWN left
 var _dive_fade_left := 0.0 # m/s of the dive boost still to fade out
 var _roll_t := 0.0
+var _throw_t := 0.0
 var _roll_dir := Vector3.FORWARD
 var _carry_t := 0.0 # seconds of surf-speed retention left (local sim only)
 var _was_surfing := false
@@ -1286,7 +1288,23 @@ func _apply_stance() -> void:
 
 
 func _pose_figure() -> void:
-	pose_body(body_mesh, crouch, move_fx, roll_flip())
+	pose_body(body_mesh, crouch, move_fx, roll_flip(), throw_amt())
+
+
+## A knife leaves the hand: the body does the overhand flick too, so other players (and the killcam)
+## see a throw instead of a standing figure (#25). Local view: Weapon.play_throw().
+func play_throw_anim() -> void:
+	_throw_t = THROW_ANIM_TIME
+
+
+## 0..1 through the throw: wind up, then snap forward. Visual only.
+func throw_amt() -> float:
+	if _throw_t <= 0.0:
+		return 0.0
+	var t := 1.0 - _throw_t / THROW_ANIM_TIME
+	if t < 0.45:
+		return smoothstep(0.0, 0.45, t) # behind the shoulder
+	return smoothstep(0.45, 1.0, t) # follow through
 
 
 ## The landing roll as a rotation for the body, the same forward flip the local camera does (#205).
@@ -1301,7 +1319,7 @@ func roll_flip() -> float:
 ## Puts the head marker (the hit target) on the stance's head height and hands the synced state to
 ## the crystal body (CrystalBody/BodyPose), which poses itself every frame. Static so the killcam
 ## ghosts (a copy of BodyMesh) use it too; they only know `crouch`.
-static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 0.0) -> void:
+static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 0.0, throw_amt := 0.0) -> void:
 	if body == null:
 		return
 	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt)
@@ -1314,6 +1332,7 @@ static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 
 		crystal.head_y = head_y
 		crystal.move_fx = fx
 		crystal.flip = flip
+		crystal.throw_amt = throw_amt
 
 
 func _ceiling_blocked() -> bool:
@@ -1744,6 +1763,7 @@ func _tick_dive_roll(delta: float) -> void:
 
 ## Synced state + the camera: tilt away from the wall, a forward flip while rolling.
 func _tick_move_fx(delta: float) -> void:
+	_throw_t = maxf(_throw_t - delta, 0.0)
 	if _wallrunning:
 		move_fx = MOVE_WALLRUN
 	elif _diving:
