@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #212: Skyline spawn sightlines. The outer spawn columns (x = ±13) saw their half-turn counterpart straight across the map because the front baffles stopped at |x| 10; they now reach 13.6, and the tower-roof sign went 1.6 → 2.2 m wide because the inner columns (±3.4) passed it by 10 cm. `check_skyline` asserts all 144 spawn pairs are blocked at eye height (1.6 m above the roof).
+
 - v0.5.12 (released): perf overlay modes + a renderer setting (Settings > HUD / Graphics; the renderer choice relaunches once with `--rendering-method`), and a movement pass on the other three maps — Rooftops skybridges, Foundry roof wallrun walls, Townhouses plaza alleys. `NET_VERSION` 0.5.12 (their collision changed).
 
 - Townhouses movement pass: two 14 m wallrun alleys in the mid plaza (faces 3.4 m tall, 7.4 m apart, one each side of the street) — the plaza was 52 m of open floor with the bus as the only cover. The scene is hand-written, so the nodes are plain `CSGBox3D` children of `Arena` with `Mat_wall` + a `Mat_trim` cap. `tools/check_townhouses` bakes the navmesh and asserts both alleys are lane-clear end to end (a path that squeezes around the walls fails) and that plaza, street, backyards and both spawns stay connected.

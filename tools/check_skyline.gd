@@ -86,6 +86,21 @@ func _ready() -> void:
 			if space.intersect_ray(q).is_empty():
 				open += 1
 	print("  clear lines from the surf exit / WB into Blue spawn points: %d of 36" % open)
+	# #212: no spawn may see the other team's spawn, eye to eye, on any pair. The outer columns
+	# (x = +/-13) used to look straight across to their half-turn counterpart, between baffles that
+	# stopped at |x| = 10 and a sign that only covers the centre.
+	var open_pairs := 0
+	var blue := Maps.team_spawns(&"skyline", 0)
+	for a in blue:
+		for b in Maps.team_spawns(&"skyline", 1):
+			var q := PhysicsRayQueryParameters3D.create(a + Vector3(0, 1.6, 0), b + Vector3(0, 1.6, 0))
+			if space.intersect_ray(q).is_empty():
+				open_pairs += 1
+				if open_pairs <= 3:
+					print("  open spawn sight line %s -> %s" % [a, b])
+	if open_pairs > 0:
+		print("  FAIL %d of %d spawn pairs see each other" % [open_pairs, blue.size() * blue.size()])
+		fails += 1
 	print("SKYLINE CHECK: %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	get_tree().quit(fails)
 

@@ -931,12 +931,12 @@ material = SubResource("Mat_steel")
 
 [node name="TowerSign_B" type="CSGBox3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.3, 21.8)
-size = Vector3(3.2, 2.6, 1.2)
+size = Vector3(4.4, 2.6, 1.2)
 material = SubResource("Mat_steel")
 
 [node name="TowerSign_O" type="CSGBox3D" parent="Arena"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13.3, -21.8)
-size = Vector3(3.2, 2.6, 1.2)
+size = Vector3(4.4, 2.6, 1.2)
 material = SubResource("Mat_steel")
 
 [node name="TowerTank_B" type="CSGBox3D" parent="Arena"]
@@ -1010,23 +1010,23 @@ size = Vector3(0.4, 1, 12)
 material = SubResource("Mat_brick")
 
 [node name="SpawnBaffleW_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.45, 13.1, 35.9)
-size = Vector3(7.1, 2.2, 0.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.25, 13.1, 35.9)
+size = Vector3(10.7, 2.2, 0.6)
 material = SubResource("Mat_team_blue")
 
 [node name="SpawnBaffleW_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.45, 13.1, -35.9)
-size = Vector3(7.1, 2.2, 0.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.25, 13.1, -35.9)
+size = Vector3(10.7, 2.2, 0.6)
 material = SubResource("Mat_team_orange")
 
 [node name="SpawnBaffleE_B" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.45, 13.1, 35.9)
-size = Vector3(7.1, 2.2, 0.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.25, 13.1, 35.9)
+size = Vector3(10.7, 2.2, 0.6)
 material = SubResource("Mat_team_blue")
 
 [node name="SpawnBaffleE_O" type="CSGBox3D" parent="Arena"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.45, 13.1, -35.9)
-size = Vector3(7.1, 2.2, 0.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.25, 13.1, -35.9)
+size = Vector3(10.7, 2.2, 0.6)
 material = SubResource("Mat_team_orange")
 
 [node name="SpawnJogEdge_B" type="CSGBox3D" parent="Arena"]
