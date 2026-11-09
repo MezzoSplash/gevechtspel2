@@ -782,7 +782,7 @@ func request_knife(origin: Vector3, dir: Vector3) -> void:
 signal pickup_state_changed
 
 
-@rpc("authority", "call_local", "reliable", 1)
+@rpc("authority", "call_local", "reliable", 0)
 func sync_pickup_taken(pickup_id: int, peer_id: int, type_id: StringName) -> void:
 	Pickups.on_taken(self, pickup_id, type_id)
 	var p := player_for_peer(peer_id)
@@ -790,7 +790,7 @@ func sync_pickup_taken(pickup_id: int, peer_id: int, type_id: StringName) -> voi
 		p.play_pickup_flash(StringName(type_id))
 
 
-@rpc("authority", "call_local", "reliable", 1)
+@rpc("authority", "call_local", "reliable", 0)
 func sync_pickup_state(pickup_id: int, ready: bool, timer: float) -> void:
 	Pickups.on_state(self, pickup_id, ready, timer)
 
