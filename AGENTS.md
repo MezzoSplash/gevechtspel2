@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #249: a landing roll cannot be cut by a jump any more. The dive -> tap space hop carried the whole `DIVE_MAX` (15 m/s) into the air, repeatable every `DIVE_COOLDOWN`, because the grounded jump branch runs before `Movement.tick_dive_roll` and never looked at `_diving`/`_roll_t`. The first `ROLL_JUMP_LOCK` (0.3 s) of a roll now refuses the jump and holds the press in the buffer instead of eating it, and a jump out of the roll drops the horizontal speed to `SPRINT_SPEED`; rolling the roll out still pays `ROLL_CARRY`, so finishing it is the reward. Slide-dive and wall jump are untouched. `check_dive_jump` drives a real pawn through slide -> dive -> roll and jumps at the landing frame, inside the lock and after it.
+
 - v0.5.15 (released): pickup pads on all five maps (same three types). `NET_VERSION` 0.5.15 - a 0.5.14 client knows no pads outside Townhouses.
 
 - v0.5.14 (released): map pickups on Townhouses (#144) — Extra Messen, Schildplaat, Herstelkern, server-authoritative with a late-joiner state sync and vitals sync for remote pawns; armour absorbs damage before HP. `NET_VERSION` 0.5.14.
