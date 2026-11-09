@@ -205,6 +205,11 @@ max_distance = 28.0
 attenuation_model = 1
 max_polyphony = 2
 
+[node name="PickupSfx" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("10_hurt")
+volume_db = -4.0
+bus = "UI"
+
 [node name="HurtSfx" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("10_hurt")
 volume_db = -1.0

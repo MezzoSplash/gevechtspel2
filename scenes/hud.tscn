@@ -161,6 +161,22 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.78, 0.12, 0.1, 0.95)
 
+[node name="ArmourBg" type="ColorRect" parent="Bottom/HpWrap"]
+layout_mode = 1
+anchor_right = 1.0
+offset_top = -9.0
+offset_bottom = -3.0
+mouse_filter = 2
+color = Color(0.06, 0.06, 0.1, 0.8)
+
+[node name="ArmourFill" type="ColorRect" parent="Bottom/HpWrap"]
+layout_mode = 1
+anchor_right = 0.0
+offset_top = -9.0
+offset_bottom = -3.0
+mouse_filter = 2
+color = Color(0.95, 0.94, 0.9, 0.95)
+
 [node name="HpLabel" type="Label" parent="Bottom/HpWrap"]
 layout_mode = 1
 anchors_preset = 15

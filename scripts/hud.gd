@@ -8,6 +8,8 @@ var _kill_hit := false
 var _head_hit := false
 var _fire_punch := 0.0
 var _hint_timer := 8.0
+var pickup_toast: Label
+var _pickup_toast_t := 0.0
 var _hurt_flash := 0.0
 var _hp := 100.0
 var _max_hp := 100.0
@@ -55,6 +57,8 @@ var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # 
 @onready var reload_label: Label = $Bottom/Reloading
 @onready var hp_fill: ColorRect = $Bottom/HpWrap/HpFill
 @onready var hp_label: Label = $Bottom/HpWrap/HpLabel
+@onready var armour_bg: ColorRect = $Bottom/HpWrap/ArmourBg
+@onready var armour_fill: ColorRect = $Bottom/HpWrap/ArmourFill
 @onready var death_layer: ColorRect = $Death
 @onready var _slots: Array[ColorRect] = [
 	$Bottom/Weapons/Slot0,
@@ -232,6 +236,9 @@ func bind_player(player: Player) -> void:
 	_local_peer_id = player.peer_id
 	if not player.health_changed.is_connected(_on_health):
 		player.health_changed.connect(_on_health)
+	if not player.armour_changed.is_connected(_on_armour):
+		player.armour_changed.connect(_on_armour)
+	_on_armour(player.armour)
 	if not player.died.is_connected(_on_died):
 		player.died.connect(_on_died)
 	if not player.respawned.is_connected(_on_respawned):
@@ -984,6 +991,42 @@ func set_reloading(on: bool) -> void:
 	reload_label.visible = on
 
 
+## Schildplaat (#144): a thin bar above the HP bar, hidden when there is no armour.
+func _on_armour(a: float) -> void:
+	var on := a > 0.5
+	if armour_bg:
+		armour_bg.visible = on
+	if armour_fill:
+		armour_fill.visible = on
+		armour_fill.anchor_right = clampf(a / maxf(Pickups.ARMOUR, 1.0), 0.0, 1.0)
+	if on:
+		_sound_pickup_hint("+%d ARMOUR" % roundi(a), Pickups.type_info(&"shield")["color"])
+
+
+## Pickup taken: a short label in the pickup's colour above the HP bar (#144).
+func flash_pickup(label: String, col: Color) -> void:
+	_sound_pickup_hint(label, col)
+
+
+func _sound_pickup_hint(text: String, col: Color) -> void:
+	if pickup_toast == null:
+		pickup_toast = Label.new()
+		pickup_toast.name = "PickupToast"
+		$Bottom.add_child(pickup_toast)
+		pickup_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pickup_toast.anchor_left = 0.0
+		pickup_toast.anchor_right = 1.0
+		pickup_toast.offset_top = -46.0
+		pickup_toast.offset_bottom = -18.0
+		pickup_toast.add_theme_font_size_override("font_size", 20)
+		pickup_toast.add_theme_constant_override("outline_size", 6)
+		pickup_toast.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	pickup_toast.text = text
+	pickup_toast.add_theme_color_override("font_color", col)
+	pickup_toast.modulate.a = 1.0
+	_pickup_toast_t = 2.0
+
+
 func _on_health(hp: float, max_hp: float) -> void:
 	if hp < _hp:
 		_hurt_flash = 0.35
@@ -1464,6 +1507,10 @@ func _process(delta: float) -> void:
 	if _hint_timer > 0.0:
 		_hint_timer -= delta
 		hint_label.modulate.a = clampf(_hint_timer, 0.0, 1.0)
+	if _pickup_toast_t > 0.0:
+		_pickup_toast_t = maxf(_pickup_toast_t - delta, 0.0)
+		if pickup_toast:
+			pickup_toast.modulate.a = clampf(_pickup_toast_t / 0.6, 0.0, 1.0)
 	_hurt_flash = maxf(_hurt_flash - delta, 0.0)
 	for i in range(_dmg_dirs.size() - 1, -1, -1):
 		_dmg_dirs[i].t = float(_dmg_dirs[i].t) - delta

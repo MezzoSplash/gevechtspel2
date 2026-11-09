@@ -4,6 +4,7 @@ extends CharacterBody3D
 ## Bots: `is_bot`, negative `peer_id`, server authority. Humans: authority = peer_id.
 
 signal health_changed(hp: float, max_hp: float)
+signal armour_changed(armour: float)
 signal died
 signal respawned
 signal damage_from(pos: Vector3) # local pawn took damage from there (HUD direction indicator)
@@ -107,6 +108,7 @@ const TAG_CHECK := 0.1 # seconds between nametag line-of-sight rays
 @onready var weapon: Weapon = $Head/Camera3D/WeaponRoot
 @onready var body_mesh: Node3D = $BodyMesh
 @onready var hurt_sfx: AudioStreamPlayer = $HurtSfx
+@onready var pickup_sfx: AudioStreamPlayer = $PickupSfx
 @onready var step_sfx: AudioStreamPlayer3D = $StepSfx
 @onready var land_sfx: AudioStreamPlayer3D = $LandSfx
 @onready var slide_sfx: AudioStreamPlayer3D = $SlideSfx
@@ -129,6 +131,7 @@ const STEP_SOUNDS: Array[AudioStream] = [
 const GRENADE_MAX := 2 # bots; humans get their class's count
 
 var hp := MAX_HP
+var armour := 0.0 # Schildplaat (#144): damage comes off this before HP
 var grenades := GRENADE_MAX
 var knives := 0 # throwing knives (grenade slot, F); bots carry none
 @export var peer_id := 0
@@ -672,6 +675,11 @@ func apply_hit(
 		return {"killed": false, "headshot": false, "damage": 0}
 	var headshot := allow_headshot and _point_hits_head(point)
 	var dmg := roundi(base_damage * (headshot_mult if headshot else 1.0))
+	# Armour first, then HP (#144). One shield plate absorbs 40 damage.
+	var absorbed := mini(roundi(armour), dmg)
+	if absorbed > 0:
+		dmg -= absorbed
+		set_armour(armour - float(absorbed))
 	if dmg > 0:
 		since_hurt = 0.0
 	var old_hp := Game.hp_of(self)
@@ -692,9 +700,9 @@ func apply_hit(
 		if attacker and attacker != self:
 			source_pos = attacker.global_position
 	if Game.is_networked():
-		Game.broadcast_hurt.rpc(peer_id, new_hp, killed, source_pos)
+		Game.broadcast_hurt.rpc(peer_id, new_hp, killed, source_pos, roundi(armour))
 	else:
-		apply_hurt_state(new_hp, killed, source_pos)
+		apply_hurt_state(new_hp, killed, source_pos, roundi(armour))
 	return {"killed": killed, "headshot": headshot, "damage": dmg}
 
 
@@ -708,8 +716,11 @@ func _point_hits_head(point: Vector3) -> bool:
 
 
 ## `from_pos`: damage source for the HUD direction indicator (Vector3.INF = unknown).
-func apply_hurt_state(new_hp: float, killed: bool, from_pos: Vector3 = Vector3.INF) -> void:
+func apply_hurt_state(new_hp: float, killed: bool, from_pos: Vector3 = Vector3.INF, armour_now := -1) -> void:
 	hp = new_hp
+	if armour_now >= 0:
+		armour = float(armour_now)
+		armour_changed.emit(armour)
 	if not killed:
 		Game.killcam.note_hurt(peer_id)
 	if is_local() and from_pos.is_finite():
@@ -763,6 +774,9 @@ func _server_respawn() -> void:
 
 func apply_respawn_state() -> void:
 	hp = MAX_HP
+	# Armour does not survive a death (#144).
+	if armour != 0.0:
+		set_armour(0.0)
 	# Round-start respawns come through here too; the server's HP copy must reset with them.
 	if Game._is_match_authority():
 		Game.set_hp(self, MAX_HP)
@@ -1297,6 +1311,32 @@ func _apply_stance() -> void:
 
 func _pose_figure() -> void:
 	pose_body(body_mesh, crouch, move_fx, roll_flip(), throw_amt(), reload_amt())
+
+
+## Schildplaat (#144): armour never stacks above the plate's value, and it is gone when you die.
+func set_armour(v: float) -> void:
+	armour = clampf(v, 0.0, Pickups.ARMOUR)
+	armour_changed.emit(armour)
+
+
+## A pickup did something to this pawn: a short HUD flash in its colour plus a chime.
+func play_pickup_flash(t: StringName) -> void:
+	if not is_local():
+		return
+	var info := Pickups.type_info(t)
+	if pickup_sfx and pickup_sfx.stream:
+		pickup_sfx.pitch_scale = float(info["pitch"])
+		pickup_sfx.play()
+	var h := get_tree().get_first_node_in_group("hud") as Hud
+	if h and h.has_method("flash_pickup"):
+		h.flash_pickup(info["label"], info["color"])
+
+
+## Herstelkern (#144): HP went up without damage, so only the HUD needs telling.
+func apply_heal_visual(hp_now: float) -> void:
+	hp = hp_now
+	if is_local():
+		health_changed.emit(hp, MAX_HP)
 
 
 ## 0..1 through the current reload, 0 when the weapon is not reloading (#164).

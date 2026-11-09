@@ -235,6 +235,9 @@ func _on_match_config(id: StringName, mode: int) -> void:
 	_load_map(id, Game._is_match_authority())
 	if menu and menu.has_method("set_lobby_match_info"):
 		menu.set_lobby_match_info(id, mode)
+	# Pickups belong to a match, not to the menu backdrop (#144). The authority builds the state, every
+	# machine builds the visuals from the same map data.
+	Pickups.setup(Game, map_node, id)
 	print("MATCH: %s on %s" % [Game.mode_name(mode), Maps.display_name(id)])
 
 
@@ -619,6 +622,7 @@ func _leave_to_menu() -> void:
 ## all start from this, so a background round that was in its killcam, round end or intermission
 ## can never leave the real game locked (killcam_active) or stuck in an old state.
 func _reset_match_state() -> void:
+	Pickups.clear() # pickups die with the match (#144)
 	if class_select:
 		class_select.close_silently()
 	get_tree().paused = false

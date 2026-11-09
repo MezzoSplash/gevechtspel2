@@ -120,7 +120,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.5.13" # 0.5.13: Skyline's spawn baffles and tower sign moved (#212), so a 0.5.12 client collides against different walls and is refused. 0.5.12: Rooftops, Foundry and Townhouses geometry changed (skybridges, roof wallrun walls, plaza alleys) - a 0.5.11 client collides against different walls, so 0.5.11 peers are refused. 0.5.11: new Skyline geometry (bigger roofs, spine, surf entry, wallrun alley) - a 0.5.10 client collides against different roofs, so 0.5.10 peers are refused. 0.5.10: the reliable RPCs are split over ENet channels (1 gameplay, 2 cosmetic, 0 state) so one lost packet for the HUD no longer holds back a shot; a 0.5.7 peer must be refused. 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.5.14" # 0.5.14: map pickups (#144) add sync_pickup_taken/sync_pickup_state and an armour field on broadcast_hurt, so a 0.5.13 peer is refused. 0.5.13: Skyline's spawn baffles and tower sign moved (#212), so a 0.5.12 client collides against different walls and is refused. 0.5.12: Rooftops, Foundry and Townhouses geometry changed (skybridges, roof wallrun walls, plaza alleys) - a 0.5.11 client collides against different walls, so 0.5.11 peers are refused. 0.5.11: new Skyline geometry (bigger roofs, spine, surf entry, wallrun alley) - a 0.5.10 client collides against different roofs, so 0.5.10 peers are refused. 0.5.10: the reliable RPCs are split over ENet channels (1 gameplay, 2 cosmetic, 0 state) so one lost packet for the HUD no longer holds back a shot; a 0.5.7 peer must be refused. 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -776,6 +776,23 @@ func request_knife(origin: Vector3, dir: Vector3) -> void:
 	if thrower == null or thrower.is_bot or dir.length_squared() < 0.0001 or not origin_plausible(thrower, origin):
 		return
 	throw_knife(thrower, origin, dir)
+
+
+## Map pickups (#144). Authority decides, clients draw.
+signal pickup_state_changed
+
+
+@rpc("authority", "call_local", "reliable", 1)
+func sync_pickup_taken(pickup_id: int, peer_id: int, type_id: StringName) -> void:
+	Pickups.on_taken(self, pickup_id, type_id)
+	var p := player_for_peer(peer_id)
+	if p and p.is_local():
+		p.play_pickup_flash(StringName(type_id))
+
+
+@rpc("authority", "call_local", "reliable", 1)
+func sync_pickup_state(pickup_id: int, ready: bool, timer: float) -> void:
+	Pickups.on_state(self, pickup_id, ready, timer)
 
 
 @rpc("authority", "call_local", "reliable", 0)
@@ -1761,6 +1778,7 @@ func _award_line(peer_id: int, strip_name: String) -> void:
 
 ## Listen-server: bots have MultiplayerSynchronizer off, so we push poses ourselves.
 func _physics_process(delta: float) -> void:
+	Pickups.tick(self, delta)
 	_tick_regen(delta)
 	_tick_tension()
 	_tick_lines(delta)
