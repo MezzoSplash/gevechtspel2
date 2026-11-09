@@ -20,6 +20,7 @@ const WALL_HAND_GAP := 0.06 # the wall-side hand stops this far from the wall
 var crouch := 0.0
 var head_y := 1.52
 var move_fx := 0
+var flip := 0.0 # rad, the landing roll (#205): the body tumbles forward, the camera already did
 var glow: StandardMaterial3D
 var hands: CrystalHands
 var _torso: Node3D
@@ -143,6 +144,7 @@ func tick(delta: float) -> void:
 	var p := _w.duplicate()
 	p["crouch"] = crouch
 	p["head_y"] = head_y
+	p["flip"] = flip
 	p["phase"] = _phase
 	p["bob"] = _bob
 	p["dir"] = Vector3(local_v.x, 0, local_v.z)
