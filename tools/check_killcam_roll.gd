@@ -58,7 +58,18 @@ func _ready() -> void:
 	var angle := rad_to_deg(flat_up.angle_to(turned_up))
 	_ok(absf(angle - 90.0) < 2.0, "a quarter-turn flip tilts the body by %.1f deg" % angle)
 
-	# 4) The killcam snapshot carries it as the eighth field.
+	# 4) A remote pawn gets the roll from the synced move_fx (#236): it never ticks the roll timer itself.
+	me._roll_t = 0.0
+	me.apply_network_pose(me.global_position, me.rotation.y, 0.0, [0.0, Player.MOVE_ROLL])
+	# The timer starts at the beginning of the roll, so the flip is 0 on that frame and grows from there.
+	# The flip eases in, so measure a third of the way through the 0.55 s roll rather than on frame one.
+	for i in 20:
+		await get_tree().physics_frame
+	_ok(absf(me.roll_flip()) > 0.5, "a remote pawn with synced MOVE_ROLL runs the flip locally (%.2f rad)" % me.roll_flip())
+	me.apply_network_pose(me.global_position, me.rotation.y, 0.0, [0.0, Player.MOVE_NONE])
+	me._roll_t = 0.0
+
+	# 5) The killcam snapshot carries it as the eighth field.
 	Game.killcam._frames.clear()
 	Game.killcam._snapshot()
 	var stored := false
@@ -67,9 +78,10 @@ func _ready() -> void:
 		for peer in pawns:
 			if int(peer) == me.peer_id:
 				var s: Array = pawns[peer]
-				stored = s.size() == 8
+				stored = s.size() == 9
 				if stored:
 					_ok(is_equal_approx(float(s[7]), me.roll_flip()), "the snapshot stores the flip")
+					_ok(is_equal_approx(float(s[8]), me.throw_amt()), "and the knife-throw pose next to it")
 	_ok(stored, "the killcam snapshot has the flip field")
 
 	print("KILLCAM ROLL CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])

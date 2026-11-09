@@ -18,3 +18,6 @@ Exportbuilds/
 gevechtspel0.1.0-server-arm64
 testmodels/
 __pycache__/
+
+# Godot regenerates these for the screenshots in docs/shots on every import; they are not source.
+docs/shots/*.import
