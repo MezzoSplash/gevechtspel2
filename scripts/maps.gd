@@ -34,6 +34,11 @@ const INFO := {
 	&"foundry": {
 		"name": "Foundry",
 		"blurb": "Warehouse hall with roof ramps, a wallrun roof, west surf, container yard and sheds.",
+		"pickups": [
+			{"type": &"knives", "pos": Vector3(-22.6, 0.0, 0.0)},
+			{"type": &"heal", "pos": Vector3(21.0, 0.0, 4.0)},
+			{"type": &"shield", "pos": Vector3(0.0, 0.0, -6.0)},
+		],
 		"scene": "res://scenes/maps/foundry.tscn",
 		"menu_cam": [Vector3(34, 30, 46), Vector3(0, 0, 2)],
 		# One row on the floor in front of the dock (dock face z=30.6, spawn wall ends z=24.5).
@@ -53,6 +58,11 @@ const INFO := {
 	&"rooftops": {
 		"name": "Rooftops",
 		"blurb": "Two roofed blocks, a court, flank surfs, and skybridges at roof height.",
+		"pickups": [
+			{"type": &"knives", "pos": Vector3(-24.0, 0.0, 0.0)},
+			{"type": &"heal", "pos": Vector3(24.0, 0.0, 0.0)},
+			{"type": &"shield", "pos": Vector3(0.0, 0.0, 9.5)},
+		],
 		"scene": "res://scenes/maps/rooftops.tscn",
 		"menu_cam": [Vector3(34, 26, 54), Vector3(0, 2, 0)],
 		# Two rows behind the spawn wall (ends z=31). The truck sits at z 33.2–36.4, the crates beside it.
@@ -74,6 +84,11 @@ const INFO := {
 	&"quay": {
 		"name": "Quay",
 		"blurb": "Dry dock with surfs, harbour offices, a crane, and screened roofs.",
+		"pickups": [
+			{"type": &"knives", "pos": Vector3(-30.0, 4.0, 0.0)},
+			{"type": &"heal", "pos": Vector3(30.0, 4.0, 0.0)},
+			{"type": &"shield", "pos": Vector3(0.0, 0.0, 18.0)},
+		],
 		"scene": "res://scenes/maps/quay.tscn",
 		"menu_cam": [Vector3(48, 42, 86), Vector3(0, 4, 0)],
 		# Two rows of six in the yard, all behind the 3.2 m spawn wall (x -16..16, z 54.6..55.3).
@@ -100,6 +115,11 @@ const INFO := {
 	&"skyline": {
 		"name": "Skyline",
 		"blurb": "City rooftops from 4 to 15 m: a 10 m surf ridge, a wallrun alley, stairs and a tower stairwell.",
+		"pickups": [
+			{"type": &"knives", "pos": Vector3(-25.0, 4.0, -1.0)},
+			{"type": &"heal", "pos": Vector3(25.0, 4.0, 1.0)},
+			{"type": &"shield", "pos": Vector3(5.0, 6.0, -6.0)},
+		],
 		"scene": "res://scenes/maps/skyline.tscn",
 		"menu_cam": [Vector3(46, 40, 66), Vector3(0, 6, 0)],
 		# Spawn roof at y 12 (x -16..16, z 36..46), behind the baffles and the jog. Half-turn for Orange.
