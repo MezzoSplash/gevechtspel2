@@ -11,10 +11,14 @@ var brain: BotBrain
 var _boxes: Array[StaticBody3D] = []
 
 
+var fail_msgs: Array[String] = []
+
+
 func _ok(c: bool, msg: String) -> void:
 	print("  %s %s" % ["PASS" if c else "FAIL", msg])
 	if not c:
 		fails += 1
+		fail_msgs.append(msg)
 
 
 func _box(pos: Vector3, size: Vector3) -> StaticBody3D:
@@ -119,7 +123,14 @@ func _ledges() -> void:
 	brain._home = feet
 	bot.velocity = Vector3.ZERO
 	await _frames(2)
-	var lip := brain._ledge_climb(dir)
+	# Poll for the box to exist in the physics world instead of trusting two frames: a body added this
+	# frame is not there yet, and under load the probe then reads -1.0 ("no ledge") on a loaded runner.
+	var lip := -1.0
+	for i in 40:
+		lip = brain._ledge_climb(dir)
+		if lip >= 0.0:
+			break
+		await _frames(1)
 	_ok(lip > 0.5 and lip < 1.1, "0.8 m lip reads as a jump (climb %.2f)" % lip)
 	# _try_jump_ledge() bails on `not is_on_floor()`, and after the zeroed velocity the pawn can be a
 	# frame airborne. Wait for the floor instead of assuming it: that assumption is what read as a
@@ -305,4 +316,8 @@ func _who(p: Player) -> String:
 
 func _done() -> void:
 	print("BOT SMART CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
+	# The runner only keeps the tail of a check's output, so a red run used to hide which assertion
+	# failed when it was early in the list. Print them last.
+	for m in fail_msgs:
+		print("FAILED: %s" % m)
 	get_tree().quit(1 if fails > 0 else 0)
