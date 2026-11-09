@@ -32,6 +32,24 @@ static func ring_stack(rings: Array, sides: int, twist := 0.0) -> ArrayMesh:
 	return st.commit()
 
 
+## A flat emissive annulus in the XZ plane: the pickup ring (#144). Not a ring_stack because the
+## middle has to be a hole.
+static func ring_mesh(inner: float, outer: float, segs := 32) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in segs:
+		var a0 := TAU * i / segs
+		var a1 := TAU * (i + 1) / segs
+		var p00 := Vector3(cos(a0) * inner, 0, sin(a0) * inner)
+		var p01 := Vector3(cos(a0) * outer, 0, sin(a0) * outer)
+		var p10 := Vector3(cos(a1) * inner, 0, sin(a1) * inner)
+		var p11 := Vector3(cos(a1) * outer, 0, sin(a1) * outer)
+		for v in [p00, p11, p10, p00, p01, p11]:
+			st.set_normal(Vector3.UP)
+			st.add_vertex(v)
+	return st.commit()
+
+
 ## Cached shapes of the body parts, shared by every pawn.
 static func part(id: StringName) -> ArrayMesh:
 	if not _cache.has(id):
@@ -64,6 +82,17 @@ static func _build(id: StringName) -> ArrayMesh:
 			return ring_stack([[0.0, 0.065, 0.065], [0.4, 0.058, 0.058], [0.75, 0.048, 0.048], [1.0, 0.036, 0.036]], 5)
 		&"limb_leg": # same, heavier: the legs have to read at 20 m
 			return ring_stack([[0.0, 0.088, 0.088], [0.45, 0.080, 0.080], [0.8, 0.066, 0.066], [1.0, 0.052, 0.052]], 5)
+		&"pickup_base": # two-tier octagonal plinth for a map pickup (#144)
+			return ring_stack([[0.0, 0.46, 0.46], [0.05, 0.46, 0.46], [0.08, 0.36, 0.36],
+				[0.26, 0.34, 0.34], [0.31, 0.27, 0.27], [0.34, 0.24, 0.24]], 8, PI / 8)
+		&"pickup_shield": # pearl shield plate: a faceted rock
+			return ring_stack([[-0.26, 0.05, 0.05], [-0.15, 0.21, 0.19], [0.0, 0.27, 0.25],
+				[0.15, 0.21, 0.19], [0.26, 0.05, 0.05]], 7, PI / 7)
+		&"pickup_shard": # one knife shard; the pickup crosses two of them
+			return ring_stack([[-0.34, 0.0, 0.0], [-0.10, 0.055, 0.055], [0.16, 0.045, 0.045], [0.34, 0.0, 0.0]], 4, PI / 4)
+		&"pickup_heart": # heart-shard core: a faceted drop
+			return ring_stack([[-0.24, 0.0, 0.0], [-0.12, 0.17, 0.15], [0.02, 0.24, 0.21],
+				[0.16, 0.16, 0.14], [0.26, 0.0, 0.0]], 6, PI / 6)
 		&"spark": # small floating glow shard (ankles, wrists)
 			return ring_stack([[-0.04, 0.0, 0.0], [0.0, 0.025, 0.025], [0.04, 0.0, 0.0]], 4)
 	return ring_stack([[-0.05, 0.0, 0.0], [0.0, 0.05, 0.05], [0.05, 0.0, 0.0]], 4)

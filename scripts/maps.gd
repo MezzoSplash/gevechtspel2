@@ -11,6 +11,11 @@ const INFO := {
 	&"townhouses": {
 		"name": "Townhouses",
 		"blurb": "Two rows of houses, a street with a bus, plaza wallrun alleys, backyards and flanks.",
+		"pickups": [
+			{"type": &"knives", "pos": Vector3(-8.0, 0.0, 0.0)},
+			{"type": &"heal", "pos": Vector3(8.0, 0.0, 0.0)},
+			{"type": &"shield", "pos": Vector3(-24.0, 0.0, 4.0)},
+		],
 		"scene": "res://scenes/maps/townhouses.tscn",
 		"menu_cam": [Vector3(26, 24, 62), Vector3(0, 2, 0)],
 		# Two rows in the backyard, past the wings (they end at z=33.5) and short of the south wall (z=41).
@@ -146,6 +151,12 @@ static func team_spawns(id: StringName, team: int) -> Array:
 
 
 ## #160: [blue base, orange base] for CTF, or [] when the map has no flag markers yet.
+## Pickup pads (#144): [{type, pos}]. Townhouses first, per the spec: knives and heal on the mid
+## plaza, shield on a flank that both teams have to contest.
+static func pickups(id: StringName) -> Array:
+	return info(id).get("pickups", [])
+
+
 static func flag_bases(id: StringName) -> Array:
 	return info(id).get("flag_bases", [])
 
