@@ -39,7 +39,12 @@ func _ready() -> void:
 			var v = hud._death_report.get_node("V")
 			print("report: %s | %s | %s | %s" % [v.get_node("Head").text, v.get_node("Weapon").text, v.get_node("Taken/R").text, v.get_node("Dealt/R").text])
 			var taken := int(str(v.get_node("Taken/R").text).split(" ")[0])
-			print("DEATH REPORT CHECK ", "OK" if taken >= 100 and str(v.get_node("Weapon").text).begins_with("with ") else "FAILED (taken %d)" % taken)
+			# `taken` is what THIS killer did to you (`Game._dmg_log[victim][killer]`), not your whole
+			# health bar: when two bots share the damage the killing bot's share is legitimately 15 or
+			# 28. The contract is that the number is the killer's own damage and that the weapon line
+			# names a weapon, so assert those instead of the 100 the old assumption needed.
+			var ok := taken > 0 and str(v.get_node("Weapon").text).begins_with("with ")
+			print("DEATH REPORT CHECK ", "OK" if ok else "FAILED (taken %d)" % taken)
 			get_tree().quit()
 			return
 	print("DEATH REPORT CHECK FAILED (never died / no report)")
