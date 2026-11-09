@@ -48,6 +48,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #207: hit confirm carries weight and climbs with the combo. Two extra layers on the weapon (`ThudSfx`, `TickSfx`) reuse the existing body/head samples pitched down/up - no new assets until #135 settles licensing. Body = low thump with a random pitch offset; headshot = head sample pushed to 1.35 plus a transient above it; kill = sting on top. The pitch ladder is `ComboMeter`'s own (`PITCH_STEP` per `MULT_STEP`, capped at `PITCH_MAX`), so the bar and the sound climb together. `check_hit_sfx` covers the ladder, body-vs-headshot, the random offset and the buses.
+
 - #205: a landing roll is visible to everyone now, not only to the player doing it. The body has a `flip` channel (`Player.roll_flip()` → `pose_body(..., flip)` → `CrystalBody.flip` → `BodyPose` rig), so the figure tumbles forward like the local camera already did, and the killcam records it as snapshot field 7 and interpolates it. `check_killcam_roll` drives a real pawn through a roll and asserts the flip turns, that pose_body forwards it, that the rig tilts 90° on a quarter turn, and that the snapshot carries it.
 
 - A `.tscn` has **no comment syntax**: two `#` lines above a node in Townhouses made the scene parser drop the node that followed them, so the west alley had one wall in the game and two in the file. The map check now raycasts each alley face at chest height and asserts the hit normal is flatter than `Player.WALLRUN_MAX_NY` (the same rule `Movement.find_wall` uses) — a visual-only or missing wall passes every navmesh assertion.
