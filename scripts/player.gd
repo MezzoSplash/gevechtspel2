@@ -57,15 +57,29 @@ const SPRINT_FOV := 6.0
 const SPAWN_PROTECT := 1.8
 const SLIDE_MIN := 0.35
 const SLIDE_FRICTION := 2.4
-# Carry: surf speed survives the landing. Ground friction is 10, so an exit at 16 m/s would be
-# gone in a fraction of a second. While carry is up and a move key is held, friction is 0.06:
-# 16 m/s is still about 12.6 after CARRY_TIME (e^-0.24). Releasing move keys uses friction 6,
-# so you can stop and shoot. The cap applies only when a boost is added, not every frame.
-const CARRY_TIME := 4.0
+## Carry: surf speed survives the landing. Ground friction is 10, so an exit at 16 m/s would be gone in
+## a fraction of a second. While carry is up and a move key is held, friction is `CARRY_FRICTION`: 16
+## m/s is still about 13.8 after `CARRY_TIME` (e^-0.15). Releasing move keys uses
+## `CARRY_RELEASE_FRICTION`, so you can stop and shoot. The cap applies only when a boost is added, not
+## every frame.
+const CARRY_TIME := 2.5
 const CARRY_ENTER_SPEED := 12.0 # just over sprint (11.4); a walk off a ramp does not start it
 const CARRY_EXIT_BOOST := 2.0
 const CARRY_FRICTION := 0.06
 const CARRY_RELEASE_FRICTION := 6.0
+## #251: a carry has to be steered, not drifted. `Movement.accelerate` only ever added speed along the
+## wish direction, so at 15 m/s the old forward speed stayed put and a held key bent the path sideways
+## (the "ice" feel). The horizontal velocity now turns toward the wish direction at this rate with its
+## speed kept, so a carry corners like grip.
+const CARRY_TURN_RATE := 7.0
+## An input further away than this from the velocity (holding S, or the opposite way) is braking, not a
+## 180 turn.
+const CARRY_COUNTER_ANGLE := deg_to_rad(120.0)
+## Friction while counter-steering: it scrubs the carry speed instead of turning.
+const CARRY_COUNTER_FRICTION := 5.0
+## The last seconds of a carry ramp the friction up to `GROUND_FRICTION`, so the carry ends on a slope
+## instead of a hard cut.
+const CARRY_FADE := 0.6
 const CARRY_MAX := 18.0
 const STRIP_SPEED := 13.5 # sprint cannot cash a strip; the exit boost or a real surf can
 const STRIP_BOOST := 2.5
@@ -218,6 +232,9 @@ const ROLL_TIME := 0.55
 const ROLL_JUMP_LOCK := 0.3
 const THROW_ANIM_TIME := 0.42 # s, the body's knife-throw flick (#25); the viewmodel uses its own
 const ROLL_FRICTION := 0.25
+## #251: a landing roll steers through the same turn as a carry, only slower, so the roll keeps its
+## speed but the line is still yours.
+const ROLL_TURN_RATE := 3.5
 const ROLL_CARRY := 1.5 # s of surf-style carry after the roll, so the speed survives it
 const MOVE_NONE := 0
 const MOVE_WALLRUN := 1
@@ -1005,13 +1022,22 @@ func _physics_process(delta: float) -> void:
 		horiz = _friction_amount(horiz, delta, KB_FRICTION)
 		horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL * 0.5, delta)
 	elif _carry_t > 0.0:
-		# Held keys keep the surf speed. No keys: brake, so the next shot is a choice.
-		var carry_friction := CARRY_FRICTION if wish.length_squared() > 0.04 else CARRY_RELEASE_FRICTION
-		horiz = _friction_amount(horiz, delta, carry_friction)
-		if not _sliding:
-			horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL, delta)
+		# #251: held keys steer the carry instead of drifting through it. The velocity turns toward the
+		# wish direction with its speed kept, so 15 m/s corners like grip; accelerate is gone here because
+		# adding speed along the wish is exactly what left the old forward speed in place.
+		var carry_friction := CARRY_FRICTION
+		if wish.length_squared() <= 0.04:
+			carry_friction = CARRY_RELEASE_FRICTION # no keys: brake, so the next shot is a choice
+		elif absf(horiz.signed_angle_to(wish, Vector3.UP)) > CARRY_COUNTER_ANGLE:
+			carry_friction = CARRY_COUNTER_FRICTION # pressing S is braking, not a 180 turn
+		else:
+			horiz = Movement.carry_steer(horiz, wish, CARRY_TURN_RATE, delta)
+		var fade := clampf(1.0 - _carry_t / CARRY_FADE, 0.0, 1.0)
+		horiz = _friction_amount(horiz, delta, lerpf(carry_friction, GROUND_FRICTION, fade))
 	elif _roll_t > 0.0:
 		horiz = _friction_amount(horiz, delta, ROLL_FRICTION) # the roll keeps the dive's speed
+		if wish.length_squared() > 0.04:
+			horiz = Movement.carry_steer(horiz, wish, ROLL_TURN_RATE, delta) # #251: steered, but slower
 	elif _sliding:
 		horiz = _friction_amount(horiz, delta, SLIDE_FRICTION)
 	else:

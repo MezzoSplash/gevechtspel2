@@ -93,6 +93,19 @@ static func air_steer(vel: Vector3, wish: Vector3, delta: float) -> Vector3:
 	return vel.rotated(Vector3.UP, signf(angle) * step)
 
 
+## #251 carry grip: turn the horizontal velocity toward the wish direction by at most
+## rate × input strength × delta radians and keep the speed exactly, so a fast carry corners instead of
+## drifting past the key. Expects y = 0 on both vectors. A wish further away than
+## Player.CARRY_COUNTER_ANGLE is the caller's braking case, not a turn.
+static func carry_steer(vel: Vector3, wish: Vector3, rate: float, delta: float) -> Vector3:
+	var strength := minf(wish.length(), 1.0)
+	if strength < 0.01 or rate <= 0.0 or vel.length_squared() < 0.04:
+		return vel
+	var angle := vel.signed_angle_to(wish, Vector3.UP)
+	var step := minf(absf(angle), rate * delta * strength)
+	return vel.rotated(Vector3.UP, signf(angle) * step)
+
+
 ## Remember a steep ramp we touched this frame (not floor, not a wall): surfing clips against it.
 static func note_surf_contact(p: Player) -> void:
 	for i in p.get_slide_collision_count():
