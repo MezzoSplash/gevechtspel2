@@ -709,7 +709,13 @@ func _pose_ghost(g: Dictionary, sa: Variant, sb: Variant, w: float, is_killer: b
 	head.position.y = lerpf(Player.STAND_EYE, Player.CROUCH_EYE, crouch)
 	head.rotation.x = pitch
 	if not is_killer:
-		Player.pose_body(g.body, crouch, int(s[6]) if s.size() > 6 else Player.MOVE_NONE, flip, thr, rel)
+		# #252: the recorded weapon index picks the reload style, so the ghost's left hand goes to the
+		# mag instead of only tilting the torso.
+		var kind: StringName = &"mag"
+		var wi := int(s[4]) if s.size() > 4 else 0
+		if wi >= 0 and wi < Weapon.LOADOUT.size():
+			kind = Weapon.LOADOUT[wi].reload_style
+		Player.pose_body(g.body, crouch, int(s[6]) if s.size() > 6 else Player.MOVE_NONE, flip, thr, rel, kind)
 	_ghost_weapon(g, int(s[4]))
 
 

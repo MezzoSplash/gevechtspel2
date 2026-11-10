@@ -61,6 +61,11 @@ var _reload_dip := Vector3.ZERO
 ## `_setup_reload_rig`, not in the scene; the left hand is the pawn's own CrystalHands.
 var _reload_rot := Vector3.ZERO
 var _reload_shells := 1
+## #252: a remote pawn's reload, driven by Game.sync_reload: how long it lasts and which style the
+## shooter's gun plays, so the body matches without being sent the whole weapon def again.
+var _remote_reload_t := 0.0
+var _remote_reload_time := 0.0
+var _remote_reload_style: StringName = &"mag"
 var _reload_mag: MeshInstance3D
 var _reload_shell: MeshInstance3D
 var _reload_cover: MeshInstance3D
@@ -143,6 +148,8 @@ func _process(delta: float) -> void:
 	var owner_player := owner as Player
 	var bot_auth := owner_player != null and owner_player.is_bot and (Game.is_offline or multiplayer.is_server())
 	_melee_cd = maxf(_melee_cd - delta, 0.0)
+	# #252: a remote pawn's reload runs here too: this weapon only draws it on the body.
+	_remote_reload_t = maxf(_remote_reload_t - delta, 0.0)
 	if not _is_local():
 		_tick_melee_pose(delta, Vector3.ZERO)
 	if not _is_local() and not bot_auth:
@@ -455,6 +462,9 @@ func equip_remote(id: StringName) -> void:
 	if w == null or (def != null and w.id == def.id):
 		return
 	_equip_def(w, false)
+	# #252: a switch ends a reload, and the stop message is unreliable: do not keep a hand on the mag of
+	# the gun this pawn no longer holds.
+	_remote_reload_t = 0.0
 	drawn_ms = Time.get_ticks_msec() # the server's view of a client's real switch (QUICKDRAW)
 
 
@@ -512,8 +522,13 @@ func mag_of(id: StringName) -> int:
 
 
 func _cancel_reload() -> void:
+	var was := _reload_left > 0.0
 	_reload_left = 0.0
 	_reset_reload_pose()
+	if was:
+		# #252: a reload that ends early has to end on every client too, otherwise the body keeps the
+		# hand at the mag after a weapon switch, a melee or a throw.
+		Game.notify_reload(owner as Player, _active_index, 0.0)
 	if reload_sfx and reload_sfx.playing:
 		reload_sfx.stop()
 	var hud := _hud_node()
@@ -952,9 +967,42 @@ func play_throw() -> void:
 
 ## 0..1 through the current reload, 0 when not reloading: the body's reload pose reads this (#164).
 func reload_anim() -> float:
+	if _remote_reload_t > 0.0:
+		return clampf(1.0 - _remote_reload_t / maxf(_remote_reload_time, 0.01), 0.0, 1.0)
 	if _reload_left <= 0.0 or def == null or def.reload_time <= 0.0:
 		return 0.0
 	return clampf(1.0 - _reload_left / def.reload_time, 0.0, 1.0)
+
+
+## #252: the style the body should play. A remote pawn plays the style of the gun the shooter reloaded
+## (the index from sync_reload), so the body matches even if sync_weapon is still on its way.
+func reload_style_now() -> StringName:
+	if _remote_reload_t > 0.0:
+		return _remote_reload_style
+	return def.reload_style if def != null else &"mag"
+
+
+## #252: someone else started a reload (`Game.sync_reload`). This weapon draws no viewmodel, so it only
+## keeps the timer the body reads; `reload_anim` reports the same progress the shooter sees. A time of 0
+## means the reload ended early (death, weapon switch, melee, a knife throw): stop instead of playing it
+## out.
+func play_remote_reload(weapon_index: int, reload_time: float) -> void:
+	if reload_time <= 0.0:
+		_remote_reload_t = 0.0
+		return
+	_remote_reload_time = maxf(reload_time, 0.01)
+	_remote_reload_t = _remote_reload_time
+	_remote_reload_style = def.reload_style if def != null else &"mag"
+	if weapon_index >= 0 and weapon_index < LOADOUT.size():
+		_remote_reload_style = LOADOUT[weapon_index].reload_style
+
+
+## #252: death and anything else that ends a reload without finishing it. Stops the local animation and
+## tells the other clients (a time of 0 on `sync_reload`), so their body drops the reload immediately
+## instead of playing it out on a corpse or the new gun.
+func cancel_reload() -> void:
+	_cancel_reload()
+	_remote_reload_t = 0.0
 
 
 func is_throwing() -> bool:
@@ -989,8 +1037,11 @@ func refill() -> void:
 		}
 		_new_mag(weapon_def.id)
 	ammo = def.mag_size
-	_reload_left = 0.0
-	rotation.x = 0.0
+	if _reload_left > 0.0:
+		# #252: a fresh magazine ends the reload here, and everyone else has to hear it too.
+		_reload_left = 0.0
+		Game.notify_reload(owner as Player, _active_index, 0.0)
+	_reset_reload_pose()
 	_refresh_hud()
 
 
@@ -1025,6 +1076,8 @@ func _start_reload() -> void:
 	_reload_left = def.reload_time
 	# #252: the shells style plays one insert loop per round the tube is missing.
 	_reload_shells = maxi(def.mag_size - ammo, 1)
+	# #252: tell the other clients, so they play this gun's style on this pawn's body.
+	Game.notify_reload(owner as Player, _active_index, def.reload_time)
 	_save_weapon_state()
 	_play_reload_sfx()
 	_refresh_hud()

@@ -776,6 +776,10 @@ func _die() -> void:
 		LosHands.abort_for(los_id)
 	Game.killcam.note_death(peer_id)
 	velocity = Vector3.ZERO
+	# #252: dying ends a reload. The weapon tells the other clients (a 0 on sync_reload) so a corpse and
+	# the respawned body never show a hand stuck on the mag.
+	if weapon != null:
+		weapon.cancel_reload()
 	_carry_t = 0.0
 	_was_surfing = false
 	collision_layer = 0
@@ -1348,7 +1352,7 @@ func _apply_stance() -> void:
 
 
 func _pose_figure() -> void:
-	pose_body(body_mesh, crouch, move_fx, roll_flip(), throw_amt(), reload_amt())
+	pose_body(body_mesh, crouch, move_fx, roll_flip(), throw_amt(), reload_amt(), reload_style())
 
 
 ## Schildplaat (#144): armour never stacks above the plate's value, and it is gone when you die.
@@ -1401,6 +1405,12 @@ func reload_amt() -> float:
 	return weapon.reload_anim() if weapon else 0.0
 
 
+## #252: which reload style the body's left hand should play. Remote pawns take the style from the
+## synced reload, so their body matches the shooter's gun.
+func reload_style() -> StringName:
+	return weapon.reload_style_now() if weapon else &"mag"
+
+
 ## A knife leaves the hand: the body does the overhand flick too, so other players (and the killcam)
 ## see a throw instead of a standing figure (#25). Local view: Weapon.play_throw().
 func play_throw_anim() -> void:
@@ -1429,7 +1439,7 @@ func roll_flip() -> float:
 ## Puts the head marker (the hit target) on the stance's head height and hands the synced state to
 ## the crystal body (CrystalBody/BodyPose), which poses itself every frame. Static so the killcam
 ## ghosts (a copy of BodyMesh) use it too; they only know `crouch`.
-static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 0.0, throw_amt := 0.0, reload := 0.0) -> void:
+static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 0.0, throw_amt := 0.0, reload := 0.0, reload_kind: StringName = &"mag") -> void:
 	if body == null:
 		return
 	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt)
@@ -1444,6 +1454,7 @@ static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 
 		crystal.flip = flip
 		crystal.throw_amt = throw_amt
 		crystal.reload_amt = reload
+		crystal.reload_style = reload_kind
 
 
 func _ceiling_blocked() -> bool:

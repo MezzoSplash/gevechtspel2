@@ -25,6 +25,8 @@ var move_fx := 0
 var flip := 0.0 # rad, the landing roll (#205): the body tumbles forward, the camera already did
 var throw_amt := 0.0 # 0..1, the knife throw's wind-up and follow-through (#25)
 var reload_amt := 0.0 # 0..1, the procedural reload dip (#164), timed on the weapon's reload_time
+## #252: which reload style the body's left hand plays (mag / shells / cylinder / bolt), from the pawn.
+var reload_style: StringName = &"mag"
 var glow: StandardMaterial3D
 var hands: CrystalHands
 var _torso: Node3D
@@ -194,6 +196,14 @@ func _apply(pose: Dictionary) -> void:
 		var reach_i := 0 if _w["wall"] < 0.0 else 1
 		hands.reach = [[Vector3.ZERO, 0.0], [Vector3.ZERO, 0.0]]
 		hands.reach[reach_i] = [_wall_point, 0.85 * w]
+		# #252: a reloading body's left hand leaves the gun for the mag, the loading port or the
+		# cylinder, exactly like the shooter's own first-person hand (the same ReloadAnims curves). The
+		# reload wins over the wall-run touch: you cannot be reloading and holding a wall at once.
+		if reload_amt > 0.001 and hands.weapon != null and is_instance_valid(hands.weapon):
+			var s := ReloadAnims.solve(reload_style, reload_amt)
+			var hw := float(s.hand_w)
+			if hw > 0.001:
+				hands.reach[0] = [hands.to_local(hands.weapon.to_global(s.hand as Vector3)), hw]
 
 
 ## Body on the floor (or close above it), from a short down ray.

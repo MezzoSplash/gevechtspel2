@@ -120,7 +120,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.5.15" # 0.5.15: pads now exist on all five maps, so a 0.5.14 client knows none of them but Townhouses and cannot play four maps correctly - refused. 0.5.14: map pickups (#144) add sync_pickup_taken/sync_pickup_state and an armour field on broadcast_hurt, so a 0.5.13 peer is refused. 0.5.13: Skyline's spawn baffles and tower sign moved (#212), so a 0.5.12 client collides against different walls and is refused. 0.5.12: Rooftops, Foundry and Townhouses geometry changed (skybridges, roof wallrun walls, plaza alleys) - a 0.5.11 client collides against different walls, so 0.5.11 peers are refused. 0.5.11: new Skyline geometry (bigger roofs, spine, surf entry, wallrun alley) - a 0.5.10 client collides against different roofs, so 0.5.10 peers are refused. 0.5.10: the reliable RPCs are split over ENet channels (1 gameplay, 2 cosmetic, 0 state) so one lost packet for the HUD no longer holds back a shot; a 0.5.7 peer must be refused. 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.5.16" # 0.5.16: reloads are synced (#252) - sync_reload / request_reload carry a reload's start and duration on the cosmetic channel, so a 0.5.15 peer shows no reload on anyone else and is refused. 0.5.15: pads now exist on all five maps, so a 0.5.14 client knows none of them but Townhouses and cannot play four maps correctly - refused. 0.5.14: map pickups (#144) add sync_pickup_taken/sync_pickup_state and an armour field on broadcast_hurt, so a 0.5.13 peer is refused. 0.5.13: Skyline's spawn baffles and tower sign moved (#212), so a 0.5.12 client collides against different walls and is refused. 0.5.12: Rooftops, Foundry and Townhouses geometry changed (skybridges, roof wallrun walls, plaza alleys) - a 0.5.11 client collides against different walls, so 0.5.11 peers are refused. 0.5.11: new Skyline geometry (bigger roofs, spine, surf entry, wallrun alley) - a 0.5.10 client collides against different roofs, so 0.5.10 peers are refused. 0.5.10: the reliable RPCs are split over ENet channels (1 gameplay, 2 cosmetic, 0 state) so one lost packet for the HUD no longer holds back a shot; a 0.5.7 peer must be refused. 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -1924,6 +1924,38 @@ func sync_weapon(peer_id: int, weapon_id: String) -> void:
 	if p == null or p.is_local() or p.weapon == null:
 		return
 	p.weapon.equip_remote(StringName(weapon_id))
+
+
+## #252: a reload started. The owner tells the server, the server tells everyone else, and every client
+## plays the reloading gun's own style (mag / shells / cylinder / bolt) on that pawn's body. Cosmetic
+## channel 2 and unreliable: it drives an animation only, so a lost one costs one body animation.
+func notify_reload(p: Player, weapon_index: int, reload_time: float) -> void:
+	if p == null or not is_networked() or p.weapon == null:
+		return
+	if multiplayer.is_server():
+		sync_reload.rpc(p.peer_id, weapon_index, reload_time)
+	else:
+		request_reload.rpc_id(1, weapon_index, reload_time)
+
+
+## Client → server. The server clamps the time so a client cannot animate a pawn reloading for an hour.
+@rpc("any_peer", "call_remote", "reliable", 1)
+func request_reload(weapon_index: int, reload_time: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var id := multiplayer.get_remote_sender_id()
+	var p := player_for_peer(id)
+	if p == null or p.is_dead:
+		return
+	sync_reload.rpc(id, weapon_index, clampf(reload_time, 0.0, 10.0))
+
+
+@rpc("authority", "call_local", "unreliable", 2)
+func sync_reload(peer_id: int, weapon_index: int, reload_time: float) -> void:
+	var p := player_for_peer(peer_id)
+	if p == null or p.weapon == null or p.is_local():
+		return
+	p.weapon.play_remote_reload(weapon_index, reload_time)
 
 
 func live_peer_ids() -> Array:

@@ -69,6 +69,18 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   `tools/shot_killcam` renders the replay on a real screen (xvfb, `--vhs` forces the overlay into the
   shots).
 
+- #252 (2/2, the wire): everyone else sees the reload now. `Weapon._start_reload` calls
+  `Game.notify_reload`, a client asks the server over `request_reload` (channel 1, reliable, clamped to
+  10 s so a pawn cannot reload for an hour) and the server broadcasts `sync_reload(peer_id,
+  weapon_index, reload_time)` on the cosmetic channel (2, unreliable — it is one body animation).
+  `Weapon.play_remote_reload` keeps that timer, `reload_anim()` reports it for remote pawns, and
+  `reload_style_now()` takes the style from the LOADOUT index in the message, so a body matches even if
+  `sync_weapon` is still in flight. `Player.reload_style()` rides `pose_body` into `CrystalBody`, which
+  pulls the body's left hand off the gun through `CrystalHands.reach` with the same `ReloadAnims` curves
+  as the shooter (the reload wins over the wall-run touch). The killcam passes the recorded weapon
+  index, so a ghost reloads like the gun it holds. `NET_VERSION` 0.5.16: a 0.5.15 peer shows no reload
+  on anyone else, so it is refused — the release PR for 0.5.16 still has to follow.
+
 - #252 (1/2, first person): a reload looks like its gun now. `WeaponDef.reload_style` picks one of four
   styles — `mag` (rifle, smg, pistol, lmg), `shells` (shotgun, slug), `cylinder` (revolver), `bolt`
   (sniper) — and `scripts/reload_anims.gd` turns each into keyframed curves over the reload's own

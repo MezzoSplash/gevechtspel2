@@ -19,12 +19,12 @@ const GAMEPLAY: Array[String] = [
 	"sync_los_spawn", "sync_los_pose", "sync_los_end", "los_input", "los_melee", "los_recall",
 	"request_streak", "rc_drive", "rc_detonate", "sync_rc_kick", "sync_rc_spawn", "sync_rc_pose",
 	"sync_rc_end", "sync_rc_hp", "sync_grenade_spawn", "sync_grenade_pose", "sync_grenade_boom",
-	"sync_knife_spawn",
+	"sync_knife_spawn", "request_reload",
 ]
 const COSMETIC: Array[String] = [
 	"sync_kill_feed", "sync_trick", "sync_combo", "sync_shot_fx", "sync_pings", "sync_radar",
 	"sync_rc_announce", "sync_uav_spawn", "sync_uav_end", "sync_round_time", "sync_bot_poses",
-	"broadcast_chat", "submit_chat", "sync_death_report",
+	"broadcast_chat", "submit_chat", "sync_death_report", "sync_reload",
 ]
 const MIN_GAMEPLAY := 20 # a sane floor: an annotation stripped in bulk must not pass
 
