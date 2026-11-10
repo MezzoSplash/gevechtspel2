@@ -92,5 +92,21 @@ func _ready() -> void:
 	_ok(Killcam.ticker_value(bank, tk + 5.0, t0, tk) == bank, "and never overshoots")
 	_ok(Killcam.ticker_value(0, 12.0, t0, tk) == 0, "no bank, no counter")
 
+	# 8) The recorder's slice reaches LOOKBACK back, so the director has something to find (#258).
+	var kc := Game.killcam
+	_ok(kc != null, "the game has a killcam to test the slice wiring")
+	if kc != null:
+		kc._frames = c2.frames.duplicate()
+		kc._events = c2.events.duplicate()
+		kc._clock = float(c2.t_kill) + 2.0
+		var sliced: Dictionary = kc._slice(float(c2.t_kill))
+		var first := float((sliced.frames as Array)[0][0])
+		_ok(first <= float(c2.t_kill) - Killcam.PRE, "the sliced clip reaches further back than PRE (%.2f s)" % (float(c2.t_kill) - first))
+		_ok(is_equal_approx(Killcam.action_start(sliced.frames, sliced.events, float(sliced.t_kill), 1), start2),
+			"and the director reads the same start out of it")
+		kc._frames = []
+		kc._events = []
+		kc._clock = 0.0
+
 	print("KILLCAM DIRECTOR CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)

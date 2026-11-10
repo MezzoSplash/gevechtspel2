@@ -10,7 +10,7 @@ extends Node
 signal finished ## the lock is off again: the round-end board comes back
 
 const RATE := 30.0 # snapshots per second
-const KEEP := 10.0 # seconds of history: PRE + POST + slice margin, with room to spare
+const KEEP := 14.0 # seconds of history: LOOKBACK + POST + slice margin, with room to spare
 const PRE := 5.0 # the replay starts this long before the kill
 const POST := 2.0 # and runs this long after it; the server waits POST before it sends "play"
 const SLOW_FROM := 0.3 # slow motion from this long before the kill
@@ -55,6 +55,9 @@ var _trick_clip: Dictionary = {} # the sliced replay of the latest best trick ("
 var _playing := false
 var _clip: Dictionary = {}
 var _pt := 0.0 # playback position on the recording timeline
+var _dull: Array[Vector2] = [] # dull stretches of the current clip (#258)
+var _real_t := 0.0 # real seconds spent in the replay: the tail is held until play_length() (#258)
+var _t_start := 0.0 # where the replay starts, for the climbing payout (#258)
 var _t_kill := 0.0
 var _t_end := 0.0
 var _frame_i := 0
@@ -71,18 +74,23 @@ var _cam_kick := 0.0
 var _rest := Vector3(0.24, -0.18, -0.42)
 var _overlay: CanvasLayer
 var _draw: Control
+var _title: Label # the top-bar title, which climbs with the combo (#258)
 var _hit_t := 0.0
 var _hit_kill := false
 var _hit_head := false
 var _sfx_hit: AudioStreamPlayer
 var _sfx_head: AudioStreamPlayer
 var _sfx_kill: AudioStreamPlayer
+var _sfx_land: AudioStreamPlayer # the Tony Hawk "landed" sting on the kill (#258)
+var _sfx_special: AudioStreamPlayer
 
 
 func _ready() -> void:
 	_sfx_hit = _ui_sound("res://assets/sounds/hit.wav", -6.0)
 	_sfx_head = _ui_sound("res://assets/sounds/headshot.wav", -5.0)
 	_sfx_kill = _ui_sound("res://assets/sounds/kill.wav", -3.0)
+	_sfx_land = _ui_sound("res://assets/sounds/combo_land.wav", -2.0)
+	_sfx_special = _ui_sound("res://assets/sounds/combo_special.wav", -1.0)
 
 
 func _ui_sound(path: String, db: float) -> AudioStreamPlayer:
@@ -393,9 +401,10 @@ func _snapshot() -> void:
 	_frames.append([_clock, pawns, nades, knives])
 
 
-## PRE before to POST after the kill, plus a little margin for blending.
+## LOOKBACK before to POST after the kill, plus a little margin for blending. The replay itself starts
+## where the director says (#258), not at the front of this window.
 func _slice(t_kill: float) -> Dictionary:
-	var t0 := t_kill - PRE - 0.2
+	var t0 := t_kill - LOOKBACK - 0.2
 	var t1 := t_kill + POST + 0.2
 	var frames: Array = []
 	for f in _frames:
@@ -403,7 +412,7 @@ func _slice(t_kill: float) -> Dictionary:
 			frames.append(f)
 	var events: Array = []
 	for e in _events:
-		if float(e[0]) >= t_kill - PRE and float(e[0]) <= t1:
+		if float(e[0]) >= t_kill - LOOKBACK and float(e[0]) <= t1:
 			events.append(e)
 	return {"t_kill": t_kill, "frames": frames, "events": events, "meta": _meta.duplicate(true)}
 
@@ -462,7 +471,11 @@ func _start_playback(info: Dictionary) -> void:
 	_clip["info"] = info
 	var frames: Array = clip.frames
 	_t_kill = float(clip.t_kill)
-	_pt = maxf(_t_kill - PRE, float(frames[0][0]))
+	# #258: start where the run that ends in the kill starts, and remember which stretches are dead air.
+	_pt = Killcam.action_start(frames, clip.events, _t_kill, killer)
+	_dull = Killcam.dull_runs(frames, clip.events, killer)
+	_t_start = _pt
+	_real_t = 0.0
 	_t_end = minf(_t_kill + POST, float(frames[frames.size() - 1][0]))
 	_frame_i = 0
 	_ev_i = 0
@@ -485,15 +498,68 @@ func _start_playback(info: Dictionary) -> void:
 
 
 func _speed_at(t: float) -> float:
-	return SLOW if t >= _t_kill - SLOW_FROM and t < _t_kill + SLOW_TO else 1.0
+	return Killcam.rate_at(t, _t_kill, _dull)
+
+
+## #258: the VHS fast-forward. Scanlines, a rolling tracking band, tape noise that flickers per frame and
+## a camcorder OSD, all scaled by vhs_amount so the effect fades in instead of popping. Nothing but
+## rectangles and one string, so it costs nothing next to the replay itself.
+func _draw_vhs(canvas: Control) -> void:
+	var a := Killcam.vhs_amount(_pt, _t_kill, _dull)
+	if a <= 0.001:
+		return
+	var w := canvas.size.x
+	var h := canvas.size.y
+	var y := 0.0
+	while y < h:
+		canvas.draw_rect(Rect2(0.0, y, w, 1.0), Color(0, 0, 0, 0.16 * a))
+		y += 3.0
+	# The tracking band rolls up the frame: the artefact that says "tape" more than noise does.
+	var band := fmod(_real_t * 0.32, 1.35)
+	var by := (band - 0.15) * h
+	canvas.draw_rect(Rect2(0.0, by, w, 24.0), Color(1, 1, 1, 0.05 * a))
+	canvas.draw_rect(Rect2(0.0, by + 24.0, w, 2.0), Color(0, 0, 0, 0.3 * a))
+	# Tape noise: one-frame dashes, reseeded every frame so they crawl.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(_real_t * 1000.0) + 7
+	for i in 16:
+		var nx := rng.randf() * w
+		var ny := rng.randf() * h
+		canvas.draw_rect(Rect2(nx, ny, rng.randf_range(8.0, 46.0), 1.0), Color(1, 1, 1, 0.16 * a))
+	# Camcorder OSD, bottom left above the name bar, like the tape is being fast-forwarded by hand.
+	# ">>" and not a triangle: the fallback font has no play glyph (#258).
+	var font := ThemeDB.fallback_font
+	canvas.draw_string(font, Vector2(28.0, h - BAR_H - 22.0), ">>  SP", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.8 * a))
+	var tc := "%02d:%02d" % [int(_real_t / 60.0), int(_real_t) % 60]
+	canvas.draw_string(font, Vector2(28.0, h - BAR_H + 2.0), tc, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 1, 1, 0.55 * a))
+
+
+## #258: the payout climbs with the bank and lands on the kill, and the title shows ▶▶ while the replay
+## is fast-forwarding.
+func _update_title() -> void:
+	if _title == null or _clip.is_empty():
+		return
+	var info: Dictionary = _clip.get("info", {})
+	if not info.has("trick_id"):
+		return
+	var bank := int(info.get("bank", 0))
+	if bank <= 0:
+		return
+	var text := "BEST COMBO  ·  %d STYLE" % Killcam.ticker_value(bank, _pt, _t_start, _t_kill)
+	if Killcam.vhs_amount(_pt, _t_kill, _dull) > 0.5:
+		text += "   >>"
+	_title.text = text
 
 
 func _tick_playback(delta: float) -> void:
 	delta = minf(delta, 0.1)
+	_real_t += delta
 	var speed := _speed_at(_pt)
-	_pt += delta * speed
+	if _pt < _t_end:
+		_pt = minf(_pt + delta * speed, _t_end)
 	_apply_frames(_pt)
 	_run_events(_pt, speed)
+	_update_title()
 	_hide_new_pawns()
 	_hit_t = maxf(_hit_t - delta, 0.0)
 	_cam_kick = lerpf(_cam_kick, 0.0, 1.0 - exp(-15.0 * delta))
@@ -506,7 +572,10 @@ func _tick_playback(delta: float) -> void:
 			(g.flash as Node3D).visible = float(g.flash_t) > 0.0
 	if _draw:
 		_draw.queue_redraw()
-	if _pt >= _t_end:
+	# #258: the clip may be shorter than play_length() because of the fast-forward, so the last frame is
+	# held until the replay has lasted as long as the server expects. Same wall clock, and the kill gets
+	# a held beat for free.
+	if _pt >= _t_end and _real_t >= play_length() - 0.05:
 		_end_playback()
 
 
@@ -611,8 +680,24 @@ func _run_events(to_t: float, speed: float) -> void:
 					if hs:
 						_sfx_head.play()
 					_sfx_kill.play()
+					_play_landed(info)
 			"boom":
 				Grenade.play_boom(e[2], e.size() > 3 and bool(e[3]))
+
+
+## #258: the Tony Hawk "landed" beat. The combo sounds the HUD already uses, pitched up a little with the
+## size of the payout, so the kill reads as a combo that *landed* instead of just a shot that hit. The
+## special sting comes in a beat later, and only for a big bank; no new assets (#135).
+func _play_landed(info: Dictionary) -> void:
+	if _sfx_land == null:
+		return
+	var bank := int(info.get("bank", 0))
+	if bank <= 0:
+		return
+	_sfx_land.pitch_scale = clampf(0.94 + float(bank) / 5000.0, 0.94, 1.15)
+	_sfx_land.play()
+	if bank >= SPECIAL_BANK and _sfx_special != null:
+		get_tree().create_timer(0.14).timeout.connect(_sfx_special.play)
 
 
 func _replay_fire(peer_id: int, weapon_id: StringName, speed: float, is_killer: bool) -> void:
@@ -650,6 +735,7 @@ func _end_playback() -> void:
 		_overlay.queue_free()
 		_overlay = null
 		_draw = null
+		_title = null
 	for n in _hidden:
 		if is_instance_valid(n):
 			n.visible = true
@@ -896,6 +982,7 @@ func _build_overlay(info: Dictionary) -> void:
 		elif int(info.get("pts", 0)) > 0:
 			title_text += "  ·  %d STYLE" % int(info.pts)
 	var title := _label(title_text, 34, Color(1, 1, 1))
+	_title = title
 	title.set_anchors_preset(Control.PRESET_FULL_RECT)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -958,8 +1045,9 @@ func _label(text: String, size: int, col: Color) -> Label:
 	return l
 
 
-## The killer's crosshair and hit markers, like the HUD draws them.
+## The killer's crosshair and hit markers, like the HUD draws them, plus the VHS fast-forward overlay.
 func _on_draw(canvas: Control) -> void:
+	_draw_vhs(canvas)
 	var c := canvas.size * 0.5
 	var col := Color(0.95, 0.95, 0.95, 0.85)
 	for d in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
