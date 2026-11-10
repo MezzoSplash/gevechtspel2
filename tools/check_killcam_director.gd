@@ -134,26 +134,43 @@ func _ready() -> void:
 		kc._t_kill = ltk
 		kc._t_end = minf(ltk + Killcam.POST, float((long_dull.frames as Array)[(long_dull.frames as Array).size() - 1][0]))
 		kc._plan_playback(1, 2)
-		_ok(kc._kill_rate < Killcam.SLOW, "a dull clip slows the kill to fill the wall clock (%.2f x)" % kc._kill_rate)
-		_ok(kc._kill_rate > Killcam.KILL_RATE_MIN, "without hitting the rate floor (%.2f)" % kc._kill_rate)
-		_ok(absf(kc._real_for(kc._kill_rate) - Killcam.play_length()) < 0.2,
-			"and the planned replay fills play_length() (%.2f s of %.2f)" % [kc._real_for(kc._kill_rate), Killcam.play_length()])
+		_ok(kc._kill_rate > Killcam.KILL_RATE_MIN and kc._kill_rate <= 1.0,
+			"a dull kill plays its slow motion at the rate the wall clock needs (%.2f x)" % kc._kill_rate)
+		_ok(absf(kc._real_for() - Killcam.play_length()) < 0.2,
+			"and the planned replay fills play_length() (%.2f s of %.2f)" % [kc._real_for(), Killcam.play_length()])
 		_ok(kc._pt <= float(ltk) - Killcam.MIN_LEN, "starting at least MIN_LEN back (%.2f s)" % (ltk - kc._pt))
-		# A buffer shorter than LOOKBACK (the start of a round) hits the rate floor: the freeze is then
-		# bounded by how much the kill can stretch, not by the whole replay.
+		# A buffer shorter than LOOKBACK (the start of a round) is filled the same way: the kill window
+		# takes the leftover wall clock, so there is no long freeze anywhere.
 		kc._clip = dull
 		kc._events = events3
 		kc._t_kill = dull_tk
 		kc._t_end = minf(dull_tk + Killcam.POST, float((dull.frames as Array)[(dull.frames as Array).size() - 1][0]))
 		kc._plan_playback(1, 2)
-		_ok(absf(kc._real_for(kc._kill_rate) - Killcam.play_length()) < 0.2,
-			"and even a short buffer fills play_length() (%.2f s of %.2f)" % [kc._real_for(kc._kill_rate), Killcam.play_length()])
+		_ok(kc._kill_rate <= 1.0, "the kill never plays faster than real time (%.2f x)" % kc._kill_rate)
+		_ok(absf(kc._real_for() - Killcam.play_length()) < 0.2,
+			"and even a short buffer fills play_length() (%.2f s of %.2f)" % [kc._real_for(), Killcam.play_length()])
 		# A long enough clip keeps the old rate.
 		kc._clip = c2
 		kc._t_kill = float(c2.t_kill)
 		kc._t_end = minf(float(c2.t_kill) + Killcam.POST, float((c2.frames as Array)[(c2.frames as Array).size() - 1][0]))
 		kc._plan_playback(1, 2)
 		_ok(is_equal_approx(kc._kill_rate, Killcam.SLOW), "a long clip keeps the old SLOW (%.2f x)" % kc._kill_rate)
+
+		# 11) A long chain (9 s of wallrun) must not be cut off before the kill: the server unlocks after
+		# play_length(), so the planner compresses the run-up instead. The kill is always inside the
+		# replay, and the last RUNUP_KEEP seconds still run at their own speed.
+		var c6 := _clip(2.0, 9.0)
+		kc._clip = c6
+		kc._t_kill = float(c6.t_kill)
+		kc._t_end = minf(float(c6.t_kill) + Killcam.POST, float((c6.frames as Array)[(c6.frames as Array).size() - 1][0]))
+		kc._plan_playback(1, 2)
+		_ok(kc._runup > 1.0, "a long chain compresses its run-up (%.2f x)" % kc._runup)
+		_ok(kc._pt <= float(c6.t_kill) - Killcam.MIN_LEN, "the replay still starts before the kill (%.2f s in)" % (float(c6.t_kill) - kc._pt))
+		_ok(kc._t_end >= float(c6.t_kill), "the kill is inside the replay")
+		_ok(absf(kc._real_for() - Killcam.play_length()) < 0.2,
+			"and the whole replay fills play_length() (%.2f s of %.2f)" % [kc._real_for(), Killcam.play_length()])
+		# The run-up rate is capped: even a pathological clip never crawls.
+		_ok(kc._runup <= Killcam.MAX_RUNUP, "the run-up compression is capped (%.2f x)" % kc._runup)
 		kc._clip = {}
 		kc._frames = []
 		kc._events = []
