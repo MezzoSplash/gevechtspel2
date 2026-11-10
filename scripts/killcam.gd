@@ -39,6 +39,11 @@ const SPECIAL_BANK := 400 # style points from which a landed combo also gets the
 ## play_length() after the fast-forward, so the kill is stretched to fill the wall clock instead of the
 ## replay ending on a held frame. KILL_RATE_MIN is the floor; past it the last frame is held (short).
 const KILL_RATE_MIN := 0.12
+## #258: the last seconds before the kill always keep their own speed (the dive onto the target must read
+## at 1x), and when the clip is too long to fit the wall clock everything before that is compressed — up
+## to MAX_RUNUP — instead of the replay being cut off before the kill.
+const RUNUP_KEEP := 1.5
+const MAX_RUNUP := 3.0
 
 var _clock := 0.0 # recording time; pauses with the tree like the game does
 var _snap_t := 0.0
@@ -63,6 +68,7 @@ var _dull: Array[Vector2] = [] # dull stretches of the current clip (#258)
 var _real_t := 0.0 # real seconds spent in the replay: the tail is held until play_length() (#258)
 var _t_start := 0.0 # where the replay starts, for the climbing payout (#258)
 var _kill_rate := SLOW # planned slow-motion rate around the kill (#258)
+var _runup := 1.0 # > 1: the run-up before the last seconds is compressed to fit the wall clock (#258)
 var _t_kill := 0.0
 var _t_end := 0.0
 var _frame_i := 0
@@ -512,61 +518,106 @@ func _start_playback(info: Dictionary) -> void:
 
 
 func _speed_at(t: float) -> float:
+	return _rate(t)
+
+
+## #258: the one playback rate: the planned slow motion around the kill, the director's FAST over the
+## dull stretches, and — when the clip still would not fit the wall clock — the run-up before the last
+## seconds is compressed as well. That is what keeps a long chain from being cut off before the kill.
+func _rate(t: float) -> float:
 	if t >= _t_kill - SLOW_FROM and t < _t_kill + SLOW_TO:
 		return _kill_rate
-	return Killcam.rate_at(t, _t_kill, _dull)
+	var base := Killcam.rate_at(t, _t_kill, _dull)
+	if _runup > 1.0 and t < _t_kill - RUNUP_KEEP:
+		base *= _runup
+	return base
+
+
+## #258: the wall clock a slice of the clip takes at the current rates.
+func _real_between(t0: float, t1: float) -> float:
+	var total := 0.0
+	var frames: Array = _clip.frames
+	for i in range(frames.size() - 1):
+		var t := float(frames[i][0])
+		if t < t0 or t >= t1:
+			continue
+		var dt := minf(float(frames[i + 1][0]) - t, t1 - t)
+		if dt <= 0.0:
+			continue
+		total += dt / _rate(t)
+	return total
+
+
+## #258: how long the replay takes at the current rates.
+func _real_for() -> float:
+	return _real_between(_pt, _t_end)
+
+
+## #258: the wall clock the last RUNUP_KEEP seconds before the kill take, plus the tail after it: the
+## part that always keeps its own speed, so the ending reads at 1x no matter how much was compressed.
+func _fixed_real() -> float:
+	return _real_between(_t_kill - RUNUP_KEEP, _t_end)
 
 
 ## #258: fit the clip to the wall clock. The director's start is the run that ends in the kill; when the
 ## replay would be shorter than play_length() (because the dead air is fast-forwarded), earlier footage is
 ## pulled in — it plays as tape, which is exactly what the fast-forward is for — and whatever is still
-## missing is spent on a longer slow-motion kill. Only a leftover that no rate can absorb is held as a
-## freeze, and that is at most a beat. Sets `_pt`, `_t_start`, `_dull` and `_kill_rate`.
+## missing is spent on a longer slow-motion kill. And when the clip is too *long* to fit (a long chain at
+## 1x used to run past the server's unlock and cut the kill off), the run-up before the last seconds is
+## compressed instead. Sets `_pt`, `_t_start`, `_dull`, `_kill_rate` and `_runup`.
 func _plan_playback(killer: int, victim: int) -> void:
 	var span := SLOW_FROM + SLOW_TO
 	var floor_t := _t_kill - LOOKBACK
 	if not _clip.frames.is_empty():
 		floor_t = maxf(floor_t, float((_clip.frames as Array)[0][0])) # no tape before the first snapshot
 	var start := Killcam.action_start(_clip.frames, _clip.events, _t_kill, killer, victim)
+	_kill_rate = SLOW
+	_runup = 1.0
 	var need := 0.0
-	for attempt in 4:
+	for attempt in 5:
 		_pt = start
 		_t_start = start
 		_dull = Killcam.dull_runs(_clip.frames, _clip.events, killer, victim)
-		need = play_length() - (_real_for(SLOW) - span / SLOW)
-		if need <= span:
-			break # the clip is long enough at the planned rates
-		# Earlier footage buys wall clock: one clip-second of tape plays at 1/FAST.
-		var buy := minf(need * Killcam.FAST, start - floor_t)
-		if buy <= 0.01:
-			break
-		start = maxf(floor_t, start - buy)
-	_kill_rate = SLOW
-	if need > span:
-		_kill_rate = clampf(span / maxf(need, 0.01), KILL_RATE_MIN, SLOW)
+		# need = the wall clock left for the kill window (its own cost at the current rate is removed).
+		need = play_length() - (_real_for() - span / _kill_rate)
+		if absf(need) <= span:
+			break # the clip fits the wall clock at the planned rates
+		if need > 0.0:
+			# 1) The replay is too short: earlier footage buys wall clock, one clip-second of tape
+			# plays at 1/FAST.
+			var buy := minf(need * Killcam.FAST, start - floor_t)
+			if buy > 0.01:
+				start = maxf(floor_t, start - buy)
+				continue
+		# 2) No buffer left and the replay is too short, or the clip is too long to fit (a long chain at
+		# 1x used to run past the server's unlock and cut the kill off): compress the run-up so the kill
+		# is always shown. The last RUNUP_KEEP seconds and the kill window keep their own speed; a
+		# leftover that the run-up cannot pay for becomes the kill's slow motion (floored at
+		# KILL_RATE_MIN), so the freeze is at most a beat.
+		var budget := maxf(play_length() - _fixed_real(), 0.05)
+		_runup = clampf(_real_between(_pt, _t_kill - RUNUP_KEEP) / budget, 1.0, MAX_RUNUP)
+		need = play_length() - (_real_for() - span / _kill_rate)
+		break
+	# The kill window takes whatever wall clock is left: deep slow motion when there is a lot of it
+	# (KILL_RATE_MIN), and up to real time when the clip was mostly tape. A full-window replay computes to
+	# exactly the old SLOW.
+	_kill_rate = clampf(span / maxf(need, 0.01), KILL_RATE_MIN, 1.0) if need > 0.0 else SLOW
 
 
-## #258: how long the replay would take at the planned rates if the kill window ran at `rate`.
-func _real_for(rate: float) -> float:
-	var total := 0.0
-	var frames: Array = _clip.frames
-	for i in range(frames.size() - 1):
-		var t := float(frames[i][0])
-		if t < _pt or t >= _t_end:
-			continue
-		var dt := float(frames[i + 1][0]) - t
-		if t >= _t_kill - SLOW_FROM and t < _t_kill + SLOW_TO:
-			total += dt / maxf(rate, 0.01)
-		else:
-			total += dt / Killcam.rate_at(t, _t_kill, _dull)
-	return total
+## #258: how much of the tape overlay is on: the VHS of the dull stretches, and the same look when the
+## run-up itself is compressed — any speed-up has to read the same way.
+func _tape_amount(t: float) -> float:
+	var a := Killcam.vhs_amount(t, _t_kill, _dull)
+	if _runup > 1.0 and t < _t_kill - RUNUP_KEEP:
+		a = maxf(a, clampf((_runup - 1.0) / 0.5, 0.0, 1.0))
+	return a
 
 
 ## #258: the VHS fast-forward. Scanlines, a rolling tracking band, tape noise that flickers per frame and
 ## a camcorder OSD, all scaled by vhs_amount so the effect fades in instead of popping. Nothing but
 ## rectangles and one string, so it costs nothing next to the replay itself.
 func _draw_vhs(canvas: Control) -> void:
-	var a := Killcam.vhs_amount(_pt, _t_kill, _dull)
+	var a := _tape_amount(_pt)
 	if a <= 0.001:
 		return
 	var w := canvas.size.x
@@ -607,7 +658,7 @@ func _update_title() -> void:
 	if bank <= 0:
 		return
 	var text := "BEST COMBO  ·  %d STYLE" % Killcam.ticker_value(bank, _pt, _t_start, _t_kill)
-	if Killcam.vhs_amount(_pt, _t_kill, _dull) > 0.5:
+	if _tape_amount(_pt) > 0.5:
 		text += "   >>"
 	_title.text = text
 
