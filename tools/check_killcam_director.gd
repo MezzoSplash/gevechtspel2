@@ -33,55 +33,71 @@ func _clip(walk: float, chain: float) -> Dictionary:
 		z += 11.0 * step # 11 m/s: wallrun
 		t += step
 	var t_kill := t
-	frames.append(_frame(t_kill + 1.0 / Killcam.RATE, Vector3(0.0, 0.0, z + 0.05)))
-	frames.append(_frame(t_kill + 2.0 / Killcam.RATE, Vector3(0.0, 0.0, z + 0.1)))
-	var events: Array = [[t_kill, "death", 2, 1, "rifle", true]]
+	# The buffer always holds POST after the death (the server waits for it), and the killer keeps moving.
+	while t < t_kill + 2.0:
+		frames.append(_frame(t, Vector3(0.0, 0.0, z), 0))
+		z += 11.0 * step
+		t += step
+	var events: Array = [[t_kill, "death", 2], [t_kill - 0.15, "fire", 1]]
 	return {"t_kill": t_kill, "chain_start": chain_start, "frames": frames, "events": events, "meta": {}}
 
 
 func _ready() -> void:
-	# 1) The clip starts at the chain, not PRE seconds before the kill.
+	# 1) The clip starts at the chain, not PRE seconds before the kill. A short chain is padded back to
+	# MIN_LEN, because a clip that is only a second long would leave a held frame for the rest.
 	var c := _clip(6.0, 1.2)
-	var start := Killcam.action_start(c.frames, c.events, float(c.t_kill), 1)
-	_ok(start <= float(c.chain_start) + 0.05 and start >= float(c.chain_start) - Killcam.LEAD_IN - 0.05,
-		"starts at the wallrun chain (%.2f s, chain at %.2f)" % [start, float(c.chain_start)])
+	var start := Killcam.action_start(c.frames, c.events, float(c.t_kill), 1, 2)
+	_ok(start <= float(c.chain_start) + 0.05, "the chain is inside the clip (start %.2f s, chain at %.2f)" % [start, float(c.chain_start)])
 	_ok(start > float(c.t_kill) - Killcam.PRE, "and later than the old fixed PRE window (%.2f s in)" % (float(c.t_kill) - start))
+	_ok(start <= float(c.t_kill) - Killcam.MIN_LEN, "and at least MIN_LEN before the kill (%.2f s)" % (float(c.t_kill) - start))
 
 	# 2) A chain longer than PRE is not cut off at PRE: you get the whole run.
 	var c2 := _clip(2.0, 7.0)
-	var start2 := Killcam.action_start(c2.frames, c2.events, float(c2.t_kill), 1)
+	var start2 := Killcam.action_start(c2.frames, c2.events, float(c2.t_kill), 1, 2)
 	_ok(start2 < float(c2.t_kill) - Killcam.PRE, "a long chain is not cut off at PRE (%.2f s in)" % (float(c2.t_kill) - start2))
 	_ok(start2 >= float(c2.t_kill) - Killcam.LOOKBACK, "and stays inside the lookback")
 	_ok(start2 <= float(c2.chain_start) + 0.05, "starting at the chain (%.2f s, chain at %.2f)" % [start2, float(c2.chain_start)])
 
-	# 3) Nothing happened: a short clip instead of a long dull one.
-	var c3 := _clip(6.0, 0.0)
-	c3.frames.pop_back()
-	c3.frames.pop_back()
-	var start3 := Killcam.action_start(c3.frames, [], float(c3.t_kill), 1)
-	_ok(is_equal_approx(start3, float(c3.t_kill) - Killcam.MIN_LEN), "a dull kill is cut to MIN_LEN (%.2f s)" % (float(c3.t_kill) - start3))
+	# 3) A dull kill with a realistic event list still gets its MIN_LEN. The killer's own shot and the
+	# victim's death make the last 0.35 s action; without the MIN_LEN floor the clip would be under a
+	# second long and the replay would spend the rest staring at a held frame.
+	var dull := _clip(6.0, 0.0)
+	var dull_tk := float(dull.t_kill)
+	var events3: Array = [[dull_tk - 0.10, "fire", 1], [dull_tk - 0.20, "hurt", 2], [dull_tk, "death", 2],
+		[dull_tk - 1.0, "fire", 3], [dull_tk - 2.0, "hurt", 3], [dull_tk - 3.0, "death", 3]]
+	var start3 := Killcam.action_start(dull.frames, events3, dull_tk, 1, 2)
+	_ok(is_equal_approx(start3, dull_tk - Killcam.MIN_LEN), "a dull kill starts at MIN_LEN (%.2f s in)" % (dull_tk - start3))
 
-	# 4) Speed profile: fast over the walk, 1x on the chain, slow around the kill.
-	var runs := Killcam.dull_runs(c.frames, c.events, 1)
+	# 4) Events from other players never extend the run: in a bot match there is always a shot somewhere,
+	# and without the killer/victim filter the chain would never break and nothing would be dull.
+	var foreign: Array = []
+	for i in 12:
+		foreign.append([dull_tk - 0.5 - 0.5 * float(i), "hurt", 3])
+	var start4 := Killcam.action_start(dull.frames, foreign, dull_tk, 1, 2)
+	_ok(is_equal_approx(start4, dull_tk - Killcam.MIN_LEN), "foreign events never make the run longer (%.2f s in)" % (dull_tk - start4))
+	_ok(Killcam.dull_runs(dull.frames, foreign, 1, 2).size() > 0, "and a busy map still has dull stretches")
+
+	# 5) Speed profile: fast over the walk, 1x on the chain, slow around the kill.
+	var runs := Killcam.dull_runs(c.frames, c.events, 1, 2)
 	_ok(Killcam.rate_at(2.0, float(c.t_kill), runs) == Killcam.FAST, "the walk is fast-forwarded")
 	_ok(Killcam.rate_at(float(c.chain_start) + 0.4, float(c.t_kill), runs) == 1.0, "the wallrun runs at normal speed")
 	_ok(Killcam.rate_at(float(c.t_kill), float(c.t_kill), runs) == Killcam.SLOW, "the kill is slow motion")
 	_ok(Killcam.rate_at(float(c.t_kill) + Killcam.SLOW_TO + 0.2, float(c.t_kill), runs) == 1.0,
 		"the tail after the kill is normal speed")
 
-	# 5) Short dull gaps are not worth compressing (no flickering between 1x and 2.5x).
+	# 6) Short dull gaps are not worth compressing (no flickering between 1x and 2.5x).
 	var short_gap: Array = [_frame(0.0, Vector3.ZERO), _frame(1.0 / Killcam.RATE, Vector3(0.0, 0.0, 0.05), Player.MOVE_WALLRUN),
 		_frame(2.0 / Killcam.RATE, Vector3(0.0, 0.0, 0.1))]
-	_ok(Killcam.dull_runs(short_gap, [], 1).is_empty(), "a gap shorter than FOLD_MIN (%.2f s) is not compressed" % Killcam.FOLD_MIN)
+	_ok(Killcam.dull_runs(short_gap, [], 1, 2).is_empty(), "a gap shorter than FOLD_MIN (%.2f s) is not compressed" % Killcam.FOLD_MIN)
 
-	# 6) The VHS fast-forward overlay is on exactly where the replay is compressed, and never on the kill.
+	# 7) The VHS fast-forward overlay is on exactly where the replay is compressed, and never on the kill.
 	_ok(Killcam.vhs_amount(2.0, float(c.t_kill), runs) > 0.9, "the VHS overlay is on over the walk")
 	_ok(is_equal_approx(Killcam.vhs_amount(float(c.chain_start) + 0.4, float(c.t_kill), runs), 0.0),
 		"and off on the wallrun")
 	_ok(is_equal_approx(Killcam.vhs_amount(float(c.t_kill), float(c.t_kill), runs), 0.0),
 		"and off in the slow-motion kill")
 
-	# 7) The combo payout climbs and lands exactly on the kill.
+	# 8) The combo payout climbs and lands exactly on the kill.
 	var bank := 400
 	var t0 := 10.0
 	var tk := 14.0
@@ -92,7 +108,7 @@ func _ready() -> void:
 	_ok(Killcam.ticker_value(bank, tk + 5.0, t0, tk) == bank, "and never overshoots")
 	_ok(Killcam.ticker_value(0, 12.0, t0, tk) == 0, "no bank, no counter")
 
-	# 8) The recorder's slice reaches LOOKBACK back, so the director has something to find (#258).
+	# 9) The recorder's slice reaches LOOKBACK back, so the director has something to find (#258).
 	var kc := Game.killcam
 	_ok(kc != null, "the game has a killcam to test the slice wiring")
 	if kc != null:
@@ -102,8 +118,43 @@ func _ready() -> void:
 		var sliced: Dictionary = kc._slice(float(c2.t_kill))
 		var first := float((sliced.frames as Array)[0][0])
 		_ok(first <= float(c2.t_kill) - Killcam.PRE, "the sliced clip reaches further back than PRE (%.2f s)" % (float(c2.t_kill) - first))
-		_ok(is_equal_approx(Killcam.action_start(sliced.frames, sliced.events, float(sliced.t_kill), 1), start2),
+		_ok(is_equal_approx(Killcam.action_start(sliced.frames, sliced.events, float(sliced.t_kill), 1, 2), start2),
 			"and the director reads the same start out of it")
+		kc._frames = []
+		kc._events = []
+		kc._clock = 0.0
+
+		# 10) The planner fills play_length(): earlier footage is pulled in as tape and the rest goes into
+		# a longer slow-motion kill, so there is no seconds-long freeze at the end of a short clip.
+		var long_dull := _clip(9.0, 0.0)
+		var ltk := float(long_dull.t_kill)
+		var levents: Array = [[ltk - 0.10, "fire", 1], [ltk, "death", 2]]
+		kc._clip = long_dull
+		kc._events = levents
+		kc._t_kill = ltk
+		kc._t_end = minf(ltk + Killcam.POST, float((long_dull.frames as Array)[(long_dull.frames as Array).size() - 1][0]))
+		kc._plan_playback(1, 2)
+		_ok(kc._kill_rate < Killcam.SLOW, "a dull clip slows the kill to fill the wall clock (%.2f x)" % kc._kill_rate)
+		_ok(kc._kill_rate > Killcam.KILL_RATE_MIN, "without hitting the rate floor (%.2f)" % kc._kill_rate)
+		_ok(absf(kc._real_for(kc._kill_rate) - Killcam.play_length()) < 0.2,
+			"and the planned replay fills play_length() (%.2f s of %.2f)" % [kc._real_for(kc._kill_rate), Killcam.play_length()])
+		_ok(kc._pt <= float(ltk) - Killcam.MIN_LEN, "starting at least MIN_LEN back (%.2f s)" % (ltk - kc._pt))
+		# A buffer shorter than LOOKBACK (the start of a round) hits the rate floor: the freeze is then
+		# bounded by how much the kill can stretch, not by the whole replay.
+		kc._clip = dull
+		kc._events = events3
+		kc._t_kill = dull_tk
+		kc._t_end = minf(dull_tk + Killcam.POST, float((dull.frames as Array)[(dull.frames as Array).size() - 1][0]))
+		kc._plan_playback(1, 2)
+		_ok(absf(kc._real_for(kc._kill_rate) - Killcam.play_length()) < 0.2,
+			"and even a short buffer fills play_length() (%.2f s of %.2f)" % [kc._real_for(kc._kill_rate), Killcam.play_length()])
+		# A long enough clip keeps the old rate.
+		kc._clip = c2
+		kc._t_kill = float(c2.t_kill)
+		kc._t_end = minf(float(c2.t_kill) + Killcam.POST, float((c2.frames as Array)[(c2.frames as Array).size() - 1][0]))
+		kc._plan_playback(1, 2)
+		_ok(is_equal_approx(kc._kill_rate, Killcam.SLOW), "a long clip keeps the old SLOW (%.2f x)" % kc._kill_rate)
+		kc._clip = {}
 		kc._frames = []
 		kc._events = []
 		kc._clock = 0.0

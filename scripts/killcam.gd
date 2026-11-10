@@ -35,6 +35,10 @@ const FAST := 2.5 # playback speed over a dull stretch
 const FOLD_MIN := 0.5 # s: only dull stretches longer than this are compressed
 const VHS_FADE := 0.18 # s the speed-up overlay fades in and out over
 const SPECIAL_BANK := 400 # style points from which a landed combo also gets the special sting
+## #258: the slow motion around the kill is planned, not fixed: the clip may be much shorter than
+## play_length() after the fast-forward, so the kill is stretched to fill the wall clock instead of the
+## replay ending on a held frame. KILL_RATE_MIN is the floor; past it the last frame is held (short).
+const KILL_RATE_MIN := 0.12
 
 var _clock := 0.0 # recording time; pauses with the tree like the game does
 var _snap_t := 0.0
@@ -58,6 +62,7 @@ var _pt := 0.0 # playback position on the recording timeline
 var _dull: Array[Vector2] = [] # dull stretches of the current clip (#258)
 var _real_t := 0.0 # real seconds spent in the replay: the tail is held until play_length() (#258)
 var _t_start := 0.0 # where the replay starts, for the climbing payout (#258)
+var _kill_rate := SLOW # planned slow-motion rate around the kill (#258)
 var _t_kill := 0.0
 var _t_end := 0.0
 var _frame_i := 0
@@ -123,8 +128,18 @@ static func killer_speed(frames: Array, i: int, killer: int) -> float:
 	return Vector2(pb.x - pa.x, pb.z - pa.z).length() / dt
 
 
+## #258: is this event about the killer or the victim? In a match with bots there is always a shot or a
+## hit going on somewhere, so counting every event made "dull" almost impossible and the clip never got
+## cut. A boom carries a position, not a peer, so it cannot be attributed and does not count.
+static func event_hits(e: Array, killer: int, victim: int) -> bool:
+	if e.size() < 3 or typeof(e[2]) != TYPE_INT:
+		return false
+	var id := int(e[2])
+	return (killer != 0 and id == killer) or (victim != 0 and id == victim)
+
+
 ## #258: is the killer doing something worth watching on frame `i`?
-static func action_at(frames: Array, events: Array, i: int, killer: int) -> bool:
+static func action_at(frames: Array, events: Array, i: int, killer: int, victim := 0) -> bool:
 	if i < 0 or i >= frames.size():
 		return false
 	var st: Variant = (frames[i][1] as Dictionary).get(killer)
@@ -136,15 +151,15 @@ static func action_at(frames: Array, events: Array, i: int, killer: int) -> bool
 		return true
 	var t := float(frames[i][0])
 	for e in events:
-		if absf(float(e[0]) - t) <= DULL_PAD:
+		if absf(float(e[0]) - t) <= DULL_PAD and event_hits(e, killer, victim):
 			return true
 	return false
 
 
 ## #258: where the replay starts: back to the first frame of the run that ends in the kill, with LEAD_IN
-## of run-up. A clip with nothing in it starts MIN_LEN before the kill instead of LOOKBACK, so a boring
-## kill is a short clip.
-static func action_start(frames: Array, events: Array, t_kill: float, killer: int) -> float:
+## of run-up. Never later than MIN_LEN before the kill (a clip that is only a second long leaves you
+## staring at a held frame for the rest of the replay), and a clip with nothing in it starts there too.
+static func action_start(frames: Array, events: Array, t_kill: float, killer: int, victim := 0) -> float:
 	if frames.is_empty():
 		return t_kill - MIN_LEN
 	var floor_t := t_kill - LOOKBACK
@@ -154,27 +169,26 @@ static func action_start(frames: Array, events: Array, t_kill: float, killer: in
 		var t := float(frames[i][0])
 		if t < floor_t:
 			break
-		if not action_at(frames, events, i, killer):
+		if not action_at(frames, events, i, killer, victim):
 			continue
 		if last_action - t > CHAIN_GAP:
 			break # the run that leads into the kill starts after this gap
 		last_action = t
 		earliest = t
-	# Nothing worth watching: a short clip instead of LOOKBACK of walking. A run that is shorter than
-	# MIN_LEN is still the run: the chain is the content, so it is never padded with dead air.
 	if earliest >= t_kill:
 		return clampf(t_kill - MIN_LEN, floor_t, t_kill)
-	return maxf(earliest - LEAD_IN, floor_t)
+	# At least MIN_LEN of clip, even when the run itself is shorter: the replay has to have body.
+	return clampf(minf(earliest - LEAD_IN, t_kill - MIN_LEN), floor_t, t_kill)
 
 
 ## #258: the stretches where nothing happens, as Vector2(start, end) seconds. Only runs longer than
 ## FOLD_MIN are returned, so the playback speed does not flicker from frame to frame.
-static func dull_runs(frames: Array, events: Array, killer: int) -> Array[Vector2]:
+static func dull_runs(frames: Array, events: Array, killer: int, victim := 0) -> Array[Vector2]:
 	var runs: Array[Vector2] = []
 	var start := -1.0
 	for i in frames.size():
 		var t := float(frames[i][0])
-		if action_at(frames, events, i, killer):
+		if action_at(frames, events, i, killer, victim):
 			if start >= 0.0:
 				_close_run(runs, start, t)
 				start = -1.0
@@ -470,13 +484,13 @@ func _start_playback(info: Dictionary) -> void:
 	_clip = clip
 	_clip["info"] = info
 	var frames: Array = clip.frames
+	var victim := int(info.get("v", 0))
 	_t_kill = float(clip.t_kill)
-	# #258: start where the run that ends in the kill starts, and remember which stretches are dead air.
-	_pt = Killcam.action_start(frames, clip.events, _t_kill, killer)
-	_dull = Killcam.dull_runs(frames, clip.events, killer)
-	_t_start = _pt
-	_real_t = 0.0
 	_t_end = minf(_t_kill + POST, float(frames[frames.size() - 1][0]))
+	_real_t = 0.0
+	# #258: fit the clip to the wall clock — start at the run that ends in the kill, pull in earlier
+	# footage (played as tape) when the replay would be short, and spend the rest on the kill's slow motion.
+	_plan_playback(killer, victim)
 	_frame_i = 0
 	_ev_i = 0
 	var events: Array = clip.events
@@ -498,7 +512,54 @@ func _start_playback(info: Dictionary) -> void:
 
 
 func _speed_at(t: float) -> float:
+	if t >= _t_kill - SLOW_FROM and t < _t_kill + SLOW_TO:
+		return _kill_rate
 	return Killcam.rate_at(t, _t_kill, _dull)
+
+
+## #258: fit the clip to the wall clock. The director's start is the run that ends in the kill; when the
+## replay would be shorter than play_length() (because the dead air is fast-forwarded), earlier footage is
+## pulled in — it plays as tape, which is exactly what the fast-forward is for — and whatever is still
+## missing is spent on a longer slow-motion kill. Only a leftover that no rate can absorb is held as a
+## freeze, and that is at most a beat. Sets `_pt`, `_t_start`, `_dull` and `_kill_rate`.
+func _plan_playback(killer: int, victim: int) -> void:
+	var span := SLOW_FROM + SLOW_TO
+	var floor_t := _t_kill - LOOKBACK
+	if not _clip.frames.is_empty():
+		floor_t = maxf(floor_t, float((_clip.frames as Array)[0][0])) # no tape before the first snapshot
+	var start := Killcam.action_start(_clip.frames, _clip.events, _t_kill, killer, victim)
+	var need := 0.0
+	for attempt in 4:
+		_pt = start
+		_t_start = start
+		_dull = Killcam.dull_runs(_clip.frames, _clip.events, killer, victim)
+		need = play_length() - (_real_for(SLOW) - span / SLOW)
+		if need <= span:
+			break # the clip is long enough at the planned rates
+		# Earlier footage buys wall clock: one clip-second of tape plays at 1/FAST.
+		var buy := minf(need * Killcam.FAST, start - floor_t)
+		if buy <= 0.01:
+			break
+		start = maxf(floor_t, start - buy)
+	_kill_rate = SLOW
+	if need > span:
+		_kill_rate = clampf(span / maxf(need, 0.01), KILL_RATE_MIN, SLOW)
+
+
+## #258: how long the replay would take at the planned rates if the kill window ran at `rate`.
+func _real_for(rate: float) -> float:
+	var total := 0.0
+	var frames: Array = _clip.frames
+	for i in range(frames.size() - 1):
+		var t := float(frames[i][0])
+		if t < _pt or t >= _t_end:
+			continue
+		var dt := float(frames[i + 1][0]) - t
+		if t >= _t_kill - SLOW_FROM and t < _t_kill + SLOW_TO:
+			total += dt / maxf(rate, 0.01)
+		else:
+			total += dt / Killcam.rate_at(t, _t_kill, _dull)
+	return total
 
 
 ## #258: the VHS fast-forward. Scanlines, a rolling tracking band, tape noise that flickers per frame and
@@ -534,7 +595,7 @@ func _draw_vhs(canvas: Control) -> void:
 	canvas.draw_string(font, Vector2(28.0, h - BAR_H + 2.0), tc, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 1, 1, 0.55 * a))
 
 
-## #258: the payout climbs with the bank and lands on the kill, and the title shows ▶▶ while the replay
+## #258: the payout climbs with the bank and lands on the kill, and the title shows >> while the replay
 ## is fast-forwarding.
 func _update_title() -> void:
 	if _title == null or _clip.is_empty():
@@ -697,7 +758,8 @@ func _play_landed(info: Dictionary) -> void:
 	_sfx_land.pitch_scale = clampf(0.94 + float(bank) / 5000.0, 0.94, 1.15)
 	_sfx_land.play()
 	if bank >= SPECIAL_BANK and _sfx_special != null:
-		get_tree().create_timer(0.14).timeout.connect(_sfx_special.play)
+		# The replay may end before the timer fires (a very short clip): then the sting stays quiet.
+		get_tree().create_timer(0.14).timeout.connect(func(): if _playing and _sfx_special != null: _sfx_special.play())
 
 
 func _replay_fire(peer_id: int, weapon_id: StringName, speed: float, is_killer: bool) -> void:
