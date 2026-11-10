@@ -57,6 +57,13 @@ var _cooldown := 0.0
 var _click_left := 0.0 # buffered semi-auto click (see _wants_fire)
 var _reload_left := 0.0
 var _reload_dip := Vector3.ZERO
+## #252: the style's own gun rotation while reloading, and the loose parts it moves. Props are built in
+## `_setup_reload_rig`, not in the scene; the left hand is the pawn's own CrystalHands.
+var _reload_rot := Vector3.ZERO
+var _reload_shells := 1
+var _reload_mag: MeshInstance3D
+var _reload_shell: MeshInstance3D
+var _reload_cover: MeshInstance3D
 var _flash_left := 0.0
 var _kick_offset := Vector3.ZERO
 var _bob_t := 0.0
@@ -105,6 +112,7 @@ func _ready() -> void:
 	muzzle_light.visible = false
 	_hide_blockout_meshes()
 	_setup_view_models()
+	_setup_reload_rig()
 	if slots.is_empty():
 		slots = LOADOUT.duplicate()
 	_equip_def(def, false)
@@ -182,16 +190,14 @@ func _process(delta: float) -> void:
 	if _reload_left > 0.0:
 		_reload_left = maxf(_reload_left - delta, 0.0)
 		var t := 1.0 - (_reload_left / def.reload_time)
-		# Procedural reload (#164): tilt, dip, and a small mag "pop" at the swap. Timed on the weapon's
-		# own reload_time, so a shotgun and a rifle read differently without per-weapon animation data.
-		rotation.x = sin(t * PI) * 0.55
-		_reload_dip = Vector3(0.0, -0.05 * sin(t * PI), 0.02 * sin(t * PI)) \
-				+ Vector3(0.0, -0.012, 0.0) * sin(clampf((t - 0.45) / 0.2, 0.0, 1.0) * PI)
+		# Procedural reload (#252): each gun plays its own style (mag, shells, cylinder, bolt) sampled
+		# from ReloadAnims on this reload's own progress, so a shotgun and a rifle read differently.
+		_apply_reload_pose(t)
 		if _reload_left <= 0.0:
 			ammo = def.mag_size
 			_new_mag(def.id)
 			_save_weapon_state()
-			rotation.x = 0.0
+			_reset_reload_pose()
 			_refresh_hud()
 
 	_kick_offset = _kick_offset.lerp(Vector3.ZERO, 1.0 - exp(-14.0 * delta))
@@ -204,8 +210,9 @@ func _process(delta: float) -> void:
 	var rest := _view_rest.lerp(_ads_pose(), smoothstep(0.0, 1.0, _ads_k))
 	var sway := _tick_sway(delta)
 	position = rest + _kick_offset + bob * (1.0 - _ads_k * 0.7) + sway + _reload_dip
-	rotation.y = _sway_rot.y
-	rotation.z = _sway_rot.z
+	rotation.x = _reload_rot.x
+	rotation.y = _sway_rot.y + _reload_rot.y
+	rotation.z = _sway_rot.z + _reload_rot.z
 	_tick_melee_pose(delta, _kick_offset + bob + sway)
 	_tick_throw_pose(delta)
 
@@ -473,7 +480,7 @@ func _equip_def(weapon_def: WeaponDef, save_current: bool = true) -> void:
 	var state := _load_weapon_state(def.id)
 	ammo = int(state.ammo)
 	_reload_left = 0.0
-	rotation.x = 0.0
+	_reset_reload_pose()
 	if def.fire_sound:
 		fire_sfx.stream = def.fire_sound
 	_apply_view_for_def()
@@ -506,7 +513,7 @@ func mag_of(id: StringName) -> int:
 
 func _cancel_reload() -> void:
 	_reload_left = 0.0
-	rotation.x = 0.0
+	_reset_reload_pose()
 	if reload_sfx and reload_sfx.playing:
 		reload_sfx.stop()
 	var hud := _hud_node()
@@ -553,6 +560,90 @@ func _hide_blockout_meshes() -> void:
 		barrel.visible = false
 	if mag:
 		mag.visible = false
+
+
+## #252: the loose parts a reload moves — a magazine, one shell and the LMG's feed cover. Built here
+## instead of in the .tscn, so the scene keeps carrying only the gun, and they are all no-shadow
+## children of the weapon so the gun's tilt carries them. The left hand is not built here: it is the
+## pawn's own first-person CrystalHands, which `_place_reload_props` pulls to the mag.
+func _setup_reload_rig() -> void:
+	var shell := CrystalMesh.shell_material()
+	var glow := CrystalMesh.glow_material(Color(0.55, 0.78, 1.0))
+	_reload_mag = _reload_prop(_reload_box(Vector3(0.045, 0.11, 0.07)), glow)
+	_reload_shell = _reload_prop(_reload_box(Vector3(0.028, 0.03, 0.028)), glow)
+	_reload_cover = _reload_prop(_reload_box(Vector3(0.07, 0.012, 0.10)), shell)
+
+
+func _reload_prop(mesh: Mesh, mat: Material) -> MeshInstance3D:
+	var m := MeshInstance3D.new()
+	m.mesh = mesh
+	m.material_override = mat
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	m.visible = false
+	add_child(m)
+	return m
+
+
+func _reload_box(size: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = size
+	return b
+
+
+## Samples the gun's reload style at progress `t` and puts the viewmodel and the props there.
+func _apply_reload_pose(t: float) -> void:
+	var s := ReloadAnims.solve(def.reload_style, t, _reload_shells, def.reload_cover)
+	_reload_rot = s.rot
+	_reload_dip = s.pos
+	_place_reload_props(s)
+
+
+## Puts the loose parts where the style wants them and pulls the first-person left hand off the gun
+## toward the mag / port / cylinder. A scoped gun hides its model while aiming, so the props hide with
+## it; the hands already follow `model_shown()` themselves.
+func _place_reload_props(s: Dictionary) -> void:
+	_reload_mag.visible = false
+	_reload_shell.visible = false
+	_reload_cover.visible = false
+	var hidden := _reload_left <= 0.0 or not model_shown()
+	if not hidden:
+		match def.reload_style:
+			ReloadAnims.SHELLS:
+				_reload_shell.visible = true
+				_reload_shell.position = (s.hand as Vector3) + Vector3(0.0, 0.02, -0.04)
+			ReloadAnims.MAG:
+				_reload_mag.visible = true
+				_reload_mag.position = ReloadAnims.MAG_WELL.lerp(ReloadAnims.MAG_DROPPED, float(s.mag))
+				_reload_mag.rotation.z = -0.4 * float(s.mag)
+				_reload_cover.visible = def.reload_cover
+				_reload_cover.position = ReloadAnims.COVER_CLOSED.lerp(ReloadAnims.COVER_OPEN, float(s.cover))
+				_reload_cover.rotation.x = -0.9 * float(s.cover)
+	var hands := view_hands()
+	if hands == null:
+		return
+	if hidden or float(s.hand_w) <= 0.001:
+		hands.reach[0] = [Vector3.ZERO, 0.0]
+	else:
+		hands.reach[0] = [hands.to_local(to_global(s.hand)), float(s.hand_w)]
+
+
+## The pawn's first-person crystal hands, if it has them (a local human with arms enabled).
+func view_hands() -> CrystalHands:
+	var cam := get_parent()
+	if cam == null:
+		return null
+	return cam.get_node_or_null("ViewHands") as CrystalHands
+
+
+func _reset_reload_pose() -> void:
+	_reload_rot = Vector3.ZERO
+	_reload_dip = Vector3.ZERO
+	for m in [_reload_mag, _reload_shell, _reload_cover]:
+		if m != null:
+			(m as MeshInstance3D).visible = false
+	var hands := view_hands()
+	if hands != null:
+		hands.reach[0] = [Vector3.ZERO, 0.0]
 
 
 func _setup_view_models() -> void:
@@ -932,6 +1023,8 @@ func _start_reload() -> void:
 	if _reload_left > 0.0 or ammo == def.mag_size:
 		return
 	_reload_left = def.reload_time
+	# #252: the shells style plays one insert loop per round the tube is missing.
+	_reload_shells = maxi(def.mag_size - ammo, 1)
 	_save_weapon_state()
 	_play_reload_sfx()
 	_refresh_hud()

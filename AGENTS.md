@@ -48,6 +48,23 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #252 (1/2, first person): a reload looks like its gun now. `WeaponDef.reload_style` picks one of four
+  styles — `mag` (rifle, smg, pistol, lmg), `shells` (shotgun, slug), `cylinder` (revolver), `bolt`
+  (sniper) — and `scripts/reload_anims.gd` turns each into keyframed curves over the reload's own
+  progress: gun rotation/offset, where the left hand goes, and the travel of the loose parts. Data, not
+  branches: `solve(style, t, shells, cover)` returns one pose, `check_reload_anim` samples it without a
+  pawn, and `Weapon` applies it. `accelerate`-free and no new assets: the magazine, the shell and the
+  LMG's feed cover are procedural crystal blocks (`Weapon._setup_reload_rig`), and the left hand is the
+  pawn's own first-person `CrystalHands`, pulled off the foregrip with its `reach` weight. The `mag`
+  style tilts the gun ~35° on its side, drops the old mag, seats a new one with a jolt at ~60% and pulls
+  the charging handle at ~85%; `shells` loads one shell per missing round over its load window and ends
+  with a pump; `cylinder` rolls 70°, flicks the cases out and closes with a spin; `bolt` lifts the gun,
+  pulls the bolt back 7 cm and seats a clip. `reload_cover` (LMG only) hinges the feed cover open at
+  18-74%. Every style beats the amplitude floor the eye needs (0.3 rad of gun, 12 cm of hand) and the
+  four differ measurably at 25/50/75%. `tools/shot_reload` renders one image per style per point
+  (xvfb-run; not in CI). Timing, ammo and netcode are untouched — the body pose and the remote sync are
+  the second half of #252.
+
 - #251: a carry steered instead of drifted. `Movement.accelerate` only adds speed along the wish direction, so at 15 m/s the old forward speed stayed put and a held key bent the path sideways — the "ice" feel Gianni reported, since `CARRY_FRICTION` 0.06 is 150x less than ground friction. The carry branch now turns the horizontal velocity toward the wish direction at `CARRY_TURN_RATE` (7 rad/s) with its speed kept (`Movement.carry_steer`, the same trick as #152's `air_steer`), a wish further than `CARRY_COUNTER_ANGLE` (120°) brakes on `CARRY_COUNTER_FRICTION` (5) instead of turning, no keys keeps `CARRY_RELEASE_FRICTION`, and `CARRY_TIME` went 4.0 -> 2.5 with the last `CARRY_FADE` (0.6 s) ramping the friction up to `GROUND_FRICTION` so the end is a slope and not a cut (the worst frame went 2.15 -> 0.56 m/s). The landing roll steers through the same helper at `ROLL_TURN_RATE` (3.5). All six are `##` tunables. `check_carry_grip` drives a real pawn through every case; with the old `accelerate` back it turns 28° instead of 90°, with the fade removed it drops 2.15 m/s in one frame.
 
 - #249: a landing roll cannot be cut by a jump any more. The dive -> tap space hop carried the whole `DIVE_MAX` (15 m/s) into the air, repeatable every `DIVE_COOLDOWN`, because the grounded jump branch runs before `Movement.tick_dive_roll` and never looked at `_diving`/`_roll_t`. The first `ROLL_JUMP_LOCK` (0.3 s) of a roll now refuses the jump and holds the press in the buffer instead of eating it, and a jump out of the roll drops the horizontal speed to `SPRINT_SPEED`; rolling the roll out still pays `ROLL_CARRY`, so finishing it is the reward. Slide-dive and wall jump are untouched. `check_dive_jump` drives a real pawn through slide -> dive -> roll and jumps at the landing frame, inside the lock and after it.
