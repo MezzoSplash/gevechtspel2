@@ -210,6 +210,12 @@ const DIVE_UP_GROUND := 4.8
 const DIVE_UP_AIR := 2.0
 const DIVE_MIN_SPEED := 6.0
 const ROLL_TIME := 0.55
+## The first ROLL_JUMP_LOCK seconds of a landing roll cannot be cut short by a jump, and a jump out
+## of the roll costs the dive speed: the horizontal velocity drops to SPRINT_SPEED (#249). Rolling it
+## out still pays ROLL_CARRY, so finishing the roll is the reward. Without the lock, jumping on the
+## landing frame (which runs before Movement.tick_dive_roll, so _diving is still true) carried the
+## full DIVE_MAX into a hop, chainable every DIVE_COOLDOWN.
+const ROLL_JUMP_LOCK := 0.3
 const THROW_ANIM_TIME := 0.42 # s, the body's knife-throw flick (#25); the viewmodel uses its own
 const ROLL_FRICTION := 0.25
 const ROLL_CARRY := 1.5 # s of surf-style carry after the roll, so the speed survives it
@@ -918,7 +924,10 @@ func _physics_process(delta: float) -> void:
 	_try_air_dive(on_floor, input_locked)
 	_update_stance(delta, on_floor)
 
-	_jump_buffer = maxf(_jump_buffer - delta, 0.0)
+	# A jump pressed during the roll lock is held, not eaten: the buffer does not run down until the
+	# roll lets a jump through again (#249). Only on the ground, so an air press still expires.
+	if not (on_floor and _roll_jump_locked()):
+		_jump_buffer = maxf(_jump_buffer - delta, 0.0)
 	if (not is_dead) and (not input_locked) and Input.is_action_just_pressed("jump"):
 		_jump_buffer = JUMP_BUFFER
 	var jumped := false
@@ -933,8 +942,9 @@ func _physics_process(delta: float) -> void:
 		_start_dive(true) # sprint + crouch (slide), then jump: dive
 		jumped = true
 		_jump_buffer = 0.0
-	elif (not is_dead) and (not input_locked) and _jump_buffer > 0.0:
+	elif (not is_dead) and (not input_locked) and _jump_buffer > 0.0 and not _roll_jump_locked():
 		_sliding = false
+		var out_of_roll := _roll_t > 0.0
 		_roll_t = 0.0
 		if crouch > 0.2:
 			if not _ceiling_blocked():
@@ -947,6 +957,8 @@ func _physics_process(delta: float) -> void:
 			jumped = true
 		if jumped:
 			_jump_buffer = 0.0
+			if out_of_roll:
+				_cap_roll_jump_speed()
 
 	var input_vec := Vector2.ZERO
 	if not is_dead and not input_locked:
@@ -1820,6 +1832,29 @@ func is_diving() -> bool:
 
 func is_rolling() -> bool:
 	return _roll_t > 0.0
+
+
+## True while a landing roll may not be cut short by a jump (#249): the landing frame itself, where
+## the roll timer has not started yet because _tick_dive_roll runs later in the same tick (_diving is
+## still true), and the first ROLL_JUMP_LOCK seconds of the roll. Only the grounded jump branch asks;
+## the wall-jump path in the air is untouched, so it ignores the lock by construction.
+func _roll_jump_locked() -> bool:
+	if _diving:
+		return true
+	return _roll_t > ROLL_TIME - ROLL_JUMP_LOCK
+
+
+## Jumping out of a landing roll keeps the direction but not the dive speed (#249): rolling the roll
+## out is what pays ROLL_CARRY. The jump tick counts as air (no ground friction), so without this the
+## whole DIVE_MAX carried into the hop.
+func _cap_roll_jump_speed() -> void:
+	var h := Vector3(velocity.x, 0.0, velocity.z)
+	var sp := h.length()
+	if sp <= SPRINT_SPEED:
+		return
+	var k := SPRINT_SPEED / sp
+	velocity.x = h.x * k
+	velocity.z = h.z * k
 
 
 func _try_air_dive(on_floor: bool, locked: bool) -> void:
