@@ -48,6 +48,11 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- v0.5.16 (released): a landing roll cannot be cut by a jump (#249), the carry is steered and hands over at
+  sprint instead of stopping you (#251), every gun has its own reload style in first person and everyone
+  else sees it (#252), and the final killcam is cut around the play with a VHS fast-forward and a landed
+  sting (#258). `NET_VERSION` 0.5.16 - a 0.5.15 peer is refused.
+
 - #258: the killcam is cut around the play. `Killcam` gets a director of pure static functions —
   `event_hits` (only events the killer or victim is part of count; in a bot match there is always a shot
   somewhere else, and unfiltered events made "dull" impossible), `action_at` (a frame counts when the
@@ -82,7 +87,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   pulls the body's left hand off the gun through `CrystalHands.reach` with the same `ReloadAnims` curves
   as the shooter (the reload wins over the wall-run touch). The killcam passes the recorded weapon
   index, so a ghost reloads like the gun it holds. `NET_VERSION` 0.5.16: a 0.5.15 peer shows no reload
-  on anyone else, so it is refused — the release PR for 0.5.16 still has to follow.
+  on anyone else, so it is refused.
 
 - #252 (1/2, first person): a reload looks like its gun now. `WeaponDef.reload_style` picks one of four
   styles — `mag` (rifle, smg, pistol, lmg), `shells` (shotgun, slug), `cylinder` (revolver), `bolt`
