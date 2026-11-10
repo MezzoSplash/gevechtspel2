@@ -48,6 +48,27 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #258: the killcam is cut around the play. `Killcam` gets a director of pure static functions —
+  `event_hits` (only events the killer or victim is part of count; in a bot match there is always a shot
+  somewhere else, and unfiltered events made "dull" impossible), `action_at` (a frame counts when the
+  killer moves faster than `DULL_SPEED` 4 m/s, does a move, or a killer/victim event lands within
+  `DULL_PAD` 0.35 s), `action_start` (walks back from the kill over the run that leads into it, stops at
+  a `CHAIN_GAP` 0.9 s of nothing, `LEAD_IN` of run-up, floored at `LOOKBACK` 9 s and always at least
+  `MIN_LEN` 2.5 s before the kill, so the replay never has to hold a frame for its whole length) and
+  `dull_runs` / `rate_at` (stretches longer than `FOLD_MIN` 0.5 s play at `FAST` 2.5x, the kill window
+  stays slow). `KEEP` went 10 -> 14 s so the start can reach back 9 s and `_slice` cuts the wider
+  window. `_plan_playback` fits the clip to the wall clock: when the fast-forward would make the replay
+  shorter than `play_length()`, earlier footage is pulled in (it plays as tape) and the rest goes into a
+  longer slow-motion kill (`_kill_rate`, floored at `KILL_RATE_MIN` 0.12), so the replay lasts exactly
+  `play_length()` and the server's unlock timing is untouched — at most a beat of held frame. On top:
+  `vhs_amount` drives a VHS fast-forward overlay (`_draw_vhs`: scanlines, a rolling tracking band, tape
+  noise, a `>> SP` OSD with a timecode) that fades over `VHS_FADE` and never covers the kill, the top
+  bar's payout climbs from 0 to the bank and lands on the shot, and `_play_landed` layers the HUD's own
+  combo samples under `_sfx_kill` (the special sting from `SPECIAL_BANK` 400 style, quiet if the replay
+  is already over). Check: `tools/check_killcam_director` (synthetic buffers, no match);
+  `tools/shot_killcam` renders the replay on a real screen (xvfb, `--vhs` forces the overlay into the
+  shots).
+
 - #252 (1/2, first person): a reload looks like its gun now. `WeaponDef.reload_style` picks one of four
   styles — `mag` (rifle, smg, pistol, lmg), `shells` (shotgun, slug), `cylinder` (revolver), `bolt`
   (sniper) — and `scripts/reload_anims.gd` turns each into keyframed curves over the reload's own
