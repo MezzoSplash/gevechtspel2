@@ -17,6 +17,7 @@ kick_fov = 1.35
 range_m = 180.0
 mag_size = 30
 reload_time = 1.55
+reload_style = &"mag"
 tracer_width = 0.022
 fire_sound = ExtResource("2_fire")
 pellet_count = 1

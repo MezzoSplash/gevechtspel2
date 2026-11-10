@@ -14,6 +14,13 @@ extends Resource
 @export var range_m: float = 180.0
 @export var mag_size: int = 30
 @export var reload_time: float = 1.55
+## Reload animation (#252): which of the four styles this gun plays — `mag` (rifle, smg, pistol, lmg),
+## `shells` (shotgun, slug), `cylinder` (revolver) or `bolt` (sniper). See `scripts/reload_anims.gd`.
+## Visual only: the reload still finishes on `reload_time`.
+@export var reload_style: StringName = &"mag"
+## The `mag` style with a hinged feed cover instead of an open well: the LMG's cover lifts at the start
+## of the reload and closes again before the mag is seated (#252).
+@export var reload_cover: bool = false
 @export var tracer_width: float = 0.022
 @export var fire_sound: AudioStream
 @export var pellet_count: int = 1
