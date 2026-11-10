@@ -1027,17 +1027,23 @@ func _physics_process(delta: float) -> void:
 		horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL * 0.5, delta)
 	elif _carry_t > 0.0:
 		# #251: held keys steer the carry instead of drifting through it. The velocity turns toward the
-		# wish direction with its speed kept, so 15 m/s corners like grip; accelerate is gone here because
-		# adding speed along the wish is exactly what left the old forward speed in place.
+		# wish direction with its speed kept, so 15 m/s corners like grip; accelerate is only back during
+		# the fade, where it hands the carry over to normal ground movement: the friction ramps up and
+		# accelerate refills toward wish speed in the same tick, so a carry you run out ends at sprint
+		# and never at a stop (playtest on #251: the boost used to dump you at walking speed).
 		var carry_friction := CARRY_FRICTION
+		var steered := false
 		if wish.length_squared() <= 0.04:
 			carry_friction = CARRY_RELEASE_FRICTION # no keys: brake, so the next shot is a choice
 		elif absf(horiz.signed_angle_to(wish, Vector3.UP)) > CARRY_COUNTER_ANGLE:
 			carry_friction = CARRY_COUNTER_FRICTION # pressing S is braking, not a 180 turn
 		else:
+			steered = true
 			horiz = Movement.carry_steer(horiz, wish, CARRY_TURN_RATE, delta)
 		var fade := clampf(1.0 - _carry_t / CARRY_FADE, 0.0, 1.0)
 		horiz = _friction_amount(horiz, delta, lerpf(carry_friction, GROUND_FRICTION, fade))
+		if steered and not _sliding:
+			horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL, delta)
 	elif _roll_t > 0.0:
 		horiz = _friction_amount(horiz, delta, ROLL_FRICTION) # the roll keeps the dive's speed
 		if wish.length_squared() > 0.04:

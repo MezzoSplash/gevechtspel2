@@ -113,9 +113,12 @@ func _release() -> void:
 
 ## The carry used to end on a hard cut (ground friction 10 hits in one frame, ~2 m/s gone at carry
 ## speed). The last CARRY_FADE seconds ramp it in, so no single frame may lose 1 m/s or more.
+## Running a carry out has to hand over to normal ground movement at sprint, not at a stop (playtest on
+## #251): the fade ramps the friction up and accelerate refills toward wish speed in the same tick.
 func _fade() -> void:
 	_ok(Player.CARRY_FADE < Player.CARRY_TIME, "CARRY_FADE (%.2f s) fits inside CARRY_TIME (%.1f s)" % [Player.CARRY_FADE, Player.CARRY_TIME])
 	await _into_carry()
+	Input.action_press("sprint")
 	Input.action_press("move_forward") # straight ahead: no turn, so only the friction shows
 	var prev := _hspeed()
 	var max_drop := 0.0
@@ -132,9 +135,10 @@ func _fade() -> void:
 		if sp_end >= 0.0 and i > int(Player.CARRY_TIME * Engine.physics_ticks_per_second) + 30:
 			break
 	Input.action_release("move_forward")
+	Input.action_release("sprint")
 	print("  fade: carry over after %d frames, %.1f m/s at the end, worst frame -%.2f m/s" % [frames, sp_end, max_drop])
 	_ok(sp_end >= 0.0, "the carry still ends on its own without a jump")
-	_ok(sp_end < 5.0, "the tail bleeds the speed off (%.1f m/s when the carry ends)" % sp_end)
+	_ok(sp_end >= Player.SPRINT_SPEED - 1.0, "and hands over at sprint, not at a stop (%.1f m/s)" % sp_end)
 	_ok(max_drop < 1.0, "no frame drops 1 m/s or more (worst %.2f m/s)" % max_drop)
 	await _frames(60)
 
