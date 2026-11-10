@@ -20,7 +20,9 @@ func _h(p: Player) -> float:
 
 func _ready() -> void:
 	Game.mode = Game.MODE_FFA
-	_ok(Game.NET_VERSION == "0.5.15", "NET_VERSION is 0.5.15")
+	# Only that it is a version at all: a hard 0.5.x pin here meant every protocol bump broke this
+	# check for a reason that had nothing to do with LOS.
+	_ok(Game.NET_VERSION.count(".") == 2 and Game.NET_VERSION.length() >= 5, "NET_VERSION is set (%s)" % Game.NET_VERSION)
 	_charges()
 	_style_rules()
 	var floor := StaticBody3D.new()

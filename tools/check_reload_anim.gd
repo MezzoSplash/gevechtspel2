@@ -53,8 +53,8 @@ func _ready() -> void:
 	get_tree().root.add_child.call_deferred(main)
 	await get_tree().create_timer(1.0).timeout
 	var menu = main.get_node("CanvasLayer/Menu")
-	Game.last_bots = 0
-	Game.bot_count = 0
+	Game.last_bots = 1
+	Game.bot_count = 1
 	menu.set_match_choice(&"townhouses", Game.MODE_FFA)
 	menu.play_local_pressed.emit()
 	# Wait for the round itself: a reload started during the round-start freeze is cancelled by the
@@ -142,6 +142,37 @@ func _ready() -> void:
 	_ok(w.reload_anim() > 0.3, "the shotgun reload runs (%.2f)" % w.reload_anim())
 	_ok(w.rotation.length() > ReloadAnims.MIN_ROT, "and takes the shells pose (%.2f rad)" % w.rotation.length())
 	_ok(not is_equal_approx(w.rotation.length(), rifle_mid_rot), "which is not the rifle's pose (%.2f vs %.2f rad)" % [w.rotation.length(), rifle_mid_rot])
+
+	# 6) #252 part 2: a reload that arrives over the wire. Game.sync_reload is what every other client
+	# runs, so driving a bot through it tests the real path: the body reports the reload and its left
+	# hand leaves the gun.
+	var bot: Player = null
+	for n in get_tree().get_nodes_in_group("player"):
+		var cand := n as Player
+		if cand != null and cand.is_bot and cand.weapon != null:
+			bot = cand
+			break
+	_ok(bot != null, "there is a remote pawn to reload")
+	if bot != null:
+		var bot_crystal := CrystalBody.ensure(bot.body_mesh)
+		Game.sync_reload(bot.peer_id, 2, 1.5) # index 2 is the shotgun: the shells style
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		_ok(bot.reload_amt() > 0.0 and bot.reload_amt() < 0.3, "the pawn reloads from the sync (%.2f)" % bot.reload_amt())
+		_ok(bot.reload_style() == ReloadAnims.SHELLS, "with the style of the gun that was reloaded (%s)" % bot.reload_style())
+		for i in 200:
+			await get_tree().physics_frame
+			if bot.reload_amt() > 0.4:
+				break
+		var hand_w := float(bot_crystal.hands.reach[0][1]) if bot_crystal != null and bot_crystal.hands != null else 0.0
+		_ok(hand_w > 0.3, "and the body's left hand leaves the gun mid-reload (weight %.2f)" % hand_w)
+		for i in 200:
+			await get_tree().physics_frame
+			if bot.reload_amt() <= 0.0:
+				break
+		_ok(is_equal_approx(bot.reload_amt(), 0.0), "the synced reload ends on its own time")
+		if bot.weapon.def.reload_style != ReloadAnims.SHELLS:
+			_ok(bot.reload_style() != ReloadAnims.SHELLS, "and the body is back on its own gun's style (%s)" % bot.reload_style())
 
 	print("RELOAD ANIM CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
