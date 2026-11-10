@@ -776,6 +776,10 @@ func _die() -> void:
 		LosHands.abort_for(los_id)
 	Game.killcam.note_death(peer_id)
 	velocity = Vector3.ZERO
+	# #252: dying ends a reload. The weapon tells the other clients (a 0 on sync_reload) so a corpse and
+	# the respawned body never show a hand stuck on the mag.
+	if weapon != null:
+		weapon.cancel_reload()
 	_carry_t = 0.0
 	_was_surfing = false
 	collision_layer = 0

@@ -462,6 +462,9 @@ func equip_remote(id: StringName) -> void:
 	if w == null or (def != null and w.id == def.id):
 		return
 	_equip_def(w, false)
+	# #252: a switch ends a reload, and the stop message is unreliable: do not keep a hand on the mag of
+	# the gun this pawn no longer holds.
+	_remote_reload_t = 0.0
 	drawn_ms = Time.get_ticks_msec() # the server's view of a client's real switch (QUICKDRAW)
 
 
@@ -519,8 +522,13 @@ func mag_of(id: StringName) -> int:
 
 
 func _cancel_reload() -> void:
+	var was := _reload_left > 0.0
 	_reload_left = 0.0
 	_reset_reload_pose()
+	if was:
+		# #252: a reload that ends early has to end on every client too, otherwise the body keeps the
+		# hand at the mag after a weapon switch, a melee or a throw.
+		Game.notify_reload(owner as Player, _active_index, 0.0)
 	if reload_sfx and reload_sfx.playing:
 		reload_sfx.stop()
 	var hud := _hud_node()
@@ -975,13 +983,26 @@ func reload_style_now() -> StringName:
 
 
 ## #252: someone else started a reload (`Game.sync_reload`). This weapon draws no viewmodel, so it only
-## keeps the timer the body reads; `reload_anim` reports the same progress the shooter sees.
+## keeps the timer the body reads; `reload_anim` reports the same progress the shooter sees. A time of 0
+## means the reload ended early (death, weapon switch, melee, a knife throw): stop instead of playing it
+## out.
 func play_remote_reload(weapon_index: int, reload_time: float) -> void:
+	if reload_time <= 0.0:
+		_remote_reload_t = 0.0
+		return
 	_remote_reload_time = maxf(reload_time, 0.01)
 	_remote_reload_t = _remote_reload_time
 	_remote_reload_style = def.reload_style if def != null else &"mag"
 	if weapon_index >= 0 and weapon_index < LOADOUT.size():
 		_remote_reload_style = LOADOUT[weapon_index].reload_style
+
+
+## #252: death and anything else that ends a reload without finishing it. Stops the local animation and
+## tells the other clients (a time of 0 on `sync_reload`), so their body drops the reload immediately
+## instead of playing it out on a corpse or the new gun.
+func cancel_reload() -> void:
+	_cancel_reload()
+	_remote_reload_t = 0.0
 
 
 func is_throwing() -> bool:
@@ -1016,8 +1037,11 @@ func refill() -> void:
 		}
 		_new_mag(weapon_def.id)
 	ammo = def.mag_size
-	_reload_left = 0.0
-	rotation.x = 0.0
+	if _reload_left > 0.0:
+		# #252: a fresh magazine ends the reload here, and everyone else has to hear it too.
+		_reload_left = 0.0
+		Game.notify_reload(owner as Player, _active_index, 0.0)
+	_reset_reload_pose()
 	_refresh_hud()
 
 

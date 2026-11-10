@@ -171,8 +171,21 @@ func _ready() -> void:
 			if bot.reload_amt() <= 0.0:
 				break
 		_ok(is_equal_approx(bot.reload_amt(), 0.0), "the synced reload ends on its own time")
-		if bot.weapon.def.reload_style != ReloadAnims.SHELLS:
-			_ok(bot.reload_style() != ReloadAnims.SHELLS, "and the body is back on its own gun's style (%s)" % bot.reload_style())
+		_ok(bot.reload_style() == bot.weapon.def.reload_style, "and the body is back on its own gun's style (%s)" % bot.reload_style())
+
+		# 7) A reload that ends early has to end on the other clients too: death, a weapon switch or a
+		# melee sends a 0 and the body drops it immediately instead of playing it out.
+		Game.sync_reload(bot.peer_id, 2, 1.5)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		_ok(bot.reload_amt() > 0.0, "a second synced reload starts (%.2f)" % bot.reload_amt())
+		Game.sync_reload(bot.peer_id, 2, 0.0)
+		await get_tree().physics_frame
+		_ok(is_equal_approx(bot.reload_amt(), 0.0), "a 0 stops it at once (death, switch, melee)")
+		var stopped_crystal := CrystalBody.ensure(bot.body_mesh)
+		await get_tree().physics_frame
+		var stop_w := float(stopped_crystal.hands.reach[0][1]) if stopped_crystal != null and stopped_crystal.hands != null else 0.0
+		_ok(stop_w <= 0.001, "and the body's hand goes back to the gun (weight %.2f)" % stop_w)
 
 	print("RELOAD ANIM CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
