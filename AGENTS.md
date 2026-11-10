@@ -57,10 +57,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   `MIN_LEN` 2.5 s before the kill, so the replay never has to hold a frame for its whole length) and
   `dull_runs` / `rate_at` (stretches longer than `FOLD_MIN` 0.5 s play at `FAST` 2.5x, the kill window
   stays slow). `KEEP` went 10 -> 14 s so the start can reach back 9 s and `_slice` cuts the wider
-  window. `_plan_playback` fits the clip to the wall clock: when the fast-forward would make the replay
-  shorter than `play_length()`, earlier footage is pulled in (it plays as tape) and the rest goes into a
-  longer slow-motion kill (`_kill_rate`, floored at `KILL_RATE_MIN` 0.12), so the replay lasts exactly
-  `play_length()` and the server's unlock timing is untouched — at most a beat of held frame. On top:
+  window. `_plan_playback` fits the clip to the wall clock and `_rate` is the only playback rate: when the
+  fast-forward would make the replay shorter than `play_length()`, earlier footage is pulled in (it plays
+  as tape) and the rest goes into the kill's slow motion (`_kill_rate`, from `KILL_RATE_MIN` 0.12 up to
+  real time); when the clip is too long — a 9 s chain at 1x used to run past the server's unlock and get
+  cut off before the kill — everything before the last `RUNUP_KEEP` (1.5 s) is compressed up to
+  `MAX_RUNUP` (3x), with the same VHS look. Either way the replay lasts exactly `play_length()`, so the
+  kill is always shown and the server's unlock timing is untouched (at most a beat of held frame). On top:
   `vhs_amount` drives a VHS fast-forward overlay (`_draw_vhs`: scanlines, a rolling tracking band, tape
   noise, a `>> SP` OSD with a timecode) that fades over `VHS_FADE` and never covers the kill, the top
   bar's payout climbs from 0 to the bank and lands on the shot, and `_play_landed` layers the HUD's own
@@ -98,7 +101,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   (xvfb-run; not in CI). Timing, ammo and netcode are untouched — the body pose and the remote sync are
   the second half of #252.
 
-- #251: a carry steered instead of drifted. `Movement.accelerate` only adds speed along the wish direction, so at 15 m/s the old forward speed stayed put and a held key bent the path sideways — the "ice" feel Gianni reported, since `CARRY_FRICTION` 0.06 is 150x less than ground friction. The carry branch now turns the horizontal velocity toward the wish direction at `CARRY_TURN_RATE` (7 rad/s) with its speed kept (`Movement.carry_steer`, the same trick as #152's `air_steer`), a wish further than `CARRY_COUNTER_ANGLE` (120°) brakes on `CARRY_COUNTER_FRICTION` (5) instead of turning, no keys keeps `CARRY_RELEASE_FRICTION`, and `CARRY_TIME` went 4.0 -> 2.5 with the last `CARRY_FADE` (0.6 s) ramping the friction up to `GROUND_FRICTION` so the end is a slope and not a cut (the worst frame went 2.15 -> 0.56 m/s). The landing roll steers through the same helper at `ROLL_TURN_RATE` (3.5). All six are `##` tunables. `check_carry_grip` drives a real pawn through every case; with the old `accelerate` back it turns 28° instead of 90°, with the fade removed it drops 2.15 m/s in one frame.
+- #251: a carry steered instead of drifted. `Movement.accelerate` only adds speed along the wish direction, so at 15 m/s the old forward speed stayed put and a held key bent the path sideways — the "ice" feel Gianni reported, since `CARRY_FRICTION` 0.06 is 150x less than ground friction. The carry branch now turns the horizontal velocity toward the wish direction at `CARRY_TURN_RATE` (7 rad/s) with its speed kept (`Movement.carry_steer`, the same trick as #152's `air_steer`), a wish further than `CARRY_COUNTER_ANGLE` (120°) brakes on `CARRY_COUNTER_FRICTION` (5) instead of turning, no keys keeps `CARRY_RELEASE_FRICTION`, and `CARRY_TIME` went 4.0 -> 2.5 with the last `CARRY_FADE` (0.6 s) ramping the friction up to `GROUND_FRICTION` while `accelerate` refills toward wish speed in the same tick (only while steering), so a carry you run out hands over at sprint instead of dumping you at walking speed (playtest; worst frame 2.15 -> 0.40 m/s, ending at 11.4 m/s). The landing roll steers through the same helper at `ROLL_TURN_RATE` (3.5). All six are `##` tunables. `check_carry_grip` drives a real pawn through every case; with the old `accelerate` back it turns 28° instead of 90°, with the fade removed it drops 2.15 m/s in one frame.
 
 - #249: a landing roll cannot be cut by a jump any more. The dive -> tap space hop carried the whole `DIVE_MAX` (15 m/s) into the air, repeatable every `DIVE_COOLDOWN`, because the grounded jump branch runs before `Movement.tick_dive_roll` and never looked at `_diving`/`_roll_t`. The first `ROLL_JUMP_LOCK` (0.3 s) of a roll now refuses the jump and holds the press in the buffer instead of eating it, and a jump out of the roll drops the horizontal speed to `SPRINT_SPEED`; rolling the roll out still pays `ROLL_CARRY`, so finishing it is the reward. Slide-dive and wall jump are untouched. `check_dive_jump` drives a real pawn through slide -> dive -> roll and jumps at the landing frame, inside the lock and after it.
 
