@@ -2,6 +2,8 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**Unreleased** — A landing roll can no longer be cut by a jump: the first `ROLL_JUMP_LOCK` (0.3 s) of the roll refuses it and holds the press in the jump buffer, and jumping out of the roll drops the horizontal speed to sprint instead of carrying the dive's 15 m/s, while rolling the roll out still pays `ROLL_CARRY`. Slide-dive and wall jump are unchanged. No protocol change.
+
 **v0.5.15** — The pickups are on every map: Foundry, Rooftops, Quay and Skyline get the same three pads as Townhouses (Extra Messen, Schildplaat, Herstelkern), placed against each map's geometry and verified by a new check that bakes the navmesh and walks from a spawn to every pad. **Not compatible with v0.5.14** (NET_VERSION 0.5.15): a 0.5.14 client knows no pads outside Townhouses, so everyone must update, including the dedicated server.
 
 **v0.5.14** — Map pickups: three server-authoritative pads on Townhouses (Extra Messen, Schildplaat, Herstelkern) with the spec's effects and respawn times, armour that absorbs damage before HP and shows as a thin bar above the HP bar, a procedural plinth/ring/floating-crystal look per type, a radial respawn fill, and a HUD popup that says what happened ("MESSEN +2", "SCHILD", "+45 HP") with the knife counter blinking. A pickup stays put when it would do nothing. **Not compatible with v0.5.13** (NET_VERSION 0.5.14): two new state RPCs and an armour field on the hurt broadcast, so everyone must update, including the dedicated server.

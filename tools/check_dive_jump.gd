@@ -113,6 +113,8 @@ func _lock() -> void:
 		if me.is_rolling():
 			rolled_frames += 1
 			fx_is_roll = fx_is_roll and me.move_fx == Player.MOVE_ROLL
+		# A jump is the only upward velocity in this scenario: a roll runs flat on the floor and never
+		# adds vy, and the dive already ended on the landing frame. So vy > 1.0 is the jump.
 		if jump_frame < 0 and me.velocity.y > 1.0:
 			jump_frame = i
 			sp_jump = Vector2(me.velocity.x, me.velocity.z).length()
@@ -170,6 +172,34 @@ func _sprint_jump() -> void:
 	_ok(vy > 5.0, "a plain sprint jump still jumps")
 	_ok(sp >= Player.SPRINT_SPEED - 0.2, "and keeps its sprint speed (the cap is roll-only)")
 	_release_all()
+	await _frames(30)
+
+
+## The lock only exists in the grounded branch: a wall jump in the air still fires. Same setup as
+## check_movement, kept short here (#249 asks for both the slide-dive and the wall jump unchanged).
+func _wall_jump() -> void:
+	await _place(BASE + Vector3(58.9, 0.05, -60), Vector3(0, 1.0, Player.SPRINT_SPEED), PI)
+	Input.action_press("sprint")
+	Input.action_press("move_forward")
+	var running := false
+	for i in 30:
+		await _frames(1)
+		if me.is_wallrunning():
+			running = true
+			break
+	_ok(running, "wallrun before the wall jump")
+	if not running:
+		_release_all()
+		return
+	var jumps0 := me.walljumps
+	Input.action_press("jump")
+	await _frames(3)
+	Input.action_release("jump")
+	print("  wall jump: vel %s, walljumps %d" % [str(me.velocity), me.walljumps])
+	_ok(me.walljumps == jumps0 + 1, "a wall jump still fires and is counted")
+	_ok(me.velocity.x < -4.0 and me.velocity.y > 3.0, "and still pushes away from the wall and up")
+	_release_all()
+	await _frames(30)
 
 
 func _ready() -> void:
@@ -198,10 +228,13 @@ func _ready() -> void:
 	Game.pause_open = false
 	await _frames(2)
 	_box(FLOOR + Vector3(0, -0.55, 0), Vector3(60, 1, 200))
+	# Wall for the wall-jump case, off the side of the test floor (the pawn falls past it).
+	_box(BASE + Vector3(60, 0, -40), Vector3(1, 40, 200))
 	await _frames(2)
 	await _lock()
 	await _roll_out()
 	await _sprint_jump()
+	await _wall_jump()
 	_done()
 
 
