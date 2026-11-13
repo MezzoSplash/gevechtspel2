@@ -430,16 +430,18 @@ func active_index() -> int:
 	return _active_index
 
 
-## Armory index of the held gun (killcam frames use it; stable across classes).
+## Armory index of the held gun (killcam frames use it; stable across classes). Never negative, so it
+## always indexes `LOADOUT`; a gun outside the armory reports 0 (the rifle).
 func armory_index() -> int:
-	return _armory_index(def)
+	return maxi(_armory_index(def), 0)
 
 
-## #252: the index a reload travels over the wire with. Always the ARMORY index: the other side turns
-## it back into a style through `LOADOUT`, and a human's slot 0 is only their primary, not the rifle.
-## Keep this the single source for the number Game.notify_reload gets sent.
+## #252: the index a reload travels over the wire with. The ARMORY index, and `-1` when the held gun is
+## not in `LOADOUT` (a bot's gun, or one added after this build), so the receiver falls back to the gun
+## the pawn actually holds instead of playing the rifle's style on it. Keep this the single source for
+## the number Game.notify_reload gets sent.
 func reload_wire_index() -> int:
-	return armory_index()
+	return _armory_index(def)
 
 
 func has_weapon(id: StringName) -> bool:
@@ -568,13 +570,15 @@ func _def_for_id(id: StringName) -> WeaponDef:
 	return null
 
 
+## Index in `LOADOUT`, or -1 when it is not there. Callers that index `LOADOUT` clamp it themselves
+## (`armory_index`); the reload wire keeps the -1, because it means something there.
 func _armory_index(weapon_def: WeaponDef) -> int:
 	if weapon_def == null:
-		return 0
+		return -1
 	for i in LOADOUT.size():
 		if LOADOUT[i].id == weapon_def.id:
 			return i
-	return 0
+	return -1
 
 
 func _hide_blockout_meshes() -> void:
@@ -995,23 +999,24 @@ func reload_style_now() -> StringName:
 ## keeps the timer the body reads; `reload_anim` reports the same progress the shooter sees. A time of 0
 ## means the reload ended early (death, weapon switch, melee, a knife throw): stop instead of playing it
 ## out.
-func play_remote_reload(armory_index: int, reload_time: float) -> void:
+func play_remote_reload(wire_index: int, reload_time: float) -> void:
 	if reload_time <= 0.0:
 		_remote_reload_t = 0.0
 		return
 	_remote_reload_time = maxf(reload_time, 0.01)
 	_remote_reload_t = _remote_reload_time
-	# An index outside the armory (an old peer, or a bot's gun) falls back to the gun this pawn holds.
-	var style := style_for_reload_index(armory_index)
+	# An index outside the armory (-1 from a gun this build does not know, or an old peer) falls back to
+	# the gun this pawn holds.
+	var style := style_for_reload_index(wire_index)
 	_remote_reload_style = style if style != &"" else (def.reload_style if def != null else &"mag")
 
 
 ## #252: the armory index a reload arrived with, turned back into a style. "" when the index is not a
 ## gun this build knows, so the caller can fall back to the gun the pawn is holding.
-static func style_for_reload_index(armory_index: int) -> StringName:
-	if armory_index < 0 or armory_index >= LOADOUT.size():
+static func style_for_reload_index(wire_index: int) -> StringName:
+	if wire_index < 0 or wire_index >= LOADOUT.size():
 		return &""
-	return LOADOUT[armory_index].reload_style
+	return LOADOUT[wire_index].reload_style
 
 
 ## #252: death and anything else that ends a reload without finishing it. Stops the local animation and
