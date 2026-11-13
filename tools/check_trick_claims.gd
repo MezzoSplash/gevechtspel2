@@ -49,14 +49,14 @@ func _ready() -> void:
 
 	# --- wallrun: air + speed + a wall ---
 	p.global_position = BASE + Vector3(-10, 1.0, 0)
-	p._style_in_air = false
+	p._style.in_air = false
 	p._obs_speed = 0.0
 	_ok(not p._claim_backed(Player.MOVE_WALLRUN), "wallrun: standing still in the open is refused")
 	p._obs_speed = Player.SPRINT_SPEED
 	_ok(not p._claim_backed(Player.MOVE_WALLRUN), "wallrun: running in the open is refused (no wall)")
 	p.global_position = BASE + Vector3(1.9, 3.0, 0)
 	_ok(not p._claim_backed(Player.MOVE_WALLRUN), "wallrun: beside a wall on the ground is refused")
-	p._style_in_air = true
+	p._style.in_air = true
 	p._obs_speed = Player.SPRINT_SPEED
 	_ok(p._claim_backed(Player.MOVE_WALLRUN), "wallrun: in the air along a wall is believed")
 	p._obs_speed = Player.WALLRUN_KEEP_SPEED * 0.5
@@ -64,13 +64,13 @@ func _ready() -> void:
 
 	# --- dive: momentum or real air time ---
 	p.global_position = BASE + Vector3(-10, 1.0, 0)
-	p._style_in_air = false
-	p.air_time = 0.0
+	p._style.in_air = false
+	p._style.air_time = 0.0
 	p._obs_speed = 0.0
 	_ok(not p._claim_backed(Player.MOVE_DIVE), "dive: standing still is refused")
-	p.air_time = 0.4
+	p._style.air_time = 0.4
 	_ok(p._claim_backed(Player.MOVE_DIVE), "dive: a real fall is believed")
-	p.air_time = 0.0
+	p._style.air_time = 0.0
 	p._obs_speed = Player.SPRINT_SPEED
 	_ok(p._claim_backed(Player.MOVE_DIVE), "dive: sprint speed is believed")
 

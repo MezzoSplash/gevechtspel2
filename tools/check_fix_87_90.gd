@@ -104,16 +104,16 @@ func _ready() -> void:
 	Game.combo_move(1, Combo.SLIDE)
 	var t_end := Time.get_ticks_msec() + int(Combo.TIME * 1500)
 	while Time.get_ticks_msec() < t_end:
-		me._style_in_air = true
-		me._surf_seen_t = me._style_clock
+		me._style.in_air = true
+		me._style.surf_seen_t = me._style.clock
 		await get_tree().process_frame
 	_ok(Combo.active(Game.combo_of(1)), "combo alive after 1.5× TIME of surfing")
 	_ok(events.any(func(ev: Array) -> bool: return ev[4] == "frozen"), "server sent 'frozen'")
 	_ok(hud.combo_meter.frozen and hud.combo_meter.fill.bg_color == ComboMeter.FROZEN_COLOR, "HUD bar shows frozen")
 	var left := float(Game.combo_of(1).t)
 	_ok(left > Combo.TIME * 0.8, "timer held (%.2f s left)" % left)
-	me._style_in_air = false
-	me._surf_seen_t = -100.0
+	me._style.in_air = false
+	me._style.surf_seen_t = StyleTrack.IDLE_T
 	await get_tree().create_timer(0.3).timeout
 	_ok(not hud.combo_meter.frozen and float(Game.combo_of(1).get("t", 0.0)) < left, "off the ramp: timer runs again")
 	await get_tree().create_timer(Combo.TIME + 0.3).timeout
