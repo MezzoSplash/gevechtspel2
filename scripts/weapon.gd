@@ -63,6 +63,8 @@ var _reload_rot := Vector3.ZERO
 var _reload_shells := 1
 ## #252: a remote pawn's reload, driven by Game.sync_reload: how long it lasts and which style the
 ## shooter's gun plays, so the body matches without being sent the whole weapon def again.
+## The index on the wire is an ARMORY index (`reload_wire_index`), not a slot index: a human's `slots`
+## holds only the two guns of their class, so `LOADOUT[slot_index]` is a different gun.
 var _remote_reload_t := 0.0
 var _remote_reload_time := 0.0
 var _remote_reload_style: StringName = &"mag"
@@ -433,6 +435,13 @@ func armory_index() -> int:
 	return _armory_index(def)
 
 
+## #252: the index a reload travels over the wire with. Always the ARMORY index: the other side turns
+## it back into a style through `LOADOUT`, and a human's slot 0 is only their primary, not the rifle.
+## Keep this the single source for the number Game.notify_reload gets sent.
+func reload_wire_index() -> int:
+	return armory_index()
+
+
 func has_weapon(id: StringName) -> bool:
 	for w in slots:
 		if w.id == id:
@@ -528,7 +537,7 @@ func _cancel_reload() -> void:
 	if was:
 		# #252: a reload that ends early has to end on every client too, otherwise the body keeps the
 		# hand at the mag after a weapon switch, a melee or a throw.
-		Game.notify_reload(owner as Player, _active_index, 0.0)
+		Game.notify_reload(owner as Player, reload_wire_index(), 0.0)
 	if reload_sfx and reload_sfx.playing:
 		reload_sfx.stop()
 	var hud := _hud_node()
@@ -986,15 +995,23 @@ func reload_style_now() -> StringName:
 ## keeps the timer the body reads; `reload_anim` reports the same progress the shooter sees. A time of 0
 ## means the reload ended early (death, weapon switch, melee, a knife throw): stop instead of playing it
 ## out.
-func play_remote_reload(weapon_index: int, reload_time: float) -> void:
+func play_remote_reload(armory_index: int, reload_time: float) -> void:
 	if reload_time <= 0.0:
 		_remote_reload_t = 0.0
 		return
 	_remote_reload_time = maxf(reload_time, 0.01)
 	_remote_reload_t = _remote_reload_time
-	_remote_reload_style = def.reload_style if def != null else &"mag"
-	if weapon_index >= 0 and weapon_index < LOADOUT.size():
-		_remote_reload_style = LOADOUT[weapon_index].reload_style
+	# An index outside the armory (an old peer, or a bot's gun) falls back to the gun this pawn holds.
+	var style := style_for_reload_index(armory_index)
+	_remote_reload_style = style if style != &"" else (def.reload_style if def != null else &"mag")
+
+
+## #252: the armory index a reload arrived with, turned back into a style. "" when the index is not a
+## gun this build knows, so the caller can fall back to the gun the pawn is holding.
+static func style_for_reload_index(armory_index: int) -> StringName:
+	if armory_index < 0 or armory_index >= LOADOUT.size():
+		return &""
+	return LOADOUT[armory_index].reload_style
 
 
 ## #252: death and anything else that ends a reload without finishing it. Stops the local animation and
@@ -1040,7 +1057,7 @@ func refill() -> void:
 	if _reload_left > 0.0:
 		# #252: a fresh magazine ends the reload here, and everyone else has to hear it too.
 		_reload_left = 0.0
-		Game.notify_reload(owner as Player, _active_index, 0.0)
+		Game.notify_reload(owner as Player, reload_wire_index(), 0.0)
 	_reset_reload_pose()
 	_refresh_hud()
 
@@ -1077,7 +1094,7 @@ func _start_reload() -> void:
 	# #252: the shells style plays one insert loop per round the tube is missing.
 	_reload_shells = maxi(def.mag_size - ammo, 1)
 	# #252: tell the other clients, so they play this gun's style on this pawn's body.
-	Game.notify_reload(owner as Player, _active_index, def.reload_time)
+	Game.notify_reload(owner as Player, reload_wire_index(), def.reload_time)
 	_save_weapon_state()
 	_play_reload_sfx()
 	_refresh_hud()
