@@ -503,29 +503,11 @@ func sync_match_config(new_map: String, new_mode: int, kills: int = 0, time_sec:
 	set_match_config(StringName(new_map), new_mode, kills, time_sec)
 
 
+## Map, mode, limits and bot split: see MatchRules.set_config. Kept as a wrapper so every call site and
+## the sync_match_config RPC keep their name.
 func set_match_config(new_map: StringName, new_mode: int, kills: int = -1, time_sec: float = -1.0, bots: int = -1,
 		allies: int = -1, enemies: int = -1) -> void:
-	map_id = new_map if Maps.has(new_map) else Maps.DEFAULT
-	mode = clampi(new_mode, MODE_TDM, MODE_LAST)
-	if mode == MODE_CTF and not CTF.available(map_id):
-		mode = MODE_TDM # #160: no flag bases on this map
-	if mode == MODE_CTF:
-		CTF.setup(self)
-	CtfFlags.ensure(self) # #160: flag visuals only while CTF runs
-	kill_limit = clampi(kills if kills >= KILLS_MIN else last_kills, KILLS_MIN, KILLS_MAX)
-	round_time = time_sec if time_sec >= 60.0 else float(last_time_min * 60)
-	round_time = clampf(round_time, float(TIME_MIN_MINUTES * 60), float(TIME_MAX_MINUTES * 60))
-	bot_count = clampi(bots if bots >= 0 else last_bots, 0, BOT_COUNT_MAX)
-	# Team modes may run an uneven match on purpose (you and a friend against ten bots). FFA has no
-	# sides, so it always uses the single bot_count.
-	if is_ffa() or allies < 0 or enemies < 0:
-		bot_allies = -1
-		bot_enemies = -1
-	else:
-		bot_allies = clampi(allies, 0, BOT_COUNT_MAX)
-		bot_enemies = clampi(enemies, 0, BOT_COUNT_MAX)
-	if match_config_handler.is_valid():
-		match_config_handler.call(map_id, mode)
+	MatchRules.set_config(self, new_map, new_mode, kills, time_sec, bots, allies, enemies)
 
 
 ## Team of this machine's own pawn, -1 when there is none (menu, dedicated server).
@@ -2017,30 +1999,7 @@ func _ready() -> void:
 
 
 func _ensure_sfx_bus() -> void:
-	for bus_name in ["Music", "UI"]:
-		if AudioServer.get_bus_index(bus_name) == -1:
-			var b := AudioServer.bus_count
-			AudioServer.add_bus()
-			AudioServer.set_bus_name(b, bus_name)
-			AudioServer.set_bus_send(b, "Master")
-	if AudioServer.get_bus_index("SFX") != -1:
-		_ensure_enemies_bus()
-		return
-	var i := AudioServer.bus_count
-	AudioServer.add_bus()
-	AudioServer.set_bus_name(i, "SFX")
-	AudioServer.set_bus_send(i, "Master")
-	# Ten guns at once: a soft compressor keeps the mix even, the limiter on Master stops clipping.
-	var comp := AudioEffectCompressor.new()
-	comp.threshold = -16.0
-	comp.ratio = 3.0
-	comp.attack_us = 3000.0
-	comp.release_ms = 140.0
-	AudioServer.add_bus_effect(i, comp)
-	var limiter := AudioEffectHardLimiter.new()
-	limiter.ceiling_db = -0.5
-	AudioServer.add_bus_effect(AudioServer.get_bus_index("Master"), limiter)
-	_ensure_enemies_bus()
+	MatchAudio.ensure_buses()
 
 
 const SHADOW_NAMES := ["Auto (Graphics)", "Off", "Low", "Medium", "High"]
@@ -2090,34 +2049,9 @@ func set_player_name(n: String) -> void:
 	local_name_changed.emit(player_name)
 
 
-## Scoreboard and lobby follow the profile name. Clients ask the server; the host writes it.
+## Scoreboard and lobby follow the profile name: see Lobby.push_live_name.
 func _push_live_name() -> void:
-	if not is_inside_tree() or is_dedicated:
-		return
-	var peer := 1
-	if is_networked():
-		peer = multiplayer.get_unique_id()
-		if not multiplayer.is_server():
-			var peer_obj := multiplayer.multiplayer_peer
-			if peer_obj != null and peer_obj.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
-				submit_display_name.rpc_id(1, player_name)
-				_retitle()
-			return
-	var n := unique_name(peer, player_name)
-	if in_lobby:
-		pending_names[peer] = n
-		var team := preferred_team
-		if lobby.has(peer):
-			team = int(lobby[peer].get("team", team))
-		set_lobby_member(peer, n, team)
-		_retitle()
-		return
-	if player_for_peer(peer) != null or scores.has(peer):
-		if is_networked():
-			apply_display_name.rpc(peer, n)
-		else:
-			apply_display_name(peer, n)
-		_retitle()
+	Lobby.push_live_name(self)
 
 
 func _retitle() -> void:
@@ -2406,15 +2340,6 @@ func _snap_fps(v: int) -> int:
 
 func _snap_scale(v: float) -> float:
 	return GameSettings.snap_scale(self, v)
-
-
-func _ensure_enemies_bus() -> void:
-	if AudioServer.get_bus_index("Enemies") != -1:
-		return
-	var b := AudioServer.bus_count
-	AudioServer.add_bus()
-	AudioServer.set_bus_name(b, "Enemies")
-	AudioServer.set_bus_send(b, "SFX")
 
 
 func set_enemies_vol(v: float) -> void:

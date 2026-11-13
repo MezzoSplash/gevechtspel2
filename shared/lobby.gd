@@ -156,3 +156,34 @@ static func relay_chat(game: GameState, peer_id: int, text: String) -> void:
 ## Puts one chat line on this machine's HUD.
 static func deliver_chat(game: GameState, n: String, team: int, text: String) -> void:
 	game.chat_message.emit(n, team, text)
+
+
+## Scoreboard and lobby follow the profile name. Clients ask the server (submit_display_name), the host
+## writes it straight into the roster. Called from set_player_name, so every rename goes through here.
+static func push_live_name(game: GameState) -> void:
+	if not game.is_inside_tree() or game.is_dedicated:
+		return
+	var peer := 1
+	if game.is_networked():
+		peer = game.multiplayer.get_unique_id()
+		if not game.multiplayer.is_server():
+			var peer_obj := game.multiplayer.multiplayer_peer
+			if peer_obj != null and peer_obj.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+				game.submit_display_name.rpc_id(1, game.player_name)
+				game._retitle()
+			return
+	var n := game.unique_name(peer, game.player_name)
+	if game.in_lobby:
+		game.pending_names[peer] = n
+		var team := game.preferred_team
+		if game.lobby.has(peer):
+			team = int(game.lobby[peer].get("team", team))
+		game.set_lobby_member(peer, n, team)
+		game._retitle()
+		return
+	if game.player_for_peer(peer) != null or game.scores.has(peer):
+		if game.is_networked():
+			game.apply_display_name.rpc(peer, n)
+		else:
+			game.apply_display_name(peer, n)
+		game._retitle()

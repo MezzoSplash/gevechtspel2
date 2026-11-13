@@ -103,3 +103,31 @@ static func clear_round_state(game: Node) -> void:
 	game._shotgun_kill_t.clear()
 	game._hs_streak.clear()
 	game._mags.clear()
+
+
+## Map, mode, kill limit, round length and the bot split for this match, validated and clamped.
+## `-1`/`-1.0` means "keep what the menu chose last time" (the menu's own defaults on a fresh install).
+## Called by the RPC (sync_match_config), by main.tscn's boot paths and by the menu's live picker.
+static func set_config(game: GameState, new_map: StringName, new_mode: int, kills: int = -1, time_sec: float = -1.0,
+		bots: int = -1, allies: int = -1, enemies: int = -1) -> void:
+	game.map_id = new_map if Maps.has(new_map) else Maps.DEFAULT
+	game.mode = clampi(new_mode, game.MODE_TDM, game.MODE_LAST)
+	if game.mode == game.MODE_CTF and not CTF.available(game.map_id):
+		game.mode = game.MODE_TDM # #160: no flag bases on this map
+	if game.mode == game.MODE_CTF:
+		CTF.setup(game)
+	CtfFlags.ensure(game) # #160: flag visuals only while CTF runs
+	game.kill_limit = clampi(kills if kills >= game.KILLS_MIN else game.last_kills, game.KILLS_MIN, game.KILLS_MAX)
+	game.round_time = time_sec if time_sec >= 60.0 else float(game.last_time_min * 60)
+	game.round_time = clampf(game.round_time, float(game.TIME_MIN_MINUTES * 60), float(game.TIME_MAX_MINUTES * 60))
+	game.bot_count = clampi(bots if bots >= 0 else game.last_bots, 0, game.BOT_COUNT_MAX)
+	# Team modes may run an uneven match on purpose (you and a friend against ten bots). FFA has no
+	# sides, so it always uses the single bot_count.
+	if game.is_ffa() or allies < 0 or enemies < 0:
+		game.bot_allies = -1
+		game.bot_enemies = -1
+	else:
+		game.bot_allies = clampi(allies, 0, game.BOT_COUNT_MAX)
+		game.bot_enemies = clampi(enemies, 0, game.BOT_COUNT_MAX)
+	if game.match_config_handler.is_valid():
+		game.match_config_handler.call(game.map_id, game.mode)
