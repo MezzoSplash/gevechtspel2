@@ -277,29 +277,20 @@ var _strip_prev := Vector3.INF
 var _whoosh: AudioStreamPlayer
 var _los_sfx: AudioStreamPlayer # LOS only: the hands leaving and the body snapping back
 var _wind: AudioStreamPlayer # speed FX wind loop (local only); volume/pitch follow the speed
-# Style tracking, match authority only (Style / Game.register_kill): turn history and time in the air.
-var air_time := 0.0 # seconds with free space under the feet
-var _style_clock := 0.0
-var _yaw_samples: Array = [] # [[t, signed yaw delta rad], ...] over the last STYLE_KEEP seconds
-var _style_last_yaw := 0.0
-var _style_has_yaw := false
-var _style_in_air := false
-var _fall_peak := 0.0 # highest y since the feet left the ground
-var _landed_drop := 0.0 # metres of the last fall, from its peak
-var _landed_t := -100.0
-var _surf_seen_t := -100.0 # last _style_clock with a steep ramp beside or under us
-var _style_last_pos := Vector3.INF # teleports (respawn, admin moves) never count as a fall
-var _run_t := 0.0 # s above Style.RUN_GUN_SPEED without stopping (RUN & GUN)
-var _run_low_t := 0.0 # s below it since the last fast tick: past RUN_GUN_GRACE the run is over
-var _wallrun_seen_t := -100.0 # match authority: last _style_clock with move_fx == MOVE_WALLRUN
-var _walljump_seen_t := -100.0
+## Style tracking, match authority only (Style / Game.register_kill): turn history, air time and the
+## movement claims live in the track (shared/style_track.gd). `air_time` is mirrored here because
+## tricks.gd and throwing_knife.gd read it off the pawn.
+var air_time := 0.0 # seconds with free space under the feet (the track's number, for readers)
+## The track is a plain object, not a node: it holds the turn history, the air time and the move
+## claims, and it never touches the network. It is made in _ready, NOT at declaration: a typed
+## `StyleTrack.new()` there runs while player.gd is still compiling, and every script that preloads the
+## pawn fails to compile with it (seen in check_movement, where the dance defines its own _style()).
+var _style: StyleTrack
 var _air_steer_locked := false # #152: no air steering from a wall jump until the floor or the next wallrun
 var _walljumps_seen := -1
-var _dive_seen_t := -100.0
-var _roll_seen_t := -100.0
-const STYLE_KEEP := 1.5
-const STYLE_RAMP_REACH := 1.0 # m from the body centre (capsule radius ~0.45, plus slack)
-const STYLE_TELEPORT_M := 3.0 # one tick moving further than this is a teleport (snapshots move < 1 m)
+## One tick moving further than this is a teleport (respawn, admin moves, an LOS snap); snapshots
+## move less than a metre.
+const STYLE_TELEPORT_M := 3.0
 ## Server-side check on the position a client claims (#B1). A client owns its own pawn, so it also
 ## tells us where it is — and a modified client could say "I am across the map" and shoot from there.
 ## A claim is only accepted if the pawn could have got there since the last accepted one at the
@@ -371,6 +362,7 @@ func _restore_bot_identity() -> void:
 
 
 func _ready() -> void:
+	_style = StyleTrack.new(self)
 	add_to_group("player")
 	floor_snap_length = 0.2
 	collision_layer = 2
@@ -882,7 +874,7 @@ func gun_speed_mult() -> float:
 
 ## Match authority: seconds this pawn has stayed above Style.RUN_GUN_SPEED (0 after any dip).
 func run_time() -> float:
-	return _run_t
+	return _style.run_t if _style != null else 0.0
 
 
 ## Server floor for a remote human's claimed spread: half the walk penalty at the speed we see them move.
@@ -1294,7 +1286,8 @@ func apply_snap(v: Vector3) -> void:
 	_net_has = true
 	_net_pos_ms = Time.get_ticks_msec()
 	velocity = Vector3.ZERO
-	_style_last_pos = Vector3.INF # a teleport, so it is never counted as a fall
+	if _style != null:
+		_style.forget_position() # a teleport, so it is never counted as a fall
 
 
 ## LOS hand sounds, local machine only: leaving the body (pitch > 1) and snapping back (< 1).
@@ -1595,242 +1588,56 @@ static func segment_hits_strip(strip: Node3D, a: Vector3, b: Vector3) -> bool:
 	return true
 
 
-## Match authority, every pawn: turn history (for 360s) and time with free space under the feet
-## (for airshots). Works from the pawn's position/rotation, so remote humans count the same as bots.
+# ---------------------------------------------------------------------------------------------
+# Style tracking (shared/style_track.gd). The track owns the turn history, the air time and the
+# movement claims; these wrappers keep the names the rest of the game and the checks call, and keep
+# `air_time` readable here (tricks.gd and throwing_knife.gd ask the pawn for it).
+
+
+## Match authority, once per tick: turn history, air time and the move claims.
 func _tick_style_track(delta: float) -> void:
-	_style_clock += delta
-	var yaw := rotation.y
-	if _style_has_yaw:
-		var d := wrapf(yaw - _style_last_yaw, -PI, PI)
-		if absf(d) > 0.00001:
-			_yaw_samples.append([_style_clock, d])
-	_style_last_yaw = yaw
-	_style_has_yaw = true
-	while not _yaw_samples.is_empty() and float(_yaw_samples[0][0]) < _style_clock - STYLE_KEEP:
-		_yaw_samples.pop_front()
-	if is_dead or not is_inside_tree():
-		air_time = 0.0
-		_style_in_air = false
+	if _style == null:
 		return
-	# #84: every new move feeds the combo (worth nothing until a kill lands it).
-	# #B2: a claim only counts when the server can back it up itself. A client owns its pawn, so a
-	# modified client would otherwise farm WALLRUN / DIVE / ROLL / WALLJUMP by lying — and in the style
-	# modes those points decide the match. The local pawn and bots are trusted: their state is the sim.
-	var trust := is_local() or is_bot
-	if move_fx == MOVE_WALLRUN and (trust or _claim_backed(move_fx)):
-		if _style_clock - _wallrun_seen_t > Style.MOVE_RECENT:
-			var w2w := _style_clock - _walljump_seen_t <= Style.WALL_TO_WALL_WINDOW
-			Game.combo_move(peer_id, Combo.WALL_TO_WALL if w2w else Combo.WALLRUN)
-		_wallrun_seen_t = _style_clock
-	elif move_fx == MOVE_DIVE and (trust or _claim_backed(move_fx)):
-		if _style_clock - _dive_seen_t > Style.MOVE_RECENT:
-			Game.combo_move(peer_id, Combo.DIVE)
-		_dive_seen_t = _style_clock
-	elif move_fx == MOVE_ROLL and (trust or _claim_backed(move_fx)):
-		if _style_clock - _roll_seen_t > Style.MOVE_RECENT:
-			Game.combo_move(peer_id, Combo.ROLL)
-		_roll_seen_t = _style_clock
-	if walljumps != _walljumps_seen:
-		if _walljumps_seen >= 0 and (trust or _claim_backed(MOVE_WALLRUN)):
-			_walljump_seen_t = _style_clock
-			Game.combo_move(peer_id, Combo.WALLJUMP)
-		_walljumps_seen = walljumps
-	_tick_combo_moves()
-	if global_position.distance_to(_style_last_pos) > STYLE_TELEPORT_M:
-		_style_in_air = false
-		_landed_drop = 0.0
-		air_time = 0.0
-	_style_last_pos = global_position
-	# A remote human's speed comes from snapshots, so one slow tick is not a stop; a real stop is longer.
-	if _obs_speed >= Style.RUN_GUN_SPEED:
-		_run_t += delta
-		_run_low_t = 0.0
-	else:
-		_run_low_t += delta
-		if _run_low_t > Style.RUN_GUN_GRACE:
-			_run_t = 0.0
-	var under := _feet_ray()
-	# Nothing under the feet, or only a ramp too steep to stand on: in the air (surfing counts).
-	var steep := not under.is_empty() and float((under.normal as Vector3).y) < Player.SURF_MAX_NORMAL_Y
-	if under.is_empty() or steep:
-		air_time += delta
-		var y := global_position.y
-		if not _style_in_air:
-			_style_in_air = true
-			_fall_peak = y
-		_fall_peak = maxf(_fall_peak, y)
-		if steep or _ramp_beside():
-			_surf_seen_t = _style_clock
-			_fall_peak = y # riding a ramp is not falling: DROP counts the free fall after it
-	else:
-		if _style_in_air:
-			_landed_drop = _fall_peak - global_position.y
-			_landed_t = _style_clock
-		_style_in_air = false
-		air_time = 0.0
+	_style.tick(delta)
+	air_time = _style.air_time
 
 
-## #B2: how far a wall may be for a claimed wallrun (or wall jump) to be believed. Generous on purpose:
-## our own probe must never refuse a trick the player really did.
-const CLAIM_WALL_PROBE := 1.2 # m
-
-
-## Is a claimed movement trick backed by what the server itself can see? The client owns its pawn, so
-## move_fx and walljumps arrive as claims, and in the style modes those claims are points. Every test
-## here uses something the authority observes for itself: the feet ray (`_style_in_air`), the air time,
-## the speed from the snapshots, and a wall probe. Lenient thresholds, because a false "no" costs a
-## player a real trick, while a false "yes" only costs what a liar could already claim.
+## Is a claimed movement trick backed by what the authority can see for itself (#B2)?
 func _claim_backed(fx: int) -> bool:
-	match fx:
-		MOVE_WALLRUN:
-			return _style_in_air and _obs_speed >= Player.WALLRUN_KEEP_SPEED * 0.8 and _wall_beside()
-		MOVE_DIVE:
-			return _obs_speed >= Player.DIVE_MIN_SPEED * 0.7 or air_time > 0.2
-		MOVE_ROLL:
-			return _obs_speed >= Player.WALK_SPEED * 0.9
-		_:
-			return false
-
-
-## A near-vertical wall within CLAIM_WALL_PROBE of the body centre: eight horizontal rays.
-func _wall_beside() -> bool:
-	var space := get_world_3d().direct_space_state
-	var from := global_position + Vector3(0.0, 0.9, 0.0)
-	for i in 8:
-		var a := TAU * float(i) / 8.0
-		var to := from + Vector3(cos(a), 0.0, sin(a)) * CLAIM_WALL_PROBE
-		var query := PhysicsRayQueryParameters3D.create(from, to)
-		query.collision_mask = 1
-		query.exclude = [get_rid()]
-		var hit := space.intersect_ray(query)
-		if not hit.is_empty() and absf(float((hit.normal as Vector3).y)) < Player.WALLRUN_MAX_NY:
-			return true
-	return false
-
-
-func _feet_ray() -> Dictionary:
-	var space := get_world_3d().direct_space_state
-	var from := global_position + Vector3(0.0, 0.05, 0.0)
-	var query := PhysicsRayQueryParameters3D.create(from, global_position - Vector3(0.0, Style.AIR_GAP, 0.0))
-	query.collision_mask = 1
-	query.exclude = [get_rid()]
-	return space.intersect_ray(query)
-
-
-## In the air: a surf ramp (steeper than walkable, not a wall) touching the capsule's side?
-## Eight rays from the body centre, angled down like the contact normal on a 45-85° ramp.
-func _ramp_beside() -> bool:
-	var space := get_world_3d().direct_space_state
-	var from := global_position + Vector3(0.0, 0.9, 0.0)
-	for i in 8:
-		var a := TAU * float(i) / 8.0
-		var dir := Vector3(cos(a), 0.0, sin(a)) * 0.82 + Vector3(0.0, -0.57, 0.0) # ~35° down
-		var query := PhysicsRayQueryParameters3D.create(from, from + dir * STYLE_RAMP_REACH)
-		query.collision_mask = 1
-		query.exclude = [get_rid()]
-		var hit := space.intersect_ray(query)
-		if hit.is_empty():
-			continue
-		var ny := float((hit.normal as Vector3).y)
-		if ny > SURF_MIN_NORMAL_Y and ny < SURF_MAX_NORMAL_Y:
-			return true
-	return false
-
-
-var _combo_surf := false
-var _combo_slide := false
-var _combo_air := false
-
-
-## #84, match authority: surf, slide and long air as combo moves (rising edges only).
-## Slides are not synced, so the server reads one from the synced crouch plus the observed speed.
-func _tick_combo_moves() -> void:
-	var surf := style_surfing()
-	if surf and not _combo_surf:
-		Game.combo_move(peer_id, Combo.SURF)
-	_combo_surf = surf
-	var slide := (not _style_in_air) and crouch > 0.6 and _obs_speed >= SPRINT_SPEED * 0.9 and move_fx != MOVE_ROLL
-	if slide and not _combo_slide:
-		Game.combo_move(peer_id, Combo.SLIDE)
-	_combo_slide = slide
-	var air := air_time >= Combo.AIR_TIME and not surf and move_fx == MOVE_NONE
-	if air and not _combo_air:
-		Game.combo_move(peer_id, Combo.AIR)
-	_combo_air = air_time >= Combo.AIR_TIME
+	return _style != null and _style.claim_backed(fx)
 
 
 ## Match authority (#80/#81): movement the server saw on this pawn just now (synced move_fx/walljumps).
 func style_wallrun() -> bool:
-	return _style_clock - _wallrun_seen_t <= Style.MOVE_RECENT
+	return _style != null and _style.wallrun()
 
 
 ## A wall jump within WALLJUMP_RECENT, still in the air from it.
 func style_walljump() -> bool:
-	return _style_clock - _walljump_seen_t <= Style.WALLJUMP_RECENT and (_style_in_air or move_fx == MOVE_WALLRUN)
+	return _style != null and _style.walljump()
 
 
 func style_dive() -> bool:
-	return _style_clock - _dive_seen_t <= Style.MOVE_RECENT
+	return _style != null and _style.dive()
 
 
 func style_roll() -> bool:
-	return _style_clock - _roll_seen_t <= Style.ROLL_RECENT
+	return _style != null and _style.roll()
 
 
 ## Match authority: surfing right now (or within Style.SURF_RECENT).
 func style_surfing() -> bool:
-	return _style_in_air and _style_clock - _surf_seen_t <= Style.SURF_RECENT
+	return _style != null and _style.surfing()
 
 
 ## Match authority: how far we fell, while falling or just after landing (0 otherwise).
 func style_drop() -> float:
-	if _style_in_air:
-		return maxf(_fall_peak - global_position.y, 0.0)
-	if _style_clock - _landed_t <= Style.DROP_RECENT:
-		return maxf(_landed_drop, 0.0)
-	return 0.0
+	return _style.drop() if _style != null else 0.0
 
 
 ## Largest one-way turn in degrees during the last `window` seconds (match authority).
 func spin_degrees(window: float = Style.SPIN_WINDOW) -> float:
-	return Style.spin_degrees(_yaw_samples, _style_clock, window)
-
-
-func _reset_style_track() -> void:
-	_style_last_pos = Vector3.INF
-	_yaw_samples.clear()
-	_style_has_yaw = false
-	air_time = 0.0
-	_run_t = 0.0
-	_run_low_t = 0.0
-	_style_in_air = false
-	_landed_t = -100.0
-	_surf_seen_t = -100.0
-	_surf_t = 0.0
-	_carry_t = 0.0
-	_was_surfing = false
-	_strip_cd.clear()
-	_strip_prev = Vector3.INF
-	_jump_buffer = 0.0
-	_wallrunning = false
-	_wall_key = ""
-	_wall_off_t = 10.0
-	_wallruns_air = 0
-	_diving = false
-	_dive_used = false
-	_dive_cd = 0.0
-	_slide_cd = 0.0
-	_dive_fade_left = 0.0
-	_roll_t = 0.0
-	move_fx = MOVE_NONE
-	_wallrun_seen_t = -100.0
-	_walljump_seen_t = -100.0
-	_dive_seen_t = -100.0
-	_roll_seen_t = -100.0
-	_walljumps_seen = walljumps
-	if camera:
-		camera.move_pitch = 0.0
-		camera.move_roll = 0.0
+	return _style.spin_degrees(window) if _style != null else 0.0
 
 
 func _accelerate(vel: Vector3, wish: Vector3, wish_speed: float, accel: float, delta: float) -> Vector3:
@@ -2029,3 +1836,12 @@ func _tick_wind(level: float) -> void:
 		_wind.play()
 	_wind.volume_db = lerpf(WIND_VOL_DB_MIN, WIND_VOL_DB_MAX, level)
 	_wind.pitch_scale = lerpf(WIND_PITCH_MIN, WIND_PITCH_MAX, level)
+
+
+## Spawn, respawn or a fresh start: drop the turn history, the air time and the move claims.
+func _reset_style_track() -> void:
+	if _style == null:
+		_style = StyleTrack.new(self)
+	else:
+		_style.reset()
+	air_time = 0.0

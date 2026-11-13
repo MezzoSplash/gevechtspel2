@@ -133,6 +133,12 @@ func _wallrun() -> void:
 		again = again or me.is_wallrunning()
 	_ok(not again, "same wall cannot be run again before the ground")
 	_release_all()
+	# Land before the next case: _walljump drops the pawn here, and a falling body cannot start a
+	# wallrun (WALLRUN_PER_AIR is spent). The old suite only passed because the pawn happened to be
+	# back on the floor by then; with the style track moved out that timing shifted.
+	await _frames(30)
+	await _place(BASE + Vector3(1.9, 0, -60), Vector3.ZERO, PI)
+	await _frames(2)
 
 
 func _walljump() -> void:
@@ -147,7 +153,7 @@ func _walljump() -> void:
 	Input.action_press("jump")
 	await _frames(3)
 	Input.action_release("jump")
-	print("  after wall jump vel %s seen_t %.2f clock %.2f seen %d in_air %s" % [str(me.velocity), me._walljump_seen_t, me._style_clock, me._walljumps_seen, me._style_in_air])
+	print("  after wall jump vel %s seen_t %.2f clock %.2f seen %d in_air %s" % [str(me.velocity), me._style.walljump_seen_t, me._style.clock, me._walljumps_seen, me._style.in_air])
 	_ok(me.walljumps == jumps0 + 1, "wall jump counted (synced walljumps)")
 	_ok(me.velocity.x < -4.0 and me.velocity.y > 3.0, "wall jump pushes away and up")
 	if not net:
