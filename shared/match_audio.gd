@@ -127,3 +127,40 @@ static func tick_tension(game: GameState) -> void:
 	var close_kills := game.score_limit() - leader_kills(game) <= close_left
 	if close_time or close_kills:
 		play_tension(game, true)
+
+
+## The project's audio buses, created once at boot: Music, UI, SFX, Enemies.
+## Ten guns at once: a soft compressor keeps the mix even and a limiter on Master stops clipping.
+## Idempotent, so calling it again after a scene change is harmless.
+static func ensure_buses() -> void:
+	for bus_name in ["Music", "UI"]:
+		if AudioServer.get_bus_index(bus_name) == -1:
+			var b := AudioServer.bus_count
+			AudioServer.add_bus()
+			AudioServer.set_bus_name(b, bus_name)
+			AudioServer.set_bus_send(b, "Master")
+	if AudioServer.get_bus_index("SFX") == -1:
+		var i := AudioServer.bus_count
+		AudioServer.add_bus()
+		AudioServer.set_bus_name(i, "SFX")
+		AudioServer.set_bus_send(i, "Master")
+		var comp := AudioEffectCompressor.new()
+		comp.threshold = -16.0
+		comp.ratio = 3.0
+		comp.attack_us = 3000.0
+		comp.release_ms = 140.0
+		AudioServer.add_bus_effect(i, comp)
+		var limiter := AudioEffectHardLimiter.new()
+		limiter.ceiling_db = -0.5
+		AudioServer.add_bus_effect(AudioServer.get_bus_index("Master"), limiter)
+	ensure_enemies_bus()
+
+
+## Enemies on their own bus under SFX, so the enemy-volume slider has something to turn.
+static func ensure_enemies_bus() -> void:
+	if AudioServer.get_bus_index("Enemies") != -1:
+		return
+	var b := AudioServer.bus_count
+	AudioServer.add_bus()
+	AudioServer.set_bus_name(b, "Enemies")
+	AudioServer.set_bus_send(b, "SFX")
