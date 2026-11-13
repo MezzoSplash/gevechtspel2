@@ -167,7 +167,7 @@ var _capsule: CapsuleShape3D
 var _spawn_protect := 0.0
 var _bot_brain
 var _body_mat: StandardMaterial3D
-var last_shot_ms := -100000 # ticks of this pawn's last shot seen here (minimap red dot)
+var last_shot_ms := -100000 # ticks of this pawn's last shot seen here (minimap red dot, bot hearing)
 var _sliding := false
 var _slide_t := 0.0
 var _slide_dir := Vector3.FORWARD
@@ -870,6 +870,12 @@ func gun_speed_mult() -> float:
 	if weapon == null or weapon.def == null:
 		return 1.0
 	return weapon.def.move_speed_mult
+
+
+## This pawn fired: flash it on the minimap and let bots hear it. Called from Weapon._fire (every shot
+## the weapon plays) and from the server's request_weapon_fire, so hearing does not depend on the fx path.
+func mark_shot() -> void:
+	last_shot_ms = Time.get_ticks_msec()
 
 
 ## Match authority: seconds this pawn has stayed above Style.RUN_GUN_SPEED (0 after any dip).
