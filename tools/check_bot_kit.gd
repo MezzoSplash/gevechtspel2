@@ -4,6 +4,9 @@ extends Node
 ## Deterministic (#124): a fixed seed, and one bot is handed both streak charges through the normal
 ## charge state (re-handed while unused, a death can drop them) instead of waiting for a lucky
 ## 3/5-kill streak. Stops as soon as everything was seen; MAX_TIME bounds the run.
+## The round is kept alive on purpose (`_keep_round_alive`): the last step needs a running round to hear
+## the final-stretch cue, and a bot match can otherwise reach its kill limit during the observation
+## window, which made this check flaky (#275).
 ##   godot --headless res://tools/check_bot_kit.tscn
 
 var _deaths := {}
@@ -41,6 +44,7 @@ func _ready() -> void:
 	var grant_t := 0.0
 	for t in int(MAX_TIME * 10.0):
 		await get_tree().create_timer(0.1).timeout
+		_keep_round_alive()
 		grant_t -= 0.1
 		if grant_t <= 0.0 and (used[0] == 0 or used[1] == 0):
 			grant_t = GRANT_EVERY
@@ -69,10 +73,18 @@ func _ready() -> void:
 				tension_final = true
 	var menu_off_in_match: bool = Game._menu_music.stream_paused
 	print("menu music in menu: ", menu_on_in_menu, "  paused in match: ", menu_off_in_match)
-	# Leader close to the limit: the final cue must start on its own.
-	Game.kill_limit = Game.leader_kills() + 2
-	await get_tree().create_timer(0.5).timeout
-	tension_final = Game._tension.playing and Game._tension.stream == Game._tension_final_stream
+	# Leader close to the limit: the final cue must start on its own. Poll instead of a single 0.5 s
+	# wait, and stop as soon as it plays: the bots are still shooting and a kill can end the round.
+	var round_live := Game._round_active and not Game.play_locked()
+	if round_live:
+		Game.kill_limit = Game.leader_kills() + 2
+		for i in 30:
+			await get_tree().create_timer(0.1).timeout
+			if Game._tension and Game._tension.playing and Game._tension.stream == Game._tension_final_stream:
+				tension_final = true
+				break
+			if not Game._round_active:
+				break
 	print("bot guns seen: ", _guns.keys(), " (", _guns.size(), "/", Weapon.LOADOUT.size(), ")")
 	print("grenades thrown: ", _nades)
 	print("rc-xd launched: ", _rc)
@@ -84,6 +96,14 @@ func _ready() -> void:
 	print("tension start cue played: ", tension_start, "  final cue played: ", tension_final,
 		"  leader kills=", Game.leader_kills(), "/", Game.win_kills(), " time left=", Game.get_round_time_left())
 	get_tree().quit(0 if ok else 1)
+
+
+## Keep the match running while the check observes it: a bot can reach the kill limit mid-window, and
+## the final-cue step below then has no round to play in (#275, seen as an intermittent FAIL).
+func _keep_round_alive() -> void:
+	if Game.kill_limit - Game.leader_kills() > 2:
+		return
+	Game.kill_limit = Game.leader_kills() + 10
 
 
 ## Hand the first live bot whichever streak it has not used yet (Streaks' own charge bits).

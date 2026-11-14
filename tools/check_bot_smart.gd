@@ -106,13 +106,23 @@ func _ready() -> void:
 	_box(BASE + Vector3(0, -0.5, 0), Vector3(120, 1, 120))
 	_park(me)
 	_park(other)
-	bot.global_position = BASE + Vector3(0, 0.2, 0)
+	# Stand the pawn on the box instead of spawning it inside. The capsule is 1.8 m, so its centre sits
+	# 0.9 m above the surface (BASE.y); 0.2 m put it 0.7 m deep in the box, and whether the solver pushed
+	# it out or left it embedded depended on the frame the box entered the physics world -- the flaky
+	# FAIL this check kept producing. The downward velocity clears the cached "on floor" state after the
+	# teleport, so the pawn actually settles instead of hovering.
+	bot.global_position = BASE + Vector3(0, 0.95, 0)
+	bot.velocity = Vector3(0, -1.0, 0)
+	# `is_on_floor()` is only real after a move, and the teleport leaves the state stale: settle with a
+	# few hand-driven moves first, exactly like _tricks() does before it drives the pawn itself.
+	for i in 8:
+		bot.move_and_slide()
 	bot.velocity = Vector3.ZERO
 	brain._home = bot.global_position
 	# Poll for the floor instead of trusting a fixed frame count: the box is added to the physics world
 	# this frame, and a loaded runner needs more than eight frames to settle a pawn on it.
 	var stood := false
-	for i in 90:
+	for i in 150:
 		await _frames(1)
 		if bot.is_on_floor():
 			stood = true
