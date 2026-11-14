@@ -49,6 +49,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- v0.5.17 (released): bots only know what they notice (#266, #274) - below Hard a bot knows an enemy it
+  saw, was shot by or heard (`omni`/`memory`/`hear` per profile), hunts the last known spot and patrols
+  when it knows nobody, while Hard keeps the old omniscience. A reload of another player plays the gun
+  they hold (#252 follow-up). No behaviour change from the further splits of game.gd, player.gd and
+  hud.gd, and three headless checks that only passed on their retry are deterministic. `NET_VERSION`
+  stays 0.5.16 - nothing new goes over the wire, so only the server has to update.
+
 - v0.5.16 (released): a landing roll cannot be cut by a jump (#249), the carry is steered and hands over at
   sprint instead of stopping you (#251), every gun has its own reload style in first person and everyone
   else sees it (#252), and the final killcam is cut around the play with a VHS fast-forward and a landed
