@@ -38,7 +38,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Code structure
 
-- `shared/game.gd` (autoload `Game`) is being split. Pure logic moves into `RefCounted` helpers with static functions (`shared/tricks.gd`, `shared/combo_ledger.gd`, `shared/match_rules.gd`). State, signals and every `@rpc` stay in `game.gd` on the same node path, and the old function names stay as thin wrappers. Use the same pattern for `hud.gd` and `player.gd`.
+- `shared/game.gd` (autoload `Game`) is being split. Pure logic moves into `RefCounted` helpers with static functions (`shared/tricks.gd`, `shared/combo_ledger.gd`, `shared/match_rules.gd`). State, signals and every `@rpc` stay in `game.gd` on the same node path, and the old function names stay as thin wrappers. `player.gd` follows the same pattern with `shared/style_track.gd`: a helper may hold state, as long as it is one job, stays off the network and stays reachable through the pawn's own function names. `hud.gd` is still to do.
+- One responsibility per file, a file stops around 700 lines and a function around 60; going past that is a signal, not a rule. `game.gd`, `player.gd` and `hud.gd` are the three that still carry more than one job, and they are split in that order. One source per data table: a second copy of the same mapping (shadow quality, layout offsets, score order) is a bug waiting for one side to change.
 - A change to anything sent over the network bumps `NET_VERSION`. A refactor must not.
 
 ## Checks
