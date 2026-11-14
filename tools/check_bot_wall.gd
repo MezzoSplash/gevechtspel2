@@ -25,7 +25,7 @@ func _box(center: Vector3, size: Vector3) -> void:
 	sh.size = size
 	s.shape = sh
 	b.add_child(s)
-	get_tree().root.add_child(b)
+	add_child(b) # not root: root is still busy setting up its children during this _ready, and the add fails
 	b.global_position = center
 
 
