@@ -3,7 +3,12 @@ extends Node
 ## flag (someone gets within 15 m of an enemy base, or takes a flag) within the time limit.
 ## CTF_TRACE=1 prints every bot's position and goal every 5 s.
 ##   godot --headless --path . res://tools/check_ctf_bots.tscn   → "CTF BOTS CHECK OK"
-const LIMIT_S := 45.0
+## A Medium bot patrols instead of walking straight to the flag when it knows nobody (#274), so the
+## time to reach the enemy base has a much wider spread: 0.5-3.7 m in 45 s before awareness, 9-16 m
+## after. The bar stays the same (15 m or a taken flag); only the window grows, and the loop stops as
+## soon as the bar is met so the suite stays fast (#280).
+const LIMIT_S := 90.0
+const CLOSE_ENOUGH := 15.0
 var fails := 0
 var events: Array = []
 
@@ -44,7 +49,7 @@ func _ready() -> void:
 			print("  nav path team %d -> enemy base: %d points, ends %.1f m from it" % [tm, path.size(), end_d])
 	var closest := INF
 	var t := 0.0
-	while t < LIMIT_S and events.filter(func(e): return e[0] == "taken").is_empty():
+	while t < LIMIT_S and events.filter(func(e): return e[0] == "taken").is_empty() and closest >= CLOSE_ENOUGH:
 		await get_tree().create_timer(0.5).timeout
 		t += 0.5
 		for n in get_tree().get_nodes_in_group("player"):
@@ -54,6 +59,6 @@ func _ready() -> void:
 			if p and p.is_bot and not p.is_dead:
 				closest = minf(closest, p.global_position.distance_to(Game.flags[1 - p.team_id].home))
 	print("  closest bot to an enemy flag base: %.1f m, events %s after %.0f s" % [closest, str(events), t])
-	_ok(closest < 15.0 or not events.is_empty(), "bots go for the enemy flag (reach its roof)")
+	_ok(closest < CLOSE_ENOUGH or not events.is_empty(), "bots go for the enemy flag (reach its roof)")
 	print("CTF BOTS CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
