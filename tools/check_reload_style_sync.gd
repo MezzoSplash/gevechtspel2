@@ -73,19 +73,35 @@ func _ready() -> void:
 	receiver.weapon.play_remote_reload(0, 0.0)
 	_ok(receiver.weapon.reload_anim() == 0.0, "a zero-length sync stops the remote reload")
 
-	# 5) The sender itself. The number only exists on the wire, so this half reads the source, the same
-	# way check_rpc_channels guards the channel annotations: a runtime test cannot see what _start_reload
-	# hands to Game.notify_reload, and passing the slot index there is exactly the bug.
+	# 5) A gun outside the armory: the sender cannot name it, so the receiver has to fall back to the gun
+	# the pawn holds. This is the -1 the review asked about; without it that fallback was dead code.
+	var ghost := WeaponDef.new()
+	ghost.id = &"ghost_gun"
+	ghost.reload_style = &"bolt" # deliberately unlike the rifle (mag), so the fallback cannot pass by luck
+	receiver.weapon.def = ghost
+	_ok(receiver.weapon.reload_wire_index() == -1, "a gun outside the armory has no wire index (-1)")
+	_ok(receiver.weapon.armory_index() == 0, "the killcam's armory_index() stays usable (0), never -1")
+	receiver.weapon.play_remote_reload(receiver.weapon.reload_wire_index(), 1.0)
+	_ok(receiver.weapon.reload_style_now() == &"bolt",
+		"an unknown index falls back to the held gun's own style (%s)" % receiver.weapon.reload_style_now())
+	receiver.weapon.def = Weapon.LOADOUT[0]
+
+	# 6) The senders themselves. The number only exists on the wire, so this half reads the source, the
+	# same way check_rpc_channels guards the channel annotations: a runtime test cannot see what a sender
+	# hands to Game.notify_reload, and passing the slot index there is exactly the bug. All three call
+	# sites count: _start_reload, _cancel_reload (a reload that ends early) and refill (a fresh magazine).
 	var src := FileAccess.get_file_as_string("res://scripts/weapon.gd")
-	var at := src.find("func _start_reload(")
-	var body := ""
-	if at >= 0:
-		var end := src.find("\nfunc ", at + 1)
-		body = src.substr(at, (end - at) if end > at else -1)
-	_ok(body.contains("reload_wire_index()"),
-		"_start_reload puts the armory index on the wire (reload_wire_index)")
-	_ok(not body.contains("_active_index"),
-		"_start_reload does not send its slot index to Game.notify_reload")
+	var sends := 0
+	var wire := 0
+	for line in src.split("\n"):
+		if line.contains("Game.notify_reload("):
+			sends += 1
+			if line.contains("reload_wire_index()"):
+				wire += 1
+	_ok(sends == 3, "weapon.gd has three reload senders (%d)" % sends)
+	_ok(wire == sends, "every sender puts the armory index on the wire (%d of %d)" % [wire, sends])
+	_ok(not src.contains("notify_reload(owner as Player, _active_index"),
+		"no sender passes its slot index to Game.notify_reload")
 
 	print("RELOAD STYLE SYNC CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)

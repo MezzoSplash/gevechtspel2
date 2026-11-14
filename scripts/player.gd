@@ -282,15 +282,18 @@ var _wind: AudioStreamPlayer # speed FX wind loop (local only); volume/pitch fol
 ## tricks.gd and throwing_knife.gd read it off the pawn.
 var air_time := 0.0 # seconds with free space under the feet (the track's number, for readers)
 ## The track is a plain object, not a node: it holds the turn history, the air time and the move
-## claims, and it never touches the network. It is made in _ready, NOT at declaration: a typed
-## `StyleTrack.new()` there runs while player.gd is still compiling, and every script that preloads the
-## pawn fails to compile with it (seen in check_movement, where the dance defines its own _style()).
+## claims, and it never touches the network. It is made in _ready, and `_reset_style_track()` makes one
+## too when it is still null (a check that resets a pawn before its first tick). Deliberately NOT at
+## declaration: a typed `StyleTrack.new()` there runs while player.gd is still compiling, and every
+## script that preloads the pawn fails to compile with it (seen in check_movement, whose own `_style()`
+## dance helper made this go wrong).
 var _style: StyleTrack
 var _air_steer_locked := false # #152: no air steering from a wall jump until the floor or the next wallrun
-var _walljumps_seen := -1
-## One tick moving further than this is a teleport (respawn, admin moves, an LOS snap); snapshots
-## move less than a metre.
-const STYLE_TELEPORT_M := 3.0
+## One tick moving further than this is a teleport (respawn, admin moves, an LOS snap); snapshots move
+## less than a metre. Same idea as StyleTrack.TELEPORT_M, which guards the style track: this one guards
+## the network pose (`net_pos`), which runs on every machine, so it cannot lean on the authority-only
+## track. Keep the two values equal.
+const NET_SNAP_M := 3.0
 ## Server-side check on the position a client claims (#B1). A client owns its own pawn, so it also
 ## tells us where it is — and a modified client could say "I am across the map" and shoot from there.
 ## A claim is only accepted if the pawn could have got there since the last accepted one at the
@@ -1232,7 +1235,7 @@ func _enemy_in_sight() -> bool:
 	return false
 
 
-## See net_pos. First pose, the server, or a jump past STYLE_TELEPORT_M (respawn) snaps.
+## See net_pos. First pose, the server, or a jump past NET_SNAP_M (respawn) snaps.
 ## On the server a claim is checked first: the client only gets to say where it is (#B1).
 func _receive_net_pos(v: Vector3) -> void:
 	if multiplayer.is_server() and not is_bot:
@@ -1241,7 +1244,7 @@ func _receive_net_pos(v: Vector3) -> void:
 	var smooth := is_inside_tree() and _net_has and not multiplayer.is_server()
 	_net_target = v
 	_net_has = true
-	if not smooth or v.distance_to(position) > STYLE_TELEPORT_M:
+	if not smooth or v.distance_to(position) > NET_SNAP_M:
 		position = v
 
 
@@ -1303,7 +1306,7 @@ func play_los_sfx(pitch: float) -> void:
 func _smooth_remote(delta: float) -> void:
 	if not _net_has or multiplayer.is_server():
 		return
-	if position.distance_to(_net_target) > STYLE_TELEPORT_M:
+	if position.distance_to(_net_target) > NET_SNAP_M:
 		_net_target = position
 		return
 	position = _net_target + (position - _net_target) * exp(-delta / NET_SMOOTH_S)
@@ -1838,10 +1841,32 @@ func _tick_wind(level: float) -> void:
 	_wind.pitch_scale = lerpf(WIND_PITCH_MIN, WIND_PITCH_MAX, level)
 
 
-## Spawn, respawn or a fresh start: drop the turn history, the air time and the move claims.
+## A fresh life: the style track (turn history, air time, move claims) and the movement state that
+## belongs with it. Not just the track — respawn uses this, and a wallrun counter or a jump buffer left
+## over from the death would carry into the new life. The name is historical; the checks call it too.
 func _reset_style_track() -> void:
 	if _style == null:
 		_style = StyleTrack.new(self)
 	else:
 		_style.reset()
 	air_time = 0.0
+	_jump_buffer = 0.0
+	_wallrunning = false
+	_wall_key = ""
+	_wall_off_t = 10.0
+	_wallruns_air = 0
+	_diving = false
+	_dive_used = false
+	_dive_cd = 0.0
+	_slide_cd = 0.0
+	_dive_fade_left = 0.0
+	_roll_t = 0.0
+	_carry_t = 0.0
+	_surf_t = 0.0
+	_was_surfing = false
+	_strip_cd.clear()
+	_strip_prev = Vector3.INF
+	move_fx = MOVE_NONE
+	if camera:
+		camera.move_pitch = 0.0
+		camera.move_roll = 0.0

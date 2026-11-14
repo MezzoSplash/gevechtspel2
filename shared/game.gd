@@ -1911,35 +1911,36 @@ func sync_weapon(peer_id: int, weapon_id: String) -> void:
 ## #252: a reload started. The owner tells the server, the server tells everyone else, and every client
 ## plays the reloading gun's own style (mag / shells / cylinder / bolt) on that pawn's body. Cosmetic
 ## channel 2 and unreliable: it drives an animation only, so a lost one costs one body animation.
-## `armory_index` is Weapon.reload_wire_index(): an ARMORY index, never a slot index. The receiver maps
-## it back through Weapon.LOADOUT, and a human's `slots` is only their class's two guns.
-func notify_reload(p: Player, armory_index: int, reload_time: float) -> void:
+## `wire_index` is Weapon.reload_wire_index(): an ARMORY index (-1 when the gun is not in the armory),
+## never a slot index. The receiver maps it back through Weapon.LOADOUT, and a human's `slots` is only
+## their class's two guns.
+func notify_reload(p: Player, wire_index: int, reload_time: float) -> void:
 	if p == null or not is_networked() or p.weapon == null:
 		return
 	if multiplayer.is_server():
-		sync_reload.rpc(p.peer_id, armory_index, reload_time)
+		sync_reload.rpc(p.peer_id, wire_index, reload_time)
 	else:
-		request_reload.rpc_id(1, armory_index, reload_time)
+		request_reload.rpc_id(1, wire_index, reload_time)
 
 
 ## Client → server. The server clamps the time so a client cannot animate a pawn reloading for an hour.
 @rpc("any_peer", "call_remote", "reliable", 1)
-func request_reload(armory_index: int, reload_time: float) -> void:
+func request_reload(wire_index: int, reload_time: float) -> void:
 	if not multiplayer.is_server():
 		return
 	var id := multiplayer.get_remote_sender_id()
 	var p := player_for_peer(id)
 	if p == null or p.is_dead:
 		return
-	sync_reload.rpc(id, armory_index, clampf(reload_time, 0.0, 10.0))
+	sync_reload.rpc(id, wire_index, clampf(reload_time, 0.0, 10.0))
 
 
 @rpc("authority", "call_local", "unreliable", 2)
-func sync_reload(peer_id: int, armory_index: int, reload_time: float) -> void:
+func sync_reload(peer_id: int, wire_index: int, reload_time: float) -> void:
 	var p := player_for_peer(peer_id)
 	if p == null or p.weapon == null or p.is_local():
 		return
-	p.weapon.play_remote_reload(armory_index, reload_time)
+	p.weapon.play_remote_reload(wire_index, reload_time)
 
 
 func live_peer_ids() -> Array:
