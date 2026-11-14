@@ -7,7 +7,6 @@ var _gpu_measure := false
 var _kill_hit := false
 var _head_hit := false
 var _fire_punch := 0.0
-var _hint_timer := 8.0
 var pickup_toast: Label
 var _pickup_toast_t := 0.0
 var _hurt_flash := 0.0
@@ -41,18 +40,17 @@ var _dmg_dirs: Array[Dictionary] = [] # {pos: Vector3, t: float}: where recent d
 var _standing: Label # FFA: your place and kills under the clock
 var _standing_t := 0.0
 
-const DMG_DIR_LIFE := 1.3 # seconds a damage direction wedge stays (fades out)
-const DMG_DIR_MAX := 6
-const DMG_DIR_RADIUS := 118.0 # px from screen centre to the wedge
-const DMG_DIR_HALF := 0.36 # rad: half the wedge's arc (~20°)
-
-const _SLOT_IDLE := Color(0.06, 0.07, 0.09, 0.78)
-const _SLOT_ON := Color(0.12, 0.11, 0.07, 0.9)
-const HUD_ACCENT := Color(1.0, 0.84, 0.42) # gold: held weapon, selected streak, own scoreboard row
-const HUD_PANEL := Color(0.05, 0.06, 0.08, 0.78)
+## Geometry and palette: shared/hud_layout.gd (one source; check_hud_column compares the scene with it).
+const DMG_DIR_LIFE := HudLayout.DMG_LIFE
+const DMG_DIR_MAX := HudLayout.DMG_MAX
+const DMG_DIR_RADIUS := HudLayout.DMG_RADIUS
+const DMG_DIR_HALF := HudLayout.DMG_HALF
+const _SLOT_IDLE := HudLayout.SLOT_IDLE
+const _SLOT_ON := HudLayout.SLOT_ON
+const HUD_ACCENT := HudLayout.ACCENT
+const HUD_PANEL := HudLayout.PANEL
 var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # the local pawn's guns
 
-@onready var hint_label: Label = $Hint
 @onready var fps_label: Label = $Fps
 @onready var reload_label: Label = $Bottom/Reloading
 @onready var hp_fill: ColorRect = $Bottom/HpWrap/HpFill
@@ -67,7 +65,6 @@ var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # 
 	$Bottom/Weapons/Slot3,
 ]
 @onready var scoreboard_container: VBoxContainer = $Scoreboard
-@onready var round_end_label: Label = $RoundEnd
 @onready var countdown_label: Label = $Countdown
 @onready var grenade_label: Label = $Bottom/Grenades
 @onready var streak_label: Label = $StreakSlots/Streak
@@ -86,12 +83,13 @@ var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # 
 const _FEED_ICONS := KillFeed.ICONS # killcam and checks read it here
 const _POPUP_HOLD := 2.4 # streak popup under the clock: hold, then fade
 const _POPUP_FADE := 0.6
-const _POPUP_FRIENDLY := Color(1.0, 0.86, 0.4)
-const POPUP_TOP := 92.0 # streak/flag popup, px from the top (70 px tall): clear of the clock and the standing line
-const CTF_STATUS_TOP := 72.0 # #160 CTF status block: a clear gap under the match clock
-const CTF_STATUS_H := 60.0 # three 14 px lines
-const _POPUP_HOSTILE := Color(1.0, 0.36, 0.3)
-const TRICK_COLOR := Color(1.0, 0.78, 0.22) # trickshot gold: popup, feed tag, killcam, style king
+const _POPUP_FRIENDLY := HudLayout.POPUP_FRIENDLY
+const POPUP_TOP := HudLayout.POPUP_TOP
+const POPUP_HEIGHT := HudLayout.POPUP_HEIGHT
+const CTF_STATUS_TOP := HudLayout.CTF_TOP
+const CTF_STATUS_H := HudLayout.CTF_HEIGHT
+const _POPUP_HOSTILE := HudLayout.POPUP_HOSTILE
+const TRICK_COLOR := HudLayout.TRICK
 const _TRICK_HOLD := 1.5
 const _TRICK_FADE := 0.45
 const _TRICK_SFX := preload("res://assets/sounds/trickshot.wav")
@@ -135,7 +133,6 @@ func _ready() -> void:
 	death_layer.visible = false
 	scoreboard_container.visible = false
 	scoreboard_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	round_end_label.visible = false
 	intermission_label.visible = false
 	if countdown_label:
 		countdown_label.visible = false
@@ -424,7 +421,6 @@ func reset_session() -> void:
 	_round_end_winner = ""
 	_intermission_timer = 0.0
 	death_layer.visible = false
-	round_end_label.visible = false
 	if _winner:
 		_winner.visible = false
 	intermission_label.visible = false
@@ -759,7 +755,7 @@ func _build_popup() -> void:
 	_popup.offset_left = -220.0
 	_popup.offset_right = 220.0
 	_popup.offset_top = POPUP_TOP
-	_popup.offset_bottom = POPUP_TOP + 70.0
+	_popup.offset_bottom = POPUP_TOP + POPUP_HEIGHT
 	_popup.add_theme_constant_override("separation", 0)
 	_popup.visible = false
 	add_child(_popup)
@@ -893,9 +889,6 @@ var _streak_costs: Array[Label] = []
 ## kill pips and cost/ready tags. The key hint line at the top (over the clock) is gone;
 ## the keys are in Settings > Controls.
 func _facelift_hud() -> void:
-	if hint_label:
-		hint_label.visible = false
-	_hint_timer = 0.0
 	var bottom := get_node_or_null("Bottom") as VBoxContainer
 	var wrap := get_node_or_null("Bottom/HpWrap") as Control
 	if bottom and wrap and grenade_label and wrap.get_parent() == bottom:
@@ -1221,8 +1214,6 @@ func _on_round_ended(winner_peer_id: int, winner_name: String, _scores: Dictiona
 	_round_end_timer = 5.0
 	_round_end_winner = winner_name
 	_round_end_peer = winner_peer_id
-	round_end_label.text = "%s WINS" % winner_name # kept for anything reading it; the card replaces it on screen
-	round_end_label.visible = false
 	_show_winner(winner_peer_id, winner_name)
 	_show_style_king()
 	_scoreboard_open = true
@@ -1420,10 +1411,10 @@ func _refresh_standing() -> void:
 		_standing.anchor_right = 0.5
 		_standing.offset_left = -220.0
 		_standing.offset_right = 220.0
-		_standing.offset_top = 64.0
-		_standing.offset_bottom = 86.0
+		_standing.offset_top = HudLayout.STANDING_TOP
+		_standing.offset_bottom = HudLayout.STANDING_BOTTOM
 		_standing.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_standing.add_theme_font_size_override("font_size", 16)
+		_standing.add_theme_font_size_override("font_size", HudLayout.STANDING_FONT)
 		_standing.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		_standing.add_theme_constant_override("outline_size", 5)
 		add_child(_standing)
@@ -1461,14 +1452,14 @@ func _refresh_standing() -> void:
 ## streak/flag popup then moves under them (see _popup_top), so the two never overlap.
 func _place_standing() -> void:
 	var ctf := Game.is_ctf()
-	_standing.offset_top = CTF_STATUS_TOP if ctf else 64.0
-	_standing.offset_bottom = _standing.offset_top + (CTF_STATUS_H if ctf else 22.0)
-	_standing.add_theme_font_size_override("font_size", 14 if ctf else 16)
+	_standing.offset_top = HudLayout.CTF_TOP if ctf else HudLayout.STANDING_TOP
+	_standing.offset_bottom = _standing.offset_top + (HudLayout.CTF_HEIGHT if ctf else HudLayout.STANDING_HEIGHT)
+	_standing.add_theme_font_size_override("font_size", HudLayout.CTF_LINE_FONT if ctf else HudLayout.STANDING_FONT)
 
 
 ## Top of the streak/flag popup: under the CTF status block in CTF, the usual spot otherwise.
 static func _popup_top() -> float:
-	return CTF_STATUS_TOP + CTF_STATUS_H + 8.0 if Game.is_ctf() else POPUP_TOP
+	return HudLayout.CTF_TOP + HudLayout.CTF_HEIGHT + HudLayout.POPUP_GAP if Game.is_ctf() else POPUP_TOP
 
 
 static func _ordinal(n: int) -> String:
@@ -1513,9 +1504,6 @@ func _process(delta: float) -> void:
 	_tick_combo_ui(delta)
 	_hit_timer = maxf(_hit_timer - delta, 0.0)
 	_fire_punch = move_toward(_fire_punch, 0.0, delta * 9.0)
-	if _hint_timer > 0.0:
-		_hint_timer -= delta
-		hint_label.modulate.a = clampf(_hint_timer, 0.0, 1.0)
 	if _pickup_toast_t > 0.0:
 		_pickup_toast_t = maxf(_pickup_toast_t - delta, 0.0)
 		if pickup_toast:
@@ -1567,7 +1555,6 @@ func _process(delta: float) -> void:
 	if _round_end_timer > 0.0:
 		_round_end_timer -= delta
 		if _round_end_timer <= 0.0:
-			round_end_label.visible = false
 			if _style_king:
 				_style_king.visible = false
 			if _winner:

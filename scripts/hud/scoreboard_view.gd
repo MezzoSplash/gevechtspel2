@@ -135,14 +135,14 @@ static func panel(title: String, score_text: String, team_col: Color, rows: Arra
 		rsb.content_margin_top = 5
 		rsb.content_margin_bottom = 5
 		if me:
-			rsb.border_color = Hud.HUD_ACCENT
+			rsb.border_color = HudLayout.ACCENT
 			rsb.border_width_left = 3
 		rp.add_theme_stylebox_override("panel", rsb)
 		var row := row(vals, 17, Color(0.88, 0.9, 0.93), Color(1.0, 0.9, 0.55) if me else Color(0.95, 0.95, 0.97))
 		var rank := row.get_child(0) as Label
 		rank.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		rank.add_theme_font_size_override("font_size", 14)
-		rank.add_theme_color_override("font_color", Hud.HUD_ACCENT if (i == 0 and ffa) else MUTED)
+		rank.add_theme_color_override("font_color", HudLayout.ACCENT if (i == 0 and ffa) else MUTED)
 		(row.get_child(2) as Label).add_theme_color_override("font_color", Color(1, 1, 1))
 		(row.get_child(3) as Label).add_theme_color_override("font_color", MUTED)
 		var ping_l := row.get_child(6) as Label
@@ -175,6 +175,6 @@ static func header(ffa: bool) -> Control:
 	v.add_child(h)
 	var rule := ColorRect.new()
 	rule.custom_minimum_size = Vector2(0, 2)
-	rule.color = Color(Hud.HUD_ACCENT, 0.55)
+	rule.color = Color(HudLayout.ACCENT, 0.55)
 	v.add_child(rule)
 	return v
