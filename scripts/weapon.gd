@@ -233,6 +233,10 @@ const SWAY_MAX := 0.045 # m, per axis
 const SWAY_ROLL := 0.9 # rad of tilt per m of sideways lag
 const SWAY_SPRING := 90.0
 const SWAY_DAMP := 11.0
+## Longest step the spring is allowed to take. At 60 fps that is the whole frame, so the feel
+## there is the old one step. Above ~0.18 s the damper term `1 - SWAY_DAMP * delta` goes past -1
+## and one long frame (a hitch, a software render) throws the gun off screen.
+const SWAY_STEP := 1.0 / 60.0
 const LAND_MIN_SPEED := 4.5 # m/s downwards that causes a dip
 const LAND_DIP := 0.12 # m/s of downward kick per m/s of fall speed
 const SWAY_ADS := 0.15 # share of the sway left while aiming down sights
@@ -277,12 +281,24 @@ func _tick_sway(delta: float) -> Vector3:
 	var target := Vector3(yaw_rate * SWAY_LOOK, -pitch_rate * SWAY_LOOK, 0.0)
 	target.x = clampf(target.x, -SWAY_MAX, SWAY_MAX)
 	target.y = clampf(target.y, -SWAY_MAX, SWAY_MAX)
-	_sway_v += ((target - _sway_p) * SWAY_SPRING - _sway_v * SWAY_DAMP) * delta
-	_sway_p += _sway_v * delta
-	_sway_p.y = clampf(_sway_p.y, -0.09, 0.05)
+	_integrate_sway(target, delta)
 	var out := _sway_p * k * ads
 	_sway_rot = Vector3(0.0, -out.x * 2.0, -out.x * SWAY_ROLL)
 	return out
+
+
+## Same semi-implicit step as before, repeated so no step is longer than SWAY_STEP.
+## The clamps are the net: x and z were unbounded, so a step that still ran away took the gun with it.
+func _integrate_sway(target: Vector3, delta: float) -> void:
+	var left := delta
+	while left > 0.0000001:
+		var h := minf(left, SWAY_STEP)
+		_sway_v += ((target - _sway_p) * SWAY_SPRING - _sway_v * SWAY_DAMP) * h
+		_sway_p += _sway_v * h
+		_sway_p.x = clampf(_sway_p.x, -0.09, 0.09)
+		_sway_p.y = clampf(_sway_p.y, -0.09, 0.05)
+		_sway_p.z = clampf(_sway_p.z, -0.09, 0.09)
+		left -= h
 
 
 func melee_ready() -> bool:

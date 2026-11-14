@@ -55,6 +55,7 @@ const HEAD_HIT_R := 0.41
 const CROUCH_BLEND := 12.0
 const SPRINT_FOV := 6.0
 const SPAWN_PROTECT := 1.8
+const VOID_GRACE := 1.0 # s after a respawn: out of the map is a bad spawn, not a second death
 const SLIDE_MIN := 0.35
 const SLIDE_FRICTION := 2.4
 ## Carry: surf speed survives the landing. Ground friction is 10, so an exit at 16 m/s would be gone in
@@ -666,12 +667,25 @@ func add_knockback(imp: Vector3) -> void:
 		camera.add_shake(1.4, randf_range(-0.8, 0.8), 3.0)
 
 
-## Maps over a drop (Skyline) set metadata kill_y on the map root: falling under it is a suicide.
+## Falling under the map's kill_y is a suicide. During the first second after a respawn it is a
+## bad spawn instead: the body goes back to that spawn, so the fall does not start another death.
 func _check_kill_y() -> void:
 	if is_dead or global_position.y >= Game.map_kill_y:
 		return
-	_spawn_protect = 0.0
+	if _spawn_protect > SPAWN_PROTECT - VOID_GRACE:
+		_pull_out_of_void()
+		return
 	apply_hit(global_position, Vector3.UP, 10000.0, false, peer_id, &"fall")
+
+
+## Authority copy only. A remote human also gets correct_position, which already exists for claims.
+func _pull_out_of_void() -> void:
+	global_transform = _spawn_xform
+	velocity = Vector3.ZERO
+	_net_target = global_position
+	_net_has = true
+	if Game.is_networked() and multiplayer.is_server() and not is_bot and peer_id in multiplayer.get_peers():
+		Game.correct_position.rpc_id(peer_id, global_position)
 
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.

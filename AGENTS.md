@@ -49,6 +49,17 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #255: the viewmodel spring is integrated in steps of at most 1/60 s, and `_sway_p.x` / `.z` are clamped
+  like `.y`. At 60 fps it is still one step of the old spring. A half-second frame used to send the gun
+  metres off screen. Check: `tools/check_sway`.
+- #271: a bot grenade samples eight rays along `Grenade.initial_velocity` (the +4 m/s lob included) and
+  refuses the throw when the arc hits the world. The cooldown is not spent, and one higher pitch is
+  tried first. Player throws are untouched. Check: `tools/check_bot_grenade`.
+- #261: an LOS landing probes the standing and crouched capsules plus a short floor ray, and returns INF
+  when the body would end up under the floor or in the air. Every map has `Maps.kill_y` (scene metadata
+  still wins; Skyline's -3 matches). Under it, `Player._check_kill_y` is a fall death, except during the
+  first second of spawn protection, which puts the body back on its spawn. Check: `tools/check_void`,
+  and the crouch/air cases in `tools/check_los`. No protocol change.
 - v0.5.17 (released): bots only know what they notice (#266, #274) - below Hard a bot knows an enemy it
   saw, was shot by or heard (`omni`/`memory`/`hear` per profile), hunts the last known spot and patrols
   when it knows nobody, while Hard keeps the old omniscience. A reload of another player plays the gun

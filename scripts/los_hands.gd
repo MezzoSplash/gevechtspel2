@@ -13,6 +13,8 @@ const ACCEL := 48.0
 const BASH_DAMAGE := 999.0 # lethal on purpose: the hands get a few swings, but only a hit counts
 const EYE_H := 1.3 # m: where the hands leave the body, and how far the body lands under them
 const SNAP_RADIUS := 0.45 # m: the body capsule plus a margin; a snap into a wall is worse than none
+const SNAP_SKIN := 0.06 # m: the probe sits this far off the floor, so standing on it is not a hit
+const SNAP_FLOOR := 0.5 # m: a landing needs floor this close under the feet
 const COAST_MIN := 1.0 # m/s: slower than this, the body just stands
 const ORIGIN_SLACK := 2.5 # m: a client's swing must start near the server's hands
 const SNAP_SEARCH := [0.5, 1.0, 1.5, 2.0] # m: rings tried when the body does not fit under the hands
@@ -331,9 +333,12 @@ func _snap_back() -> void:
 	_end(true, _landing())
 
 
-## Where the body would stand under the hands, or INF when the capsule would end up inside a wall.
-## The hands are a 0.18 m sphere, the body a crouchable capsule: the hands fit in places the body
-## does not, and a snap into geometry is worse than no snap.
+## Where the body would stand under the hands, or INF when it would not.
+## The hands are a 0.18 m sphere. The body is a crouchable capsule, and the eye line of a standing
+## pawn put under a crouched target used to compute feet below the floor: one sphere at chest
+## height missed that, the body was shoved through the ground, and nothing brought it back.
+## A spot counts when the standing capsule and the crouched capsule both fit, and a short ray
+## finds floor under the feet. Anything else leaves the body where it is.
 func _landing() -> Vector3:
 	var p := Game.player_for_peer(owner_peer)
 	if p == null:
@@ -343,12 +348,7 @@ func _landing() -> Vector3:
 		eye = maxf(p.head.global_position.y - p.global_position.y, 0.6)
 	var target := Vector3(global_position.x, global_position.y - eye, global_position.z)
 	var space := p.get_world_3d().direct_space_state
-	var probe := SphereShape3D.new()
-	probe.radius = SNAP_RADIUS
-	var q := PhysicsShapeQueryParameters3D.new()
-	q.shape = probe
-	q.collision_mask = Melee.WORLD_MASK
-	if _free(space, q, target):
+	if _spot_ok(space, target):
 		return target
 	# The hands fit where the body does not (nose in a corner, under a ledge). Look around them
 	# before giving up: the nearest free spot beats no snap at all.
@@ -356,15 +356,34 @@ func _landing() -> Vector3:
 		for i in SNAP_DIRS:
 			var a := TAU * float(i) / float(SNAP_DIRS)
 			var c := target + Vector3(cos(a), 0.0, sin(a)) * float(r)
-			if _free(space, q, c):
+			if _spot_ok(space, c):
 				return c
 	return Vector3.INF
 
 
-## Is the body capsule free with its feet at `feet`? Same probe radius every time.
-func _free(space: PhysicsDirectSpaceState3D, q: PhysicsShapeQueryParameters3D, feet: Vector3) -> bool:
-	q.transform = Transform3D(Basis.IDENTITY, feet + Vector3.UP * 0.9)
+## Feet at `feet` can hold this pawn: both stances clear the world, and there is floor underneath.
+func _spot_ok(space: PhysicsDirectSpaceState3D, feet: Vector3) -> bool:
+	if not _floor_under(space, feet):
+		return false
+	return _capsule_free(space, feet, Player.STAND_CAPSULE) and _capsule_free(space, feet, Player.CROUCH_CAPSULE)
+
+
+func _capsule_free(space: PhysicsDirectSpaceState3D, feet: Vector3, height: float) -> bool:
+	var probe := CapsuleShape3D.new()
+	probe.radius = SNAP_RADIUS
+	probe.height = maxf(height, probe.radius * 2.0 + 0.01)
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = probe
+	q.collision_mask = Melee.WORLD_MASK
+	q.margin = 0.0
+	q.transform = Transform3D(Basis.IDENTITY, feet + Vector3.UP * (probe.height * 0.5 + SNAP_SKIN))
 	return space.intersect_shape(q, 1).is_empty()
+
+
+func _floor_under(space: PhysicsDirectSpaceState3D, feet: Vector3) -> bool:
+	var q := PhysicsRayQueryParameters3D.create(feet + Vector3.UP * 0.2, feet + Vector3.DOWN * SNAP_FLOOR)
+	q.collision_mask = Melee.WORLD_MASK
+	return not space.intersect_ray(q).is_empty()
 
 
 func _take_view(p: Player) -> void:

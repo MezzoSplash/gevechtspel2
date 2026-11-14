@@ -2,6 +2,12 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**Unreleased** — The viewmodel spring no longer throws the gun off screen when a frame runs long. It still takes one step at 60 fps; a longer frame is split into 60 fps steps, and the sideways sway is clamped the way the landing dip already was.
+
+A bot no longer lobs a frag into a ceiling or a door head. The toss is refused when the arc hits the world, the cooldown is not spent, and one higher pitch is tried before giving up. A player's own throw is unchanged.
+
+Falling out of a map sends you back. Every map has a kill height (Skyline stays at -3, the other four at -4, under the floor). Under it you die and respawn, except in the first second after a spawn: then you are put back on that spawn instead of dying twice. An LOS bash on a crouched target no longer snaps your body through the floor. The landing has to fit a standing capsule and a crouched one, with floor under the feet; otherwise the body stays put.
+
 **v0.5.17** — Bots only know what they can notice. Below Hard, a bot no longer sees every enemy through the walls: it knows someone it has seen, someone who shot it, or a shot it heard within its hearing range (Easy 10 m, Medium 22 m), it walks to the last place it knew them for its memory (Easy 4 s, Medium 8 s), and when that spot is empty or the memory runs out it forgets them and patrols the navmesh instead of standing at the spawn. A heard shot is placed a few metres off, so a bot that only heard you comes looking near you, not at you. Hard keeps the old omniscience, so the top difficulty plays exactly as before. `NET_VERSION` stays 0.5.16: bots are server pawns, nothing new goes over the wire.
 
 And a reload of another player plays the gun they actually hold: The index that rides `sync_reload` was the shooter's slot index (their class: primary/secondary) while the receiver read it as an armory index, so on a Breacher's screen everyone else's shotgun did the rifle's magazine reload, and a Runner's revolver did the magazine instead of the cylinder. The sender now puts `Weapon.reload_wire_index()` (the armory index) on the wire, the receiver falls back to the gun the pawn is holding when the index names no gun this build knows, and `check_reload_style_sync` walks every class and every slot on both ends of the contract. `NET_VERSION` stays 0.5.16: only the animation on another player's body changes, gameplay and protocol do not.

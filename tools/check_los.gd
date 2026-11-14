@@ -184,8 +184,19 @@ func _activate(p: Player, bot: Player) -> void:
 	Game._shot_ctx = {}
 	p.velocity = Vector3.ZERO
 	# The payoff: one bash kills, and the body snaps to the hands and the streak ends there.
+	# The landing now demands floor under the feet, so the spot the hands bash from needs a deck.
 	var eye := p.head.global_position.y - p.global_position.y
 	var feet := Vector3(6.0, 1.7, 6.0)
+	var land_y := feet.y + LosHands.EYE_H - eye
+	var pad := StaticBody3D.new()
+	var pad_col := CollisionShape3D.new()
+	var pad_box := BoxShape3D.new()
+	pad_box.size = Vector3(8, 0.4, 8)
+	pad_col.shape = pad_box
+	pad.add_child(pad_col)
+	pad.position = Vector3(feet.x, land_y - 0.2, feet.z)
+	add_child(pad)
+	await get_tree().physics_frame
 	hands.global_position = feet + Vector3.UP * LosHands.EYE_H
 	hands.velocity = Vector3.ZERO
 	hands._pitch = 0.0 # the climb test pitched the camera up; a level bash needs a level look
@@ -216,19 +227,26 @@ func _activate(p: Player, bot: Player) -> void:
 	wbox.size = Vector3(0.4, 4.0, 4.0)
 	wcol.shape = wbox
 	wall.add_child(wcol)
-	wall.position = Vector3(6.9, 2.0, 6.0)
+	wall.position = Vector3(-11.7, 2.0, -6.0)
 	add_child(wall)
 	await get_tree().physics_frame
 	p.is_dead = false
 	p._spawn_protect = 0.0
 	_ok(LosHands.launch(p), "launch next to a wall")
 	var hug := LosHands.for_owner(1)
-	hug.global_position = Vector3(6.55, 3.0, 6.0)
+	var stand_eye := p.head.global_position.y - p.global_position.y
+	hug.global_position = Vector3(-12.05, 0.05 + stand_eye, -6.0)
 	var land := hug._landing()
 	var off := -1.0
 	if land.is_finite():
-		off = Vector2(land.x - 6.55, land.z - 6.0).length()
+		off = Vector2(land.x - hug.global_position.x, land.z - hug.global_position.z).length()
 	_ok(land.is_finite() and off > 0.3, "a blocked landing moves aside (%.2f m)" % off)
+	# Hands at a crouched head: a standing eye line would put the feet under the floor.
+	hug.global_position = Vector3(-4.0, 0.55, -6.0)
+	var sunk := hug._landing()
+	_ok(not sunk.is_finite(), "hands at crouch height do not snap the body under the floor")
+	hug.global_position = Vector3(-4.0, 0.05 + stand_eye + 5.0, -6.0)
+	_ok(not hug._landing().is_finite(), "no floor under the hands: no snap")
 	LosHands.abort_for(1)
 	wall.queue_free()
 	await get_tree().physics_frame

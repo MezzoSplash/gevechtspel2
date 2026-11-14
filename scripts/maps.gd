@@ -11,6 +11,7 @@ const INFO := {
 	&"townhouses": {
 		"name": "Townhouses",
 		"blurb": "Two rows of houses, a street with a bus, plaza wallrun alleys, backyards and flanks.",
+		"kill_y": -4.0,
 		"pickups": [
 			{"type": &"knives", "pos": Vector3(-8.0, 0.0, 0.0)},
 			{"type": &"heal", "pos": Vector3(8.0, 0.0, 0.0)},
@@ -34,6 +35,7 @@ const INFO := {
 	&"foundry": {
 		"name": "Foundry",
 		"blurb": "Warehouse hall with roof ramps, a wallrun roof, west surf, container yard and sheds.",
+		"kill_y": -4.0,
 		"pickups": [
 			{"type": &"knives", "pos": Vector3(-22.6, 0.0, 0.0)},
 			{"type": &"heal", "pos": Vector3(21.0, 0.0, 4.0)},
@@ -58,6 +60,7 @@ const INFO := {
 	&"rooftops": {
 		"name": "Rooftops",
 		"blurb": "Two roofed blocks, a court, flank surfs, and skybridges at roof height.",
+		"kill_y": -4.0,
 		"pickups": [
 			{"type": &"knives", "pos": Vector3(-24.0, 0.0, 0.0)},
 			{"type": &"heal", "pos": Vector3(24.0, 0.0, 0.0)},
@@ -84,6 +87,7 @@ const INFO := {
 	&"quay": {
 		"name": "Quay",
 		"blurb": "Dry dock with surfs, harbour offices, a crane, and screened roofs.",
+		"kill_y": -4.0,
 		"pickups": [
 			{"type": &"knives", "pos": Vector3(-30.0, 4.0, 0.0)},
 			{"type": &"heal", "pos": Vector3(30.0, 4.0, 0.0)},
@@ -115,6 +119,7 @@ const INFO := {
 	&"skyline": {
 		"name": "Skyline",
 		"blurb": "City rooftops from 4 to 15 m: a 10 m surf ridge, a wallrun alley, stairs and a tower stairwell.",
+		"kill_y": -3.0,
 		"pickups": [
 			{"type": &"knives", "pos": Vector3(-25.0, 4.0, -1.0)},
 			{"type": &"heal", "pos": Vector3(25.0, 4.0, 1.0)},
@@ -183,6 +188,12 @@ static func flag_bases(id: StringName) -> Array:
 
 static func ffa_spawns(id: StringName) -> Array:
 	return info(id).ffa_spawns
+
+
+## Y under which a pawn has left the map. A scene may override this with metadata kill_y
+## (Skyline does, and the number here matches that override).
+static func kill_y(id: StringName) -> float:
+	return float(info(id).get("kill_y", -INF))
 
 
 ## Yaw that faces the map centre from `pos` (FFA), or the team's forward.
