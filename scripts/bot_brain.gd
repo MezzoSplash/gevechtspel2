@@ -120,6 +120,20 @@ const PATROL_ARRIVE := 3.0
 var _known := {}
 var _patrol_point := Vector3.ZERO
 var _patrol_t := 0.0
+## Wall tricks (BotWall finds the wall from raycasts; Game.BOT_PROFILES `trick` is the chance per wall met).
+## NONE -> jump toward a wall (AIR) -> wallrun (RUN) -> wall jump off at the end -> NONE.
+enum Trick { NONE, AIR, RUN }
+const TRICK_SCAN := 0.4 # s between wall scans while running the floor (1 ray fan each, up to 12 rays)
+const TRICK_CD := 5.0 # s after a trick ends (done or failed) before the next one
+const TRICK_SKIP_CD := 3.0 # s a bot leaves a wall alone after the dice said no (not re-rolled every scan)
+const TRICK_MIN_SPEED := 9.0 # m/s flat: 0.82 of it must still reach WALLRUN_MIN_SPEED (6.5) along the wall
+const TRICK_AIR_MAX := 0.9 # s in the air without a wallrun starting: give up and land
+const TRICK_JUMP_AT := 0.9 # s of wallrun before the wall jump (the run itself lasts WALLRUN_TIME 1.25 s)
+var _trick := Trick.NONE
+var _trick_t := 0.0
+var _trick_cd := 0.0
+var _trick_scan_t := 0.0
+var _trick_plan := {}
 
 
 func setup(p: Player, nav: NavigationAgent3D) -> void:
@@ -147,6 +161,7 @@ func physics_tick(delta: float) -> void:
 		_threat = null
 	if pawn.is_dead:
 		_known.clear() # a new life starts without knowing where anyone is
+		_end_wall_trick() # nor halfway up a wall
 		pawn.velocity = Vector3.ZERO
 		return
 	if Game.play_locked():
@@ -243,8 +258,12 @@ func _tick_tricks(delta: float) -> void:
 	var on_floor := pawn.is_on_floor()
 	var foe := _target
 	var has_foe := foe != null and is_instance_valid(foe) and not foe.is_dead
+	_tick_wall_trick(delta, on_floor, has_foe)
+	var tricking := _trick != Trick.NONE # a dive or slide key would end the wallrun (crouch drops it)
 	# A slide to close the last stretch of a fight, on the floor, moving fast, off cooldown.
-	if on_floor and has_foe and _in_fight and not pawn._sliding and _crouch_hold <= 0.0 and pawn._slide_cd <= 0.0:
+	if tricking:
+		pass
+	elif on_floor and has_foe and _in_fight and not pawn._sliding and _crouch_hold <= 0.0 and pawn._slide_cd <= 0.0:
 		var dist := pawn.global_position.distance_to(foe.global_position)
 		var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.WALK_SPEED * 1.05
 		if fast and dist > BOT_SLIDE_FAR and dist < BOT_SLIDE_NEAR:
@@ -266,6 +285,11 @@ func _tick_tricks(delta: float) -> void:
 		var h := Movement.wallrun_horiz(pawn, horiz, along, delta)
 		pawn.velocity.x = h.x
 		pawn.velocity.z = h.z
+		# The wall replaces gravity, as in Player._physics_process: undo this tick's gravity, then sink slowly.
+		# Without it a bot "wallran" at full gravity and dropped off the face in about half a second.
+		var sink := lerpf(Player.WALLRUN_SINK_START, Player.WALLRUN_SINK_END, clampf(pawn._wallrun_t / Player.WALLRUN_TIME, 0.0, 1.0))
+		var vy := pawn.velocity.y - float(pawn.get_gravity().y) * delta
+		pawn.velocity.y = move_toward(vy, -sink, Player.WALLRUN_RISE_DAMP * delta) if vy > -sink else -sink
 	if pawn._sliding:
 		# Keep the slide on its own line at sprint speed; finish_slide decides when it is over.
 		var dir := pawn._slide_dir
@@ -276,6 +300,84 @@ func _tick_tricks(delta: float) -> void:
 	# The same stance code the human runs: crouch follows the held key, and releases when the slide,
 	# the dive or the roll is over.
 	pawn._update_stance(delta, on_floor)
+
+
+## Wall trick, one step per tick. Runs before the slide/dive keys and Movement.tick_wallrun, which do the
+## actual wallrun (the same code a human runs); this only decides to jump at a wall, and when to jump off.
+func _tick_wall_trick(delta: float, on_floor: bool, has_foe: bool) -> void:
+	_trick_cd = maxf(_trick_cd - delta, 0.0)
+	_trick_scan_t = maxf(_trick_scan_t - delta, 0.0)
+	match _trick:
+		Trick.NONE:
+			if on_floor and _trick_cd <= 0.0 and _trick_scan_t <= 0.0:
+				_trick_scan_t = TRICK_SCAN
+				_try_start_wall_trick()
+		Trick.AIR:
+			_trick_t += delta
+			if pawn._wallrunning:
+				_trick = Trick.RUN
+				_trick_t = 0.0
+			elif pawn.is_dead or (on_floor and _trick_t > 0.15) or _trick_t > TRICK_AIR_MAX:
+				_end_wall_trick() # missed the wall: land and carry on
+			else:
+				_aim_into_wall() # the generic air steering would bend us back toward the path
+		Trick.RUN:
+			_trick_t += delta
+			if pawn.is_dead or not pawn._wallrunning:
+				_end_wall_trick()
+			elif _trick_t >= TRICK_JUMP_AT or (has_foe and _can_see(_target)):
+				# Off the wall, away and up; only when there is floor to land on (a roof edge is a fall death).
+				var n: Vector3 = _trick_plan.n
+				var along := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
+				var land := pawn.global_position + n * 4.5 + along.normalized() * 6.0
+				if BotWall.floor_below(pawn.get_world_3d().direct_space_state, land, [pawn.get_rid()]):
+					Movement.wall_jump(pawn)
+					_end_wall_trick()
+				elif _trick_t >= Player.WALLRUN_TIME:
+					_end_wall_trick() # no safe jump: ride it out, the run ends on its own
+
+
+## On the floor and sprinting along the path: a wall alongside the heading, and the dice, start a trick.
+func _try_start_wall_trick() -> void:
+	# A held crouch (the tail of a slide) would drop the wallrun the moment it starts.
+	if _in_fight or _unstick_left > 0.0 or pawn._sliding or pawn._diving or pawn._roll_t > 0.0 or pawn.is_dead:
+		return
+	if _crouch_hold > 0.0 or _crouch_press:
+		return
+	var chance := float(Game.bot_profile().trick)
+	if chance <= 0.0:
+		return
+	var heading := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
+	if heading.length() < TRICK_MIN_SPEED:
+		return
+	var space := pawn.get_world_3d().direct_space_state
+	var plan := BotWall.find(space, pawn.global_position, heading, [pawn.get_rid()])
+	if plan.is_empty():
+		return
+	if randf() >= chance:
+		_trick_cd = TRICK_SKIP_CD # said no to this wall: do not roll again at the next scan
+		return
+	_trick_plan = plan
+	_trick = Trick.AIR
+	_trick_t = 0.0
+	var speed := maxf(heading.length(), TRICK_MIN_SPEED)
+	var dir := BotWall.entry_dir(plan)
+	pawn.velocity = Vector3(dir.x * speed, Player.JUMP_SPEED, dir.z * speed)
+
+
+## Keeps the horizontal velocity on the entry line (toward the wall) while the bot is in the air.
+func _aim_into_wall() -> void:
+	var dir := BotWall.entry_dir(_trick_plan)
+	var speed := maxf(Vector2(pawn.velocity.x, pawn.velocity.z).length(), TRICK_MIN_SPEED)
+	pawn.velocity.x = dir.x * speed
+	pawn.velocity.z = dir.z * speed
+
+
+func _end_wall_trick() -> void:
+	_trick = Trick.NONE
+	_trick_t = 0.0
+	_trick_cd = TRICK_CD
+	_trick_plan = {}
 
 
 ## Nearest enemy we can actually see; else the nearest one to hunt. Re-picked every RETARGET.
