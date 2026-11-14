@@ -28,13 +28,13 @@ var _streak_sel := 0
 var _rc_on := false
 var _rc_hint: Label
 var _announcer: AudioStreamPlayer
+## Notice line and streak/flag popup: scripts/hud/notice_layer.gd.
+var _notice_layer: HudNotice
 var _sniper_ads := false
 var _sniper_hip := false # sniper in hand and RMB zoom off: draw no crosshair
 var _weapon_index := 0
 var _ammo := 30
 var _mag := 30
-var _notice: Label
-var _notice_tween: Tween
 var _player: Player # the local pawn from bind_player; crosshair bloom follows it
 var _dmg_dirs: Array[Dictionary] = [] # {pos: Vector3, t: float}: where recent damage came from
 var _standing: Label # FFA: your place and kills under the clock
@@ -81,8 +81,6 @@ var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # 
 @onready var chat_input: LineEdit = $ChatInput
 
 const _FEED_ICONS := KillFeed.ICONS # killcam and checks read it here
-const _POPUP_HOLD := 2.4 # streak popup under the clock: hold, then fade
-const _POPUP_FADE := 0.6
 const _POPUP_FRIENDLY := HudLayout.POPUP_FRIENDLY
 const POPUP_TOP := HudLayout.POPUP_TOP
 const POPUP_HEIGHT := HudLayout.POPUP_HEIGHT
@@ -103,10 +101,6 @@ var _style_king: Label # round end, under the winner
 var _winner: PanelContainer # round end: winner card on top of the scoreboard
 var _round_end_peer := 0 # FFA: winner peer; TDM: winning team
 
-var _popup: VBoxContainer
-var _popup_title: Label
-var _popup_by: RichTextLabel
-var _popup_tween: Tween
 
 
 func _ready() -> void:
@@ -147,7 +141,10 @@ func _ready() -> void:
 	_announcer.volume_db = -2.0
 	add_child(_announcer)
 	_refresh_streak_ui()
-	_build_popup()
+	_notice_layer = HudNotice.new()
+	_notice_layer.name = "NoticeLayer"
+	add_child(_notice_layer)
+	_notice_layer.setup(get_node_or_null("Bottom") as VBoxContainer, self)
 	_build_trick_popup()
 	if chat_input:
 		chat_input.visible = false
@@ -671,111 +668,40 @@ func show_los(line: String, team: int) -> void:
 
 
 func show_popup(title: String, title_col: Color, by_name: String, team: int) -> void:
-	if _popup == null:
+	if _notice_layer == null:
 		return
-	_popup_title.text = title
-	_popup.offset_top = _popup_top()
-	_popup.offset_bottom = _popup.offset_top + 70.0
-	_popup_title.add_theme_color_override("font_color", title_col)
+	# The layer renders; the colours and the escaped name are this side's job (team/FFA knowledge).
 	var col: Color = _name_color(by_name, team)
-	_popup_by.text = "[center][color=#d8dade]by[/color] [color=#%s]%s[/color][/center]" % [
+	var by := "[center][color=#d8dade]by[/color] [color=#%s]%s[/color][/center]" % [
 		col.to_html(false), _bb_escape(by_name)
 	]
-	if _popup_tween:
-		_popup_tween.kill()
-	_popup.modulate.a = 1.0
-	_popup.visible = true
-	_popup_tween = _popup.create_tween()
-	_popup_tween.tween_interval(_POPUP_HOLD)
-	_popup_tween.tween_property(_popup, "modulate:a", 0.0, _POPUP_FADE)
-	_popup_tween.tween_callback(_hide_popup)
+	_notice_layer.show_popup(title, title_col, by, _popup_top())
 
 
 func _hide_popup() -> void:
-	if _popup_tween:
-		_popup_tween.kill()
-		_popup_tween = null
-	if _popup:
-		_popup.visible = false
+	if _notice_layer:
+		_notice_layer.hide_popup()
+
+
+## The streak/flag popup's Control, so a check can read where it sits (tools/check_ctf, check_hud_layout).
+func popup_control() -> Control:
+	return _notice_layer.popup_box() if _notice_layer else null
 
 
 ## Small line above the weapon boxes ("Class changes at next spawn"). Fades by itself.
 func show_notice(text: String, seconds: float = 3.0) -> void:
-	if _notice == null:
-		_build_notice()
-	_notice.text = text
-	if _notice_tween:
-		_notice_tween.kill()
-	_notice.modulate.a = 1.0
-	_notice.visible = true
-	_notice_tween = _notice.create_tween()
-	_notice_tween.tween_interval(seconds)
-	_notice_tween.tween_property(_notice, "modulate:a", 0.0, 0.5)
-	_notice_tween.tween_callback(_hide_notice)
+	if _notice_layer == null:
+		return
+	_notice_layer.show_notice(text, seconds)
 
 
 func notice_text() -> String:
-	return _notice.text if _notice and _notice.visible else ""
+	return _notice_layer.notice_text() if _notice_layer else ""
 
 
 func _hide_notice() -> void:
-	if _notice_tween:
-		_notice_tween.kill()
-		_notice_tween = null
-	if _notice:
-		_notice.visible = false
-
-
-func _build_notice() -> void:
-	_notice = Label.new()
-	_notice.name = "Notice"
-	_notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_notice.add_theme_font_size_override("font_size", 18)
-	_notice.add_theme_color_override("font_color", Color(1, 0.92, 0.55))
-	_notice.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	_notice.add_theme_constant_override("outline_size", 6)
-	_notice.visible = false
-	# Inside the bottom stack (a row of its own, hidden by default) so it can never land on the
-	# HP bar or the weapon boxes, whatever the screen height.
-	var bottom := get_node_or_null("Bottom") as VBoxContainer
-	if bottom:
-		bottom.add_child(_notice)
-		bottom.move_child(_notice, 0)
-	else:
-		add_child(_notice)
-
-
-func _build_popup() -> void:
-	_popup = VBoxContainer.new()
-	_popup.name = "StreakPopup"
-	_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_popup.anchor_left = 0.5
-	_popup.anchor_right = 0.5
-	_popup.offset_left = -220.0
-	_popup.offset_right = 220.0
-	_popup.offset_top = POPUP_TOP
-	_popup.offset_bottom = POPUP_TOP + POPUP_HEIGHT
-	_popup.add_theme_constant_override("separation", 0)
-	_popup.visible = false
-	add_child(_popup)
-	_popup_title = Label.new()
-	_popup_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_popup_title.add_theme_font_size_override("font_size", 30)
-	_popup_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	_popup_title.add_theme_constant_override("outline_size", 8)
-	_popup_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_popup.add_child(_popup_title)
-	_popup_by = RichTextLabel.new()
-	_popup_by.bbcode_enabled = true
-	_popup_by.fit_content = true
-	_popup_by.scroll_active = false
-	_popup_by.autowrap_mode = TextServer.AUTOWRAP_OFF
-	_popup_by.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_popup_by.add_theme_font_size_override("normal_font_size", 18)
-	_popup_by.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	_popup_by.add_theme_constant_override("outline_size", 6)
-	_popup.add_child(_popup_by)
+	if _notice_layer:
+		_notice_layer.hide_notice()
 
 
 ## Left column: slot 0 radar (3), slot 1 RC-XD (5), slot 2 LOS (7).
