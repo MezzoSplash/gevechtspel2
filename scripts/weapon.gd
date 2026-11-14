@@ -747,13 +747,14 @@ func play_fire_sfx() -> bool:
 	return model_flash
 
 
-## Every machine plays this for every shot it sees, so the minimap can flash the shooter.
+## Every machine plays this for every shot it sees, so the minimap can flash the shooter and bots can
+## hear them. Goes through `Player.mark_shot` so the server has one entry point for it too.
 func _mark_shot() -> void:
 	var n: Node = get_parent()
 	while n and not (n is Player):
 		n = n.get_parent()
 	if n:
-		(n as Player).last_shot_ms = Time.get_ticks_msec()
+		(n as Player).mark_shot()
 
 
 func bot_try_fire() -> bool:

@@ -109,6 +109,17 @@ var _threat = null # untyped: may be freed. Pawn that last damaged us
 var _threat_left := 0.0
 var _hurt_retreat_left := 0.0
 var _retreat_cd := 0.0
+## Awareness (see Game.BOT_PROFILES: omni / memory / hear). A bot that is not omniscient only knows an
+## enemy it saw, was shot by, or heard fire close by, and hunts the last place it knew them.
+const HEAR_MS := 1200 # a shot this recent still counts as heard at the next retarget
+const HEAR_ERROR := 3.0 # m: where a shot seems to come from is off by up to this much
+const SEARCH_ARRIVE := 3.0 # m: at the last known spot and nobody there: forget them
+const PATROL_TIME := 10.0 # s: a patrol point is dropped after this long, reached or not
+const PATROL_ARRIVE := 3.0
+## instance id of an enemy -> {"pos": last known position, "left": seconds until it is forgotten}.
+var _known := {}
+var _patrol_point := Vector3.ZERO
+var _patrol_t := 0.0
 
 
 func setup(p: Player, nav: NavigationAgent3D) -> void:
@@ -131,9 +142,11 @@ func physics_tick(delta: float) -> void:
 	_retreat_cd = maxf(_retreat_cd - delta, 0.0)
 	_threat_left = maxf(_threat_left - delta, 0.0)
 	_hurt_retreat_left = maxf(_hurt_retreat_left - delta, 0.0)
+	_tick_memory(delta)
 	if _threat_left <= 0.0:
 		_threat = null
 	if pawn.is_dead:
+		_known.clear() # a new life starts without knowing where anyone is
 		pawn.velocity = Vector3.ZERO
 		return
 	if Game.play_locked():
@@ -175,8 +188,10 @@ func physics_tick(delta: float) -> void:
 			_pick_unstick()
 		if goal != Vector3.INF:
 			_go_to_objective(goal, delta)
-		else:
+		elif _omniscient():
 			_steer_to(_home, Player.WALK_SPEED, delta)
+		else:
+			_patrol(delta) # nobody known: look around instead of standing at the spawn
 		_move(delta)
 		return
 	# Seen but out of weapon range (a shotgun bot at a window, the enemy across the street): sprint the
@@ -267,12 +282,13 @@ func _tick_tricks(delta: float) -> void:
 ## Closest-only used to lock bots onto someone hidden behind a teammate (issue #1: the pile in the middle).
 func _pick_target(delta: float) -> Player:
 	_retarget_t -= delta
-	if _retarget_t > 0.0 and _valid_target(_target):
+	if _retarget_t > 0.0 and _valid_target(_target) and _knows(_target):
 		# Still look now when the pawn who shot us is in sight and not the current target.
 		if not (_valid_target(_threat) and _target != _threat and _can_see(_threat)):
 			return _target
 	_retarget_t = RETARGET
 	var enemies := _enemies_by_distance()
+	_listen(enemies)
 	var prev := _target
 	_target = null
 	# #150: the shooter, if we can see them, even when someone else is closer.
@@ -283,10 +299,10 @@ func _pick_target(delta: float) -> Player:
 			if _can_see(e):
 				_target = e
 				break
-	if _target == null and _valid_target(_threat):
+	if _target == null and _valid_target(_threat) and _knows(_threat):
 		_target = _threat # hunt the one who shot, not whoever is nearest through a wall
-	elif _target == null and not enemies.is_empty():
-		_target = enemies[0]
+	elif _target == null:
+		_target = _nearest_known(enemies) # null when nobody is known: the bot patrols
 	if _target != prev:
 		_hunt_direct = false
 		_flank_flipped = false
@@ -304,6 +320,7 @@ func note_threat(attacker: Player) -> void:
 	_threat = attacker
 	_threat_left = THREAT_TIME
 	_retarget_t = 0.0
+	_remember(attacker, attacker.global_position) # being hit tells you where it came from
 	if Game.hp_of(pawn) <= RETREAT_HP and _retreat_cd <= 0.0:
 		_hurt_retreat_left = RETREAT_TIME
 		_retreat_cd = RETREAT_CD
@@ -324,6 +341,106 @@ func _valid_target(p) -> bool:
 		and (p.team_id != pawn.team_id or Game.is_ffa())
 		and p != pawn
 	)
+
+
+## Hard bots know where everyone is, through walls: how every bot played before awareness existed.
+func _omniscient() -> bool:
+	return bool(Game.bot_profile().omni)
+
+
+## Does this bot know where `e` is? Untyped like _valid_target: check validity first, the pawn may be freed.
+func _knows(e) -> bool:
+	return _omniscient() or _known.has(e.get_instance_id())
+
+
+## Where the bot thinks `e` is: the real spot when omniscient, else the last place it knew them.
+## Callers must have checked `_knows(e)` first: with no memory entry this returns the real position, so
+## asking about an enemy this bot does not know would read as seeing through walls.
+func _goal_pos(e) -> Vector3:
+	if not _omniscient():
+		var k: Dictionary = _known.get(e.get_instance_id(), {})
+		if not k.is_empty():
+			return k["pos"] as Vector3
+	return e.global_position
+
+
+## Seen, shot by, or heard: the bot now knows `pos` for `secs` (default: the profile's memory).
+func _remember(e, pos: Vector3, secs: float = -1.0) -> void:
+	if _omniscient() or not is_instance_valid(e):
+		return
+	if secs < 0.0:
+		secs = float(Game.bot_profile().memory)
+	_known[e.get_instance_id()] = {"pos": pos, "left": secs}
+
+
+## Nobody at the last known spot: drop them and make the next pick start fresh.
+func _forget(e) -> void:
+	if is_instance_valid(e):
+		_known.erase(e.get_instance_id())
+	if _target == e:
+		_target = null
+		_retarget_t = 0.0
+		_path_live = false
+		_hunt_direct = false
+		_force_repath = true
+
+
+## Memory fades; a freed pawn is dropped at once.
+func _tick_memory(delta: float) -> void:
+	for id in _known.keys():
+		var k: Dictionary = _known[id]
+		k["left"] = float(k["left"]) - delta
+		if float(k["left"]) <= 0.0 or not is_instance_valid(instance_from_id(id)):
+			_known.erase(id)
+
+
+## Shots fired within the profile's `hear` radius give the shooter away, with a few metres of error.
+func _listen(enemies: Array[Player]) -> void:
+	if _omniscient():
+		return
+	var r := float(Game.bot_profile().hear)
+	var now := Time.get_ticks_msec()
+	for e in enemies:
+		if now - e.last_shot_ms > HEAR_MS:
+			continue
+		if pawn.global_position.distance_to(e.global_position) > r:
+			continue
+		var err := Vector3(randf_range(-HEAR_ERROR, HEAR_ERROR), 0.0, randf_range(-HEAR_ERROR, HEAR_ERROR))
+		_remember(e, e.global_position + err)
+
+
+## The enemy closest to where we think they are (omniscient bots: the closest one, as before).
+func _nearest_known(enemies: Array[Player]) -> Player:
+	var best: Player = null
+	var best_d := INF
+	for e in enemies:
+		if not _knows(e):
+			continue
+		var d := pawn.global_position.distance_squared_to(_goal_pos(e))
+		if d < best_d:
+			best_d = d
+			best = e
+	return best
+
+
+## Nobody known: roam the navmesh. Random points leak nothing about where the enemy is.
+func _patrol(delta: float) -> void:
+	_patrol_t -= delta
+	var here := pawn.global_position
+	var flat := Vector2(here.x - _patrol_point.x, here.z - _patrol_point.z).length()
+	if _patrol_t <= 0.0 or flat < PATROL_ARRIVE or _stuck_pulse:
+		_patrol_t = PATROL_TIME
+		_patrol_point = _random_nav_point()
+	_go_to_objective(_patrol_point, delta)
+
+
+## A random walkable point on the bot's navigation map. `Vector3.ZERO` means "the map had none" — a real
+## point is never exactly the origin — and the caller then keeps its home.
+func _random_nav_point() -> Vector3:
+	if agent == null:
+		return _home
+	var p := NavigationServer3D.map_get_random_point(agent.get_navigation_map(), agent.navigation_layers, true)
+	return p if p != Vector3.ZERO else _home
 
 
 ## No progress for STUCK_CHECK while trying to move. The caller decides: a new flank, or a nudge.
@@ -371,17 +488,19 @@ func _hunt(enemy: Player, delta: float) -> void:
 	if followed and not _hunt_direct and agent and agent.is_navigation_finished():
 		_hunt_direct = true
 		_force_repath = true
+	# Where we think the enemy is: the real spot for an omniscient bot, else the last place we knew them.
+	var at := _goal_pos(enemy)
 	var shifted := (
 		_path_live
-		and _path_enemy.distance_squared_to(enemy.global_position) > HUNT_SHIFT * HUNT_SHIFT
+		and _path_enemy.distance_squared_to(at) > HUNT_SHIFT * HUNT_SHIFT
 	)
 	_repath_t -= delta
 	# Keep the enemy's height. Snapping to our own y picks the floor under a roof, so the
 	# path never takes the ramp when someone is standing up there. Steering still ignores y.
-	var dest := enemy.global_position if _hunt_direct else _flank_point(enemy)
+	var dest := at if _hunt_direct else _flank_point(at)
 	if agent and (_repath_t <= 0.0 or shifted or _force_repath):
 		agent.target_position = dest
-		_path_enemy = enemy.global_position
+		_path_enemy = at
 		_path_live = true
 		_repath_t = HUNT_REPATH
 		_force_repath = false
@@ -394,6 +513,11 @@ func _hunt(enemy: Player, delta: float) -> void:
 	# Closing the gap at a walk is what made a chase look like a stroll. Shots stay
 	# in the fight, where the wish speed is the strafe, so sprint does not tighten aim.
 	_steer_to(dest, Player.SPRINT_SPEED, delta, true)
+	# Reached the last known spot and nobody is in sight: they moved on. Forget them and look elsewhere.
+	if not _omniscient():
+		var flat := Vector2(pawn.global_position.x - at.x, pawn.global_position.z - at.z).length()
+		if flat < SEARCH_ARRIVE and not _can_see(enemy):
+			_forget(enemy)
 
 
 ## #160: walk the navmesh to a CTF goal (flag, base). Repaths when the goal moves or every HUNT_REPATH.
@@ -524,7 +648,7 @@ func _tick_streaks(delta: float, enemy: Player) -> void:
 		_streak_wait = float(Game.bot_profile().streak)
 		return
 	if (charges & Game.CHARGE_RCXD) != 0 and enemy != null:
-		var far := pawn.global_position.distance_to(enemy.global_position) >= RC_LAUNCH_MIN
+		var far := pawn.global_position.distance_to(_goal_pos(enemy)) >= RC_LAUNCH_MIN
 		if far or not _can_see(enemy):
 			Game.try_activate_streak(pawn.peer_id, 1)
 			_rc_repath = 0.0
@@ -575,8 +699,8 @@ func _drive_rc(delta: float) -> bool:
 
 
 ## Point on a ring around the enemy at fight range. Y stays theirs so roofs still route up a ramp.
-func _flank_point(enemy: Player) -> Vector3:
-	var dest := enemy.global_position
+func _flank_point(center: Vector3) -> Vector3:
+	var dest := center
 	dest.x += cos(_flank_angle) * _fight_range()
 	dest.z += sin(_flank_angle) * _fight_range()
 	return dest
@@ -840,6 +964,7 @@ func _can_see(enemy: Player) -> bool:
 		if hit.has("collider") and hit.collider == enemy:
 			_seen_target = enemy
 			_seen_point = to
+			_remember(enemy, enemy.global_position)
 			return true
 	return false
 

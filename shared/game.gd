@@ -194,10 +194,16 @@ const BOT_DIFFICULTY_IDS := ["easy", "medium", "hard"]
 const BOT_DIFFICULTY_NAMES := ["Easy", "Medium", "Hard"]
 ## acquire: s before the first shot on a new target; wobble: × aim hand size; track: aim catch-up (1/s);
 ## pause: × pause between bursts; nade: × grenade cooldown; streak: s before using an earned streak.
+## Awareness: omni: knows where every enemy is, through walls (how bots played up to now; Hard keeps it).
+## Without it a bot only knows an enemy it has seen (or been shot by, or heard fire within `hear` metres)
+## and walks to the last place it knew them for `memory` seconds, then patrols the navmesh.
 const BOT_PROFILES := [
-	{"acquire": 0.75, "wobble": 2.3, "track": 5.0, "pause": 1.9, "nade": 2.5, "streak": 6.0},
-	{"acquire": 0.48, "wobble": 1.6, "track": 8.5, "pause": 1.4, "nade": 1.6, "streak": 3.0},
-	{"acquire": 0.28, "wobble": 1.0, "track": 14.0, "pause": 1.0, "nade": 1.0, "streak": 1.2},
+	{"acquire": 0.75, "wobble": 2.3, "track": 5.0, "pause": 1.9, "nade": 2.5, "streak": 6.0,
+		"omni": false, "memory": 4.0, "hear": 10.0},
+	{"acquire": 0.48, "wobble": 1.6, "track": 8.5, "pause": 1.4, "nade": 1.6, "streak": 3.0,
+		"omni": false, "memory": 8.0, "hear": 22.0},
+	{"acquire": 0.28, "wobble": 1.0, "track": 14.0, "pause": 1.0, "nade": 1.0, "streak": 1.2,
+		"omni": true, "memory": 0.0, "hear": 0.0},
 ]
 var bot_difficulty := BOT_MEDIUM
 var last_bot_difficulty := BOT_MEDIUM
@@ -635,6 +641,9 @@ func request_weapon_fire(
 		return
 	if not _take_fire_credit(peer, def):
 		return
+	# A shot was accepted: the server marks it itself instead of waiting for the fx path to do it, so bot
+	# hearing works on a dedicated server (no sound there) exactly like on a listen host.
+	shooter.mark_shot()
 	var floor_mult := def.spread_mult_for(shooter.min_spread_multiplier(), scoped)
 	var mult := clampf(spread_mult, floor_mult, SPREAD_MAX)
 	# Lag compensation (#105): cast against the targets where this client saw them, then put them back.
