@@ -60,7 +60,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.4).timeout
 	hud.show_popup("TEST", Color.WHITE, "x", 0)
 	var st: Control = hud._standing
-	_ok(st.offset_top >= 60.0 and hud._popup.offset_top >= st.offset_bottom, "CTF status below the clock, popup below it (%d..%d, popup %d)" % [st.offset_top, st.offset_bottom, hud._popup.offset_top])
+	_ok(st.offset_top >= 60.0 and hud.popup_control().offset_top >= st.offset_bottom, "CTF status below the clock, popup below it (%d..%d, popup %d)" % [st.offset_top, st.offset_bottom, hud.popup_control().offset_top])
 	var my_t := me.team_id
 	var enemy_t := 1 - my_t
 	var own_base: Vector3 = Game.flags[my_t].home
