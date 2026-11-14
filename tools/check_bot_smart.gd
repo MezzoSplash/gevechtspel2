@@ -68,6 +68,12 @@ func _ready() -> void:
 	get_tree().root.add_child.call_deferred(main)
 	await get_tree().create_timer(1.0).timeout
 	var menu = main.get_node("CanvasLayer/Menu")
+	# Hard, because this check tests movement, aim and jumps, not awareness: a Hard bot is omniscient and
+	# therefore stands at `_home` exactly like every bot did before awareness existed. A Medium bot now
+	# patrols when it knows nobody, which is correct in a match and noise for these assertions. Awareness
+	# has its own check (check_bot_aware).
+	Game.bot_difficulty = Game.BOT_HARD
+	Game.last_bot_difficulty = Game.BOT_HARD
 	Game.bot_count = 2
 	Game.last_bots = 2
 	menu.set_match_choice(&"townhouses", Game.MODE_FFA)
@@ -103,11 +109,18 @@ func _ready() -> void:
 	bot.global_position = BASE + Vector3(0, 0.2, 0)
 	bot.velocity = Vector3.ZERO
 	brain._home = bot.global_position
-	await _frames(8)
+	# Poll for the floor instead of trusting a fixed frame count: the box is added to the physics world
+	# this frame, and a loaded runner needs more than eight frames to settle a pawn on it.
+	var stood := false
+	for i in 90:
+		await _frames(1)
+		if bot.is_on_floor():
+			stood = true
+			break
 	brain._home = bot.global_position
 	bot.velocity = Vector3.ZERO
 	await _frames(3)
-	_ok(bot.is_on_floor(), "bot stood on the test floor (y %.2f)" % bot.global_position.y)
+	_ok(stood and bot.is_on_floor(), "bot stood on the test floor (y %.2f)" % bot.global_position.y)
 	await _ledges()
 	await _sprint()
 	await _threat_and_retreat()
