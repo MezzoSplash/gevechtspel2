@@ -19,6 +19,12 @@ const MAX_STEP_SLOPE := 46.0 # same cap as the navmesh bake
 const SHOT_MASK := 1 | 2
 const WORLD_MASK := 1 # arena only; pawns are layer 2 and do not block each other
 const MELEE_R := 1.8 # enemy this close (feet to feet) gets bashed instead of shot
+## #269: Hard only. An empty gun is walked to a hidden spot inside this radius. One round left
+## and the enemy already inside RELOAD_HOLD_R is a bash, not a reload in their face.
+const COVER_R := 8.0
+const RELOAD_HOLD_R := 6.0
+const COVER_SAMPLES := 8
+const COVER_REACHES: Array[float] = [3.0, 5.5, 8.0]
 const RETARGET := 0.25 # seconds between target picks (each pick costs up to 5 rays)
 const SEPARATION_R := 1.3 # push away from any pawn closer than this
 const STUCK_CHECK := 1.0
@@ -110,6 +116,10 @@ var _threat = null # untyped: may be freed. Pawn that last damaged us
 var _threat_left := 0.0
 var _hurt_retreat_left := 0.0
 var _retreat_cd := 0.0
+## #269: one hide spot for the current reload. Cleared when the mag is full again.
+var _cover_live := false
+var _cover_point := Vector3.ZERO
+var _cover_flee := false
 ## Awareness (see Game.BOT_PROFILES: omni / memory / hear). A bot that is not omniscient only knows an
 ## enemy it saw, was shot by, or heard fire close by, and hunts the last place it knew them.
 const HEAR_MS := 1200 # a shot this recent still counts as heard at the next retarget
@@ -181,6 +191,14 @@ func physics_tick(delta: float) -> void:
 		_steer_to(pawn.global_position + away * 6.0, Player.SPRINT_SPEED, delta, false)
 		_move(delta)
 		return
+	# #269: empty mag on Hard. Kept even after LOS breaks, or the hunt walks them back into the open
+	# while the reload is still running. Easy and Medium fall through and reload where they stand.
+	if enemy != null and _should_cover_reload(enemy):
+		_in_fight = false
+		_tick_cover_reload(enemy, delta)
+		_move(delta)
+		return
+	_cover_live = false
 	var goal := CTF.bot_goal(Game, pawn) # #160: Vector3.INF outside CTF
 	if enemy == null or (goal != Vector3.INF and not _can_see(enemy)):
 		_in_fight = false
@@ -535,6 +553,105 @@ func _go_to_objective(goal: Vector3, delta: float) -> void:
 	_steer_to(goal, Player.SPRINT_SPEED, delta, true)
 
 
+## Hard reloads out of sight. Easy and Medium do not: the flag lives on the difficulty profile.
+func _seeks_cover() -> bool:
+	return bool(Game.bot_profile().get("cover", false))
+
+
+## Empty or already reloading, and not close enough that a bash is the better use of the moment.
+func _should_cover_reload(enemy: Player) -> bool:
+	if not _seeks_cover() or pawn.weapon == null:
+		return false
+	var dist := pawn.global_position.distance_to(enemy.global_position)
+	if dist <= MELEE_R:
+		return false
+	var w := pawn.weapon
+	if w.ammo == 1 and dist < RELOAD_HOLD_R:
+		return false
+	return w.is_reloading() or w.ammo <= 0
+
+
+## The last round, inside RELOAD_HOLD_R. Shooting it is what would start the reload.
+func _hold_last_round(dist: float) -> bool:
+	if not _seeks_cover() or pawn.weapon == null:
+		return false
+	return pawn.weapon.ammo == 1 and dist < RELOAD_HOLD_R
+
+
+## Sprint to the hide spot chosen when the reload started. No spot: back to the enemy, same sprint.
+func _tick_cover_reload(enemy: Player, delta: float) -> void:
+	var w := pawn.weapon
+	if w.ammo <= 0 and not w.is_reloading():
+		w.bot_try_fire()
+	if not _cover_live:
+		_cover_live = true
+		var spot := _pick_cover(enemy)
+		_cover_flee = is_inf(spot.x)
+		_cover_point = spot
+		if agent and not _cover_flee:
+			agent.target_position = spot
+	var away := pawn.global_position - enemy.global_position
+	away.y = 0.0
+	if away.length_squared() < 0.01:
+		away = -pawn.transform.basis.z
+		away.y = 0.0
+	away = away.normalized()
+	if _cover_flee:
+		_face_travel(away)
+		_steer_to(pawn.global_position + away * 6.0, Player.SPRINT_SPEED, delta, false)
+		return
+	_face_travel(_cover_point - pawn.global_position)
+	_steer_to(_cover_point, Player.SPRINT_SPEED, delta, true)
+
+
+## Nearest standable spot within COVER_R that the enemy's chest cannot see. The rays run once per
+## reload, not per tick. A heading whose first step is a wall is skipped (`_side_open`). INF: flee.
+func _pick_cover(enemy: Player) -> Vector3:
+	var space := pawn.get_world_3d().direct_space_state
+	var origin := pawn.global_position
+	var from := enemy.global_position + Vector3.UP * 0.9
+	var best := Vector3(INF, INF, INF)
+	var best_d := COVER_R + 0.01
+	for i in COVER_SAMPLES:
+		var ang := TAU * float(i) / float(COVER_SAMPLES)
+		var dir := Vector3(cos(ang), 0.0, sin(ang))
+		# The step in front of the feet has to be open. The crate itself can sit further along.
+		if not _side_open(dir, STRAFE_KEEP):
+			continue
+		for reach in COVER_REACHES:
+			var spot := origin + dir * reach
+			if not _cover_floor(space, spot):
+				continue
+			var chest := spot + Vector3.UP * 0.9
+			if from.distance_squared_to(chest) < 0.25:
+				continue
+			var q := PhysicsRayQueryParameters3D.create(from, chest)
+			q.collision_mask = WORLD_MASK
+			q.exclude = [pawn.get_rid(), enemy.get_rid()]
+			var hit := space.intersect_ray(q)
+			if hit.is_empty() or not hit.has("position"):
+				continue
+			var hit_at := hit.position as Vector3
+			if hit_at.distance_to(from) > from.distance_to(chest) - 0.35:
+				continue
+			var d := origin.distance_to(spot)
+			if d < best_d:
+				best_d = d
+				best = spot
+	return best
+
+
+func _cover_floor(space: PhysicsDirectSpaceState3D, spot: Vector3) -> bool:
+	var foot := spot + Vector3.UP * 0.4
+	var q := PhysicsRayQueryParameters3D.create(foot, foot + Vector3.DOWN * STRAFE_FLOOR)
+	q.collision_mask = WORLD_MASK
+	var hit := space.intersect_ray(q)
+	if not hit.has("normal"):
+		return false
+	var slope := rad_to_deg(acos(clampf((hit.normal as Vector3).dot(Vector3.UP), -1.0, 1.0)))
+	return slope <= MAX_STEP_SLOPE + 4.0
+
+
 ## Visible and in range. Sidestep in the open; do not ask the navmesh for a 2 m shuffle.
 func _fight(enemy: Player, delta: float) -> void:
 	_tick_aim_wobble(enemy, delta)
@@ -558,6 +675,13 @@ func _fight(enemy: Player, delta: float) -> void:
 	if _strafe_hold <= 0.0 and _strafe_pause <= 0.0:
 		_pick_strafe_side(side)
 	var dist := pawn.global_position.distance_to(enemy.global_position)
+	# One round left and they are already on top of us: close and bash. Spending it starts a reload.
+	if _hold_last_round(dist):
+		if dist > MELEE_R:
+			_steer_to(pawn.global_position - away * 4.0, Player.SPRINT_SPEED, delta, false)
+		if _acquire_left <= 0.0 and dist <= MELEE_R:
+			Game.melee.swing(pawn)
+		return
 	var fight_r := _fight_range()
 	var wish := Vector3.ZERO
 	if _strafe_pause > 0.0:

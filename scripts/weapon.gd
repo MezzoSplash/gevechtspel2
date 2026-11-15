@@ -773,6 +773,11 @@ func _mark_shot() -> void:
 		(n as Player).mark_shot()
 
 
+## True while this gun is in its own reload. Remote pawns use the synced timer, not this.
+func is_reloading() -> bool:
+	return _reload_left > 0.0
+
+
 func bot_try_fire() -> bool:
 	if _cooldown > 0.0 or _reload_left > 0.0:
 		return false

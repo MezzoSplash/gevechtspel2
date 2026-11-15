@@ -197,13 +197,14 @@ const BOT_DIFFICULTY_NAMES := ["Easy", "Medium", "Hard"]
 ## Awareness: omni: knows where every enemy is, through walls (how bots played up to now; Hard keeps it).
 ## Without it a bot only knows an enemy it has seen (or been shot by, or heard fire within `hear` metres)
 ## and walks to the last place it knew them for `memory` seconds, then patrols the navmesh.
+## cover (#269): an empty gun is reloaded out of sight. Easy and Medium reload where they stand.
 const BOT_PROFILES := [
 	{"acquire": 0.75, "wobble": 2.3, "track": 5.0, "pause": 1.9, "nade": 2.5, "streak": 6.0,
-		"omni": false, "memory": 4.0, "hear": 10.0},
+		"omni": false, "memory": 4.0, "hear": 10.0, "cover": false},
 	{"acquire": 0.48, "wobble": 1.6, "track": 8.5, "pause": 1.4, "nade": 1.6, "streak": 3.0,
-		"omni": false, "memory": 8.0, "hear": 22.0},
+		"omni": false, "memory": 8.0, "hear": 22.0, "cover": false},
 	{"acquire": 0.28, "wobble": 1.0, "track": 14.0, "pause": 1.0, "nade": 1.0, "streak": 1.2,
-		"omni": true, "memory": 0.0, "hear": 0.0},
+		"omni": true, "memory": 0.0, "hear": 0.0, "cover": true},
 ]
 var bot_difficulty := BOT_MEDIUM
 var last_bot_difficulty := BOT_MEDIUM

@@ -49,6 +49,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #269: a Hard bot reloads out of sight. `cover` on `Game.BOT_PROFILES` is true only for Hard. An empty
+  mag (or a reload already running) sprints to the nearest standable spot within `COVER_R` 8 m that a
+  chest ray from the enemy hits world before, searched once with `_side_open` on the heading. No such
+  spot: sprint straight away, back to the enemy. The reload keeps running after line of sight breaks, so
+  the hunt cannot walk them back into the open. One round left inside `RELOAD_HOLD_R` 6 m is a bash, not
+  a reload; inside `MELEE_R` the bash still wins over both. Easy and Medium are unchanged. Check:
+  `tools/check_bot_cover`. No protocol change.
 - #255: the viewmodel spring is integrated in steps of at most 1/60 s, and `_sway_p.x` / `.z` are clamped
   like `.y`. At 60 fps it is still one step of the old spring. A half-second frame used to send the gun
   metres off screen. Check: `tools/check_sway`.

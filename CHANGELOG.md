@@ -2,7 +2,9 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
-**Unreleased** — The viewmodel spring no longer throws the gun off screen when a frame runs long. It still takes one step at 60 fps; a longer frame is split into 60 fps steps, and the sideways sway is clamped the way the landing dip already was.
+**Unreleased** — A Hard bot with an empty gun runs for cover instead of reloading in the open. It picks a spot within 8 m that the enemy cannot see, once, and sprints there; if nothing nearby blocks the shot it runs straight away with its back to them. Easy and Medium still reload where they stand. With one round left and the enemy inside 6 m, Hard closes for a bash instead of starting that reload. Nothing new goes over the wire.
+
+The viewmodel spring no longer throws the gun off screen when a frame runs long. It still takes one step at 60 fps; a longer frame is split into 60 fps steps, and the sideways sway is clamped the way the landing dip already was.
 
 A bot no longer lobs a frag into a ceiling or a door head. The toss is refused when the arc hits the world, the cooldown is not spent, and one higher pitch is tried before giving up. A player's own throw is unchanged.
 
