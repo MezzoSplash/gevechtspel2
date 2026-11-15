@@ -667,15 +667,21 @@ func add_knockback(imp: Vector3) -> void:
 		camera.add_shake(1.4, randf_range(-0.8, 0.8), 3.0)
 
 
-## Falling under the map's kill_y is a suicide. During the first second after a respawn it is a
-## bad spawn instead: the body goes back to that spawn, so the fall does not start another death.
+## Falling under the map's kill_y is a suicide, and the death respawns you on the map.
+## During the first second after a respawn it is a bad spawn instead: the body goes back to that
+## spawn, so the fall does not start another death. Spawn protection lasts longer than that second
+## and would swallow the hit; a fall after the grace has to kill anyway.
 func _check_kill_y() -> void:
 	if is_dead or global_position.y >= Game.map_kill_y:
 		return
 	if _spawn_protect > SPAWN_PROTECT - VOID_GRACE:
 		_pull_out_of_void()
 		return
+	var saved := _spawn_protect
+	_spawn_protect = 0.0
 	apply_hit(global_position, Vector3.UP, 10000.0, false, peer_id, &"fall")
+	if not is_dead:
+		_spawn_protect = saved
 
 
 ## Authority copy only. A remote human also gets correct_position, which already exists for claims.

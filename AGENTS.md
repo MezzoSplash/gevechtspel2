@@ -64,9 +64,12 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   tried first. Player throws are untouched. Check: `tools/check_bot_grenade`.
 - #261: an LOS landing probes the standing and crouched capsules plus a short floor ray, and returns INF
   when the body would end up under the floor or in the air. Every map has `Maps.kill_y` (scene metadata
-  still wins; Skyline's -3 matches). Under it, `Player._check_kill_y` is a fall death, except during the
-  first second of spawn protection, which puts the body back on its spawn. Check: `tools/check_void`,
-  and the crouch/air cases in `tools/check_los`. No protocol change.
+  still wins; Skyline's -3 matches, the other four are -4). Under it, `Player._check_kill_y` is a fall
+  death and the normal respawn puts you back on a spawn, except during the first second of spawn
+  protection, which puts the body back on its spawn without a second death. The remaining spawn
+  protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
+  that window never started the respawn. The plane clears that protection for the one hit. Check:
+  `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
 - v0.5.17 (released): bots only know what they notice (#266, #274) - below Hard a bot knows an enemy it
   saw, was shot by or heard (`omni`/`memory`/`hear` per profile), hunts the last known spot and patrols
   when it knows nobody, while Hard keeps the old omniscience. A reload of another player plays the gun
