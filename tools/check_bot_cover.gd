@@ -162,7 +162,7 @@ func _arm_easy() -> void:
 	brain._burst_left = 0
 	brain._burst_pause = 0.0
 	brain._acquire_left = 0.0
-	brain._in_fight = false
+	brain.state = BotBrain.State.IDLE
 	_easy_hidden = false
 	_phase = "easy_settle"
 
@@ -186,7 +186,7 @@ func _arm_hold() -> void:
 	bot.weapon.ammo = 1
 	bot.weapon._reload_left = 0.0
 	brain._acquire_left = 0.0
-	brain._in_fight = false
+	brain.state = BotBrain.State.IDLE
 	_phase = "hold_settle"
 
 

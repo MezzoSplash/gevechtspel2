@@ -86,11 +86,14 @@ var _stuck_pos := Vector3.ZERO
 var _stuck_pulse := false # set for the tick that noticed no progress
 var _unstick_left := 0.0
 var _unstick_dir := Vector3.ZERO
-var _in_fight := false
+## What the bot is doing this tick. One value replaces the old pairs of booleans (`_in_fight`,
+## `_hunt_direct`) that could contradict each other, and it is what `_tick_tricks` reads when it
+## decides whether closing on the target is worth a slide.
+enum State { IDLE, PATROL, OBJECTIVE, HUNT_FLANK, HUNT_DIRECT, FIGHT, RETREAT, COVER, RC }
+var state: State = State.IDLE
 var _flank_base := 0.0 # peer slot on the ring; restored when the target changes
 var _flank_angle := 0.0 # radians around the enemy; hunt aims here before closing
 var _flank_flipped := false # first stuck tries the other side before a direct chase
-var _hunt_direct := false # flank point was useless; path to the enemy's feet
 var _path_live := false # a target has been handed to the agent this chase
 var _path_enemy := Vector3.ZERO # where the enemy stood when that path was built
 var _force_repath := false
@@ -180,7 +183,7 @@ func physics_tick(delta: float) -> void:
 	_tick_streaks(delta, enemy)
 	# #150: low HP after a hit. Sprint out, then the flipped flank brings them back in.
 	if _hurt_retreat_left > 0.0 and enemy != null:
-		_in_fight = false
+		_set_state(State.RETREAT)
 		var away := pawn.global_position - enemy.global_position
 		away.y = 0.0
 		if away.length_squared() < 0.01:
@@ -194,22 +197,24 @@ func physics_tick(delta: float) -> void:
 	# #269: empty mag on Hard. Kept even after LOS breaks, or the hunt walks them back into the open
 	# while the reload is still running. Easy and Medium fall through and reload where they stand.
 	if enemy != null and _should_cover_reload(enemy):
-		_in_fight = false
+		_set_state(State.COVER)
 		_tick_cover_reload(enemy, delta)
 		_move(delta)
 		return
 	_cover_live = false
 	var goal := CTF.bot_goal(Game, pawn) # #160: Vector3.INF outside CTF
 	if enemy == null or (goal != Vector3.INF and not _can_see(enemy)):
-		_in_fight = false
 		_acquire_left = float(Game.bot_profile().acquire)
 		if _stuck_pulse:
 			_pick_unstick()
 		if goal != Vector3.INF:
+			_set_state(State.OBJECTIVE)
 			_go_to_objective(goal, delta)
 		elif _omniscient():
+			_set_state(State.IDLE)
 			_steer_to(_home, Player.WALK_SPEED, delta)
 		else:
+			_set_state(State.PATROL)
 			_patrol(delta) # nobody known: look around instead of standing at the spawn
 		_move(delta)
 		return
@@ -218,19 +223,17 @@ func physics_tick(delta: float) -> void:
 	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > _fight_range() + 4.0
 	var fighting := _can_see(enemy) and not out_of_range
 	if fighting:
-		if not _in_fight:
+		if state != State.FIGHT:
 			# A fresh fight probes a sidestep. The hunt path is dropped so the next
 			# approach starts from a flank point again.
 			_strafe_hold = 0.0
 			_strafe_pause = 0.0
 			_unstick_left = 0.0
-			_hunt_direct = false
-			_path_live = false
-		_in_fight = true
+			_drop_route()
+			_set_state(State.FIGHT)
 		_acquire_left = maxf(_acquire_left - delta, 0.0)
 		_fight(enemy, delta)
 	else:
-		_in_fight = false
 		_acquire_left = float(Game.bot_profile().acquire)
 		_hunt(enemy, delta)
 	_move(delta)
@@ -263,7 +266,7 @@ func _tick_tricks(delta: float) -> void:
 	var foe := _target
 	var has_foe := foe != null and is_instance_valid(foe) and not foe.is_dead
 	# A slide to close the last stretch of a fight, on the floor, moving fast, off cooldown.
-	if on_floor and has_foe and _in_fight and not pawn._sliding and _crouch_hold <= 0.0 and pawn._slide_cd <= 0.0:
+	if on_floor and has_foe and state == State.FIGHT and not pawn._sliding and _crouch_hold <= 0.0 and pawn._slide_cd <= 0.0:
 		var dist := pawn.global_position.distance_to(foe.global_position)
 		var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.WALK_SPEED * 1.05
 		if fast and dist > BOT_SLIDE_FAR and dist < BOT_SLIDE_NEAR:
@@ -323,12 +326,7 @@ func _pick_target(delta: float) -> Player:
 	elif _target == null:
 		_target = _nearest_known(enemies) # null when nobody is known: the bot patrols
 	if _target != prev:
-		_hunt_direct = false
-		_flank_flipped = false
-		_flank_angle = _flank_base
-		_path_live = false
-		_force_repath = true
-		_repath_t = 0.0
+		_reset_hunt()
 	return _target
 
 
@@ -343,12 +341,11 @@ func note_threat(attacker: Player) -> void:
 	if Game.hp_of(pawn) <= RETREAT_HP and _retreat_cd <= 0.0:
 		_hurt_retreat_left = RETREAT_TIME
 		_retreat_cd = RETREAT_CD
+		_set_state(State.RETREAT)
+		# The flipped flank is what brings them back in from the other side.
 		_flank_angle += PI
 		_flank_flipped = true
-		_hunt_direct = false
-		_path_live = false
-		_force_repath = true
-		_in_fight = false
+		_drop_path()
 
 
 ## Untyped on purpose: a freed pawn in a typed Player argument is a runtime error.
@@ -399,9 +396,7 @@ func _forget(e) -> void:
 	if _target == e:
 		_target = null
 		_retarget_t = 0.0
-		_path_live = false
-		_hunt_direct = false
-		_force_repath = true
+		_drop_route()
 
 
 ## Memory fades; a freed pawn is dropped at once.
@@ -495,20 +490,76 @@ func _separation() -> Vector3:
 	return push
 
 
+## The one place `state` changes. Kept to a single assignment on purpose: what a state *needs*
+## (a fresh strafe commit for a fight, a flank point for a hunt) is dropped by that state's own
+## entry code, so a state can never be left half-set by a caller in a hurry.
+func _set_state(s: State) -> void:
+	state = s
+
+
+## Forget the route of this chase: no path, and a flank approach rather than the direct one.
+## The peer keeps its flank side — a fresh fight does not re-roll it.
+func _drop_route() -> void:
+	if state == State.HUNT_DIRECT:
+		_set_state(State.HUNT_FLANK)
+	_drop_path()
+
+
+## No path handed to the agent; the next leg asks the navmesh again.
+func _drop_path() -> void:
+	_path_live = false
+	_force_repath = true
+
+
+## A whole new chase: the peer's own flank slot, no path, no stuck history.
+func _reset_hunt() -> void:
+	_drop_route()
+	_flank_flipped = false
+	_flank_angle = _flank_base
+	_repath_t = 0.0
+
+
 ## No line of sight, or seen but outside gun range. Follow the navmesh.
 ## First to a point beside the enemy (different bots, different doors), then to their feet.
 func _hunt(enemy: Player, delta: float) -> void:
+	if state == State.HUNT_DIRECT:
+		_hunt_direct(enemy, delta)
+	else:
+		_hunt_flank(enemy, delta)
+
+
+## Flank: aim for a point on the ring around the enemy, so two bots do not file through one door.
+## A path that runs out means the ring point was useless, and the chase goes straight at them.
+func _hunt_flank(enemy: Player, delta: float) -> void:
+	_set_state(State.HUNT_FLANK)
+	_hunt_begin()
+	# is_navigation_finished is still true the frame a target is set; the path arrives after.
+	var followed := _path_live and _repath_t < HUNT_REPATH - 0.2
+	if followed and agent and agent.is_navigation_finished():
+		_set_state(State.HUNT_DIRECT)
+		_force_repath = true
+	var at := _goal_pos(enemy)
+	_hunt_leg(enemy, delta, at if state == State.HUNT_DIRECT else _flank_point(at), at)
+
+
+## Direct: the enemy's feet, from wherever the flank left us.
+func _hunt_direct(enemy: Player, delta: float) -> void:
+	_hunt_begin()
+	var at := _goal_pos(enemy)
+	_hunt_leg(enemy, delta, at, at)
+
+
+## Both halves start here: a target with no path yet asks the navmesh, a stuck hunt escalates.
+func _hunt_begin() -> void:
 	if not _path_live:
 		_force_repath = true
 	if _stuck_pulse:
 		_on_hunt_stuck()
-	# is_navigation_finished is still true the frame a target is set; the path arrives after.
-	var followed := _path_live and _repath_t < HUNT_REPATH - 0.2
-	if followed and not _hunt_direct and agent and agent.is_navigation_finished():
-		_hunt_direct = true
-		_force_repath = true
-	# Where we think the enemy is: the real spot for an omniscient bot, else the last place we knew them.
-	var at := _goal_pos(enemy)
+
+
+## One leg of the chase. `at` is where we think the enemy is: the path is remembered against it,
+## so a target that moved further than HUNT_SHIFT makes us plan again instead of walking on.
+func _hunt_leg(enemy: Player, delta: float, dest: Vector3, at: Vector3) -> void:
 	var shifted := (
 		_path_live
 		and _path_enemy.distance_squared_to(at) > HUNT_SHIFT * HUNT_SHIFT
@@ -516,7 +567,6 @@ func _hunt(enemy: Player, delta: float) -> void:
 	_repath_t -= delta
 	# Keep the enemy's height. Snapping to our own y picks the floor under a roof, so the
 	# path never takes the ramp when someone is standing up there. Steering still ignores y.
-	var dest := at if _hunt_direct else _flank_point(at)
 	if agent and (_repath_t <= 0.0 or shifted or _force_repath):
 		agent.target_position = dest
 		_path_enemy = at
@@ -840,6 +890,7 @@ func _drive_rc(delta: float) -> bool:
 	var car := RcXd.for_owner(pawn.peer_id)
 	if car == null:
 		return false
+	_set_state(State.RC)
 	pawn.velocity.x = 0.0
 	pawn.velocity.z = 0.0
 	pawn.move_and_slide()
@@ -887,15 +938,15 @@ func _flank_point(center: Vector3) -> Vector3:
 
 ## Stuck on a hunt path: other side of the enemy, then straight at them, then a short nudge.
 func _on_hunt_stuck() -> void:
-	if not _flank_flipped and not _hunt_direct:
+	if state == State.HUNT_DIRECT:
+		_pick_unstick()
+		_force_repath = true
+	elif not _flank_flipped:
 		_flank_angle += PI
 		_flank_flipped = true
 		_force_repath = true
-	elif not _hunt_direct:
-		_hunt_direct = true
-		_force_repath = true
 	else:
-		_pick_unstick()
+		_set_state(State.HUNT_DIRECT)
 		_force_repath = true
 
 
