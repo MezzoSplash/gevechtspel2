@@ -96,6 +96,20 @@ enum State { IDLE, PATROL, OBJECTIVE, HUNT_FLANK, HUNT_DIRECT, FIGHT, RETREAT, C
 enum Route { FLANK, DIRECT }
 var state: State = State.IDLE
 var _route: Route = Route.FLANK
+## #272: line of sight, answered once per `los_ttl` physics ticks per enemy. See `_can_see()`.
+var _los: Dictionary = {} # instance id -> {"vis": bool, "point": Vector3, "frame": int}
+## How many physics ticks a line-of-sight answer stays valid. The measured trade-off (16 bots, 120
+## ticks, `tools/check_bot_perf`, two runs): 1 tick = 10-15% fewer rays, 2 = 33%, 4 = 50-66%,
+## 6 = 53-67%, 9 = 59-77%. Six ticks is 0.1 s at 60 Hz - under the profile's own acquire time
+## (0.28 s), so a bot never reacts to a stale answer faster than it reacts to anything, and it keeps
+## the >=50% goal out of reach of run-to-run noise.
+var los_ttl := 6
+## Bounds the cache: a pawn that respawns gets a new instance id, so entries are pruned by size too.
+const LOS_CACHE_MAX := 64
+## Rays fired by `_can_see()` since the process started. `tools/check_bot_perf` reads and resets it,
+## and flips `los_cache` to measure the same build with and without.
+static var los_rays := 0
+var los_cache := true
 var _flank_base := 0.0 # peer slot on the ring; restored when the target changes
 var _flank_angle := 0.0 # radians around the enemy; hunt aims here before closing
 var _flank_flipped := false # first stuck tries the other side before a direct chase
@@ -473,9 +487,8 @@ func _track_stuck(delta: float) -> void:
 ## Soft push away from pawns that are too close, so bots do not stack up in doorways.
 func _separation() -> Vector3:
 	var push := Vector3.ZERO
-	for n in pawn.get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p == null or p == pawn or p.is_dead:
+	for p in Game.players(): # #272: one roster per tick, not a group array per bot
+		if p == pawn or p.is_dead:
 			continue
 		var away := pawn.global_position - p.global_position
 		away.y = 0.0
@@ -904,9 +917,8 @@ func _drive_rc(delta: float) -> bool:
 	var here := car.global_position
 	var best: Player = null
 	var best_d := INF
-	for n in pawn.get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p == null or p == pawn or p.is_dead or not Game.is_enemy(p, pawn):
+	for p in Game.players(): # #272
+		if p == pawn or p.is_dead or not Game.is_enemy(p, pawn):
 			continue
 		var dd := here.distance_to(p.global_position)
 		if dd < best_d:
@@ -1191,27 +1203,52 @@ func _try_shoot(enemy: Player) -> void:
 
 ## World (1) + players (2). Teammates are see-through (shots pass them too); other enemies still block.
 ## Body centre first, then the head (peeking over cover). The point that is clear becomes the aim point.
+##
+## #272: the answer is cached for `los_ttl` physics ticks. `_pick_target()` probes every enemy it meets
+## and then `_fight()`/`_hunt()` ask again for the one they got, and the `fighting` test below asks
+## every tick for the same pawn. `los_cache = false` is the old per-call behaviour, so the same build
+## can be measured both ways.
 func _can_see(enemy: Player) -> bool:
+	if los_cache:
+		var frame := Engine.get_physics_frames()
+		var known: Dictionary = _los.get(enemy.get_instance_id(), {})
+		if not known.is_empty() and frame - int(known["frame"]) < los_ttl:
+			var vis: bool = known["vis"]
+			if vis:
+				_seen_target = enemy
+				_seen_point = known["point"] as Vector3
+			return vis
 	var from := pawn.head.global_position
 	var space := pawn.get_world_3d().direct_space_state
+	var seen := false
+	var at := Vector3.ZERO
 	for to in [enemy.aim_point(), enemy.head_point()]:
 		var query := PhysicsRayQueryParameters3D.create(from, to)
 		query.collision_mask = SHOT_MASK
 		query.exclude = Game.shot_exclude(pawn)
+		los_rays += 1
 		var hit := space.intersect_ray(query)
 		if hit.has("collider") and hit.collider == enemy:
-			_seen_target = enemy
-			_seen_point = to
-			_remember(enemy, enemy.global_position)
-			return true
-	return false
+			seen = true
+			at = to
+			break
+	if seen:
+		_seen_target = enemy
+		_seen_point = at
+		_remember(enemy, enemy.global_position)
+	if los_cache:
+		if _los.size() > LOS_CACHE_MAX:
+			_los.clear() # freed pawns leave entries behind; nothing here is worth an unbounded map
+		_los[enemy.get_instance_id()] = {
+			"vis": seen, "point": at, "frame": Engine.get_physics_frames(),
+		}
+	return seen
 
 
 func _enemies_by_distance() -> Array[Player]:
 	var out: Array[Player] = []
-	for n in pawn.get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p == null or p == pawn or p.is_dead or p.is_queued_for_deletion():
+	for p in Game.players(): # #272
+		if p == pawn or p.is_dead or p.is_queued_for_deletion():
 			continue
 		if not Game.is_enemy(p, pawn):
 			continue

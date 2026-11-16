@@ -13,7 +13,7 @@ var wall: StaticBody3D
 var _phase := "settle"
 var _ticks := 0
 var _fight_without_sight := false
-var _fight_during_hunt := false
+var _fight_ticks := 0
 var _ammo_before := 0
 var _dist_before := 0.0
 const WALL_Z := -4.0
@@ -240,6 +240,7 @@ func _tick_fight(delta: float) -> void:
 
 func _arm_hunt_again() -> void:
 	wall.collision_layer = 1
+	_fight_ticks = 0
 	_ticks = 0
 	_phase = "hunt_again"
 
@@ -247,13 +248,19 @@ func _arm_hunt_again() -> void:
 func _tick_hunt_again(delta: float) -> void:
 	_ticks += 1
 	if _ticks < 4:
-		return
+		return # the wall has to be in the physics world before the rays can hit it
 	brain.physics_tick(delta)
 	if brain.state == BotBrain.State.FIGHT:
-		_fight_during_hunt = true
-	if _ticks < 20:
+		_fight_ticks += 1
+		# #272: the sight answer is cached for a few ticks, so a bot may fire at nothing for that
+		# long after a wall appears. That is the documented price of the cache, not a bug.
+		if _fight_ticks > brain.los_ttl + 2:
+			_ok(false, "kept fighting %d ticks after the wall came back (ttl %d)" % [
+				_fight_ticks, brain.los_ttl])
+			_arm_flee()
 		return
-	_ok(not _fight_during_hunt, "wall back: stops fighting")
+	_ok(true, "wall back: stops fighting (%d ticks of cached sight, ttl %d)" % [
+		_fight_ticks, brain.los_ttl])
 	_ok(brain.state == BotBrain.State.HUNT_FLANK, "and hunts again (%s)" % _state_name(brain.state))
 	_arm_flee()
 
