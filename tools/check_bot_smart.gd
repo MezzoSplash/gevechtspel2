@@ -193,7 +193,7 @@ func _sprint() -> void:
 	brain._hurt_retreat_left = 0.0
 	brain._threat = null
 	brain._threat_left = 0.0
-	brain._hunt_direct = true
+	brain.state = BotBrain.State.HUNT_DIRECT
 	_wake(me, bot.global_position + Vector3(0, 0, 40))
 	_park(other)
 	bot.velocity = Vector3.ZERO
@@ -261,7 +261,7 @@ func _tricks() -> void:
 
 	# Slide: on the floor, closing on a target at sprint speed.
 	brain._target = other
-	brain._in_fight = true
+	brain.state = BotBrain.State.FIGHT
 	brain._crouch_hold = 0.0
 	brain._crouch_press = false
 	bot._slide_cd = 0.0
@@ -286,7 +286,7 @@ func _tricks() -> void:
 	bot._apply_stance()
 
 	# Dive: in the air, falling, target below.
-	brain._in_fight = false
+	brain.state = BotBrain.State.IDLE
 	brain._target = other
 	bot._dive_cd = 0.0
 	bot._dive_used = false
