@@ -365,6 +365,13 @@ func _restore_bot_identity() -> void:
 			peer_id = -int(n.substr(3))
 
 
+func _exit_tree() -> void:
+	# #272 review: a pawn that leaves the tree must leave the cached roster as well, inside the same
+	# tick as a spawn does. Guarded, because `Game` can already be gone during shutdown.
+	if is_instance_valid(Game):
+		Game.invalidate_roster()
+
+
 func _ready() -> void:
 	_style = StyleTrack.new(self)
 	add_to_group("player")

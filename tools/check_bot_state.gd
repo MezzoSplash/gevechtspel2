@@ -17,6 +17,9 @@ var _fight_ticks := 0
 var _ammo_before := 0
 var _dist_before := 0.0
 const WALL_Z := -4.0
+## A fixed budget for stale sight after a wall appears, independent of `los_ttl`: the cache may round a
+## corner a few ticks late, it may not keep a fight going. ~0,13 s at 60 Hz.
+const MAX_STALE_FIGHT := 8
 
 
 func _ok(c: bool, msg: String) -> void:
@@ -268,6 +271,9 @@ func _arm_hunt_again() -> void:
 	_phase = "hunt_again"
 
 
+## Wall up again: the bot may fight for the few ticks its cached sight is still valid, and no longer.
+## The window runs to tick 20 like it did before the cache: stopping at the first non-FIGHT tick would
+## pass even if the bot started fighting again two ticks later.
 func _tick_hunt_again(delta: float) -> void:
 	_ticks += 1
 	if _ticks < 4:
@@ -275,15 +281,18 @@ func _tick_hunt_again(delta: float) -> void:
 	brain.physics_tick(delta)
 	if brain.state == BotBrain.State.FIGHT:
 		_fight_ticks += 1
-		# #272: the sight answer is cached for a few ticks, so a bot may fire at nothing for that
-		# long after a wall appears. That is the documented price of the cache, not a bug.
-		if _fight_ticks > brain.los_ttl + 2:
-			_ok(false, "kept fighting %d ticks after the wall came back (ttl %d)" % [
-				_fight_ticks, brain.los_ttl])
-			_arm_flee()
+	# #272: the sight answer is cached for a few ticks, so a bot may fire at nothing for that long
+	# after a wall appears. That is the documented price of the cache, not a bug.
+	if _fight_ticks > MAX_STALE_FIGHT:
+		_ok(false, "kept fighting %d ticks after the wall came back (budget %d, ttl %d)" % [
+			_fight_ticks, MAX_STALE_FIGHT, brain.los_ttl])
+		_arm_flee()
 		return
-	_ok(true, "wall back: stops fighting (%d ticks of cached sight, ttl %d)" % [
-		_fight_ticks, brain.los_ttl])
+	if _ticks < 20:
+		return
+	_ok(_fight_ticks <= MAX_STALE_FIGHT,
+		"wall back: stops fighting and stays out of it (%d of 20 ticks, budget %d)" % [
+			_fight_ticks, MAX_STALE_FIGHT])
 	_ok(brain.state == BotBrain.State.HUNT_FLANK, "and hunts again (%s)" % _state_name(brain.state))
 	_arm_flee()
 
