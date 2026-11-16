@@ -98,6 +98,10 @@ func _physics_process(delta: float) -> void:
 			_tick_hunt(delta)
 		"switch":
 			_tick_switch(delta)
+		"cover":
+			_tick_cover(delta)
+		"resume":
+			_tick_resume(delta)
 		"prep_fight":
 			_tick_prep_fight(delta)
 		"fight":
@@ -133,6 +137,45 @@ func _tick_hunt(delta: float) -> void:
 	# And a third stuck must not re-flank and forget the direct chase.
 	brain._on_hunt_stuck()
 	_ok(brain.state == BotBrain.State.HUNT_DIRECT, "a third stuck keeps the direct chase (%s)" % _state_name(brain.state))
+	_arm_cover()
+
+
+## An interruption on the way (a cover reload on Hard) must not throw the direct chase away.
+func _arm_cover() -> void:
+	bot.weapon.ammo = 0
+	bot.weapon._reload_left = 0.0
+	brain._cover_live = false
+	_ticks = 0
+	_phase = "cover"
+
+
+func _tick_cover(delta: float) -> void:
+	brain.physics_tick(delta)
+	_ticks += 1
+	if brain.state == BotBrain.State.COVER:
+		_ok(true, "an empty mag breaks off to cover (%s)" % _state_name(brain.state))
+		_arm_resume()
+		return
+	if _ticks > 20:
+		_ok(false, "an empty mag on Hard never went to cover (%s)" % _state_name(brain.state))
+		_arm_resume()
+
+
+func _arm_resume() -> void:
+	bot.weapon.ammo = 30
+	bot.weapon._reload_left = 0.0
+	brain._cover_live = false
+	_ticks = 0
+	_phase = "resume"
+
+
+func _tick_resume(delta: float) -> void:
+	brain.physics_tick(delta)
+	_ticks += 1
+	if _ticks < 6:
+		return
+	_ok(brain.state == BotBrain.State.HUNT_DIRECT,
+		"a cover reload keeps the direct chase (%s)" % _state_name(brain.state))
 	_arm_switch()
 
 

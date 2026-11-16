@@ -86,11 +86,16 @@ var _stuck_pos := Vector3.ZERO
 var _stuck_pulse := false # set for the tick that noticed no progress
 var _unstick_left := 0.0
 var _unstick_dir := Vector3.ZERO
-## What the bot is doing this tick. One value replaces the old pairs of booleans (`_in_fight`,
-## `_hunt_direct`) that could contradict each other, and it is what `_tick_tricks` reads when it
-## decides whether closing on the target is worth a slide.
+## What the bot is doing this tick. One value replaces `_in_fight` and the hunt/direct chase, which
+## used to be two booleans that could contradict each other, and it is what `_tick_tricks` reads when
+## it decides whether closing on the target is worth a slide.
 enum State { IDLE, PATROL, OBJECTIVE, HUNT_FLANK, HUNT_DIRECT, FIGHT, RETREAT, COVER, RC }
+## Which way the current chase goes. It is only ever read by the hunt, never by what the bot does this
+## tick: an interruption on the way (a cover reload, a CTF objective, the RC-XD) leaves it alone, so the
+## chase comes back the way it went. A new target, a retreat or a fresh fight puts it back on the flank.
+enum Route { FLANK, DIRECT }
 var state: State = State.IDLE
+var _route: Route = Route.FLANK
 var _flank_base := 0.0 # peer slot on the ring; restored when the target changes
 var _flank_angle := 0.0 # radians around the enemy; hunt aims here before closing
 var _flank_flipped := false # first stuck tries the other side before a direct chase
@@ -223,14 +228,7 @@ func physics_tick(delta: float) -> void:
 	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > _fight_range() + 4.0
 	var fighting := _can_see(enemy) and not out_of_range
 	if fighting:
-		if state != State.FIGHT:
-			# A fresh fight probes a sidestep. The hunt path is dropped so the next
-			# approach starts from a flank point again.
-			_strafe_hold = 0.0
-			_strafe_pause = 0.0
-			_unstick_left = 0.0
-			_drop_route()
-			_set_state(State.FIGHT)
+		_set_state(State.FIGHT)
 		_acquire_left = maxf(_acquire_left - delta, 0.0)
 		_fight(enemy, delta)
 	else:
@@ -343,6 +341,7 @@ func note_threat(attacker: Player) -> void:
 		_retreat_cd = RETREAT_CD
 		_set_state(State.RETREAT)
 		# The flipped flank is what brings them back in from the other side.
+		_route = Route.FLANK
 		_flank_angle += PI
 		_flank_flipped = true
 		_drop_path()
@@ -490,18 +489,24 @@ func _separation() -> Vector3:
 	return push
 
 
-## The one place `state` changes. Kept to a single assignment on purpose: what a state *needs*
-## (a fresh strafe commit for a fight, a flank point for a hunt) is dropped by that state's own
-## entry code, so a state can never be left half-set by a caller in a hurry.
+## The one place in the bot that writes `state`; the two check fixtures set the field directly.
+## It also does the setup the new state needs and clears what belonged to the old one: a fight starts
+## on a fresh sidestep with no hunt path left over, and every other state has no strafe commit to keep.
 func _set_state(s: State) -> void:
+	if s == state:
+		return
+	_strafe_hold = 0.0
+	_strafe_pause = 0.0
+	if s == State.FIGHT:
+		_unstick_left = 0.0
+		_drop_route()
 	state = s
 
 
-## Forget the route of this chase: no path, and a flank approach rather than the direct one.
+## Forget the route of this chase: the flank approach again, and no path from the old one.
 ## The peer keeps its flank side — a fresh fight does not re-roll it.
 func _drop_route() -> void:
-	if state == State.HUNT_DIRECT:
-		_set_state(State.HUNT_FLANK)
+	_route = Route.FLANK
 	_drop_path()
 
 
@@ -522,7 +527,7 @@ func _reset_hunt() -> void:
 ## No line of sight, or seen but outside gun range. Follow the navmesh.
 ## First to a point beside the enemy (different bots, different doors), then to their feet.
 func _hunt(enemy: Player, delta: float) -> void:
-	if state == State.HUNT_DIRECT:
+	if _route == Route.DIRECT:
 		_hunt_direct(enemy, delta)
 	else:
 		_hunt_flank(enemy, delta)
@@ -536,14 +541,16 @@ func _hunt_flank(enemy: Player, delta: float) -> void:
 	# is_navigation_finished is still true the frame a target is set; the path arrives after.
 	var followed := _path_live and _repath_t < HUNT_REPATH - 0.2
 	if followed and agent and agent.is_navigation_finished():
+		_route = Route.DIRECT
 		_set_state(State.HUNT_DIRECT)
 		_force_repath = true
 	var at := _goal_pos(enemy)
-	_hunt_leg(enemy, delta, at if state == State.HUNT_DIRECT else _flank_point(at), at)
+	_hunt_leg(enemy, delta, at if _route == Route.DIRECT else _flank_point(at), at)
 
 
 ## Direct: the enemy's feet, from wherever the flank left us.
 func _hunt_direct(enemy: Player, delta: float) -> void:
+	_set_state(State.HUNT_DIRECT)
 	_hunt_begin()
 	var at := _goal_pos(enemy)
 	_hunt_leg(enemy, delta, at, at)
@@ -938,7 +945,7 @@ func _flank_point(center: Vector3) -> Vector3:
 
 ## Stuck on a hunt path: other side of the enemy, then straight at them, then a short nudge.
 func _on_hunt_stuck() -> void:
-	if state == State.HUNT_DIRECT:
+	if _route == Route.DIRECT:
 		_pick_unstick()
 		_force_repath = true
 	elif not _flank_flipped:
@@ -946,6 +953,7 @@ func _on_hunt_stuck() -> void:
 		_flank_flipped = true
 		_force_repath = true
 	else:
+		_route = Route.DIRECT
 		_set_state(State.HUNT_DIRECT)
 		_force_repath = true
 
