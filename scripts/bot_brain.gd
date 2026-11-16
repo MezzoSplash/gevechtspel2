@@ -3,13 +3,11 @@ extends RefCounted
 ## Server-only AI. Same Player movement helpers. Gun choice changes fight distance.
 
 const ACQUIRE := 0.28
-const TOO_CLOSE := 4.0
 ## Only used before a bot has a weapon in hand (a gun's own fight range lives in its .tres).
 const NO_GUN_FIGHT := 13.0
 const STRAFE_SPEED := 6.2
 ## One committed sidestep, then a short pause. Re-picking every half second is what made them shimmy.
-const STRAFE_HOLD_MIN := 1.3
-const STRAFE_HOLD_MAX := 2.2
+## How long that commit lasts is per character now (`BotStyle.strafe_hold_min/max`, #267).
 const STRAFE_PAUSE_MIN := 0.30
 const STRAFE_PAUSE_MAX := 0.55
 const STRAFE_PROBE := 1.2 # metres of open space a new sidestep needs
@@ -34,9 +32,9 @@ const HUNT_REPATH := 0.9 # seconds a hunt path is kept before asking again
 const HUNT_SHIFT := 8.0 # enemy moved this far: the old path is about the wrong place
 ## #150: who just shot us wins over a closer stranger, for a few seconds.
 const THREAT_TIME := 3.0
-## A hit below this HP is a break-off, not a stand-and-trade. Short on purpose: they
-## sprint away and come back from the other side, they do not camp the corner.
-const RETREAT_HP := 40.0
+## A hit below the character's own HP limit (BotStyle.retreat_hp, #267) is a break-off, not a
+## stand-and-trade. Short on purpose: they sprint away and come back from the other side, they do not
+## camp the corner.
 const RETREAT_TIME := 0.9
 const RETREAT_CD := 5.0
 ## Step-up clears a curb (0.32 m). Taller than that, up to what JUMP_SPEED actually
@@ -110,6 +108,9 @@ const LOS_CACHE_MAX := 64
 ## and flips `los_cache` to measure the same build with and without.
 static var los_rays := 0
 var los_cache := true
+## #267: this bot's character (aggressive / holder / chaos), from `data/bots/*.tres`. Difficulty is
+## how good it is; this is what it wants to do. Set in `setup()`, stable across a respawn.
+var style: BotStyle
 var _flank_base := 0.0 # peer slot on the ring; restored when the target changes
 var _flank_angle := 0.0 # radians around the enemy; hunt aims here before closing
 var _flank_flipped := false # first stuck tries the other side before a direct chase
@@ -121,7 +122,7 @@ const NADE_MIN := 7.0
 const NADE_MAX := 21.0
 const NADE_COOLDOWN_MIN := 7.0
 const NADE_COOLDOWN_MAX := 14.0
-const NADE_CHANCE := 0.35 # per fight check (every NADE_CHECK), when the range is right
+## Per character: `BotStyle.nade_chance` (#267). A holder never throws one.
 const NADE_CHECK := 0.6
 const NADE_ARC_STEPS := 8 # rays along the toss, only when a throw is about to happen
 var _nade_cd := 3.0
@@ -158,6 +159,11 @@ var _patrol_t := 0.0
 func setup(p: Player, nav: NavigationAgent3D) -> void:
 	pawn = p
 	agent = nav
+	style = BotStyle.for_peer(p.peer_id)
+	# The name stays off the scoreboard (a player should not read the tactic off it), but a test run
+	# has to be able to count characters, so it goes to the server log once per spawn.
+	if p.is_bot and (Game.is_offline or Game.multiplayer.is_server()):
+		print("[bot] %s is %s" % [p.name, style.display_name])
 	_home = p.global_position
 	_stuck_pos = p.global_position
 	_strafe_sign = -1.0 if randf() < 0.5 else 1.0
@@ -171,6 +177,8 @@ func setup(p: Player, nav: NavigationAgent3D) -> void:
 func physics_tick(delta: float) -> void:
 	if pawn == null:
 		return
+	if style == null:
+		style = BotStyle.for_peer(pawn.peer_id) # a brain built by hand in a check has no character yet
 	pawn.is_sprinting = false
 	_retreat_cd = maxf(_retreat_cd - delta, 0.0)
 	_threat_left = maxf(_threat_left - delta, 0.0)
@@ -350,7 +358,7 @@ func note_threat(attacker: Player) -> void:
 	_threat_left = THREAT_TIME
 	_retarget_t = 0.0
 	_remember(attacker, attacker.global_position) # being hit tells you where it came from
-	if Game.hp_of(pawn) <= RETREAT_HP and _retreat_cd <= 0.0:
+	if style.retreat_hp > 0.0 and Game.hp_of(pawn) <= style.retreat_hp and _retreat_cd <= 0.0:
 		_hurt_retreat_left = RETREAT_TIME
 		_retreat_cd = RETREAT_CD
 		_set_state(State.RETREAT)
@@ -752,14 +760,15 @@ func _fight(enemy: Player, delta: float) -> void:
 		if _acquire_left <= 0.0 and dist <= MELEE_R:
 			Game.melee.swing(pawn)
 		return
-	var fight_r := _fight_range()
+	# This character's preferred distance, but never outside the range it is willing to shoot from.
+	var fight_r := minf(_fight_range() * style.range_scale, _fight_range() + BotStyle.CLOSE_ENOUGH_M)
 	var wish := Vector3.ZERO
 	if _strafe_pause > 0.0:
 		_strafe_pause = maxf(_strafe_pause - delta, 0.0)
 		# Almost still: only a step when the range is wrong, so the player gets a shot.
-		if dist < TOO_CLOSE:
+		if dist < fight_r - style.hold_band:
 			wish = away
-		elif dist > fight_r:
+		elif dist > fight_r + style.hold_band:
 			wish = -away
 		if wish.length_squared() > 0.0001 and not _side_open(wish, STRAFE_KEEP):
 			wish = Vector3.ZERO
@@ -771,9 +780,9 @@ func _fight(enemy: Player, delta: float) -> void:
 		else:
 			_strafe_hold = maxf(_strafe_hold - delta, 0.0)
 			wish = strafe_dir
-			if dist < TOO_CLOSE:
+			if dist < fight_r - style.hold_band:
 				wish += away * 0.7
-			elif dist > fight_r:
+			elif dist > fight_r + style.hold_band:
 				wish += -away * 0.7
 			if wish.length_squared() > 1.0:
 				wish = wish.normalized()
@@ -799,7 +808,7 @@ func _try_grenade(enemy: Player, dist: float, delta: float) -> bool:
 	if _nade_cd > 0.0 or pawn.grenades <= 0 or _nade_check > 0.0:
 		return false
 	_nade_check = NADE_CHECK
-	if dist < NADE_MIN or dist > NADE_MAX or randf() > NADE_CHANCE:
+	if dist < NADE_MIN or dist > NADE_MAX or randf() > style.nade_chance:
 		return false
 	var from := pawn.head.global_position
 	var to := enemy.global_position + Vector3(0.0, 0.4, 0.0)
@@ -989,7 +998,7 @@ func _pick_strafe_side(side: Vector3) -> void:
 		_strafe_sign *= -1.0
 		open_prefer = true
 	if open_prefer:
-		_strafe_hold = randf_range(STRAFE_HOLD_MIN, STRAFE_HOLD_MAX)
+		_strafe_hold = randf_range(style.strafe_hold_min, style.strafe_hold_max)
 		_strafe_pause = 0.0
 	else:
 		_strafe_hold = 0.0

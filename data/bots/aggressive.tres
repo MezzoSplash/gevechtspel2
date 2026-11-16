@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="BotStyle" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/bot_style.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"aggressive"
+display_name = "aggressive"
+range_scale = 0.6
+hold_band = 1.2
+retreat_hp = 25.0
+nade_chance = 0.45
+strafe_hold_min = 1.6
+strafe_hold_max = 2.6

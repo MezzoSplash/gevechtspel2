@@ -40,6 +40,7 @@ func _ready() -> void:
 	var enemy := _pawn(2, Vector3(0, 0.05, -10))
 	var brain := BotBrain.new()
 	brain.pawn = bot
+	brain.style = BotStyle.by_id(&"chaos") # #267: this fixture builds the brain by hand
 	bot.grenades = 2
 	var ceiling := _body(Vector3(6, 0.4, 6), Vector3(0, 2.25, -1.5))
 	await get_tree().physics_frame
@@ -61,7 +62,7 @@ func _ready() -> void:
 
 ## One call that gets past the chance roll. The seed makes that roll deterministic.
 func _attempt(brain: BotBrain, enemy: Player, dist: float) -> Dictionary:
-	var seed_n := _chance_seed()
+	var seed_n := _chance_seed(brain.style.nade_chance)
 	seed(seed_n)
 	brain._nade_check = 0.0
 	brain._nade_cd = 0.0
@@ -69,9 +70,9 @@ func _attempt(brain: BotBrain, enemy: Player, dist: float) -> Dictionary:
 	return {"threw": threw}
 
 
-func _chance_seed() -> int:
+func _chance_seed(chance: float) -> int:
 	for s in 80:
 		seed(s)
-		if randf() <= BotBrain.NADE_CHANCE:
+		if randf() <= chance:
 			return s
 	return 0

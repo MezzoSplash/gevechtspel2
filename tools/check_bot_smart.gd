@@ -209,6 +209,7 @@ func _sprint() -> void:
 
 
 func _threat_and_retreat() -> void:
+	brain.style = BotStyle.by_id(&"chaos") # the fixture tests the chaos retreat threshold (40 HP)
 	var feet := bot.global_position
 	_wake(me, feet + Vector3(6, 0, 0))
 	_wake(other, feet + Vector3(0, 0, 18))
