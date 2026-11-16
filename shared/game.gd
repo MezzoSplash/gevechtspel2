@@ -353,18 +353,42 @@ func play_locked() -> bool:
 	return round_frozen or killcam_active
 
 
+## Every live pawn (#272). `get_tree().get_nodes_in_group("player")` allocates a fresh array on every
+## call, and with 16 bots it was called 16+ times per physics tick. This one is built at most once per
+## physics tick and thrown away the moment a pawn enters or leaves, so a fresh spawn in the middle of a
+## tick is never missed. Callers must not write to the returned array.
+var _roster: Array[Player] = []
+var _roster_frame := -1
+var _roster_dirty := true
+
+
+func players() -> Array[Player]:
+	if not _roster_dirty and _roster_frame == Engine.get_physics_frames():
+		return _roster
+	_roster_dirty = false
+	_roster_frame = Engine.get_physics_frames()
+	_roster.clear()
+	for n in get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p != null and not p.is_queued_for_deletion():
+			_roster.append(p)
+	return _roster
+
+
+## A pawn joined or left: the cached roster is stale even if it was built this tick.
+func invalidate_roster() -> void:
+	_roster_dirty = true
+
+
 ## Humans are named by peer id; bots are `bot1` with peer_id -1, etc.
 func player_for_peer(peer_id: int) -> Player:
 	if peer_id == 0:
 		return null
-	for n in get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p == null:
-			continue
-		if p.peer_id == peer_id or str(n.name) == str(peer_id):
+	for p in players():
+		if p.peer_id == peer_id or str(p.name) == str(peer_id):
 			return p
 		# Bot ids are negative only. A human id (host = 1) must never match `bot1`.
-		if peer_id < 0 and p.is_bot and str(n.name) == "bot%d" % -peer_id:
+		if peer_id < 0 and p.is_bot and str(p.name) == "bot%d" % -peer_id:
 			p.peer_id = peer_id
 			return p
 	return null

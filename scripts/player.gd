@@ -368,6 +368,7 @@ func _restore_bot_identity() -> void:
 func _ready() -> void:
 	_style = StyleTrack.new(self)
 	add_to_group("player")
+	Game.invalidate_roster() # #272: a pawn that appeared mid-tick must be seen at once
 	floor_snap_length = 0.2
 	collision_layer = 2
 	collision_mask = 1
