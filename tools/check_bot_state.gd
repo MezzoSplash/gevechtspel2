@@ -213,6 +213,12 @@ func _tick_prep_fight(_delta: float) -> void:
 	if _ticks < 4:
 		return
 	_wake(far, Vector3(-3, 0.2, -7))
+	# And the bot back on the centre line: it hunted the pawn from wherever its sidesteps took it, and
+	# this phase must measure a fight from inside gun range, not wherever the hunt left it.
+	bot.global_position = Vector3(0, 0.2, 0)
+	bot.velocity = Vector3.ZERO
+	brain._home = bot.global_position
+	brain._stuck_pos = bot.global_position
 	brain._target = null
 	brain._retarget_t = 0.0
 	brain._acquire_left = 0.0
@@ -220,6 +226,11 @@ func _tick_prep_fight(_delta: float) -> void:
 	brain._burst_pause = 0.0
 	bot.weapon.ammo = 30
 	bot.weapon._reload_left = 0.0
+	far.weapon.ammo = 0 # the target does not shoot back
+	# ... and it cannot die: a death means a respawn somewhere with an open sight line, which would
+	# turn this phase's "wall means no fight" assertion into a measurement of the respawn point.
+	far.hp = 100000.0
+	far.is_dead = false
 	_ammo_before = bot.weapon.ammo
 	_ticks = 0
 	_phase = "fight"
@@ -228,19 +239,31 @@ func _tick_prep_fight(_delta: float) -> void:
 func _tick_fight(delta: float) -> void:
 	brain.physics_tick(delta)
 	_ticks += 1
-	if brain.state == BotBrain.State.FIGHT:
-		_ok(true, "line of sight inside gun range: fights (%s)" % _state_name(brain.state))
-		_ok(bot.weapon.ammo < _ammo_before, "and shoots (%d -> %d rounds)" % [_ammo_before, bot.weapon.ammo])
-		_arm_hunt_again()
+	if brain.state != BotBrain.State.FIGHT:
+		if _ticks > 40:
+			_ok(false, "clear line of sight inside gun range never became a fight (%s)" % _state_name(brain.state))
+			_arm_hunt_again()
 		return
-	if _ticks > 40:
-		_ok(false, "clear line of sight inside gun range never became a fight (%s)" % _state_name(brain.state))
+	# A burst may still be priming on the first fighting tick; wait for the spent round itself.
+	if bot.weapon.ammo < _ammo_before:
+		_ok(true, "line of sight inside gun range: fights (%s)" % _state_name(brain.state))
+		_ok(true, "and shoots (%d -> %d rounds)" % [_ammo_before, bot.weapon.ammo])
+		_arm_hunt_again()
+	elif _ticks > 60:
+		_ok(false, "in a fight it never spent a round (%s)" % _state_name(brain.state))
 		_arm_hunt_again()
 
 
 func _arm_hunt_again() -> void:
 	wall.collision_layer = 1
 	_fight_ticks = 0
+	# Back on the centre line: a fighting bot drifts with its sidesteps, and a step sideways lets
+	# the line of sight past the wall for real. This phase has to test "wall up means no fight".
+	bot.global_position = Vector3(0, 0.2, 0)
+	bot.velocity = Vector3.ZERO
+	brain._home = bot.global_position
+	brain._stuck_pos = bot.global_position
+	far.global_position = Vector3(-3, 0.2, -7)
 	_ticks = 0
 	_phase = "hunt_again"
 
@@ -267,6 +290,7 @@ func _tick_hunt_again(delta: float) -> void:
 
 ## Low HP after a hit: break off, and get further away.
 func _arm_flee() -> void:
+	brain.style = BotStyle.by_id(&"chaos") # the fixture tests the chaos retreat threshold (40 HP)
 	# Open floor, so a wall from the hunt phase cannot be what keeps the gap from growing.
 	bot.global_position = Vector3(0, 0.2, 0)
 	bot.velocity = Vector3.ZERO

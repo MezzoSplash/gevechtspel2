@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="BotStyle" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/bot_style.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"holder"
+display_name = "holder"
+range_scale = 1.35
+hold_band = 3.0
+retreat_hp = 55.0
+nade_chance = 0.0
+strafe_hold_min = 1.0
+strafe_hold_max = 1.8
