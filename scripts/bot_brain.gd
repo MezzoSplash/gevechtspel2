@@ -57,8 +57,7 @@ var _acquire_left := ACQUIRE # set from Game.bot_profile() (#90) when a target i
 ## Slide, wallrun and dive run through the same Movement code as a human's. These are the bot's keys:
 ## crouch is held for the length of a slide, and pressed for a single tick so Movement sees a real press.
 const BOT_SLIDE_HOLD := 0.45 # s of crouch hold for one slide
-const BOT_SLIDE_NEAR := 12.0 # m: closest-to-furthest band where sliding into a fight makes sense
-const BOT_SLIDE_FAR := 4.5
+## The slide band is per character now (BotStyle.slide_far/slide_near, #267 slice 2).
 const BOT_DIVE_RANGE := 14.0 # m: falling toward a target inside this range is worth a dive
 var _crouch_hold := 0.0
 var _crouch_press := false
@@ -112,12 +111,19 @@ var los_cache := true
 ## #267: this bot's character (aggressive / holder / chaos), from `data/bots/*.tres`. Difficulty is
 ## how good it is; this is what it wants to do. Set in `setup()`, stable across a respawn.
 var style: BotStyle
+## How long this character has wanted to shoot but did not have the angle yet (#267 slice 2).
+var _flank_wait := 0.0
 var _flank_base := 0.0 # peer slot on the ring; restored when the target changes
 var _flank_angle := 0.0 # radians around the enemy; hunt aims here before closing
 var _flank_flipped := false # first stuck tries the other side before a direct chase
 var _path_live := false # a target has been handed to the agent this chase
 var _path_enemy := Vector3.ZERO # where the enemy stood when that path was built
 var _force_repath := false
+## #267 slice 2: a flanker that is this close shoots whatever angle it has, and a ring point it has
+## already reached is worth leaving - one in `flank_switch` ticks it takes the next angle.
+const FLANK_ARRIVE := 1.5 # m: standing on the ring point
+const FLANK_POINT_BLANK := 6.0
+const FLANK_TURN := PI * 0.5
 ## Grenades: frags at mid range, a cooldown so they do not spam.
 const NADE_MIN := 7.0
 const NADE_MAX := 21.0
@@ -250,6 +256,8 @@ func physics_tick(delta: float) -> void:
 	# navmesh toward him instead of pushing straight at him into the wall.
 	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > _fight_range() + 4.0
 	var fighting := _can_see(enemy) and not out_of_range
+	if fighting and style.flank_only:
+		fighting = _flank_aim_ok(enemy, delta) # #267: the flanker does not open fire from the front
 	if fighting:
 		_set_state(State.FIGHT)
 		_acquire_left = maxf(_acquire_left - delta, 0.0)
@@ -290,7 +298,7 @@ func _tick_tricks(delta: float) -> void:
 	if on_floor and has_foe and state == State.FIGHT and not pawn._sliding and _crouch_hold <= 0.0 and pawn._slide_cd <= 0.0:
 		var dist := pawn.global_position.distance_to(foe.global_position)
 		var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.WALK_SPEED * 1.05
-		if fast and dist > BOT_SLIDE_FAR and dist < BOT_SLIDE_NEAR:
+		if fast and dist > style.slide_far and dist < style.slide_near:
 			_crouch_press = true
 			_crouch_hold = BOT_SLIDE_HOLD
 	# A dive when it is falling toward a target: closes the gap, and it lands into a roll.
@@ -560,13 +568,21 @@ func _hunt(enemy: Player, delta: float) -> void:
 func _hunt_flank(enemy: Player, delta: float) -> void:
 	_set_state(State.HUNT_FLANK)
 	_hunt_begin()
+	var at := _goal_pos(enemy)
+	# A ring point it has already reached is worth leaving (#267 slice 2): the flanker takes the next
+	# angle on the enemy instead of standing on the spot, which is what "slaat vaker een hoek om" is.
+	if (style.flank_switch > 0.0
+			and pawn.global_position.distance_to(_flank_point(at)) < FLANK_ARRIVE
+			and randf() < style.flank_switch):
+		_flank_angle += FLANK_TURN * (1.0 if randf() < 0.5 else -1.0)
+		_flank_flipped = false # a new angle is a new chase, not an escalation
+		_drop_path()
 	# is_navigation_finished is still true the frame a target is set; the path arrives after.
 	var followed := _path_live and _repath_t < HUNT_REPATH - 0.2
 	if followed and agent and agent.is_navigation_finished():
 		_route = Route.DIRECT
 		_set_state(State.HUNT_DIRECT)
 		_force_repath = true
-	var at := _goal_pos(enemy)
 	_hunt_leg(enemy, delta, at if _route == Route.DIRECT else _flank_point(at), at)
 
 
@@ -955,6 +971,25 @@ func _drive_rc(delta: float) -> bool:
 	var turn := absf(wrapf(want_yaw - car.yaw, -PI, PI))
 	car.apply_remote_input(want_yaw, 0.55 if turn > 1.2 else 1.0)
 	return true
+
+
+## Does this character get to open fire on `enemy` from where it stands? Only the flanker asks
+## (#267 slice 2): no attack from straight ahead, a free shot from the side or the back, and a
+## patience timer so it never circles forever in front of someone who keeps facing it.
+func _flank_aim_ok(enemy: Player, delta: float) -> bool:
+	var to := pawn.global_position - enemy.global_position
+	to.y = 0.0
+	var facing := -enemy.transform.basis.z # the enemy's forward, flat
+	facing.y = 0.0
+	var from_side := true
+	if facing.length_squared() > 0.0001 and to.length_squared() > 0.0001:
+		# 1.0 is straight into the enemy's face, 0.0 is exactly the side.
+		from_side = facing.normalized().dot(to.normalized()) < 0.35
+	if from_side or pawn.global_position.distance_to(enemy.global_position) < FLANK_POINT_BLANK:
+		_flank_wait = 0.0
+		return true
+	_flank_wait += delta
+	return _flank_wait >= style.flank_patience
 
 
 ## Point on a ring around the enemy at fight range. Y stays theirs so roofs still route up a ramp.

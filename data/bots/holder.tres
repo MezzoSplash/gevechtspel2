@@ -13,3 +13,5 @@ retreat_hp = 45.0
 nade_chance = 0.0
 strafe_hold_min = 1.0
 strafe_hold_max = 1.8
+slide_far = 6.0
+slide_near = 9.0

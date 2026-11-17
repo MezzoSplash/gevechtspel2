@@ -75,8 +75,34 @@ func _run_after_settle() -> void:
 	_ok(holder > aggressive + 2.0, "the holder keeps %.1f m more distance than the aggressive bot" % (holder - aggressive))
 	# Aggressive and chaos both brawl: the distance rule is a floor for them, not a preferred range.
 	_ok(holder > chaos + 2.0, "and %.1f m more than chaos, which fights up close like the old bots" % (holder - chaos))
+	var aggressive_front := await _front_fight(&"aggressive")
+	var flanker_front := await _front_fight(&"flanker")
+	print("  enemy facing us the whole time: first fight tick aggressive %d, flanker %d" % [
+		aggressive_front["first"], flanker_front["first"]])
+	_ok(flanker_front["first"] > aggressive_front["first"] + 30,
+		"a front-facing enemy keeps the flanker out of the fight at least 0.5 s longer (%d vs %d)" % [
+			aggressive_front["first"], flanker_front["first"]])
+	_ok(flanker_front["first"] >= 0, "and the flanker does open fire once it has the angle or the patience")
 	_slots()
 	_done()
+
+
+## When does `style_id` first open fire on an enemy that faces it the whole window? The flanker
+## circles and only fights from point blank or after its patience; everyone else fights at once.
+func _front_fight(style_id: StringName) -> Dictionary:
+	_place()
+	brain.setup(bot, null)
+	brain.style = BotStyle.by_id(style_id)
+	bot.weapon.equip_loadout(0)
+	var first := -1
+	for i in TICKS:
+		_keep_alive()
+		enemy.look_at(bot.global_position, Vector3.UP) # never a side or a back view
+		brain.physics_tick(1.0 / 60.0)
+		if first < 0 and brain.state == BotBrain.State.FIGHT:
+			first = i
+		await get_tree().physics_frame
+	return {"first": first}
 
 
 func _place() -> void:
@@ -89,6 +115,17 @@ func _place() -> void:
 		p.move_and_slide()
 
 
+## The window keeps both pawns alive and the shooter armed, so it measures the tactic and not a
+## death or a reload.
+func _keep_alive() -> void:
+	bot.hp = Player.MAX_HP
+	enemy.hp = Player.MAX_HP
+	enemy.is_dead = false
+	bot.is_dead = false
+	bot.weapon.ammo = 30
+	enemy.weapon.ammo = 0
+
+
 ## Mean distance while the bot is in a fight, over TICKS of the real brain. Both pawns are kept
 ## alive and armed every tick, so the window measures the tactic and not a reload or a death.
 func _mean_distance(style_id: StringName) -> float:
@@ -99,12 +136,7 @@ func _mean_distance(style_id: StringName) -> float:
 	var sum := 0.0
 	var n := 0
 	for i in TICKS:
-		bot.hp = Player.MAX_HP
-		enemy.hp = Player.MAX_HP
-		enemy.is_dead = false
-		bot.is_dead = false
-		bot.weapon.ammo = 30
-		enemy.weapon.ammo = 0
+		_keep_alive()
 		brain.physics_tick(1.0 / 60.0)
 		if brain.state == BotBrain.State.FIGHT:
 			sum += bot.global_position.distance_to(enemy.global_position)
@@ -117,12 +149,16 @@ func _mean_distance(style_id: StringName) -> float:
 ## two respawns does not.
 func _slots() -> void:
 	var seen := {}
-	for id in [-1, -2, -3]:
+	for id in [-1, -2, -3, -4]:
 		var s := BotStyle.for_peer(id)
 		seen[s.id] = true
-	_ok(seen.size() == 3, "three bot slots get three different characters (%s)" % [seen.keys()])
+	_ok(seen.size() == 4, "four bot slots get four different characters (%s)" % [seen.keys()])
 	_ok(BotStyle.for_peer(-2).id == BotStyle.for_peer(-2).id, "a slot keeps its character on a respawn")
-	_ok(BotStyle.for_peer(-1).id == BotStyle.for_peer(-4).id, "and the cycle repeats every three slots")
+	_ok(BotStyle.for_peer(-1).id == BotStyle.for_peer(-5).id, "and the cycle repeats every four slots")
+	_ok(BotStyle.by_id(&"flanker").flank_switch > 0.0, "the flanker keeps taking new angles on the ring")
+	_ok(BotStyle.by_id(&"aggressive").slide_near > BotStyle.by_id(&"chaos").slide_near,
+		"the aggressive bot slides from further out (%.0f vs %.0f m)" % [
+			BotStyle.by_id(&"aggressive").slide_near, BotStyle.by_id(&"chaos").slide_near])
 	_ok(BotStyle.by_id(&"holder").nade_chance == 0.0, "the holder throws no frags")
 	_ok(BotStyle.by_id(&"holder").retreat_hp > BotStyle.by_id(&"aggressive").retreat_hp,
 		"the aggressive bot gives up later (%.0f vs %.0f HP)" % [
