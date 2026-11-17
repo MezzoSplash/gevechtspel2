@@ -100,6 +100,7 @@ func _window(cache: bool, ttl: int, ticks: int) -> int:
 	for b in brains:
 		b.los_cache = cache
 		b.los_ttl = ttl
+	BotBrain.count_rays = true
 	BotBrain.los_rays = 0
 	for i in ticks:
 		# Nobody dies: the window has to measure the same crowd from start to end.
