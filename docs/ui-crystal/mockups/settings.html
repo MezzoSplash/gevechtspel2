@@ -1,0 +1,25 @@
+<!doctype html><meta charset=utf-8><link rel=stylesheet href=crystal.css><script src=crystal.js></script>
+<body><script>
+defs();backdrop('dark');
+const B='#408CF2',O='#EB6138',V='#BFF3FF';
+function mk(html,x,y,w,h,o,extra){const d=document.createElement('div');d.style.left=x+'px';d.style.top=y+'px';d.innerHTML=html;document.body.appendChild(d);shard(d,w,h,o);if(extra)d.style.cssText+=extra;return d}
+document.body.insertAdjacentHTML('beforeend',`<div class="abs" style="left:150px;top:90px"><div class=lbl style="letter-spacing:.34em;color:${V}">Settings</div><div style="font-size:64px;font-weight:300;letter-spacing:.06em;margin-top:8px">AUDIO</div></div>`);
+// tabs: pieces of one crystal, the active one is pale shell
+['VIDEO','MOUSE','KEYS','CROSSHAIR','ACCESS.','AUDIO'].forEach((t,i)=>{const on=i==5;
+ mk(`<div class=up style="text-align:center;line-height:46px;font-size:13px;letter-spacing:.2em;color:${on?'#0c1118':'#b8c3d1'}">${t}</div>`,150+i*148,230,140,46,{cuts:[[10,4,8,4],[4,10,4,8],[8,6,10,4],[6,8,4,10],[10,4,6,8],[4,10,8,6]][i],pale:on,color:on?V:null,seam:'bottom',seed:500+i,alpha:.55});});
+const rows=[['Master',0.8],['SFX',0.7],['Music',0.45],['UI',0.6],['Enemies','0.9','louder by default']];
+let y=330;
+rows.forEach((r,i)=>{const sel=i==2,w=1120,h=88,v=parseFloat(r[1]);
+ const track=560,x0=380;
+ mk(`<div style="position:relative;height:100%"><div style="position:absolute;left:36px;top:26px"><div style="font-size:22px;font-weight:${sel?700:500};letter-spacing:.12em;color:${sel?'#0c1118':'#e1e8f0'}">${r[0].toUpperCase()}</div>${r[2]?`<div class=lbl style="font-size:10px;margin-top:6px">${r[2]}</div>`:''}</div>
+  <svg style="position:absolute;left:${x0}px;top:0" width=${track+60} height=${h}><line x1=0 y1=44 x2=${track} y2=44 stroke="${sel?'#10151c':'#fff'}" stroke-opacity="${sel?.25:.16}" stroke-width=4 stroke-linecap=round />
+  <line x1=0 y1=44 x2=${track*v} y2=44 stroke="${sel?'#1c6fe0':V}" stroke-width=5 stroke-linecap=round ${sel?'':'filter="url(#glow)"'}/>
+  <path d="M${track*v} 30l11 14l-11 14l-11 -14z" fill="${sel?'#10151c':'#fff'}"/></svg>
+  <div class=num style="position:absolute;right:40px;top:26px;font-size:34px;color:${sel?'#0c1118':'#fff'}">${Math.round(v*100)}</div></div>`,
+  150,y,w,h,{cuts:[[16,6,14,8],[8,14,8,16],[14,6,12,8],[6,12,8,14],[12,8,16,6]][i],pale:sel,color:sel?V:B,seam:'left',lit:sel?1:0,seed:600+i*3,alpha:.6});
+ y+=h+14;});
+mk(`<div style="text-align:center;line-height:54px;font-size:15px;font-weight:700;letter-spacing:.2em;color:#0c1118">‹ BACK</div>`,150,980,160,54,{cuts:[10,4,12,4],pale:true,seed:700});
+mk(`<div style="padding:15px 20px" class=lbl>← → value · Q E tab · R default</div>`,1180,984,390,46,{cuts:[8,4,10,4],seed:710,alpha:.4});
+// side: what the slider means, in the same material
+mk(`<div style="padding:30px 32px"><div class=lbl style="color:${V}">Enemies</div><div style="font-size:15px;line-height:1.6;color:#c4cedb;margin-top:12px">Gunshots and footsteps of other players get their own slider, so you hear them over your own gun.</div></div>`,1330,330,360,190,{cuts:[22,8,18,6],color:V,seam:'left',lit:.5,seed:720,alpha:.55});
+</script>

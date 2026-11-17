@@ -1,0 +1,57 @@
+<!doctype html><meta charset=utf-8><link rel=stylesheet href=crystal.css><script src=crystal.js></script>
+<body>
+<style>
+.big{font-size:104px}.mid{font-size:46px}
+.pad{padding:0}
+.slot{font-size:13px;font-weight:600;letter-spacing:.14em;padding:10px 0 0 16px;color:#aab6c6}.slot b{display:block;font-size:11px;color:var(--mute);margin-bottom:4px}
+.slot.on{color:#10151c}.slot.on b{color:#53606f}
+.kf{display:flex;gap:10px;align-items:center;height:100%;padding:0 18px 0 22px;font-size:17px;font-weight:600;letter-spacing:.04em}
+.kf em{font-style:normal;font-size:11px;letter-spacing:.2em;color:var(--mute)}
+.kf .b{color:#7cb1ff}.kf .o{color:#ff9a78}
+</style>
+<script>
+defs();backdrop();
+const B='#408CF2',O='#EB6138',V='#BFF3FF';
+function mk(html,x,y,w,h,o,extra){const d=document.createElement('div');d.style.left=x+'px';d.style.top=y+'px';d.innerHTML=html;document.body.appendChild(d);shard(d,w,h,o);if(extra)d.style.cssText+=extra;return d}
+// crosshair: four prongs + diamond hit marker
+document.body.insertAdjacentHTML('beforeend',`<svg class=abs style="left:930px;top:510px" width=60 height=60 viewBox="-30 -30 60 60"><g stroke="#fff" stroke-width="2.4" stroke-linecap="square" style="filter:drop-shadow(0 0 2px #000)"><path d="M-16 0H-7M16 0H7M0 -16V-7M0 16V7"/></g><path d="M0 -15L15 0L0 15L-15 0Z" fill="none" stroke="${V}" stroke-width="1.5" opacity=".9"/></svg>`);
+// SCORE: two floating shards + clock shard
+mk(`<div style="display:flex;align-items:center;justify-content:flex-end;height:100%;padding-right:34px"><span class="num" style="font-size:58px">14</span></div>`,610,28,236,78,{cuts:[18,8,22,6],color:B,seam:'bottom',seed:3});
+mk(`<div style="text-align:center;padding-top:14px"><div class="num" style="font-size:36px;color:#10151c">3:42</div><div class=lbl style="color:#4a5666;margin-top:6px;font-size:11px">Elimination · 25</div></div>`,862,16,196,84,{cuts:[10,10,12,12],pale:true,seed:5},'z-index:3');
+mk(`<div style="display:flex;align-items:center;height:100%;padding-left:34px"><span class="num" style="font-size:58px">11</span></div>`,1074,28,236,78,{cuts:[8,18,6,22],color:O,seam:'bottom',seed:8});
+// MINIMAP
+mk(`<svg width=230 height=230 viewBox="0 0 230 230" style="position:absolute;inset:0"><path d="M40 70L125 36L200 76L180 150L110 196L48 160Z" fill="none" stroke="#5a6678" stroke-width="2"/><path d="M70 100L135 84L158 128L108 158Z" fill="#1a212c" stroke="#3c485a" stroke-width="1.5"/><path d="M112 118l8 -20l8 20l-8 -5z" fill="${V}"/><path d="M168 80l7 7l-7 7l-7 -7z" fill="${O}"/><path d="M84 142l7 7l-7 7l-7 -7z" fill="${B}"/><path d="M188 134l7 7l-7 7l-7 -7z" fill="${O}"/></svg>`,34,28,230,230,{cuts:[30,8,46,10],color:V,seam:'left',lit:.55,seed:11});
+// KILL FEED
+const feed=[['YOU','SURF KILL','VEX','b','o',1],['NOVA','NOSCOPE','KIRA','o','b'],['RAZE','AIRSHOT','ORB','b','o'],['DASH','GRENADE','MOS','o','b']];
+feed.forEach((k,i)=>{const w=360;mk(`<div class=kf><span class="${k[3]}">${k[0]}</span><em>${k[1].toUpperCase()}</em><span class="${k[4]}" style="margin-left:auto">${k[2]}</span></div>`,1920-34-w,28+i*52,w,44,{cuts:[10,4,12,6],color:k[3]=='b'?B:O,seam:'right',seed:20+i,pale:k[5]},k[5]?'':'');
+});
+// HP: tall gem that fills from the bottom
+(function(){const d=document.createElement('div');d.style.cssText='left:44px;top:760px;width:190px;height:270px';
+ d.innerHTML=`<svg width=190 height=270 viewBox="0 0 190 270"><defs><clipPath id=hpc><rect x=0 y=0 width=190 height=270 /></clipPath><linearGradient id=g1 x1=0 y1=0 x2=0 y2=1><stop offset=0 stop-color="#EAF6FF"/><stop offset=1 stop-color="#7fc6ff"/></linearGradient></defs>
+ <polygon points="95,4 176,60 184,160 126,262 66,262 6,160 14,60" fill="#0F141B" fill-opacity=".6"/>
+ <g clip-path="url(#hpc)"><polygon points="95,4 176,60 184,160 126,262 66,262 6,160 14,60" fill="url(#g1)" opacity=".9"/></g>
+ <g stroke="#0b0e13" stroke-opacity=".28" stroke-width="2" fill="none"><path d="M95 4L95 262M14 60L126 262M176 60L66 262M6 160H184M14 60H176"/></g>
+ <polygon points="95,4 176,60 184,160 126,262 66,262 6,160 14,60" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.5"/></svg>
+ <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px"><span class=num style="font-size:84px;color:#0c1118">100</span><span class=lbl style="color:#2c3a4a">HP</span></div>`;document.body.appendChild(d);d.className='abs'})();
+// armour pieces around the gem
+[[258,884,B,1],[270,936,B,1],[258,988,B,0]].forEach((a,i)=>mk(``,a[0],a[1],74,40,{cuts:[10,4,12,4],color:a[2],seam:'bottom',lit:a[3]?1:.0,seed:30+i,alpha:a[3]?.7:.3}));
+// SPEED: low, wide, understated; the seam is the meter
+mk(`<div style="display:flex;align-items:baseline;justify-content:center;gap:12px;padding-top:6px"><span class=num style="font-size:72px;text-shadow:0 0 30px rgba(120,190,255,.5)">34</span><span class=lbl style="font-size:15px;color:${V}">m/s</span></div>`,700,946,520,92,{cuts:[22,22,10,10],color:V,seam:'bottom',lit:.78,seed:41});
+mk(`<div class="lbl" style="color:#10151c;text-align:center;line-height:30px;font-size:12px">Wallrun</div>`,876,908,168,30,{cuts:[8,8,8,8],pale:true,seed:44});
+// WALL SIDE seam: the side the wall is on lights up
+document.body.insertAdjacentHTML('beforeend',`<div class=abs style="left:0;top:300px;width:6px;height:480px;background:linear-gradient(180deg,transparent,${V},transparent);box-shadow:0 0 40px 6px rgba(140,220,255,.55);opacity:.85"></div>`);
+// COMBO: multiplier gem + trick chips joined by a seam
+mk(`<div style="text-align:center;padding-top:20px"><span class=num style="font-size:72px;color:#0c1118">×7</span></div>`,876,670,168,112,{cuts:[26,26,26,26],pale:true,seed:52},'z-index:3');
+['SURF','WALLRUN','DIVE','SLIDE'].forEach((t,i)=>mk(`<div class=lbl style="color:${i==3?'#10151c':'#cfd8e3'};text-align:center;line-height:30px;font-size:11px;letter-spacing:.2em">${t}</div>`,[720,812,934,1030][i],800,[88,112,86,92][i],30,{cuts:[8,3,8,3],pale:i==3,color:i==3?null:V,seam:'bottom',seed:60+i}));
+mk(``,860,846,200,6,{cuts:[2,2,2,2],color:V,seam:'top',lit:.7,seed:70,alpha:.5});
+// callout
+document.body.insertAdjacentHTML('beforeend',`<div class="abs up" style="left:0;right:0;top:372px;text-align:center;font-size:30px;letter-spacing:.34em;text-shadow:0 2px 14px #000">Wallrun <span style="color:${V}">+150</span></div>`);
+// STREAKS
+[['UAV','READY · G',1],['RC-XD','2 / 5',0]].forEach((s,i)=>mk(`<div class=kf style="padding-left:26px"><span style="color:${s[2]?'#10151c':'#cfd8e3'}">${s[0]}</span><em style="margin-left:auto;color:${s[2]?'#3a4756':''}">${s[1]}</em></div>`,1920-34-250,560+i*54,250,44,{cuts:[10,4,12,6],pale:!!s[2],color:s[2]?null:V,seam:'left',lit:s[2]?1:.4,seed:80+i}));
+// AMMO + weapons
+mk(`<div style="display:flex;align-items:baseline;justify-content:flex-end;gap:10px;padding:8px 26px 0 0"><span class=num style="font-size:96px">24</span><span class=lbl style="font-size:22px">/ 90</span></div>`,1580,820,306,118,{cuts:[26,8,22,8],color:V,seam:'bottom',lit:.8,seed:90});
+['RIFLE','PISTOL','SHOTGUN','SNIPER'].forEach((n,i)=>mk(`<div class="slot ${i==0?'on':''}"><b>${i+1}</b>${n}</div>`,1480+i*100,950,94,56,{cuts:[10,4,8,4],pale:i==0,color:i==0?null:null,seed:100+i,alpha:.55}));
+[0,1,2].forEach(i=>document.body.insertAdjacentHTML('beforeend',`<svg class=abs style="left:${1830+i*0-i*0}px;top:${1018-i*0}px" width=0 height=0></svg>`));
+// grenade diamonds
+[1,1,0].forEach((on,i)=>document.body.insertAdjacentHTML('beforeend',`<svg class=abs style="left:${1830+i*20}px;top:1022px" width=16 height=16 viewBox="-8 -8 16 16"><path d="M0 -7L7 0L0 7L-7 0Z" fill="${on?O:'none'}" stroke="${on?O:'#566274'}" stroke-width="1.5"/></svg>`));
+</script>
