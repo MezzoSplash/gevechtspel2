@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="BotStyle" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/bot_style.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"flanker"
+display_name = "flanker"
+range_scale = 1.0
+back_off_m = 4.0
+hold_band = 2.0
+retreat_hp = 40.0
+nade_chance = 0.2
+strafe_hold_min = 1.6
+strafe_hold_max = 2.4
+slide_far = 3.0
+slide_near = 14.0
+flank_only = true
+flank_patience = 2.5
+flank_switch = 0.5
