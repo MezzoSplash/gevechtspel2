@@ -49,6 +49,15 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Speed meter (UI crystal step 4, `docs/ui-crystal/HANDOFF.md`): `SpeedMeter` (`scripts/hud/speed_meter.gd`)
+  is a row of the bottom stack right above `HpRow`, so the notice and RELOAD rows come and go above it.
+  The big number is the local pawn's horizontal speed, never smoothed; the shard's bottom seam is the
+  meter (full at `FULL_SPEED` 24 m/s, eased at `SEAM_EASE`, a notch at `SPRINT_SPEED`), the number turns
+  ice from `CARRY_ENTER_SPEED`, and a pale chip names WALLRUN / DIVE / SLIDE / SURF in that priority.
+  Hidden without a live local pawn, while dead and in the final killcam. The stack grew a row, so the
+  combo meter is pushed up to clear it (`Hud._place_combo`, at 720p it overlapped the notice before).
+  Checks: `tools/check_speed_meter`, combo/speed rows in `tools/check_hud_layout`; `tools/shot_hud`
+  renders `/tmp/hud-speed-*.png`. No protocol change.
 - #269: a Hard bot reloads out of sight. `cover` on `Game.BOT_PROFILES` is true only for Hard. An empty
   mag (or a reload already running) sprints to the nearest standable spot within `COVER_R` 8 m that a
   chest ray from the enemy hits world before, searched once with `_side_open` on the heading. No such

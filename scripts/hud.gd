@@ -855,6 +855,12 @@ func _facelift_hud() -> void:
 		grenade_label.reparent(row, false)
 		grenade_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		grenade_label.add_theme_font_size_override("font_size", 15)
+		# Speed meter (crystal step 4): the row right above HP, so the transient notice and
+		# RELOAD rows come and go above it without moving it.
+		speed_meter = SpeedMeter.new()
+		speed_meter.visible = false
+		bottom.add_child(speed_meter)
+		bottom.move_child(speed_meter, row.get_index())
 	if hp_label:
 		hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		hp_label.offset_left = 12.0
@@ -1453,6 +1459,7 @@ func _refresh_scoreboard() -> void:
 
 func _process(delta: float) -> void:
 	_tick_combo_ui(delta)
+	_tick_speed_meter(delta)
 	_hit_timer = maxf(_hit_timer - delta, 0.0)
 	_fire_punch = move_toward(_fire_punch, 0.0, delta * 9.0)
 	if _pickup_toast_t > 0.0:
@@ -1594,6 +1601,9 @@ func _bar(from: Vector2, delta: Vector2, col: Color, thick: float) -> void:
 # #84 combo meter: scripts/hud/combo_meter.gd. Built on the first combo event (same child order as before).
 
 var combo_meter: ComboMeter
+const COMBO_GAP := 8.0 # px between the combo meter and the top of the bottom stack
+## Speed meter: scripts/hud/speed_meter.gd, a row of the bottom stack (built in _facelift_hud).
+var speed_meter: SpeedMeter
 var combo_sfx_log: Array = [] # [kind, pitch] for the headless check (shared with combo_meter.sfx_log)
 
 
@@ -1608,3 +1618,30 @@ func _on_combo_changed(points: int, multiplier: float, time_left: float, moves: 
 func _tick_combo_ui(delta: float) -> void:
 	if combo_meter:
 		combo_meter.tick(delta)
+		_place_combo()
+
+
+## The combo sits at 66 % of the screen, but never on the bottom stack: at 720p the stack (notice,
+## RELOAD, speed, HP, weapons) reaches above that line, so the combo is pushed up to clear it.
+func _place_combo() -> void:
+	var bottom := get_node_or_null("Bottom") as Control
+	if combo_meter == null or bottom == null or not combo_meter.visible:
+		return
+	var limit := bottom.position.y - COMBO_GAP - combo_meter.size.y
+	var anchor_y := size.y * combo_meter.anchor_top
+	var top := minf(anchor_y, limit) - anchor_y
+	if not is_equal_approx(combo_meter.offset_top, top):
+		combo_meter.offset_top = top
+		combo_meter.offset_bottom = top
+
+
+## Local live pawn only: hidden without one, while dead and during the final killcam.
+func _tick_speed_meter(delta: float) -> void:
+	if speed_meter == null:
+		return
+	var p := _player if is_instance_valid(_player) else null
+	var on := p != null and not death_layer.visible and not Game.killcam_active
+	if speed_meter.visible != on:
+		speed_meter.visible = on
+	if on:
+		speed_meter.show_speed(SpeedMeter.flat_speed(p.velocity), SpeedMeter.state_of(p), delta)

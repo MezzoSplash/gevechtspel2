@@ -1,7 +1,7 @@
 # UI restyle "crystal" — handoff
 
 Owner: MezzoSplash. Language with the owner: Dutch. Code, comments and commit messages: follow the repo (mixed, mostly English comments).
-Nothing of this is implemented yet. This file is the brief; the mockups next to it are the target.
+This file is the brief; the mockups next to it are the target. Status: steps 1-3 merged (#292, #293), step 4 (speed meter) in its own PR, step 5 next.
 
 ## 1. What the owner wants
 
@@ -79,7 +79,7 @@ Add `tools/check_crystal_style.gd/.tscn` (+ `.uid`): outline has 8 points inside
 1. `CrystalStyle` + check; verify in the editor that it draws (this settles the risk in 4.1 early).
 2. `CrystalTheme` + `Game._ready()` hook → menu, pause, settings change look. Screenshot with `tools/shot_*` style scripts if one fits, otherwise ask the owner for a screenshot.
 3. HUD skin swap + palette + weapon slots.
-4. Speed meter.
+4. Speed meter. Done: a row of the bottom stack above HP, not bottom-centre on its own (HP and weapons still live there until step 5 moves them).
 5. Layout polish of the menu/pause/settings screens, kill feed, HP gem.
 
 ## 6. Definition of done
