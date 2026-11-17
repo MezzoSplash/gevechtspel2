@@ -385,7 +385,7 @@ func _tick_wall_trick(delta: float, on_floor: bool, has_foe: bool) -> void:
 			_trick_t += delta
 			if pawn.is_dead or not pawn._wallrunning:
 				_end_wall_trick()
-			elif _trick_t >= TRICK_JUMP_AT or (has_foe and _can_see(_target)):
+			elif _trick_t >= TRICK_JUMP_AT or (has_foe and _can_see(_target, true)):
 				# Off the wall, away and up; only when there is floor to land on (a roof edge is a fall death).
 				var n: Vector3 = _trick_plan.n
 				var along := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
@@ -1365,8 +1365,8 @@ func _try_shoot(enemy: Player) -> void:
 ## and then `_fight()`/`_hunt()` ask again for the one they got, and the `fighting` test below asks
 ## every tick for the same pawn. `los_cache = false` is the old per-call behaviour, so the same build
 ## can be measured both ways.
-func _can_see(enemy: Player) -> bool:
-	if los_cache:
+func _can_see(enemy: Player, fresh: bool = false) -> bool:
+	if los_cache and not fresh:
 		var frame := Engine.get_physics_frames()
 		var known: Dictionary = _los.get(enemy.get_instance_id(), {})
 		if not known.is_empty() and frame - int(known["frame"]) < los_ttl:

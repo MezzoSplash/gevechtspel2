@@ -86,7 +86,56 @@ func _ready() -> void:
 	_ok(not BotWall.floor_below(space, BASE + Vector3(200, 0, 0), ex), "floor_below: nothing under a point off the slab")
 	_ok(not BotWall.floor_below(space, BASE + Vector3(0, 40, 10), ex), "floor_below: a point 40 m up is too far above the floor")
 
+	await _drive_wall()
 	_done()
+
+
+## The trigger itself, in the real tick order: sprinting along wall A, the brain jumps at it and
+## `Movement.tick_wallrun` (the same code a human runs) has to take over. Without this the finder can
+## be perfect and a bot still never runs a wall - which is exactly what the live probe showed (#278).
+func _drive_wall() -> void:
+	Game.bot_difficulty = Game.BOT_HARD # the highest trick chance; the loop below retries the dice anyway
+	var bot := (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
+	bot.peer_id = -1
+	bot.is_bot = true
+	bot.position = BASE + Vector3(-12, 0.2, 0.5)
+	bot.set_physics_process(false)
+	bot.set_process(false)
+	add_child(bot)
+	bot.grenades = 0
+	var brain := BotBrain.new()
+	brain.setup(bot, null)
+	await _frames(4)
+	for i in 8:
+		bot.move_and_slide() # settle: is_on_floor() is only re-derived by a move
+	var dt := 1.0 / 60.0
+	var started := false
+	for attempt in 60:
+		bot.velocity = Vector3(Player.SPRINT_SPEED, 0.0, 0.0)
+		brain._trick_cd = 0.0
+		brain._try_start_wall_trick()
+		if brain._trick == BotBrain.Trick.AIR:
+			started = true
+			break
+	var runs := 0
+	var running_ticks := 0
+	var was := false
+	if started:
+		for i in 110:
+			# The same gravity the brain applies at the top of physics_tick: without it the jump
+			# velocity never decays and the chest climbs over any wall within a tenth of a second.
+			if not bot.is_on_floor():
+				bot.velocity.y += float(bot.get_gravity().y) * dt
+			brain._tick_tricks(dt)
+			bot.move_and_slide()
+			if bot._wallrunning and not was:
+				runs += 1
+			if bot._wallrunning:
+				running_ticks += 1
+			was = bot._wallrunning
+	_ok(started, "the dice eventually start a trick at a long wall (60 tries, chance %.1f)" % float(Game.bot_profile().trick))
+	_ok(runs >= 1, "the jump at the wall becomes a real wallrun (%d runs)" % runs)
+	_ok(running_ticks >= 25, "and the run lasts (%.2f s of wallrunning)" % (running_ticks * dt))
 
 
 func _done() -> void:
