@@ -1,5 +1,6 @@
 extends Node
 ## Renders HUD parts with sample data to /tmp/hud-*.png (needs a display, e.g. xvfb-run).
+## Also the speed meter at sprint, surf and wallrun speed (/tmp/hud-speed-*.png).
 ## scoreboard, streak (left column), weapons + health (bottom), class select.
 
 var hud: Control
@@ -39,6 +40,15 @@ func _ready() -> void:
 	_save(img, "/tmp/hud-full.png", Rect2i())
 	_save(img, "/tmp/hud-streak.png", Rect2i(0, 230, 360, 460))
 	_save(img, "/tmp/hud-weapons.png", Rect2i(560, 820, 800, 260))
+	# Speed meter: sprint (no state), a surf past carry, and a wallrun.
+	hud.speed_meter.visible = true
+	for shot in [[11.4, "", "sprint"], [21.0, "SURF", "surf"], [14.0, "WALLRUN", "wallrun"]]:
+		for i in 90:
+			hud.speed_meter.show_speed(shot[0], shot[1], 1.0 / 60.0)
+		img = await _frame()
+		# Crop scales with the real window: a desktop may hand out its own size instead of 1080p.
+		var k := img.get_height() / 1080.0
+		_save(img, "/tmp/hud-speed-%s.png" % shot[2], Rect2i(Vector2i(Vector2(560, 760) * k), Vector2i(Vector2(800, 320) * k)))
 	hud._on_health(22.0, 100.0)
 	hud.set_weapon_index(2)
 	img = await _frame()

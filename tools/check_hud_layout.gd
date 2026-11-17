@@ -26,7 +26,7 @@ func _check_size(sz: Vector2) -> void:
 	var hud := await _live_hud(sz, Game.MODE_FFA)
 	var rects := {}
 	for n in ["Timer", "FfaStanding", "StreakPopup", "Minimap", "StreakSlots", "PresenceFeed", "ChatLog",
-			"Bottom/Notice", "Bottom/Reloading", "Bottom/HpRow", "Bottom/Weapons", "Fps", "KillFeed"]:
+			"Bottom/Notice", "Bottom/Reloading", "Bottom/Speed", "Bottom/HpRow", "Bottom/Weapons", "Fps", "KillFeed"]:
 		var c := hud.get_node_or_null(n) as Control
 		if c == null:
 			_ok(false, "%s exists" % n)
@@ -59,10 +59,20 @@ func _check_size(sz: Vector2) -> void:
 	_ok(not _hit(rects, "Fps", "Bottom/Weapons"), "perf overlay clear of the weapon boxes")
 	_ok(not _hit(rects, "Fps", "KillFeed"), "perf overlay clear of the kill feed")
 	# Bottom stack: the notice and RELOAD are rows of it now, not free-floating labels.
-	var rows := ["Bottom/Notice", "Bottom/Reloading", "Bottom/HpRow", "Bottom/Weapons"]
+	var rows := ["Bottom/Notice", "Bottom/Reloading", "Bottom/Speed", "Bottom/HpRow", "Bottom/Weapons"]
 	for i in rows.size():
 		for j in range(i + 1, rows.size()):
 			_ok(not _hit(rects, rows[i], rows[j]), "%s clear of %s" % [rows[i], rows[j]])
+	# The combo meter sits above the bottom stack at every size (#speed meter: the stack grew a row).
+	hud._on_combo_changed(1200, 3.5, 3.0, "SURF  WALLRUN  DIVE", "build", 0)
+	for i in 2:
+		await get_tree().process_frame
+	hud._place_combo()
+	await get_tree().process_frame
+	var combo := hud.combo_meter.get_global_rect()
+	for n in ["Bottom/Notice", "Bottom/Reloading", "Bottom/Speed", "Bottom/HpRow", "Bottom/Weapons"]:
+		_ok(not combo.intersects(rects[n]), "combo meter clear of %s (%s / %s)" % [n, combo, rects[n]])
+	_ok(combo.position.y > sz.y * 0.5, "combo meter stays below the crosshair (%s)" % combo)
 	for n in rects:
 		var r: Rect2 = rects[n]
 		var inside := r.position.x >= -0.5 and r.position.y >= -0.5 \
@@ -103,6 +113,8 @@ func _live_hud(sz: Vector2, mode: int) -> Hud:
 	hud.show_popup("UAV", Color.GOLD, "Bot 3", 0)
 	hud.set_reloading(true)
 	hud.set_grenades(2, 1)
+	hud.speed_meter.visible = true # normally only with a live local pawn
+	hud.set_process(false) # keep the meter shown: _process would hide it without a pawn
 	hud._refresh_standing()
 	for i in 3:
 		await get_tree().process_frame
