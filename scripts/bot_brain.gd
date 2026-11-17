@@ -730,8 +730,11 @@ func _follow_hint(enemy: Player, delta: float) -> void:
 	elif _hint_t >= HINT_STALL:
 		_clear_hint()
 		return
+	# A slide needs speed to start: pressing crouch while walking just crouches the bot and it crawls
+	# the rest of the route at a walk - measured in check_bot_route (11 m/s -> 1 m/s -> stall).
+	var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.SPRINT_SPEED * 0.9
 	if (StringName(_hint.get("kind", &"")) == &"slide"
-			and not _hint_pressed and pawn.is_on_floor()
+			and fast and not _hint_pressed and pawn.is_on_floor()
 			and _crouch_hold <= 0.0 and _crouch_press == false and pawn._slide_cd <= 0.0):
 		_hint_pressed = true
 		_crouch_press = true

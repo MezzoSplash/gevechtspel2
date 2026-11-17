@@ -38,6 +38,9 @@ func _pawn(at: Vector3) -> Player:
 	p.set_process(false)
 	add_child(p)
 	p.grenades = 0
+	# The pawn builds its own brain in `_ready` and the server ticks it: detach it, or two brains steer
+	# the same pawn and the route is fought over by an AI that only wants to walk at the enemy.
+	p._bot_brain = null
 	return p
 
 
@@ -47,6 +50,7 @@ func _ready() -> void:
 	seed(20261117)
 	_body(Vector3(120, 1, 120), BASE + Vector3(0, -0.5, 0))
 	_loader()
+	_files()
 	await _follow()
 	_timeout()
 	_done()
@@ -128,8 +132,34 @@ func _follow() -> void:
 
 ## Runs the real tick with (or without) a route pinned on the brain and returns the closest the bot
 ## came to `target`.
-func br_state(brain: BotBrain) -> String:
-	return BotBrain.State.keys()[int(brain.state)]
+## The shipped map files. Only parsing and schema here: whether their geometry is still walkable is
+## checked once at load, in the real map's space (`BotRoutes._validate`), because this scene has no
+## arena to trace.
+func _files() -> void:
+	for m in [&"skyline", &"rooftops"]:
+		var path := "res://data/bot_routes/" + str(m) + ".json"
+		var text := FileAccess.get_file_as_string(path)
+		var routes: Array = []
+		if not text.is_empty():
+			var parsed = JSON.parse_string(text)
+			if typeof(parsed) == TYPE_DICTIONARY:
+				var raw = (parsed as Dictionary).get("routes", [])
+				routes = raw if typeof(raw) == TYPE_ARRAY else []
+		_ok(routes.size() >= 2, "%s ships at least two routes (%d)" % [m, routes.size()])
+		var kinds_ok := true
+		var points_ok := true
+		for entry in routes:
+			if typeof(entry) != TYPE_DICTIONARY:
+				kinds_ok = false
+				continue
+			var d := entry as Dictionary
+			if StringName(str(d.get("kind", ""))) != &"wallrun":
+				kinds_ok = false
+			var pts = d.get("points", [])
+			if typeof(pts) != TYPE_ARRAY or (pts as Array).size() < 2:
+				points_ok = false
+		_ok(kinds_ok, "%s: every route is a wallrun" % m)
+		_ok(points_ok, "%s: every route has at least two points" % m)
 
 
 func _closest(bot: Player, enemy: Player, brain: BotBrain, target: Vector3, hint: Dictionary) -> float:
@@ -152,11 +182,6 @@ func _closest(bot: Player, enemy: Player, brain: BotBrain, target: Vector3, hint
 		bot.is_dead = false
 		brain.physics_tick(1.0 / 60.0)
 		best = minf(best, Vector2(bot.global_position.x - target.x, bot.global_position.z - target.z).length())
-		if i % 15 == 0 or (not brain._hint.is_empty() and brain._hint_i > 1):
-			print("    dbg i=%d pos=(%.1f,%.1f) hint=%s idx=%d stall=%.2f vel=(%.1f,%.1f,%1.1f) st=%s onfloor=%s" % [
-				i, bot.global_position.x - BASE.x, bot.global_position.z - BASE.z,
-				str(brain._hint.get("kind", "-")), brain._hint_i, brain._hint_t,
-				bot.velocity.x, bot.velocity.y, bot.velocity.z, br_state(brain), str(bot.is_on_floor())])
 		await get_tree().physics_frame
 	return best
 

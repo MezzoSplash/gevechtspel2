@@ -2,7 +2,7 @@ class_name BotRoutes
 extends RefCounted
 ## #270: hand-authored movement routes, so a bot takes a wallrun or a slide on purpose instead of
 ## stumbling into one. A route is a short polyline with a kind; it lives in
-## `tools/bot_routes/<map>.json` and is plain data - no navmesh, no per-map code.
+## `data/bot_routes/<map>.json` and is plain data - no navmesh, no per-map code.
 ##
 ## Validation happens once per map, on the first look-up: every segment of a route is traced through
 ## the world and every point has to have floor under it, so a route that runs through a wall (a map
@@ -16,7 +16,9 @@ extends RefCounted
 ##     {"kind": "surf",    "points": [...]}
 ##   ]}
 
-const DIR := "res://tools/bot_routes/"
+## Data, not tooling: `export_presets.cfg` excludes `tools/*`, so routes that live there would be
+## missing from every exported build (the dedicated server included).
+const DIR := "res://data/bot_routes/"
 const KINDS: Array[StringName] = [&"wallrun", &"slide", &"surf"]
 ## A route is picked up when its first point is this close to the bot, and it has to lead towards
 ## the goal, or a bot that walks past the start of a route would turn around for it.
