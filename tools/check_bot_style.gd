@@ -100,7 +100,7 @@ func _run_after_settle() -> void:
 
 
 ## One second of the flanker standing on its own ring point of a target it cannot attack
-## (front-facing), with `flank_switch` forced to `switch_on`. The only thing that can move the ring
+## (front-facing), with `flank_switch_per_s` forced to `switch_on`. The only thing that can move the ring
 ## angle there is the switch, so the turn count isolates it. Runs on a copy of the resource.
 func _ring_walk(switch_on: float) -> int:
 	_place()
@@ -214,7 +214,7 @@ func _slots() -> void:
 	_ok(seen.size() == 4, "four bot slots get four different characters (%s)" % [seen.keys()])
 	_ok(BotStyle.for_peer(-2).id == BotStyle.for_peer(-2).id, "a slot keeps its character on a respawn")
 	_ok(BotStyle.for_peer(-1).id == BotStyle.for_peer(-5).id, "and the cycle repeats every four slots")
-	_ok(BotStyle.by_id(&"flanker").flank_switch > 0.0, "the flanker keeps taking new angles on the ring")
+	_ok(BotStyle.by_id(&"flanker").flank_switch_per_s > 0.0, "the flanker keeps taking new angles on the ring")
 	_ok(BotStyle.by_id(&"aggressive").slide_max_m > BotStyle.by_id(&"chaos").slide_max_m,
 		"the aggressive bot slides from further out (%.0f vs %.0f m)" % [
 			BotStyle.by_id(&"aggressive").slide_max_m, BotStyle.by_id(&"chaos").slide_max_m])

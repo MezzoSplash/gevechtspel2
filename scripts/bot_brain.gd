@@ -57,7 +57,7 @@ var _acquire_left := ACQUIRE # set from Game.bot_profile() (#90) when a target i
 ## Slide, wallrun and dive run through the same Movement code as a human's. These are the bot's keys:
 ## crouch is held for the length of a slide, and pressed for a single tick so Movement sees a real press.
 const BOT_SLIDE_HOLD := 0.45 # s of crouch hold for one slide
-## The slide band is per character now (BotStyle.slide_far/slide_near, #267 slice 2).
+## The slide band is per character now (BotStyle.slide_min_m/slide_max_m, #267 slice 2).
 const BOT_DIVE_RANGE := 14.0 # m: falling toward a target inside this range is worth a dive
 var _crouch_hold := 0.0
 var _crouch_press := false
@@ -122,7 +122,7 @@ var _path_live := false # a target has been handed to the agent this chase
 var _path_enemy := Vector3.ZERO # where the enemy stood when that path was built
 var _force_repath := false
 ## #267 slice 2: a flanker this close is about to be shanked, so angle or not, it shoots. A ring point
-## it has already reached is worth leaving - one in `flank_switch` ticks it takes the next angle.
+## it has already reached is worth leaving - at a rate of `flank_switch_per_s` per second.
 const FLANK_ARRIVE := 3.0 # m: close enough to the ring point that standing there is standing still
 const FLANK_POINT_BLANK := 2.5
 const FLANK_TURN := PI * 0.5
