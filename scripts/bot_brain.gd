@@ -400,7 +400,7 @@ func _tick_wall_trick(delta: float, on_floor: bool, has_foe: bool) -> void:
 ## On the floor and sprinting along the path: a wall alongside the heading, and the dice, start a trick.
 func _try_start_wall_trick() -> void:
 	# A held crouch (the tail of a slide) would drop the wallrun the moment it starts.
-	if _in_fight or _unstick_left > 0.0 or pawn._sliding or pawn._diving or pawn._roll_t > 0.0 or pawn.is_dead:
+	if state == State.FIGHT or _unstick_left > 0.0 or pawn._sliding or pawn._diving or pawn._roll_t > 0.0 or pawn.is_dead:
 		return
 	if _crouch_hold > 0.0 or _crouch_press:
 		return
@@ -414,8 +414,8 @@ func _try_start_wall_trick() -> void:
 	var plan := BotWall.find(space, pawn.global_position, heading, [pawn.get_rid()])
 	if plan.is_empty():
 		return
-	if randf() >= chance:
-		_trick_cd = TRICK_SKIP_CD # said no to this wall: do not roll again at the next scan
+	if rng.randf() >= chance:
+		_trick_cd = TRICK_SKIP_CD # this bot's own roll series, seeded per slot (#289) # said no to this wall: do not roll again at the next scan
 		return
 	_trick_plan = plan
 	_trick = Trick.AIR
