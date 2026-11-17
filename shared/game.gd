@@ -353,10 +353,10 @@ func play_locked() -> bool:
 	return round_frozen or killcam_active
 
 
-## Every live pawn (#272). `get_tree().get_nodes_in_group("player")` allocates a fresh array on every
-## call, and with 16 bots it was called 16+ times per physics tick. This one is built at most once per
-## physics tick and thrown away the moment a pawn enters or leaves, so a fresh spawn in the middle of a
-## tick is never missed. Callers must not write to the returned array.
+## Every pawn still in the tree - dead ones included, exactly like `get_nodes_in_group("player")`;
+## each caller filters `is_dead` itself (#272). The group lookup allocates a fresh array on every call
+## and with 16 bots it ran 16+ times per physics tick, so this one is built at most once per tick and
+## invalidated the moment a pawn enters or leaves the tree. Callers must not write to the array.
 var _roster: Array[Player] = []
 var _roster_frame := -1
 var _roster_dirty := true

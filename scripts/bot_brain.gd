@@ -104,9 +104,10 @@ var _los: Dictionary = {} # instance id -> {"vis": bool, "point": Vector3, "fram
 var los_ttl := 6
 ## Bounds the cache: a pawn that respawns gets a new instance id, so entries are pruned by size too.
 const LOS_CACHE_MAX := 64
-## Rays fired by `_can_see()` since the process started. `tools/check_bot_perf` reads and resets it,
-## and flips `los_cache` to measure the same build with and without.
+## Rays fired by `_can_see()`. Only counted while `count_rays` is on, which is what
+## `tools/check_bot_perf` flips: production should not pay for a counter nobody reads.
 static var los_rays := 0
+static var count_rays := false
 var los_cache := true
 ## #267: this bot's character (aggressive / holder / chaos), from `data/bots/*.tres`. Difficulty is
 ## how good it is; this is what it wants to do. Set in `setup()`, stable across a respawn.
@@ -1235,7 +1236,8 @@ func _can_see(enemy: Player) -> bool:
 		var query := PhysicsRayQueryParameters3D.create(from, to)
 		query.collision_mask = SHOT_MASK
 		query.exclude = Game.shot_exclude(pawn)
-		los_rays += 1
+		if count_rays:
+			los_rays += 1
 		var hit := space.intersect_ray(query)
 		if hit.has("collider") and hit.collider == enemy:
 			seen = true
