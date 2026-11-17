@@ -1,0 +1,20 @@
+<!doctype html><meta charset=utf-8><link rel=stylesheet href=crystal.css><script src=crystal.js></script>
+<body><script>
+defs();backdrop();
+const B='#408CF2',O='#EB6138',V='#BFF3FF';
+function mk(html,x,y,w,h,o,extra){const d=document.createElement('div');d.style.left=x+'px';d.style.top=y+'px';d.innerHTML=html;document.body.appendChild(d);shard(d,w,h,o);if(extra)d.style.cssText+=extra;return d}
+// left shade so the menu reads, scene stays visible on the right
+document.body.insertAdjacentHTML('beforeend','<div class=abs style="inset:0;background:linear-gradient(90deg,rgba(8,10,14,.9) 0,rgba(8,10,14,.55) 38%,rgba(8,10,14,0) 62%)"></div>');
+// wordmark: wide-tracked, thin, with one cut crystal as the mark
+document.body.insertAdjacentHTML('beforeend',`<svg class=abs style="left:110px;top:104px" width=86 height=104 viewBox="0 0 86 104"><polygon points="43,2 80,30 84,64 58,102 28,102 2,64 6,30" fill="#E8EEF4"/><g stroke="#0b0e13" stroke-opacity=".3" stroke-width="2" fill="none"><path d="M43 2V102M6 30L58 102M80 30L28 102M2 64H84"/></g><path d="M6 30L43 2L80 30" fill="none" stroke="${V}" stroke-width="3" filter="url(#glow)"/></svg>
+<div class=abs style="left:222px;top:100px"><div style="font-size:92px;font-weight:300;letter-spacing:.06em;line-height:.9">GEVECHT</div><div style="font-size:92px;font-weight:700;letter-spacing:.06em;line-height:.95">SPEL</div></div>
+<div class="abs lbl" style="left:226px;top:306px;letter-spacing:.34em">5v5 Arena · Surf · Wallrun · Dive</div>`);
+const items=[['SINGLEPLAYER','Play against bots',1,[560,26,10,30,10]],['MULTIPLAYER','Host, join, find LAN',0,[500,10,22,8,16]],['CLASSES','8 loadouts',0,[440,22,8,16,8]],['SETTINGS','',0,[410,8,16,10,22]],['QUIT','',0,[340,16,8,22,8]]];
+let y=430;
+items.forEach((it,i)=>{const sel=it[2],w=it[3][0],h=sel?92:70;
+ mk(`<div style="display:flex;align-items:center;height:100%;padding:0 34px 0 40px;gap:16px"><span style="font-size:${sel?34:26}px;font-weight:${sel?700:500};letter-spacing:.14em;color:${sel?'#0c1118':'#dbe3ec'}">${it[0]}</span><span class=lbl style="margin-left:auto;font-size:11px;color:${sel?'#4a5666':'#7d8999'}">${it[1]}</span></div>`,
+  110+(sel?0:26),y,w,h,{cuts:it[3].slice(1),pale:!!sel,color:sel?V:(i==4?'#d9534f':B),seam:'left',lit:sel?1:.0,seed:200+i*7,alpha:.62});
+ y+=h+14;});
+// status as a quiet shard, bottom left
+mk(`<div style="padding:12px 20px" class=lbl>Singleplayer, LAN or settings</div>`,110,1000,330,40,{cuts:[8,4,10,4],seed:300,alpha:.4});
+</script>

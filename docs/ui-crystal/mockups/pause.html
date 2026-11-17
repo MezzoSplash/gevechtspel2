@@ -1,0 +1,19 @@
+<!doctype html><meta charset=utf-8><link rel=stylesheet href=crystal.css><script src=crystal.js></script>
+<body><script>
+defs();backdrop();
+const B='#408CF2',O='#EB6138',V='#BFF3FF';
+function mk(html,x,y,w,h,o,extra){const d=document.createElement('div');d.style.left=x+'px';d.style.top=y+'px';d.innerHTML=html;document.body.appendChild(d);shard(d,w,h,o);if(extra)d.style.cssText+=extra;return d}
+document.body.insertAdjacentHTML('beforeend','<div class=abs style="inset:0;background:rgba(8,10,14,.62);backdrop-filter:blur(8px)"></div>');
+document.body.insertAdjacentHTML('beforeend',`<div class="abs lbl" style="left:0;right:0;text-align:center;top:140px;letter-spacing:.4em;color:${V}">Paused</div>`);
+// score, floating, the same pieces as the HUD
+mk(`<div style="display:flex;align-items:center;justify-content:flex-end;height:100%;padding-right:34px"><span class=num style="font-size:58px">14</span></div>`,640,190,236,78,{cuts:[18,8,22,6],color:B,seam:'bottom',seed:3});
+mk(`<div style="display:flex;align-items:center;height:100%;padding-left:34px"><span class=num style="font-size:58px">11</span></div>`,1044,190,236,78,{cuts:[8,18,6,22],color:O,seam:'bottom',seed:8});
+mk(`<div style="text-align:center;padding-top:14px"><div class=num style="font-size:34px;color:#10151c">3:42</div><div class=lbl style="color:#4a5666;margin-top:6px;font-size:11px">Elimination</div></div>`,862,184,196,84,{cuts:[10,10,12,12],pale:true,seed:5});
+const it=[['RESUME','Esc',1,420],['CHANGE CLASS','C',0,380],['SETTINGS','',0,350],['LEAVE TO MENU','',0,320],['QUIT','',0,260]];
+let y=330;
+it.forEach((t,i)=>{const sel=t[2],w=t[3],h=sel?86:66;
+ mk(`<div style="display:flex;align-items:center;height:100%;padding:0 30px 0 38px"><span style="font-size:${sel?30:24}px;font-weight:${sel?700:500};letter-spacing:.14em;color:${sel?'#0c1118':'#dbe3ec'}">${t[0]}</span><span class=lbl style="margin-left:auto;font-size:11px;color:${sel?'#4a5666':'#7d8999'}">${t[1]}</span></div>`,
+  960-w/2,y,w,h,{cuts:[[18,6,14,8],[8,16,6,12],[14,6,18,8],[6,14,8,16],[10,10,10,10]][i],pale:!!sel,color:sel?V:(i>=3?'#d9534f':B),seam:'left',lit:sel?1:0,seed:400+i*5});
+ y+=h+14;});
+mk(`<div style="padding:10px 18px" class=lbl>↑ ↓ choose · Enter confirm · Esc resume</div>`,700,980,520,40,{cuts:[8,4,10,4],seed:450,alpha:.4});
+</script>

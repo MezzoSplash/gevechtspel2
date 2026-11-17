@@ -2003,6 +2003,7 @@ func sync_roster(ids: Array) -> void:
 
 
 func _ready() -> void:
+	CrystalTheme.install() # before main.tscn loads the menu: the patched theme is the cached one
 	killcam = Killcam.new()
 	killcam.name = "Killcam" # same path on every peer: its RPCs need that
 	add_child(killcam)

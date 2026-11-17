@@ -1,6 +1,9 @@
 extends SceneTree
 ## Builds res://ui/menu_theme.tres (main menu, pause menu, settings). Re-run after editing:
 ##   godot --headless --path . --script res://tools/build_ui_theme.gd
+## This is the base (margins, fonts, sizes). At startup shared/crystal_theme.gd swaps the slabs for
+## CrystalStyle shards and the amber for ice (docs/ui-crystal/HANDOFF.md), so most colours below
+## only show if that step is skipped.
 
 const ACCENT := Color(1.0, 0.72, 0.22)        # amber, the game's highlight colour
 const TEXT := Color(0.92, 0.94, 0.96)

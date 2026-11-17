@@ -109,7 +109,7 @@ func _ready() -> void:
 ## Map, mode, kills, time and bots (singleplayer, and host settings under Multiplayer).
 ## Built here so both screens share one list (Maps.ORDER) and stay in sync.
 func _build_match_rows(screen: VBoxContainer, at: int) -> void:
-	# Every map and mode is a chip on screen: one click, and the current pick is the amber chip.
+	# Every map and mode is a chip on screen: one click, and the current pick is the pale chip.
 	# A dropdown hid the other options and its popup was still the stock one from the early builds.
 	var map_opt := ChoiceRow.new()
 	map_opt.name = "MapOption"
