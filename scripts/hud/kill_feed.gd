@@ -20,6 +20,15 @@ const ICONS := {
 }
 const MAX_ROWS := 6
 const LIFE := 5.0
+## Crystal row (docs/ui-crystal/mockups/hud.png): a smoke shard behind the row's own content,
+## the killer's colour on its right seam. PAD is how far the shard reaches past the content.
+const PAD := Vector2(14, 3)
+const ROW_GAP := 6
+
+
+func _ready() -> void:
+	# The shards reach PAD.y past each row, so the rows need that much more air between them.
+	add_theme_constant_override("separation", ROW_GAP + int(PAD.y) * 2)
 
 ## Set by the HUD: name colour (team / FFA self) and this machine's player name.
 var name_color: Callable = func(_n: String, _team: int) -> Color: return Color.WHITE
@@ -66,6 +75,8 @@ func add_kill(
 		tag.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		tag.add_theme_constant_override("outline_size", 4)
 		row.add_child(tag)
+	_skin_row(row, name_color.call(killer_name, killer_team),
+		killer_name == local_name.call() or victim_name == local_name.call())
 	add_child(row)
 	move_child(row, 0)
 	while get_child_count() > MAX_ROWS:
@@ -76,3 +87,22 @@ func add_kill(
 	tw.tween_interval(LIFE)
 	tw.tween_property(row, "modulate:a", 0.0, 0.45)
 	tw.tween_callback(row.queue_free)
+
+
+## Draws the shard behind a row without adding a node to it: rows stay [killer, icon, victim, tag]
+## for every reader (tools/check_fall_icon). The row is right-aligned in the full feed width, so
+## the shard starts where the content does, not at the row's left edge. A row you are in is brighter.
+func _skin_row(row: HBoxContainer, seam: Color, mine: bool) -> void:
+	var sb := CrystalStyle.new()
+	sb.cuts = Vector4(10, 4, 12, 6)
+	sb.variant = 20 + get_child_count()
+	sb.fill = Color(CrystalStyle.SMOKE, 0.85) if mine else CrystalStyle.SMOKE
+	sb.edge_alpha = 0.3 if mine else 0.16
+	sb.seam_side = CrystalStyle.Side.RIGHT
+	sb.seam_color = seam
+	row.draw.connect(func() -> void:
+		# From the content width, not the first child's position: a new row is drawn before
+		# its container has placed the children.
+		var x0 := row.size.x - row.get_combined_minimum_size().x
+		row.draw_style_box(sb, Rect2(Vector2(x0 - PAD.x, -PAD.y), Vector2(row.size.x - x0 + PAD.x + 10.0, row.size.y + PAD.y * 2.0)))
+	)

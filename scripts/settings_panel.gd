@@ -51,6 +51,7 @@ var _waiting_action := "" # rebind: next key / mouse button goes here
 var _tab_buttons: Array[Button] = []
 var _pages: Array[VBoxContainer] = []
 const _TABS := ["Game", "Graphics", "Controls", "Audio", "HUD", "Access"]
+var _page_title: Label
 var _filling := false
 
 
@@ -142,17 +143,22 @@ func refresh() -> void:
 func _build() -> void:
 	var root := $Body
 	_title(root)
-	var bar := GridContainer.new() # 3 × 2 so six tabs fit the 500 px column
-	bar.columns = 3
-	bar.add_theme_constant_override("h_separation", 4)
-	bar.add_theme_constant_override("v_separation", 4)
+	# One row of joined shards (crystal mockup settings.png): the active tab is the pale chip.
+	# Small tracked caps so all six fit the 500 px column; widths follow the words.
+	var bar := HBoxContainer.new()
+	bar.name = "Tabs"
+	bar.add_theme_constant_override("separation", 3)
 	var group := ButtonGroup.new()
 	root.add_child(bar)
 	for i in _TABS.size():
 		var b := Button.new()
-		b.text = _TABS[i]
+		b.text = String(_TABS[i]).to_upper()
 		b.toggle_mode = true
 		b.button_group = group
+		b.theme_type_variation = &"ChoiceChip"
+		b.add_theme_font_override("font", CrystalUi.caps_font())
+		b.add_theme_font_size_override("font_size", 12)
+		b.custom_minimum_size.y = 34
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(show_tab.bind(i))
 		bar.add_child(b)
@@ -340,6 +346,8 @@ func show_tab(i: int) -> void:
 	for j in _pages.size():
 		_pages[j].visible = j == i
 		_tab_buttons[j].set_pressed_no_signal(j == i)
+	if _page_title:
+		_page_title.text = String(_TABS[i]).to_upper()
 	_refresh_bindings()
 	_fit_height.call_deferred()
 
@@ -551,11 +559,21 @@ func _set_pair(ctl: Array, v: float) -> void:
 	(ctl[1] as SpinBox).set_value_no_signal(v)
 
 
+## Small "SETTINGS" caption over the open tab's name in the light wordmark face.
 func _title(body: Node) -> void:
-	var l := Label.new()
-	l.text = "SETTINGS"
-	l.theme_type_variation = &"TitleLabel"
-	body.add_child(l)
+	var cap := Label.new()
+	cap.text = "SETTINGS"
+	cap.add_theme_font_override("font", CrystalUi.caps_font())
+	cap.add_theme_font_size_override("font_size", 13)
+	cap.add_theme_color_override("font_color", CrystalStyle.ICE)
+	body.add_child(cap)
+	_page_title = Label.new()
+	_page_title.name = "PageTitle"
+	_page_title.text = String(_TABS[0]).to_upper()
+	_page_title.add_theme_font_override("font", CrystalUi.light_font())
+	_page_title.add_theme_font_size_override("font_size", 44)
+	_page_title.add_theme_color_override("font_color", Color(0.93, 0.95, 0.97))
+	body.add_child(_page_title)
 
 
 func _section(body: Node, title: String) -> void:
@@ -626,6 +644,8 @@ func _value_label(row: HBoxContainer) -> Label:
 	var v := Label.new()
 	v.custom_minimum_size = Vector2(88, 0)
 	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	v.add_theme_font_size_override("font_size", 19)
+	v.add_theme_color_override("font_color", Color(0.93, 0.95, 0.97))
 	row.add_child(v)
 	return v
 
