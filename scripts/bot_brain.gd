@@ -119,10 +119,10 @@ var _flank_flipped := false # first stuck tries the other side before a direct c
 var _path_live := false # a target has been handed to the agent this chase
 var _path_enemy := Vector3.ZERO # where the enemy stood when that path was built
 var _force_repath := false
-## #267 slice 2: a flanker that is this close shoots whatever angle it has, and a ring point it has
-## already reached is worth leaving - one in `flank_switch` ticks it takes the next angle.
-const FLANK_ARRIVE := 1.5 # m: standing on the ring point
-const FLANK_POINT_BLANK := 6.0
+## #267 slice 2: a flanker this close is about to be shanked, so angle or not, it shoots. A ring point
+## it has already reached is worth leaving - one in `flank_switch` ticks it takes the next angle.
+const FLANK_ARRIVE := 3.0 # m: close enough to the ring point that standing there is standing still
+const FLANK_POINT_BLANK := 2.5
 const FLANK_TURN := PI * 0.5
 ## Grenades: frags at mid range, a cooldown so they do not spam.
 const NADE_MIN := 7.0
@@ -167,6 +167,7 @@ func setup(p: Player, nav: NavigationAgent3D) -> void:
 	pawn = p
 	agent = nav
 	style = BotStyle.for_peer(p.peer_id)
+	_flank_wait = 0.0 # a new life starts with a clean patience clock
 	# The name stays off the scoreboard (a player should not read the tactic off it), but a test run
 	# has to be able to count characters, so it goes to the server log once per spawn.
 	if p.is_bot and (Game.is_offline or Game.multiplayer.is_server()):

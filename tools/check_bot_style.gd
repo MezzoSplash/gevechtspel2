@@ -83,8 +83,42 @@ func _run_after_settle() -> void:
 		"a front-facing enemy keeps the flanker out of the fight at least 0.5 s longer (%d vs %d)" % [
 			aggressive_front["first"], flanker_front["first"]])
 	_ok(flanker_front["first"] >= 0, "and the flanker does open fire once it has the angle or the patience")
+	var on := await _ring_walk(0.5)
+	var off := await _ring_walk(0.0)
+	print("  standing on its own ring point for 1 s: %d new angles with the switch, %d without" % [
+		on, off])
+	_ok(on > off, "a reached ring point is left again because of the switch (%d vs %d new angles)" % [on, off])
 	_slots()
 	_done()
+
+
+## One second of the flanker standing on its own ring point of a target it cannot attack
+## (front-facing), with `flank_switch` forced to `switch_on`. The only thing that can move the ring
+## angle there is the switch, so the turn count isolates it. Runs on a copy of the resource.
+func _ring_walk(switch_on: float) -> int:
+	_place()
+	brain.setup(bot, null)
+	brain.style = BotStyle.by_id(&"flanker").duplicate()
+	brain.style.flank_switch = switch_on
+	bot.weapon.equip_loadout(0)
+	var at := brain._goal_pos(enemy)
+	var ring := at + Vector3(cos(brain._flank_base), 0.0, sin(brain._flank_base)) * brain._fight_range()
+	bot.global_position = ring + Vector3(0, 0.2, 0)
+	bot.velocity = Vector3.ZERO
+	brain._home = bot.global_position
+	brain._stuck_pos = bot.global_position
+	bot.move_and_slide()
+	var turns := 0
+	var last_angle := brain._flank_angle
+	for i in 60:
+		_keep_alive()
+		enemy.look_at(bot.global_position, Vector3.UP)
+		brain.physics_tick(1.0 / 60.0)
+		if absf(wrapf(brain._flank_angle - last_angle, -PI, PI)) > 0.01:
+			turns += 1
+		last_angle = brain._flank_angle
+		await get_tree().physics_frame
+	return turns
 
 
 ## When does `style_id` first open fire on an enemy that faces it the whole window? The flanker
