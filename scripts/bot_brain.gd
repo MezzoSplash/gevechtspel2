@@ -111,6 +111,15 @@ var los_cache := true
 ## #267: this bot's character (aggressive / holder / chaos), from `data/bots/*.tres`. Difficulty is
 ## how good it is; this is what it wants to do. Set in `setup()`, stable across a respawn.
 var style: BotStyle
+## #270: the authored route being followed, if any - {"kind", "points"} plus a cursor. A route is a
+## plan (a wallrun alley, a slide chain); it is dropped the moment it stops making progress.
+var _hint: Dictionary = {}
+var _hint_i := 0
+var _hint_pos := Vector3.ZERO
+var _hint_t := 0.0
+## A slide route presses crouch exactly once, at the start of the route: every tick would keep the
+## bot crouched (slow) without ever gaining the speed that starts the slide.
+var _hint_pressed := false
 ## #267/#250: this bot's own roll series, seeded by slot, so a test run can replay a character.
 var rng := RandomNumberGenerator.new()
 ## How long this character has wanted to shoot but did not have the angle yet (#267 slice 2).
@@ -123,6 +132,11 @@ var _path_enemy := Vector3.ZERO # where the enemy stood when that path was built
 var _force_repath := false
 ## #267 slice 2: a flanker this close is about to be shanked, so angle or not, it shoots. A ring point
 ## it has already reached is worth leaving - at a rate of `flank_switch_per_s` per second.
+## #270: a route point counts as reached this close, and a route without HINT_STALL_DIST of progress
+## inside HINT_STALL seconds is dropped - the issue's 0.6 s, so a broken route never hangs a bot.
+const HINT_ARRIVE := 2.0
+const HINT_STALL := 0.6
+const HINT_STALL_DIST := 0.5
 const FLANK_ARRIVE := 3.0 # m: close enough to the ring point that standing there is standing still
 const FLANK_POINT_BLANK := 2.5
 const FLANK_TURN := PI * 0.5
@@ -288,7 +302,14 @@ func physics_tick(delta: float) -> void:
 		_fight(enemy, delta)
 	else:
 		_acquire_left = float(Game.bot_profile().acquire)
-		_hunt(enemy, delta)
+		# #270: an authored route beats the generic path while it lasts; without one (or when it is
+		# dropped) the hunt below is exactly what it always was.
+		if _hint.is_empty():
+			_try_pick_hint(enemy)
+		if _hint.is_empty():
+			_hunt(enemy, delta)
+		else:
+			_follow_hint(enemy, delta)
 	_move(delta)
 
 
@@ -660,10 +681,71 @@ func _drop_path() -> void:
 ## A whole new chase: the peer's own flank slot, no path, no stuck history.
 func _reset_hunt() -> void:
 	_flank_wait = 0.0 # a new target has not yet earned a break-off shot
+	_clear_hint() # a route to the old target says nothing about the new one
 	_drop_route()
 	_flank_flipped = false
 	_flank_angle = _flank_base
 	_repath_t = 0.0
+
+
+## #270: look for an authored route worth taking right now. Cheap when the map ships none (one cached
+## look-up that returns an empty list) and skipped entirely while a route is already being followed.
+func _try_pick_hint(enemy: Player) -> void:
+	var space := pawn.get_world_3d().direct_space_state
+	var routes := BotRoutes.for_map(space, Game.map_id)
+	if routes.is_empty():
+		return
+	var h := BotRoutes.pick(space, routes, pawn.global_position, _goal_pos(enemy))
+	if h.is_empty():
+		return
+	_hint = h.duplicate(true)
+	_hint_i = 1
+	_hint_pos = pawn.global_position
+	_hint_t = 0.0
+	_hint_pressed = false
+
+
+## Walk one authored route. The kind only decides the keys: a slide route presses crouch once at the
+## start, a wallrun or surf route is run at sprint straight at the next point and the movement code
+## (#278's wall trick, the surf state) takes over when the geometry offers it.
+func _follow_hint(enemy: Player, delta: float) -> void:
+	var pts: Array = _hint.get("points", [])
+	if _hint_i >= pts.size():
+		_clear_hint()
+		return
+	var dest: Vector3 = pts[_hint_i]
+	if Vector2(dest.x - pawn.global_position.x, dest.z - pawn.global_position.z).length() < HINT_ARRIVE:
+		_hint_i += 1
+		_hint_pos = pawn.global_position
+		_hint_t = 0.0
+		if _hint_i >= pts.size():
+			_clear_hint() # the route delivered us: the hunt takes it from here
+			return
+		dest = pts[_hint_i]
+	# No progress: a route that does not move the bot is worse than no route at all.
+	_hint_t += delta
+	if pawn.global_position.distance_to(_hint_pos) > HINT_STALL_DIST:
+		_hint_pos = pawn.global_position
+		_hint_t = 0.0
+	elif _hint_t >= HINT_STALL:
+		_clear_hint()
+		return
+	if (StringName(_hint.get("kind", &"")) == &"slide"
+			and not _hint_pressed and pawn.is_on_floor()
+			and _crouch_hold <= 0.0 and _crouch_press == false and pawn._slide_cd <= 0.0):
+		_hint_pressed = true
+		_crouch_press = true
+		_crouch_hold = BOT_SLIDE_HOLD
+	_tick_aim_wobble(enemy, delta)
+	_face_travel(dest - pawn.global_position)
+	_steer_to(dest, Player.SPRINT_SPEED, delta, false)
+
+
+func _clear_hint() -> void:
+	_hint = {}
+	_hint_i = 0
+	_hint_t = 0.0
+	_hint_pressed = false
 
 
 ## No line of sight, or seen but outside gun range. Follow the navmesh.
