@@ -1,7 +1,7 @@
 extends Node
-## #267. A character is tactics, not difficulty: in a 10 s fight a holder keeps its distance, an
-## aggressive bot closes in, and chaos sits between them. Plus: the slot mapping is stable, so a
-## respawn keeps the character.
+## #267. A character is tactics, not difficulty: in a 10 s fight a holder keeps its distance while
+## aggressive and chaos brawl up close (#285 review: only the holder holds). Plus: the slot mapping is
+## stable, so a respawn keeps the character.
 ##   ./run.sh --headless res://tools/check_bot_style.tscn   → "BOT STYLE CHECK OK"
 const TICKS := 600
 const STANDOFF := 16.0
@@ -73,7 +73,8 @@ func _run_after_settle() -> void:
 		TICKS, aggressive, chaos, holder])
 	_ok(aggressive > 0.0 and chaos > 0.0 and holder > 0.0, "all three characters actually fought")
 	_ok(holder > aggressive + 2.0, "the holder keeps %.1f m more distance than the aggressive bot" % (holder - aggressive))
-	_ok(holder > chaos and chaos > aggressive, "and chaos sits between them")
+	# Aggressive and chaos both brawl: the distance rule is a floor for them, not a preferred range.
+	_ok(holder > chaos + 2.0, "and %.1f m more than chaos, which fights up close like the old bots" % (holder - chaos))
 	_slots()
 	_done()
 
