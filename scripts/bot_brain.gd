@@ -57,7 +57,7 @@ var _acquire_left := ACQUIRE # set from Game.bot_profile() (#90) when a target i
 ## Slide, wallrun and dive run through the same Movement code as a human's. These are the bot's keys:
 ## crouch is held for the length of a slide, and pressed for a single tick so Movement sees a real press.
 const BOT_SLIDE_HOLD := 0.45 # s of crouch hold for one slide
-## The slide band is per character now (BotStyle.slide_far/slide_near, #267 slice 2).
+## The slide band is per character now (BotStyle.slide_min_m/slide_max_m, #267 slice 2).
 const BOT_DIVE_RANGE := 14.0 # m: falling toward a target inside this range is worth a dive
 var _crouch_hold := 0.0
 var _crouch_press := false
@@ -111,6 +111,8 @@ var los_cache := true
 ## #267: this bot's character (aggressive / holder / chaos), from `data/bots/*.tres`. Difficulty is
 ## how good it is; this is what it wants to do. Set in `setup()`, stable across a respawn.
 var style: BotStyle
+## #267/#250: this bot's own roll series, seeded by slot, so a test run can replay a character.
+var rng := RandomNumberGenerator.new()
 ## How long this character has wanted to shoot but did not have the angle yet (#267 slice 2).
 var _flank_wait := 0.0
 var _flank_base := 0.0 # peer slot on the ring; restored when the target changes
@@ -120,7 +122,7 @@ var _path_live := false # a target has been handed to the agent this chase
 var _path_enemy := Vector3.ZERO # where the enemy stood when that path was built
 var _force_repath := false
 ## #267 slice 2: a flanker this close is about to be shanked, so angle or not, it shoots. A ring point
-## it has already reached is worth leaving - one in `flank_switch` ticks it takes the next angle.
+## it has already reached is worth leaving - at a rate of `flank_switch_per_s` per second.
 const FLANK_ARRIVE := 3.0 # m: close enough to the ring point that standing there is standing still
 const FLANK_POINT_BLANK := 2.5
 const FLANK_TURN := PI * 0.5
@@ -168,6 +170,9 @@ func setup(p: Player, nav: NavigationAgent3D) -> void:
 	agent = nav
 	style = BotStyle.for_peer(p.peer_id)
 	_flank_wait = 0.0 # a new life starts with a clean patience clock
+	# #267: one roll series per bot, seeded by slot. Deterministic per slot now; #250 makes it
+	# deterministic per match by reseeding this at match start.
+	rng.seed = absi(p.peer_id)
 	# The name stays off the scoreboard (a player should not read the tactic off it), but a test run
 	# has to be able to count characters, so it goes to the server log once per spawn.
 	if p.is_bot and (Game.is_offline or Game.multiplayer.is_server()):
@@ -256,9 +261,12 @@ func physics_tick(delta: float) -> void:
 	# Seen but out of weapon range (a shotgun bot at a window, the enemy across the street): sprint the
 	# navmesh toward him instead of pushing straight at him into the wall.
 	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > _fight_range() + 4.0
-	var fighting := _can_see(enemy) and not out_of_range
+	var seen := _can_see(enemy)
+	var fighting := seen and not out_of_range
 	if fighting and style.flank_only:
 		fighting = _flank_aim_ok(enemy, delta) # #267: the flanker does not open fire from the front
+	elif not seen and style.flank_only:
+		_flank_wait = 0.0 # sight lost: the flank starts over instead of cashing in later
 	if fighting:
 		_set_state(State.FIGHT)
 		_acquire_left = maxf(_acquire_left - delta, 0.0)
@@ -299,7 +307,7 @@ func _tick_tricks(delta: float) -> void:
 	if on_floor and has_foe and state == State.FIGHT and not pawn._sliding and _crouch_hold <= 0.0 and pawn._slide_cd <= 0.0:
 		var dist := pawn.global_position.distance_to(foe.global_position)
 		var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.WALK_SPEED * 1.05
-		if fast and dist > style.slide_far and dist < style.slide_near:
+		if fast and dist > style.slide_min_m and dist < style.slide_max_m:
 			_crouch_press = true
 			_crouch_hold = BOT_SLIDE_HOLD
 	# A dive when it is falling toward a target: closes the gap, and it lands into a roll.
@@ -549,6 +557,7 @@ func _drop_path() -> void:
 
 ## A whole new chase: the peer's own flank slot, no path, no stuck history.
 func _reset_hunt() -> void:
+	_flank_wait = 0.0 # a new target has not yet earned a break-off shot
 	_drop_route()
 	_flank_flipped = false
 	_flank_angle = _flank_base
@@ -572,10 +581,10 @@ func _hunt_flank(enemy: Player, delta: float) -> void:
 	var at := _goal_pos(enemy)
 	# A ring point it has already reached is worth leaving (#267 slice 2): the flanker takes the next
 	# angle on the enemy instead of standing on the spot, which is what "slaat vaker een hoek om" is.
-	if (style.flank_switch > 0.0
+	if (style.flank_switch_per_s > 0.0
 			and pawn.global_position.distance_to(_flank_point(at)) < FLANK_ARRIVE
-			and randf() < style.flank_switch):
-		_flank_angle += FLANK_TURN * (1.0 if randf() < 0.5 else -1.0)
+			and rng.randf() < 1.0 - exp(-style.flank_switch_per_s * delta)):
+		_flank_angle += FLANK_TURN * (1.0 if rng.randf() < 0.5 else -1.0)
 		_flank_flipped = false # a new angle is a new chase, not an escalation
 		_drop_path()
 	# is_navigation_finished is still true the frame a target is set; the path arrives after.

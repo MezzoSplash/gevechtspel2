@@ -23,16 +23,16 @@ extends Resource
 ## The distance band where sliding into a fight is worth it (BotBrain used to hard-code 4.5-12 m).
 ## A wide band is a character that keeps sliding: the aggressive bot closes with it, the holder almost
 ## never gets there. Slice 2 of #267, also what review #285 asked for.
-@export var slide_far: float = 4.5
-@export var slide_near: float = 12.0
+@export var slide_min_m: float = 4.5
+@export var slide_max_m: float = 12.0
 ## Slice 2: the flanker. It only opens fire when it has the enemy from the side or the back, and it
 ## keeps walking the ring instead of going straight at them.
 @export var flank_only: bool = false
 ## Seconds of blocked sight before it gives up circling and attacks from the front anyway.
 @export var flank_patience: float = 0.0
-## Chance per tick, while standing on its ring point, of taking another angle on the enemy instead of
-## standing there. This is "slaat vaker een hoek om".
-@export var flank_switch: float = 0.0
+## Rate per second (not per tick!) at which a reached ring point is left for the next angle on the
+## enemy. Per tick would make the character depend on the frame rate. This is "slaat vaker een hoek om".
+@export var flank_switch_per_s: float = 0.0
 
 ## How much further than its gun's fight range a bot may wander and still shoot.
 const CLOSE_ENOUGH_M := 4.0

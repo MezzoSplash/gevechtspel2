@@ -46,6 +46,7 @@ func _pawn(id: int, at: Vector3) -> Player:
 
 
 func _ready() -> void:
+	seed(20261116) # the check's own rolls stay reproducible
 	Game.mode = Game.MODE_FFA
 	Game.bot_difficulty = Game.BOT_HARD # omniscient: it always has the enemy as its target
 	_body(Vector3(80, 1, 80), Vector3(0, -0.5, 0))
@@ -79,27 +80,34 @@ func _run_after_settle() -> void:
 	var flanker_front := await _front_fight(&"flanker")
 	print("  enemy facing us the whole time: first fight tick aggressive %d, flanker %d" % [
 		aggressive_front["first"], flanker_front["first"]])
+	# The only early fight a flanker may have is one it walked into at knifing range; the patience
+	# itself decides the rest. An exact first-tick assert would measure the approach instead.
+	_ok(flanker_front["early"] <= flanker_front["close"] + 2,
+		"before the patience it only fights from point blank (%d fight ticks, %d of them close)" % [
+			flanker_front["early"], flanker_front["close"]])
 	_ok(flanker_front["first"] > aggressive_front["first"] + 30,
 		"a front-facing enemy keeps the flanker out of the fight at least 0.5 s longer (%d vs %d)" % [
 			aggressive_front["first"], flanker_front["first"]])
 	_ok(flanker_front["first"] >= 0, "and the flanker does open fire once it has the angle or the patience")
-	var on := await _ring_walk(0.5)
+	var on := await _ring_walk(1.5)
 	var off := await _ring_walk(0.0)
-	print("  standing on its own ring point for 1 s: %d new angles with the switch, %d without" % [
+	print("  standing on its own ring point for 4 s: %d new angles with the switch, %d without" % [
 		on, off])
-	_ok(on > off, "a reached ring point is left again because of the switch (%d vs %d new angles)" % [on, off])
+	_ok(on >= 3, "a reached ring point is left again while the switch is on (%d new angles in 4 s)" % on)
+	_ok(on > off, "and the switch is what causes it (%d with, %d without)" % [on, off])
 	_slots()
 	_done()
 
 
 ## One second of the flanker standing on its own ring point of a target it cannot attack
-## (front-facing), with `flank_switch` forced to `switch_on`. The only thing that can move the ring
+## (front-facing), with `flank_switch_per_s` forced to `switch_on`. The only thing that can move the ring
 ## angle there is the switch, so the turn count isolates it. Runs on a copy of the resource.
 func _ring_walk(switch_on: float) -> int:
 	_place()
 	brain.setup(bot, null)
 	brain.style = BotStyle.by_id(&"flanker").duplicate()
-	brain.style.flank_switch = switch_on
+	brain.style.flank_switch_per_s = switch_on
+	brain.style.flank_patience = 999.0 # the whole window is the hunt: patience must not cut it short
 	bot.weapon.equip_loadout(0)
 	var at := brain._goal_pos(enemy)
 	var ring := at + Vector3(cos(brain._flank_base), 0.0, sin(brain._flank_base)) * brain._fight_range()
@@ -110,9 +118,14 @@ func _ring_walk(switch_on: float) -> int:
 	bot.move_and_slide()
 	var turns := 0
 	var last_angle := brain._flank_angle
-	for i in 60:
+	for i in 240: # 4 s: at a per-second rate this is what makes the switch measurable
 		_keep_alive()
-		enemy.look_at(bot.global_position, Vector3.UP)
+		# Held on the ring point every tick. Walking there is what the navmesh and the slide band do,
+		# and either one would put the bot metres off the point: this window is only about the switch.
+		var here := brain._goal_pos(enemy) + Vector3(cos(brain._flank_angle), 0.0, sin(brain._flank_angle)) * brain._fight_range()
+		bot.global_position = here + Vector3(0, 0.2, 0)
+		bot.velocity = Vector3.ZERO
+		enemy.look_at(bot.global_position, Vector3.UP) # never a side or a back view
 		brain.physics_tick(1.0 / 60.0)
 		if absf(wrapf(brain._flank_angle - last_angle, -PI, PI)) > 0.01:
 			turns += 1
@@ -129,14 +142,26 @@ func _front_fight(style_id: StringName) -> Dictionary:
 	brain.style = BotStyle.by_id(style_id)
 	bot.weapon.equip_loadout(0)
 	var first := -1
+	var early := 0
+	var close := 0
+	var split := int(BotStyle.by_id(&"flanker").flank_patience * 60.0)
 	for i in TICKS:
 		_keep_alive()
 		enemy.look_at(bot.global_position, Vector3.UP) # never a side or a back view
 		brain.physics_tick(1.0 / 60.0)
-		if first < 0 and brain.state == BotBrain.State.FIGHT:
-			first = i
+		var dist := bot.global_position.distance_to(enemy.global_position)
+		# 0.5 m of hysteresis: inside a point-blank fight the `_fight` brake steps back to
+		# back_off_m, so the measured distance sits right on the boundary while the gate saw 2.49.
+		var close_now := dist < BotBrain.FLANK_POINT_BLANK + 0.5
+		if brain.state == BotBrain.State.FIGHT:
+			if first < 0:
+				first = i
+			if i < split:
+				early += 1
+				if close_now:
+					close += 1
 		await get_tree().physics_frame
-	return {"first": first}
+	return {"first": first, "early": early, "close": close}
 
 
 func _place() -> void:
@@ -189,10 +214,10 @@ func _slots() -> void:
 	_ok(seen.size() == 4, "four bot slots get four different characters (%s)" % [seen.keys()])
 	_ok(BotStyle.for_peer(-2).id == BotStyle.for_peer(-2).id, "a slot keeps its character on a respawn")
 	_ok(BotStyle.for_peer(-1).id == BotStyle.for_peer(-5).id, "and the cycle repeats every four slots")
-	_ok(BotStyle.by_id(&"flanker").flank_switch > 0.0, "the flanker keeps taking new angles on the ring")
-	_ok(BotStyle.by_id(&"aggressive").slide_near > BotStyle.by_id(&"chaos").slide_near,
+	_ok(BotStyle.by_id(&"flanker").flank_switch_per_s > 0.0, "the flanker keeps taking new angles on the ring")
+	_ok(BotStyle.by_id(&"aggressive").slide_max_m > BotStyle.by_id(&"chaos").slide_max_m,
 		"the aggressive bot slides from further out (%.0f vs %.0f m)" % [
-			BotStyle.by_id(&"aggressive").slide_near, BotStyle.by_id(&"chaos").slide_near])
+			BotStyle.by_id(&"aggressive").slide_max_m, BotStyle.by_id(&"chaos").slide_max_m])
 	_ok(BotStyle.by_id(&"holder").nade_chance == 0.0, "the holder throws no frags")
 	_ok(BotStyle.by_id(&"holder").retreat_hp > BotStyle.by_id(&"aggressive").retreat_hp,
 		"the aggressive bot gives up later (%.0f vs %.0f HP)" % [
