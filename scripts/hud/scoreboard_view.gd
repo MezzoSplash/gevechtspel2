@@ -6,7 +6,7 @@ extends RefCounted
 const BG := Color(0.05, 0.06, 0.08, 0.82)
 const ROW_A := Color(1, 1, 1, 0.035)
 const ROW_B := Color(1, 1, 1, 0.0)
-const ROW_SELF := Color(1.0, 0.84, 0.42, 0.16)
+const ROW_SELF := Color(0.749, 0.953, 1.0, 0.14) # own row: ice tint (crystal restyle)
 const MUTED := Color(0.62, 0.66, 0.72)
 const COLS := [["#", 26], ["NAME", 200], ["K", 48], ["D", 48], ["K/D", 58], ["STYLE", 64], ["PING", 56]]
 
