@@ -6,8 +6,9 @@
 script = ExtResource("1")
 id = &"aggressive"
 display_name = "aggressive"
-range_scale = 0.6
-hold_band = 1.2
+range_scale = 0.35
+back_off_m = 2.6
+hold_band = 0.0
 retreat_hp = 25.0
 nade_chance = 0.45
 strafe_hold_min = 1.6

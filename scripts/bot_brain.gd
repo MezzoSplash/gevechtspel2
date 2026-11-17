@@ -767,7 +767,7 @@ func _fight(enemy: Player, delta: float) -> void:
 	if _strafe_pause > 0.0:
 		_strafe_pause = maxf(_strafe_pause - delta, 0.0)
 		# Almost still: only a step when the range is wrong, so the player gets a shot.
-		if dist < fight_r - style.hold_band:
+		if dist < style.back_off_m:
 			wish = away
 		elif dist > fight_r + style.hold_band:
 			wish = -away
@@ -781,7 +781,7 @@ func _fight(enemy: Player, delta: float) -> void:
 		else:
 			_strafe_hold = maxf(_strafe_hold - delta, 0.0)
 			wish = strafe_dir
-			if dist < fight_r - style.hold_band:
+			if dist < style.back_off_m:
 				wish += away * 0.7
 			elif dist > fight_r + style.hold_band:
 				wish += -away * 0.7

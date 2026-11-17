@@ -9,8 +9,10 @@ extends Resource
 ## Distance this bot wants in a fight: its gun's own fight range times this. Capped at the gun's
 ## range + CLOSE_ENOUGH_M so a holder never stands outside the distance it is willing to shoot from.
 @export var range_scale: float = 1.0
-## How far it may drift from that distance before correcting, in metres. Small = it fights at one
-## distance, large = it wanders while it trades.
+## Too close for comfort: below this it steps back instead of trading. This is the old TOO_CLOSE
+## brake - a floor, not a fighting distance, so close-range brawls still happen (#285 review).
+@export var back_off_m: float = 4.0
+## How far past its preferred distance it may drift before closing in again. 0 = at `range_scale`.
 @export var hold_band: float = 2.0
 ## Break off and sprint out below this HP after a hit. 0 = never.
 @export var retreat_hp: float = 40.0
@@ -35,7 +37,9 @@ static func by_id(want: StringName) -> BotStyle:
 	var path := "res://data/bots/%s.tres" % want
 	var s := load(path) as BotStyle
 	if s == null:
-		s = BotStyle.new() # a missing file must not take the whole bot down
+		# A missing file must not take the whole bot down, but it also must not look intentional.
+		push_warning("BotStyle: %s missing or not a BotStyle, falling back to the defaults" % path)
+		s = BotStyle.new()
 	_loaded[want] = s
 	return s
 
