@@ -1,7 +1,7 @@
 extends Node
 ## CrystalStyle (shared/crystal_style.gd), the cut-crystal shard every UI piece is drawn with
 ## (docs/ui-crystal/HANDOFF.md). Outline, facet fan, seam ends, and that a script StyleBox really
-## gets its _draw called through StyleBox.draw(). Headless:
+## gets its _draw called through StyleBox.draw(); and CrystalTheme.install() on the menu theme. Headless:
 ##   godot --headless --path . res://tools/check_crystal_style.tscn
 
 var fails := 0
@@ -26,6 +26,7 @@ func _ready() -> void:
 	_facets()
 	_seams()
 	await _draw_and_redraw()
+	_theme()
 	print("CRYSTAL STYLE CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
 
@@ -126,3 +127,34 @@ func _draw_and_redraw() -> void:
 	_ok(changed[0] == 2, "every field emits changed")
 	_ok(s.get_minimum_size() == Vector2.ZERO, "no content margins unless asked (theme sets them)")
 	p.queue_free()
+
+
+func _theme() -> void:
+	var t := CrystalTheme.install()
+	_ok(t != null, "CrystalTheme.install() returns the theme")
+	_ok(CrystalTheme.install() == t, "install() is idempotent (same instance)")
+	_ok(load(CrystalTheme.PATH) == t, "load() of the theme path returns the patched instance")
+	for slot in [["normal", "Button"], ["hover", "MenuButtonBig"], ["normal", "PrimaryButton"],
+			["pressed", "ChoiceChip"], ["panel", "MenuPanel"], ["panel", "PopupMenu"], ["focus", "LineEdit"]]:
+		_ok(t.get_stylebox(slot[0], slot[1]) is CrystalStyle, "%s/%s is a CrystalStyle" % [slot[1], slot[0]])
+	var raw := ResourceLoader.load(CrystalTheme.PATH, "", ResourceLoader.CACHE_MODE_IGNORE) as Theme
+	var same := true
+	for slot in [["normal", "OptionButton"], ["hover", "MenuButtonBig"], ["panel", "MenuPanel"], ["normal", "ChoiceChip"]]:
+		var a := raw.get_stylebox(slot[0], slot[1])
+		var b := t.get_stylebox(slot[0], slot[1])
+		for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+			same = same and is_equal_approx(a.get_content_margin(side), b.get_content_margin(side))
+	_ok(same, "content margins kept (OptionButton right %.0f)" % t.get_stylebox("normal", "OptionButton").get_content_margin(SIDE_RIGHT))
+	var sel := t.get_stylebox("pressed", "ChoiceChip") as CrystalStyle
+	_ok(sel.pale and sel.seam_side != CrystalStyle.Side.NONE, "selected chip is pale shell with a seam")
+	_ok(t.get_color("font_hover_color", "MenuButtonBig").v < 0.3, "big menu row hover text is dark on the shell")
+	var amber := Color(1.0, 0.72, 0.22)
+	var left_amber := []
+	for type in t.get_color_type_list():
+		for n in t.get_color_list(type):
+			var c := t.get_color(n, type)
+			if Color(c, 1.0).is_equal_approx(amber):
+				left_amber.append("%s/%s" % [type, n])
+	_ok(left_amber.is_empty(), "no amber colours left %s" % [left_amber])
+	var raw_tracking := (raw.get_font("font", "Button") as FontVariation).spacing_glyph
+	_ok((t.get_font("font", "Button") as FontVariation).spacing_glyph == raw_tracking + 1, "button type tracked wider, once")

@@ -3,7 +3,7 @@ extends ScrollContainer
 ## Used in the main menu and the pause menu. Built in code so both stay the same screen.
 
 const _LABEL_W := 130.0
-const _SECTION := Color(1.0, 0.72, 0.22)
+const _SECTION := CrystalStyle.ICE # section captions, same as the theme's SectionLabel
 const _HINT := Color(0.7, 0.74, 0.8)
 
 var _name_edit: LineEdit
