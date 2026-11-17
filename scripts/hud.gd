@@ -122,6 +122,8 @@ func _ready() -> void:
 	Game.killcam.finished.connect(_on_killcam_finished)
 	reload_label.visible = false
 	fps_label.visible = Game.show_fps
+	speed_meter = SpeedMeter.new()
+	add_child(speed_meter)
 	Game.hud_settings_changed.connect(_apply_hud_settings)
 	_apply_hud_settings()
 	death_layer.visible = false
@@ -1428,6 +1430,7 @@ func _refresh_scoreboard() -> void:
 
 func _process(delta: float) -> void:
 	_tick_combo_ui(delta)
+	_tick_speed_meter()
 	_hit_timer = maxf(_hit_timer - delta, 0.0)
 	_fire_punch = move_toward(_fire_punch, 0.0, delta * 9.0)
 	if _pickup_toast_t > 0.0:
@@ -1566,6 +1569,17 @@ func _bar(from: Vector2, delta: Vector2, col: Color, thick: float) -> void:
 
 
 # ---------------------------------------------------------------------------------------------
+## Speed readout (scripts/hud/speed_meter.gd): shown for the live local pawn only.
+var speed_meter: SpeedMeter
+
+
+func _tick_speed_meter() -> void:
+	var p := _player if is_instance_valid(_player) else null
+	speed_meter.visible = p != null and not Game.killcam_active and not death_layer.visible
+	if speed_meter.visible:
+		speed_meter.update_from(p.velocity, SpeedMeter.state_of(p))
+
+
 # #84 combo meter: scripts/hud/combo_meter.gd. Built on the first combo event (same child order as before).
 
 var combo_meter: ComboMeter

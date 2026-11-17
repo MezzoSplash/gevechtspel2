@@ -14,7 +14,7 @@ const PITCH_STEP := 0.06 # per MULT_STEP of multiplier
 const PITCH_MAX := 1.8
 
 
-const COLOR := Color(1.0, 0.82, 0.3)
+const COLOR := Color(0.85, 1.0, 0.17) # volt, the UI accent
 const WARN_COLOR := Color(0.95, 0.3, 0.25)
 const FROZEN_COLOR := Color(0.45, 0.85, 1.0) # #89: surf holds the combo timer
 const LANDED_COLOR := Color(0.45, 0.95, 0.5)
