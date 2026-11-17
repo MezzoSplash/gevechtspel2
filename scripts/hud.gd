@@ -49,6 +49,11 @@ const _SLOT_IDLE := HudLayout.SLOT_IDLE
 const _SLOT_ON := HudLayout.SLOT_ON
 const HUD_ACCENT := HudLayout.ACCENT
 const HUD_PANEL := HudLayout.PANEL
+## HP fill: ice when healthy, amber in the middle, red when low. The track is smoke glass.
+const HP_OK := Color(0.78, 0.93, 1.0, 0.95)
+const HP_MID := Color(0.95, 0.72, 0.25, 0.95)
+const HP_LOW := Color(0.92, 0.2, 0.16, 0.96)
+var _skin_seed := 11 # each skinned slot gets its own facet fan
 var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # the local pawn's guns
 
 @onready var fps_label: Label = $Fps
@@ -477,21 +482,22 @@ func set_weapon_index(index: int) -> void:
 	_refresh_weapon_slots()
 
 
-## Bottom HUD: rounded HP bar (track + fill), grenade/knife pill, outlined streak counter.
+## Bottom HUD: crystal HP bar (smoke track + fill), grenade/knife shard, outlined streak counter.
 func _style_bottom() -> void:
 	var bg := get_node_or_null("Bottom/HpWrap/HpBg") as ColorRect
 	if bg:
-		bg.color = Color(0.04, 0.05, 0.06, 0.8)
+		bg.color = CrystalStyle.SMOKE
 		_skin(bg, 8)
-		_paint(bg, Color(0.04, 0.05, 0.06, 0.8))
+		_paint(bg, CrystalStyle.SMOKE)
 	if hp_fill:
 		_skin(hp_fill, 8)
-		_paint(hp_fill, Color(0.27, 0.82, 0.48, 0.95))
-		(hp_fill.get_node("Skin").get_theme_stylebox("panel") as StyleBoxFlat).border_width_top = 0
+		_paint(hp_fill, HP_OK)
+		(hp_fill.get_node("Skin").get_theme_stylebox("panel") as CrystalStyle).edge_alpha = 0.0
 	if grenade_label:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = HUD_PANEL
-		sb.set_corner_radius_all(12)
+		var sb := CrystalStyle.new()
+		sb.fill = HUD_PANEL
+		sb.cuts = Vector4(6, 3, 7, 4)
+		sb.variant = 21
 		sb.content_margin_left = 14
 		sb.content_margin_right = 14
 		sb.content_margin_top = 3
@@ -504,8 +510,9 @@ func _style_bottom() -> void:
 		streak_label.add_theme_font_size_override("font_size", 14)
 
 
-## Rounded panel behind a ColorRect slot (a ColorRect has no corners or border). The rect itself
-## goes transparent; _paint recolours the panel. Same nodes and labels as before.
+## Crystal shard behind a ColorRect slot (a ColorRect has no shape of its own). The rect itself
+## goes transparent; _paint recolours the shard. Same nodes and labels as before. `radius` is
+## unused since the crystal restyle; it only picks a smaller cut for the slim bars.
 func _skin(rect: ColorRect, radius: int = 8) -> void:
 	if rect == null or rect.get_node_or_null("Skin"):
 		return
@@ -514,30 +521,37 @@ func _skin(rect: ColorRect, radius: int = 8) -> void:
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.show_behind_parent = true
 	p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = rect.color
-	sb.set_corner_radius_all(radius)
-	sb.anti_aliasing = true
+	var sb := CrystalStyle.new()
+	sb.fill = rect.color
+	sb.cuts = Vector4(10, 4, 12, 6) if radius < 8 else Vector4(6, 3, 8, 4)
+	sb.variant = _skin_seed
+	_skin_seed += 1
 	p.add_theme_stylebox_override("panel", sb)
 	rect.add_child(p)
 	rect.move_child(p, 0)
 	rect.color = Color(0, 0, 0, 0)
 
 
-## `accent` draws a border (selection / held weapon); `top` thickens only the top edge.
-func _paint(rect: ColorRect, bg: Color, accent: Color = Color(0, 0, 0, 0), top: int = 0) -> void:
+## `accent` lights the bottom seam (selection / held weapon / ready); `pale` makes it the pale
+## shell (white facets, no light edge). `top` is unused since the crystal restyle.
+func _paint(rect: ColorRect, bg: Color, accent: Color = Color(0, 0, 0, 0), top: int = 0, pale := false) -> void:
 	var p := rect.get_node_or_null("Skin") as Panel
 	if p == null:
 		rect.color = bg
 		return
-	var sb := p.get_theme_stylebox("panel") as StyleBoxFlat
-	sb.bg_color = bg
-	sb.border_color = accent if accent.a > 0.0 else Color(1, 1, 1, 0.07)
-	var w := 2 if accent.a > 0.0 else 1
-	sb.border_width_left = w
-	sb.border_width_right = w
-	sb.border_width_bottom = w
-	sb.border_width_top = maxi(w, top)
+	var sb := p.get_theme_stylebox("panel") as CrystalStyle
+	# Every setter emits `changed`; skip the ones that did not change so a per-frame caller
+	# (HP) does not redraw for nothing.
+	if sb.fill != bg:
+		sb.fill = bg
+	if sb.pale != pale:
+		sb.pale = pale
+		sb.edge_alpha = 0.0 if pale else 0.16
+	var side := CrystalStyle.Side.BOTTOM if accent.a > 0.0 else CrystalStyle.Side.NONE
+	if sb.seam_side != side:
+		sb.seam_side = side
+	if accent.a > 0.0 and sb.seam_color != accent:
+		sb.seam_color = accent
 
 
 ## Shrink a one-line label until it fits `max_w` (SLUG SHOTGUN in a 122 px slot, #58).
@@ -561,16 +575,20 @@ func _refresh_weapon_slots() -> void:
 			continue
 		var on := i == _weapon_index
 		_skin(slot)
-		_paint(slot, _SLOT_ON if on else _SLOT_IDLE, HUD_ACCENT if on else Color(0, 0, 0, 0), 3 if on else 0)
+		_paint(slot, _SLOT_ON if on else _SLOT_IDLE, HUD_ACCENT if on else Color(0, 0, 0, 0), 0, on)
 		var name_l := slot.get_node("Name") as Label
 		var ammo_l := slot.get_node("Ammo") as Label
 		var key_l := slot.get_node_or_null("Key") as Label
+		var ink := HudLayout.SLOT_TEXT_ON if on else Color.WHITE
 		if key_l:
 			key_l.text = str(i + 1)
+			key_l.modulate = ink
+		if ammo_l:
+			ammo_l.modulate = ink
 		if name_l:
 			name_l.text = _slot_names[i]
 			_fit_label(name_l, slot.custom_minimum_size.x - 14.0, 16, 12)
-			name_l.modulate = Color(1, 0.92, 0.55) if on else Color(0.72, 0.74, 0.78)
+			name_l.modulate = ink if on else Color(0.72, 0.74, 0.78)
 		if ammo_l:
 			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
 
@@ -721,21 +739,27 @@ func _refresh_streak_ui() -> void:
 		elif i == 2:
 			ready = (_streak_charges & Game.CHARGE_LOS) != 0
 		var name_l := slot.get_node_or_null("Name") as Label
-		if name_l and (i == 1 or i == 2):
-			var col := Color(1, 0.92, 0.55) if ready else Color(0.55, 0.58, 0.62)
+		var shell := ready and selected # the one Enter fires: pale shell, dark text
+		if name_l:
+			# The UAV name always reads (it was never greyed); RC-XD and LOS grey out while empty.
+			var col := Color(0.92, 0.95, 0.98) if ready or i == 0 else Color(0.55, 0.58, 0.62)
+			if shell:
+				col = HudLayout.SLOT_TEXT_ON
 			name_l.add_theme_color_override("font_color", col)
 		_skin(slot)
-		var bg := Color(0.06, 0.07, 0.09, 0.6 if i > 0 else 0.78)
-		if ready:
-			bg = Color(0.3, 0.24, 0.07, 0.94) if selected else Color(0.2, 0.16, 0.05, 0.88)
-		elif selected:
-			bg = Color(0.12, 0.13, 0.16, 0.9)
+		# Crystal: idle smoke; a held charge lights the ice seam; the selected held charge is the
+		# pale shell. Selected but empty is lighter smoke with a white seam (the arrow-key cursor).
+		var bg := Color(CrystalStyle.SMOKE, 0.5 if i > 0 else 0.62)
+		if shell:
+			bg = HudLayout.SLOT_ON
+		elif ready or selected:
+			bg = Color(0.11, 0.14, 0.18, 0.8)
 		var edge := Color(0, 0, 0, 0)
-		if selected:
-			edge = HUD_ACCENT if ready else Color(0.92, 0.94, 0.97, 0.9)
-		elif ready:
-			edge = Color(HUD_ACCENT, 0.45)
-		_paint(slot, bg, edge)
+		if ready:
+			edge = HUD_ACCENT
+		elif selected:
+			edge = Color(0.92, 0.94, 0.97, 0.9)
+		_paint(slot, bg, edge, 0, shell)
 		_set_streak_frame(slot, false) # the rounded border replaces the old white bars
 
 
@@ -903,7 +927,8 @@ func _refresh_streak_extras() -> void:
 			kills = Game.LOS_AT
 		var is_ready := (_streak_charges & bit) != 0
 		c.text = "READY · ENTER" if is_ready else "%d KILLS" % kills
-		c.add_theme_color_override("font_color", HUD_ACCENT if is_ready else Color(0.62, 0.66, 0.72, 0.85))
+		var on_shell := is_ready and i == _streak_sel # _refresh_streak_ui paints that slot pale
+		c.add_theme_color_override("font_color", HudLayout.SLOT_TEXT_ON if on_shell else (HUD_ACCENT if is_ready else Color(0.62, 0.66, 0.72, 0.85)))
 
 
 func set_reloading(on: bool) -> void:
@@ -965,9 +990,9 @@ func _on_health(hp: float, max_hp: float) -> void:
 		hp_label.text = str(roundi(hp))
 	if hp_fill:
 		hp_fill.anchor_right = t
-		var fill := Color(0.92, 0.2, 0.16, 0.96) if t < 0.3 else Color(0.27, 0.82, 0.48, 0.95)
+		var fill := HP_LOW if t < 0.3 else HP_OK
 		if t >= 0.3 and t < 0.6:
-			fill = Color(0.95, 0.72, 0.25, 0.95)
+			fill = HP_MID
 		_paint(hp_fill, fill)
 
 

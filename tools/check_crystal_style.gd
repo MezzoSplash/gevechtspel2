@@ -27,6 +27,7 @@ func _ready() -> void:
 	_seams()
 	await _draw_and_redraw()
 	_theme()
+	await _hud()
 	print("CRYSTAL STYLE CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
 
@@ -158,3 +159,37 @@ func _theme() -> void:
 	_ok(left_amber.is_empty(), "no amber colours left %s" % [left_amber])
 	var raw_tracking := (raw.get_font("font", "Button") as FontVariation).spacing_glyph
 	_ok((t.get_font("font", "Button") as FontVariation).spacing_glyph == raw_tracking + 1, "button type tracked wider, once")
+
+
+func _skin_of(rect: Control) -> CrystalStyle:
+	var p := rect.get_node_or_null("Skin") as Panel
+	return p.get_theme_stylebox("panel") as CrystalStyle if p else null
+
+
+## The HUD's slots go through hud.gd _skin/_paint: crystal shards, the held weapon pale.
+func _hud() -> void:
+	var hud := (load("res://scenes/hud.tscn") as PackedScene).instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+	hud.set_process(false)
+	hud.set_weapon_slots(PackedStringArray(["Rifle", "Pistol"]))
+	hud.set_weapon_index(1)
+	var held := _skin_of(hud._slots[1])
+	var idle := _skin_of(hud._slots[0])
+	_ok(held != null and idle != null, "weapon slots are skinned with CrystalStyle")
+	if held and idle:
+		_ok(held.pale and held.seam_side == CrystalStyle.Side.BOTTOM, "held weapon: pale shell + bottom seam")
+		_ok(not idle.pale and idle.seam_side == CrystalStyle.Side.NONE, "idle weapon: smoke, no seam")
+		_ok(held.variant != idle.variant, "slots get different facet fans")
+	hud._streak_sel = 0
+	hud.set_streak(3, Game.CHARGE_RADAR, Game.CHARGE_RADAR)
+	var uav := _skin_of(hud._streak_slots[0])
+	var rc := _skin_of(hud._streak_slots[1])
+	_ok(uav != null and uav.pale, "selected ready streak is the pale shell")
+	_ok(rc != null and not rc.pale and rc.seam_side == CrystalStyle.Side.NONE, "empty streak stays smoke")
+	hud._on_health(20.0, 100.0)
+	var hp := _skin_of(hud.hp_fill)
+	_ok(hp != null and hp.fill == hud.HP_LOW, "low HP fill is red")
+	hud._on_health(100.0, 100.0)
+	_ok(hp != null and hp.fill == hud.HP_OK, "full HP fill is ice")
+	hud.queue_free()

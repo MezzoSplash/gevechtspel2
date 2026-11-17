@@ -30,10 +30,13 @@ const POPUP_HEIGHT := 70.0
 const POPUP_GAP := 8.0 # clearance between the CTF status block and the popup that follows it
 
 # --- Palette -----------------------------------------------------------------
-const ACCENT := Color(1.0, 0.84, 0.42) # gold: held weapon, selected streak, own row, trick tags
-const PANEL := Color(0.05, 0.06, 0.08, 0.78) # rounded panel behind a scoreboard/streak block
-const SLOT_IDLE := Color(0.06, 0.07, 0.09, 0.78)
-const SLOT_ON := Color(0.12, 0.11, 0.07, 0.9)
+# The crystal palette (docs/ui-crystal/HANDOFF.md): smoke glass, pale shell, ice seams. Gold stays
+# only for rewards (TRICK, friendly popups).
+const ACCENT := CrystalStyle.ICE # ice: held weapon seam, ready streak, own row, standing
+const PANEL := Color(0.059, 0.078, 0.106, 0.78) # smoke glass behind a scoreboard/streak block
+const SLOT_IDLE := CrystalStyle.SMOKE
+const SLOT_ON := CrystalStyle.SHELL # the held weapon is the pale shell
+const SLOT_TEXT_ON := Color(0.07, 0.08, 0.10) # dark text on the pale shell
 const POPUP_FRIENDLY := Color(1.0, 0.86, 0.4)
 const POPUP_HOSTILE := Color(1.0, 0.36, 0.3)
 const TRICK := Color(1.0, 0.78, 0.22) # trickshot gold: popup, feed tag, killcam, style king

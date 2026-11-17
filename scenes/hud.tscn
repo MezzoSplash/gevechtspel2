@@ -27,7 +27,7 @@ mouse_filter = 2
 [node name="Streak" type="Label" parent="StreakSlots"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-theme_override_colors/font_color = Color(1, 0.86, 0.35, 1)
+theme_override_colors/font_color = Color(0.749, 0.953, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
 theme_override_constants/outline_size = 4
 text = "STREAK 0/3"
@@ -123,7 +123,7 @@ mouse_filter = 2
 
 [node name="Reloading" type="Label" parent="Bottom"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_colors/font_color = Color(0.749, 0.953, 1, 1)
 theme_override_font_sizes/font_size = 18
 text = "RELOAD"
 horizontal_alignment = 1

@@ -96,7 +96,7 @@ func _draw() -> void:
 	var uav := Game.radar_left > 0.0
 	if uav:
 		var a := _sweep * TAU
-		draw_line(c, c + Vector2(cos(a), sin(a)) * r * 1.5, Color(1, 0.86, 0.35, 0.35), 3.0)
+		draw_line(c, c + Vector2(cos(a), sin(a)) * r * 1.5, Color(CrystalStyle.ICE, 0.35), 3.0)
 	var now := Time.get_ticks_msec()
 	var marks := {}
 	for n in get_tree().get_nodes_in_group("player"):
@@ -119,11 +119,11 @@ func _draw() -> void:
 		_draw_enemy(to_px.call(g.pos), ghost_alpha(int(g.lost), now))
 	for id in marks:
 		_draw_enemy(to_px.call(marks[id]), 1.0)
-	_draw_arrow(c, 0.0, 8.0, Color(1, 0.92, 0.55))
+	_draw_arrow(c, 0.0, 8.0, CrystalStyle.ICE)
 	_draw_frame(r)
 	if uav:
 		draw_string(get_theme_default_font(), Vector2(6, size.y - 6), "UAV %ds" % ceili(Game.radar_left),
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.86, 0.35))
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, CrystalStyle.ICE)
 
 
 ## World XZ relative to `origin`, turned so a pawn with `yaw` looks up (-Y on screen). Metres.
@@ -199,4 +199,4 @@ func _draw_arrow(at: Vector2, rot: float, s: float, col: Color) -> void:
 
 
 func _draw_frame(_r: float) -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(1, 0.86, 0.35, 0.55), false, 2.0)
+	draw_rect(Rect2(Vector2.ZERO, size), Color(CrystalStyle.ICE, 0.55), false, 2.0)
