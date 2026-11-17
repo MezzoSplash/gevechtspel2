@@ -70,6 +70,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
+- v0.5.18 (released): bots have characters (#267 - aggressive, holder, flanker and chaos as `data/bots/*.tres`
+  behind `BotStyle`, assigned per bot slot, so difficulty sets how sharp a bot is and the character how it
+  fights), they find and run wallrun walls themselves (#278, raycast only, `trick` chance per difficulty) and
+  they follow route hints generated from the map (#270 slice 1: `BotRoutes` + `data/bot_routes/*.json`,
+  validated once at load). Bot state is one `State` enum with a separate `Route` axis (#268, no behaviour
+  change), the pawn roster is built once per tick and each bot caches LOS for 6 ticks (#272). `NET_VERSION`
+  stays 0.5.16 - bots are server pawns, so only the server has to update.
 - v0.5.17 (released): bots only know what they notice (#266, #274) - below Hard a bot knows an enemy it
   saw, was shot by or heard (`omni`/`memory`/`hear` per profile), hunts the last known spot and patrols
   when it knows nobody, while Hard keeps the old omniscience. A reload of another player plays the gun
