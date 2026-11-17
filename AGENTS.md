@@ -49,6 +49,18 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- UI crystal step 5 (layout, `docs/ui-crystal/HANDOFF.md` 4.4): the screens follow the mockups, not only
+  the theme. `CrystalUi` (`scripts/ui/crystal_ui.gd`) holds the shared pieces - the wordmark (light GEVECHT
+  over bold SPEL beside `CrystalMark`, the gem from the mockup), a tracked hint inside a button, a red seam
+  for leave/quit (`seam_color` duplicates the theme shard, the theme's own stays ice), unequal widths
+  (`stagger`), the key-hint footer shard and the pause score shards. Main menu: wordmark, a movement tag
+  line, hints in the buttons, the status line under them. Pause: team scores in team colours around a
+  pale clock (FFA: you against the leader), a centred staggered column, the footer. Settings: a
+  "SETTINGS" caption over the tab's name, the six tabs as one row of `ChoiceChip` shards, glowing slider
+  fill with a diamond grabber (`CrystalTheme.diamond`), a short pale "‹ BACK". Kill feed rows draw a
+  smoke shard with the killer's colour on the right seam from the row's `draw` signal, so a row's
+  children are unchanged. Not done: the HP gem (optional in the brief). Check:
+  `tools/check_crystal_layout`; `tools/shot_pause` renders the pause menu. No protocol change.
 - Speed meter (UI crystal step 4, `docs/ui-crystal/HANDOFF.md`): `SpeedMeter` (`scripts/hud/speed_meter.gd`)
   is a row of the bottom stack right above `HpRow`, so the notice and RELOAD rows come and go above it.
   The big number is the local pawn's horizontal speed, never smoothed; the shard's bottom seam is the

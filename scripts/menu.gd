@@ -85,6 +85,7 @@ func _ready() -> void:
 		var screen := c as Control
 		screen.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		screen.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_crystal_home()
 	_hook_hover_focus(self)
 	set_match_choice(Game.last_map, Game.last_mode)
 	set_team(0)
@@ -104,6 +105,46 @@ func _ready() -> void:
 	if not Game.local_name_changed.is_connected(set_player_name):
 		Game.local_name_changed.connect(set_player_name)
 	show_screen("home")
+
+
+## Crystal layout of the home screen (docs/ui-crystal/mockups/menu.png): the wordmark, a hint in
+## each button, unequal widths, a red seam on Quit and the key hints as a footer shard.
+func _crystal_home() -> void:
+	var home := $Center/Home as VBoxContainer
+	var mark := CrystalUi.wordmark()
+	home.add_child(mark)
+	home.move_child(mark, 0)
+	var tag := $Center/Home/Tag as Label
+	tag.add_theme_color_override("font_color", CrystalUi.MUTE.lightened(0.2))
+	# Air between the tag line and the buttons, like the mockup's hero block.
+	var gap := Control.new()
+	gap.name = "Gap"
+	gap.custom_minimum_size = Vector2(0, 28)
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	home.add_child(gap)
+	home.move_child(gap, tag.get_index() + 1)
+	var buttons := [$Center/Home/SoloButton, $Center/Home/MpButton, $Center/Home/ClassesButton,
+		$Center/Home/SettingsButton, $Center/Home/QuitButton]
+	var hints := ["PLAY AGAINST BOTS", "HOST  ·  JOIN  ·  LAN", "LOADOUTS", "", ""]
+	for i in buttons.size():
+		(buttons[i] as Button).custom_minimum_size.y = 60 if i == 0 else 54
+		if hints[i] != "":
+			CrystalUi.button_hint(buttons[i], hints[i])
+	CrystalUi.stagger(buttons, [560, 500, 440, 410, 340])
+	CrystalUi.seam_color($Center/Home/QuitButton, CrystalUi.DANGER)
+	# Status (connection errors, "Singleplayer, LAN, or settings.") under the buttons, not inside
+	# the hero block.
+	home.move_child(status_label, home.get_child_count() - 1)
+	CrystalUi.footer($Footer)
+	_crystal_back($Center/Settings/BackButton)
+
+
+## The settings screen's Back: a short pale shard under the list (mockup settings.png).
+static func _crystal_back(b: Button) -> void:
+	b.theme_type_variation = &"PrimaryButton"
+	b.text = "‹  BACK"
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	b.custom_minimum_size = Vector2(160, 44)
 
 
 ## Map, mode, kills, time and bots (singleplayer, and host settings under Multiplayer).

@@ -49,6 +49,14 @@ func _ready() -> void:
 		# Crop scales with the real window: a desktop may hand out its own size instead of 1080p.
 		var k := img.get_height() / 1080.0
 		_save(img, "/tmp/hud-speed-%s.png" % shot[2], Rect2i(Vector2i(Vector2(560, 760) * k), Vector2i(Vector2(800, 320) * k)))
+	# Kill feed rows: one you are in, two between others, one with a trick tag.
+	hud._local_peer_id = 1
+	hud.kill_feed.add_kill("Bot 2", "Snommel", &"shotgun", 0, 1)
+	hud.kill_feed.add_kill("Snommel", "Bot 1", &"sniper", 1, 0, "NOSCOPE")
+	hud.kill_feed.add_kill("Gianni", "Bot 4", &"rifle", 0, 1)
+	img = await _frame()
+	var kk := img.get_height() / 1080.0
+	_save(img, "/tmp/hud-killfeed.png", Rect2i(Vector2i(Vector2(1400, 40) * kk), Vector2i(Vector2(520, 260) * kk)))
 	hud._on_health(22.0, 100.0)
 	hud.set_weapon_index(2)
 	img = await _frame()

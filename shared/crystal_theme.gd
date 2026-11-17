@@ -151,6 +151,15 @@ static func _fields(t: Theme) -> void:
 	# Sliders stay thin flat bars (a 6 px shard has nothing to facet); the fill glows ice.
 	_recolor_flat(t, "grabber_area", "HSlider", ICE)
 	_recolor_flat(t, "grabber_area_highlight", "HSlider", Color.WHITE)
+	# Mockup settings.png: a glowing fill and a diamond grabber, pale on dark rows.
+	for st in ["grabber_area", "grabber_area_highlight"]:
+		var g := t.get_stylebox(st, "HSlider") as StyleBoxFlat if t.has_stylebox(st, "HSlider") else null
+		if g != null:
+			g.shadow_color = Color(ICE, 0.45)
+			g.shadow_size = 5
+	t.set_icon("grabber", "HSlider", diamond(18, Color(0.93, 0.96, 1.0)))
+	t.set_icon("grabber_highlight", "HSlider", diamond(20, Color.WHITE))
+	t.set_icon("grabber_disabled", "HSlider", diamond(18, Color(0.5, 0.55, 0.6)))
 	var sf := t.get_stylebox("focus", "HSlider") as StyleBoxFlat
 	if sf != null:
 		sf.border_color = Color(ICE, 0.7)
@@ -194,3 +203,17 @@ static func _recolor_flat(t: Theme, state: String, type: String, c: Color) -> vo
 	var sb := t.get_stylebox(state, type) as StyleBoxFlat if t.has_stylebox(state, type) else null
 	if sb != null:
 		sb.bg_color = c
+
+
+## A diamond (square on its point) with a soft 1 px edge, `px` wide: the slider grabber.
+static func diamond(px: int, col: Color) -> ImageTexture:
+	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
+	var c := (px - 1) * 0.5
+	for y in px:
+		for x in px:
+			# Manhattan distance is the diamond; 1 px of falloff anti-aliases the edge.
+			var d := absf(x - c) + absf(y - c)
+			var a := clampf(c - d + 0.5, 0.0, 1.0)
+			var shade := col.darkened(0.25) if y > c else col
+			img.set_pixel(x, y, Color(shade, a))
+	return ImageTexture.create_from_image(img)
