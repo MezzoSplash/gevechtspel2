@@ -919,12 +919,14 @@ func gun_speed_mult() -> float:
 ## Sprint key, or already moving at sprint speed (a remote pawn has no sprint key on the server).
 ## The shank lunge uses this so a fast slide or dive lunges too.
 func at_sprint() -> bool:
-	if is_sprinting:
-		return true
+	return is_sprinting or flat_speed() >= SPRINT_SPEED - 0.8
+
+
+## Horizontal speed: the velocity on the machine that simulates this pawn, the observed speed on a
+## server copy of a remote human (its velocity is not simulated there).
+func flat_speed() -> float:
 	var spd := Vector2(velocity.x, velocity.z).length()
-	if spd < 1.0:
-		spd = _obs_speed
-	return spd >= SPRINT_SPEED - 0.8
+	return spd if spd >= 1.0 else _obs_speed
 
 
 func is_lunging() -> bool:

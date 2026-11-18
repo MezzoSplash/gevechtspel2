@@ -53,6 +53,20 @@ static func shank_damage_for(victim_forward: Vector3, to_attacker: Vector3) -> f
 	return BACK_DAMAGE if behind(victim_forward, to_attacker) else FRONT_DAMAGE
 
 
+## Feet on walkable floor, from a short ray: the server's copy of a remote human is never moved by
+## move_and_slide, so its is_on_floor() says nothing.
+static func on_ground(p: Player) -> bool:
+	var space := p.get_world_3d().direct_space_state
+	if space == null:
+		return p.is_on_floor()
+	var from := p.global_position + Vector3.UP * 0.2
+	var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 0.45)
+	q.collision_mask = WORLD_MASK
+	q.exclude = [p.get_rid()]
+	var hit := space.intersect_ray(q)
+	return not hit.is_empty() and (hit.normal as Vector3).y >= 0.7
+
+
 static func _flat(dir: Vector3) -> Vector3:
 	var flat := Vector3(dir.x, 0.0, dir.z)
 	if flat.length_squared() < 0.0001:
@@ -60,9 +74,16 @@ static func _flat(dir: Vector3) -> Vector3:
 	return flat.normalized()
 
 
-## How far a sprinting pawn can lunge along `look_dir` before a wall. 0 when they are not at sprint.
+## How far a sprinting pawn can lunge along `look_dir` before a wall. 0 when they are not at sprint,
+## when they are off the ground, or when they already move faster than the lunge: the lunge sets the
+## horizontal velocity, so a stab mid-surf, mid-grapple or mid-carry would brake the run and bend its
+## line, and in the air it would be a free air-dash. Those stabs keep plain SHANK_RANGE reach.
 func lunge_distance(p: Player, look_dir: Vector3) -> float:
 	if p == null or not p.at_sprint():
+		return 0.0
+	if p.flat_speed() >= LUNGE_M / LUNGE_TIME:
+		return 0.0
+	if not on_ground(p):
 		return 0.0
 	var flat := _flat(look_dir)
 	if flat == Vector3.ZERO:

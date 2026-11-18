@@ -21,6 +21,7 @@ func _ready() -> void:
 	_numbers()
 	_class_and_lists()
 	_migration()
+	await _lunge_gate()
 	_cleanup()
 	print("SHANK CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
@@ -106,6 +107,44 @@ func _migration() -> void:
 	_cleanup()
 	var fresh: Dictionary = PlayerClasses.load_file(TMP)
 	_ok(not bool(fresh.migrated) and fresh.classes.size() == PlayerClasses.DEFAULTS.size(), "a missing file is the defaults, not a migration")
+
+
+## The lunge only ever speeds a pawn up, and only on the ground. It sets the horizontal velocity, so
+## a stab at surf, grapple or carry speed used to brake the run to 15.6 m/s and bend it to the look
+## direction, and in the air it was a free air-dash.
+func _lunge_gate() -> void:
+	var base := Vector3(0, 300, 0)
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = 1
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(40, 1, 40)
+	cs.shape = shape
+	floor_body.add_child(cs)
+	add_child(floor_body)
+	floor_body.global_position = base + Vector3(0, -0.5, 0)
+	var p := (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
+	p.peer_id = -1
+	p.is_bot = true
+	p.set_physics_process(false)
+	add_child(p)
+	for i in 3:
+		await get_tree().physics_frame
+	var look := Vector3.FORWARD
+	var cases := [
+		["sprinting on the ground lunges the full step", base, Player.SPRINT_SPEED, true],
+		["walking does not lunge", base, Player.WALK_SPEED * 0.6, false],
+		["at surf speed (18 m/s) the stab does not brake you", base, 18.0, false],
+		["in the air the stab is not an air-dash", base + Vector3(0, 4, 0), Player.SPRINT_SPEED, false],
+	]
+	for c in cases:
+		p.global_position = c[1]
+		p.velocity = look * float(c[2])
+		p.is_sprinting = false
+		var d: float = Game.melee.lunge_distance(p, look)
+		_ok((d > Melee.LUNGE_M - 0.01) == bool(c[3]), "%s (%.2f m)" % [c[0], d])
+	p.queue_free()
+	floor_body.queue_free()
 
 
 func _classes(n: int) -> Array:
