@@ -239,6 +239,9 @@ func physics_tick(delta: float) -> void:
 			pawn.velocity.y += float(pawn.get_gravity().y) * delta
 		pawn.move_and_slide()
 		return
+	if pawn.is_lunging():
+		_move(delta)
+		return
 	_burst_pause = maxf(_burst_pause - delta, 0.0)
 	_nade_cd = maxf(_nade_cd - delta, 0.0)
 	if not pawn.is_on_floor():
@@ -318,6 +321,12 @@ func physics_tick(delta: float) -> void:
 ## move_and_slide plus the same small step-up the players get (StepUp), so bots do not stall on a lip.
 ## Before it moves: slide, wallrun and dive, through the very same Movement code a human runs.
 func _move(delta: float) -> void:
+	if pawn.is_lunging():
+		pawn.consume_lunge(delta)
+		if not pawn.is_on_floor():
+			pawn.velocity.y += float(pawn.get_gravity().y) * delta
+		pawn.move_and_slide()
+		return
 	_tick_tricks(delta)
 	var pre := pawn.velocity
 	var was_floor := pawn.is_on_floor()
@@ -960,6 +969,9 @@ func _cover_floor(space: PhysicsDirectSpaceState3D, spot: Vector3) -> bool:
 
 ## Visible and in range. Sidestep in the open; do not ask the navmesh for a 2 m shuffle.
 func _fight(enemy: Player, delta: float) -> void:
+	if _def() != null and _def().melee:
+		_fight_shank(enemy, delta)
+		return
 	_tick_aim_wobble(enemy, delta)
 	_face(enemy)
 	var away := pawn.global_position - enemy.global_position
@@ -1026,6 +1038,26 @@ func _fight(enemy: Player, delta: float) -> void:
 		return
 	if _acquire_left <= 0.0 and dist <= fight_r + 4.0:
 		_try_shoot(enemy)
+
+
+## Shank: close the last metres and stab. No strafe-shoot. The lunge is inside swing_shank.
+func _fight_shank(enemy: Player, delta: float) -> void:
+	_tick_aim_wobble(enemy, delta)
+	_face(enemy)
+	var dist := pawn.global_position.distance_to(enemy.global_position)
+	var away := pawn.global_position - enemy.global_position
+	away.y = 0.0
+	if away.length_squared() < 0.01:
+		away = pawn.transform.basis.z
+		away.y = 0.0
+	else:
+		away = away.normalized()
+	if dist > Melee.SHANK_CHASE:
+		_steer_to(enemy.global_position, Player.SPRINT_SPEED, delta, true)
+	else:
+		_steer_to(pawn.global_position - away * 4.0, Player.SPRINT_SPEED, delta, false)
+	if _acquire_left <= 0.0 and dist <= Melee.SHANK_RANGE + 0.8:
+		Game.melee.swing_shank(pawn)
 
 
 ## Frag at a visible enemy in mid range. The pitch is solved so the arc lands near them before the fuse.

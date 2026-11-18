@@ -136,7 +136,7 @@ const CHAIN_STEP := 0.25
 const CHAIN_MAX := 2.0
 # Grenade kills: no tricks. RC-XD kills get RCXD only. The throwing knife has its own (YEET) and is in neither list.
 const GUNS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"lmg", &"slug"]
-const MOVE_WEAPONS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"lmg", &"slug", &"melee"]
+const MOVE_WEAPONS: Array[StringName] = [&"rifle", &"pistol", &"shotgun", &"sniper", &"smg", &"revolver", &"lmg", &"slug", &"melee", &"shank"]
 
 
 ## Which tricks a kill was. `c` (all optional):

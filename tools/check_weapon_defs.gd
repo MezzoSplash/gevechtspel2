@@ -12,7 +12,7 @@ extends SceneTree
 
 ## Role order for the fight distance: the shotgun closes in, the LMG holds a lane. A new gun has to
 ## be slotted in here on purpose, which is the point.
-const FIGHT_ORDER := [&"shotgun", &"smg", &"pistol", &"revolver", &"rifle", &"slug", &"sniper", &"lmg"]
+const FIGHT_ORDER := [&"shank", &"shotgun", &"smg", &"pistol", &"revolver", &"rifle", &"slug", &"sniper", &"lmg"]
 ## Smells that mean a script is branching on a gun id again. A single feature test such as
 ## `def.id == &"sniper"` for the scope is fine; a match or a chain of comparisons is not.
 const FORBIDDEN := ["match _gun_id", "match def.id", "elif def.id ==", "SMG_WOBBLE_SCALE", "SMG_AIM_TRACK"]

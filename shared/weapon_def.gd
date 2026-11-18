@@ -32,6 +32,9 @@ extends Resource
 @export var falloff_min_mult: float = 1.0
 ## Movement: walk/sprint/crouch speed multiplier while this gun is held (SMG > 1).
 @export var move_speed_mult: float = 1.0
+## A knife, not a gun. Fire and the melee key stab; there is no magazine and no bullet.
+## The shank numbers (reach, backstab, lunge) live on Melee, not here.
+@export var melee: bool = false
 ## How much of the walk/sprint/slide spread penalty applies (1 = all of it; the SMG is built to run and gun).
 @export var move_spread_scale: float = 1.0
 ## Aim down sights on RMB: FOV while aiming (0 = this gun has no ADS) and the spread multiplier while aiming.

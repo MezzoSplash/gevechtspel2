@@ -31,6 +31,8 @@ func reload() -> void:
 	classes = data.classes
 	last_index = int(data.last)
 	classes_changed.emit()
+	if bool(data.get("migrated", false)):
+		save()
 
 
 func save() -> void:

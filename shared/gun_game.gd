@@ -1,7 +1,7 @@
 class_name GunGame
 extends RefCounted
 ## Gun Game (#148): FFA where every gun kill moves you one step up a fixed weapon ladder; a kill with
-## the last gun wins the round. A melee (knife) kill or a suicide sets the victim one step back.
+## the last gun wins the round. A bash, a shank or a suicide sets the victim one step back.
 ## Static helpers on the Game autoload `g`; Game keeps the state (`gun_level`) and the @rpc
 ## (sync_gun_level), so node paths and the protocol live in one place. Server-authoritative: the
 ## match authority decides every level, clients only mirror it for their gun and the HUD.
@@ -9,7 +9,7 @@ extends RefCounted
 ## The ladder, first to last. Ends on the pistol: the hardest gun to close a round with.
 const LADDER: Array[StringName] = [&"smg", &"rifle", &"lmg", &"shotgun", &"slug", &"revolver", &"sniper", &"pistol"]
 ## Kills with these ids demote the victim (and do not promote the killer).
-const DEMOTE_WEAPONS: Array[StringName] = [&"melee"]
+const DEMOTE_WEAPONS: Array[StringName] = [&"melee", &"shank"]
 
 
 ## 0-based ladder step of `peer` (0 when unknown).

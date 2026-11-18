@@ -135,6 +135,7 @@ const WEAPON_DEFS := {
 	&"revolver": preload("res://data/weapons/revolver.tres"),
 	&"lmg": preload("res://data/weapons/lmg.tres"),
 	&"slug": preload("res://data/weapons/slug.tres"),
+	&"shank": preload("res://data/weapons/shank.tres"),
 }
 
 var is_offline := true

@@ -27,6 +27,9 @@ func _initialize() -> void:
 		for dist in DISTS:
 			row.append("%3d/%-3d" % [roundi(d.damage_at_distance(dist) * d.pellet_count), roundi(d.damage_at_distance(dist) * d.pellet_count * d.headshot_multiplier)])
 		print("%-10s %s" % [d.id, " ".join(row)])
+		if d.melee:
+			_ok(true, "%s is a melee weapon, no bullet falloff" % d.id)
+			continue
 		_ok(d.falloff_end_m > d.falloff_start_m and d.falloff_min_mult > 0.0 and d.falloff_min_mult <= 1.0,
 			"%s has a falloff (%.0f-%.0f m, x%.2f)" % [d.id, d.falloff_start_m, d.falloff_end_m, d.falloff_min_mult])
 		var prev := INF
@@ -57,7 +60,7 @@ func _ttk_table(dir: String) -> void:
 	print("TTK s      " + "  ".join([5, 15, 30, 50].map(func(m): return "%9dm" % m)) + "   (body / head)")
 	for f in DirAccess.get_files_at(dir):
 		var d := load(dir + f) as WeaponDef if f.ends_with(".tres") else null
-		if d:
+		if d and not d.melee:
 			print("%-10s %s" % [d.id, " ".join([5.0, 15.0, 30.0, 50.0].map(func(m): return "%.2f/%.2f" % [ttk(d, m), ttk(d, m, true)]))])
 	var rifle := load(dir + "rifle.tres") as WeaponDef
 	var smg := load(dir + "smg.tres") as WeaponDef

@@ -13,6 +13,7 @@ const ICONS := {
 	&"revolver": preload("res://assets/ui/icon_revolver.svg"),
 	&"knife": preload("res://assets/ui/icon_knife.svg"),
 	&"melee": preload("res://assets/ui/icon_melee.svg"),
+	&"shank": preload("res://assets/ui/icon_knife.svg"),
 	&"lmg": preload("res://assets/ui/icon_lmg.svg"),
 	&"slug": preload("res://assets/ui/icon_slug.svg"),
 	&"rcxd": preload("res://assets/ui/icon_rcxd.svg"),

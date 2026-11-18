@@ -5,7 +5,7 @@ extends RefCounted
 ## The grenade slot holds MAX_GRENADES throwables in any mix: frag grenades (G) and throwing knives (F).
 ## The wire loadout is the same dict without the name. The server checks it with `parse_loadout`.
 
-const PRIMARIES: Array[StringName] = [&"rifle", &"shotgun", &"sniper", &"smg", &"lmg", &"slug"]
+const PRIMARIES: Array[StringName] = [&"rifle", &"shotgun", &"sniper", &"smg", &"lmg", &"slug", &"shank"]
 ## The revolver is a sidearm option next to the pistol: slow and heavy-hitting against fast and forgiving.
 const SECONDARIES: Array[StringName] = [&"pistol", &"revolver"]
 const GRENADE_TYPES: Array[StringName] = [&"frag", &"knife"]
@@ -16,12 +16,19 @@ const MAX_GRENADES := 3
 const MAX_CLASSES := 8
 const NAME_MAX := 16
 const SAVE_PATH := "user://classes.cfg"
+## Bumped when a new default class has to appear in an existing save. 2 adds Shank (#145).
+const FILE_VERSION := 2
+
+const SHANK_CLASS := {
+	"name": "Shank", "primary": "shank", "secondary": "pistol", "grenades": {"frag": 1},
+}
 
 const DEFAULTS := [
 	{"name": "Rifleman", "primary": "rifle", "secondary": "pistol", "grenades": {"frag": 2}},
 	{"name": "Breacher", "primary": "shotgun", "secondary": "pistol", "grenades": {"frag": 3}},
 	{"name": "Sniper", "primary": "sniper", "secondary": "pistol", "grenades": {"frag": 1}},
 	{"name": "Runner", "primary": "smg", "secondary": "revolver", "grenades": {"frag": 1, "knife": 2}},
+	SHANK_CLASS,
 ]
 
 
@@ -147,12 +154,15 @@ static func defaults() -> Array[Dictionary]:
 	return out
 
 
-## Returns {classes, last}. A missing or empty file gives the defaults.
+## Returns {classes, last, migrated}. A missing or empty file gives the defaults.
+## An older save gains the Shank class once, when there is a free slot and it is not there yet.
 static func load_file(path: String = SAVE_PATH) -> Dictionary:
 	var cfg := ConfigFile.new()
 	var classes: Array[Dictionary] = []
 	var last := 0
+	var version := FILE_VERSION
 	if cfg.load(path) == OK:
+		version = int(cfg.get_value("meta", "version", 1))
 		last = int(cfg.get_value("meta", "last", 0))
 		var n := clampi(int(cfg.get_value("meta", "count", 0)), 0, MAX_CLASSES)
 		for i in n:
@@ -165,15 +175,25 @@ static func load_file(path: String = SAVE_PATH) -> Dictionary:
 				"secondary": cfg.get_value(sec, "secondary", ""),
 				"grenades": cfg.get_value(sec, "grenades", {}),
 			}, "Class %d" % (i + 1)))
+	var migrated := false
 	if classes.is_empty():
 		classes = defaults()
 		last = 0
-	return {"classes": classes, "last": clampi(last, 0, classes.size() - 1)}
+	elif version < FILE_VERSION:
+		var has_shank := false
+		for c in classes:
+			if StringName(c.primary) == &"shank":
+				has_shank = true
+				break
+		if not has_shank and classes.size() < MAX_CLASSES:
+			classes.append(sanitize_class(SHANK_CLASS))
+		migrated = true
+	return {"classes": classes, "last": clampi(last, 0, classes.size() - 1), "migrated": migrated}
 
 
 static func save_file(classes: Array[Dictionary], last: int, path: String = SAVE_PATH) -> Error:
 	var cfg := ConfigFile.new()
-	cfg.set_value("meta", "version", 1)
+	cfg.set_value("meta", "version", FILE_VERSION)
 	cfg.set_value("meta", "count", mini(classes.size(), MAX_CLASSES))
 	cfg.set_value("meta", "last", clampi(last, 0, maxi(classes.size() - 1, 0)))
 	for i in mini(classes.size(), MAX_CLASSES):

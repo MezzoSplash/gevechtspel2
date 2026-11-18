@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://shared/weapon_def.gd" id="1_weapon"]
+[ext_resource type="AudioStream" path="res://assets/sounds/melee_swing.wav" id="2_fire"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"shank"
+display_name = "Shank"
+fire_rate = 1.25
+damage = 50.0
+headshot_multiplier = 1.0
+spread_deg = 0.0
+kick_pitch_deg = 0.0
+kick_yaw_deg = 0.0
+kick_fov = 0.0
+range_m = 2.2
+mag_size = 0
+reload_time = 1.0
+reload_style = &"mag"
+tracer_width = 0.0
+fire_sound = ExtResource("2_fire")
+pellet_count = 1
+automatic = false
+melee = true
+move_speed_mult = 1.23
+
+view_kick_z = 0.02
+flash_time = 0.04
+flash_energy = 1.0
+crosshair_punch = 0.4
+tracer_color = Color(0.85, 0.9, 1.0, 1)
+tracer_glow = Color(0.7, 0.8, 1.0, 1)
+bot_spread_mult = 1.0
+bot_fight_range = 2.5
+bot_burst_min = 1
+bot_burst_max = 1
+bot_burst_pause_min = 0.8
+bot_burst_pause_max = 0.8
+bot_aim_wobble_scale = 1.0
+bot_aim_track_scale = 1.0
