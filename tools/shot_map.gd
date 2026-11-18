@@ -1,17 +1,8 @@
 extends Node
 ## Renders map views to /tmp/<map>_<view>.png (needs a display, e.g. xvfb-run).
-## Map id comes from the user args: `-- --map rooftops`. Default: rooftops.
+## Map id comes from the user args: `-- --map foundry`. Default: foundry.
 
 const VIEWS := {
-	"rooftops": {
-		"overview": [Vector3(34, 36, 48), Vector3(0, 3, 0)],
-		"top": [Vector3(0.1, 95, 0.1), Vector3(0, 0, 0)],
-		"court_wide": [Vector3(22, 13, 22), Vector3(-2, 2, -2)],
-		"alley": [Vector3(0, 2.4, 11.5), Vector3(0, 2.2, -11)],
-		"bridge_w": [Vector3(-13, 8.2, 10), Vector3(-13, 6, -11)],
-		"bridge_side": [Vector3(2, 9, 16), Vector3(-13, 6, 0)],
-		"spawn_blue": [Vector3(0, 3.6, 39), Vector3(0, 3, 14)],
-	},
 	"foundry": {
 		"overview": [Vector3(38, 40, 44), Vector3(0, 3, 0)],
 		"roof": [Vector3(-16, 12.5, 16), Vector3(0, 8, -2)],
@@ -30,7 +21,7 @@ const VIEWS := {
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
-	var map := &"rooftops"
+	var map := &"foundry"
 	for i in args.size():
 		if args[i] == "--map" and i + 1 < args.size():
 			map = StringName(args[i + 1])

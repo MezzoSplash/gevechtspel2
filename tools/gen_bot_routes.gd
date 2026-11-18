@@ -14,7 +14,7 @@ extends Node
 ## The loader (`BotRoutes`) validates whatever comes out again at load time, so a map change that moves a
 ## wall drops the stale route instead of steering bots into it. Re-run this after editing a map.
 ##
-##   ~/.local/bin/godot --headless --path . res://tools/gen_bot_routes.tscn -- skyline rooftops
+##   ~/.local/bin/godot --headless --path . res://tools/gen_bot_routes.tscn -- skyline quay
 ## (no arguments: every map in `Maps.ORDER`)
 ## Random navmesh points per map. Small walls on a small floor (a roof) only show up in a large sample.
 const SAMPLES := 3000

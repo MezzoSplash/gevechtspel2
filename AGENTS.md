@@ -2,7 +2,7 @@
 
 Feel-first arena FPS built around style and movement: surf, wallrun, dive, slide, and land Tony Hawk style combos and trickshots. If a change does not make shooting, moving or pulling off tricks more satisfying, it is out of scope. When making maps, props or weapons, follow [docs/art/index.html](docs/art/index.html).
 
-Current game: 6 modes (TDM, FFA, Style TDM, Style FFA, Gun Game, CTF on Quay), 5 maps (Townhouses, Foundry, Rooftops, Quay, Skyline; see `scripts/maps.gd`), 8 guns plus frag, knife and melee, a grapple, bots up to 16, UAV (a physical drone you can shoot down), RC-XD and LOS scorestreaks, MVP killcam, B1 crystal bodies.
+Current game: 6 modes (TDM, FFA, Style TDM, Style FFA, Gun Game, CTF on Quay), 4 maps (Townhouses, Foundry, Quay, Skyline; see `scripts/maps.gd`), 8 guns plus frag, knife and melee, a grapple, bots up to 16, UAV (a physical drone you can shoot down), RC-XD and LOS scorestreaks, MVP killcam, B1 crystal bodies.
 
 ## Stack
 
@@ -49,6 +49,12 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Rooftops is gone (map, generator, check, bot routes, docs). A v2 rebuilt around flow lines (#303,
+  closed) played too busy: the 35 m clean-lane rule was met with truck blocks everywhere, and the map
+  turned into a maze of sightline blockers. Lesson for the next rebuilds: break lanes with height and
+  geometry (decks, ramps, roofs, surfs), not with a block every few metres, and keep the floor open.
+  A saved `match/map = rooftops` falls back to `Maps.DEFAULT`. `NET_VERSION` stays 0.5.20 (unreleased;
+  a 0.5.19 server could still host Rooftops).
 - Grapple (`shared/grapple.gd`, a stateful helper like StyleTrack): `grapple` (V / Mouse 4, rebindable)
   fires a ray from the eye up to `RANGE` 32 m; a hit anchors and pulls while the key is held
   (`PULL_ACCEL` 55 m/s² up to `PULL_SPEED` 22 m/s, sideways bleed `SIDE_DAMP`), from the floor with a
