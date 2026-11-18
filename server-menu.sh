@@ -9,7 +9,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/gevechtspel/server.conf"
 UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/gevechtspel-server.service"
-MAPS=(townhouses foundry rooftops quay skyline)   # scripts/maps.gd ORDER
+MAPS=(townhouses foundry quay skyline)   # scripts/maps.gd ORDER
 # Ranges from shared/game.gd
 KILLS_MIN=5; KILLS_MAX=50; TIME_MIN=1; TIME_MAX=20; BOTS_MAX=16
 
