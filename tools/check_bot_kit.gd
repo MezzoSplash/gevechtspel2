@@ -27,6 +27,9 @@ func _ready() -> void:
 	await get_tree().create_timer(1.0).timeout
 	var menu = main.get_node("CanvasLayer/Menu")
 	var menu_on_in_menu: bool = Game._menu_music.playing and not Game._menu_music.stream_paused
+	# The menu song is "Reload" (MatchAudio.MENU_SONG) and it loops: a song that ends leaves a silent menu.
+	var menu_song := Game._menu_music.stream as AudioStreamOggVorbis
+	var menu_song_ok: bool = menu_song != null and menu_song.loop and menu_song.get_length() > 60.0
 	Game.last_bots = 12
 	Game.bot_count = 12
 	menu.set_match_choice(&"quay", Game.MODE_FFA)
@@ -72,7 +75,7 @@ func _ready() -> void:
 			elif Game._tension.stream == Game._tension_final_stream:
 				tension_final = true
 	var menu_off_in_match: bool = Game._menu_music.stream_paused
-	print("menu music in menu: ", menu_on_in_menu, "  paused in match: ", menu_off_in_match)
+	print("menu music in menu: ", menu_on_in_menu, "  paused in match: ", menu_off_in_match, "  Reload loops: ", menu_song_ok)
 	# Leader close to the limit: the final cue must start on its own. Poll instead of a single 0.5 s
 	# wait, and stop as soon as it plays: the bots are still shooting and a kill can end the round.
 	var round_live := Game._round_active and not Game.play_locked()
@@ -89,7 +92,7 @@ func _ready() -> void:
 	print("grenades thrown: ", _nades)
 	print("rc-xd launched: ", _rc)
 	print("bot streaks used: UAV=%d RC-XD=%d" % [used[0], used[1]])
-	var ok: bool = _guns.size() == Weapon.LOADOUT.size() and _nades > 0 and used[0] > 0 and used[1] > 0 and tension_start and tension_final
+	var ok: bool = _guns.size() == Weapon.LOADOUT.size() and _nades > 0 and used[0] > 0 and used[1] > 0 and tension_start and tension_final and menu_song_ok
 	print("BOT KIT CHECK ", "OK" if ok else "FAILED")
 	print("streak charges now: ", Game.streak_charges)
 	print("deaths by weapon: ", _deaths)

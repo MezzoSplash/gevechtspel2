@@ -3,6 +3,8 @@ extends RefCounted
 ## Match music and stings (#106): menu loop, round-start sting, tension music near the end or when someone
 ## is close to winning. Static helpers on the Game autoload `game`; Game keeps the players and state.
 
+const MENU_SONG := "res://assets/sounds/songs/Reload.ogg"
+
 
 ## Round-start music, from the end of the intermission into the round.
 static func play_round_sting(game: GameState) -> void:
@@ -29,12 +31,11 @@ static func setup_tension_music(game: GameState) -> void:
 	game._tension = AudioStreamPlayer.new()
 	game._tension.bus = "Music"
 	game.add_child(game._tension)
-	var menu := load("res://assets/sounds/music_menu.wav") as AudioStreamWAV
+	# "Reload" by Mystellic (CREDITS.md). Ogg Vorbis: the 24 MB WAV it came as is 2.9 MB this way.
+	var menu := load(MENU_SONG) as AudioStreamOggVorbis
 	if menu:
-		menu = menu.duplicate() as AudioStreamWAV
-		menu.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		menu.loop_begin = 0
-		menu.loop_end = int(menu.get_length() * menu.mix_rate)
+		menu = menu.duplicate() as AudioStreamOggVorbis
+		menu.loop = true
 	game._menu_music = AudioStreamPlayer.new()
 	game._menu_music.bus = "Music"
 	game._menu_music.stream = menu
