@@ -49,6 +49,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Crouch pose: the crouched torso no longer sticks out behind the legs. The crouched head (0.78 m, the
+  hitbox) leaves a neck at 0.59 m, and the torso hung from it at 68° with the hips left under the head,
+  so its bottom ended 0.54 m behind the pelvis like a tail. Now `CROUCH_LEAN` 55°, `CROUCH_TORSO_SCALE`
+  0.80 along the spine, `CROUCH_HANG` 0.15 (the torso's top tucks under the head), the hips go back
+  `HIP_CROUCH_BACK` 0.28 and down to 0.36 to meet its bottom, knees forward 0.26: a squat. Head and
+  hitbox are untouched. Check: two crouch asserts in `tools/check_crystal_body` (bottom meets the
+  pelvis, no tail); `tools/shot_crouch` renders it from outside (needs a display). No protocol change.
 - #270 wallrun routes run the wall: `tools/probe_bot_route` (not CI) plays an FFA per map and counts
   route chances, picks, completions and wallruns on/off a route. It measured 1 wallrun per 15 routes:
   a route is exactly `BotWall.MIN_LEN` of face, so the one scan per `TRICK_SCAN` came too late, the
