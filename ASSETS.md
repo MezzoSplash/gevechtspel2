@@ -15,7 +15,8 @@ Status: **OK** = own work or CC0/MIT, fine for commercial use · **ATTR** = fine
 | Synthesized sounds (knife throw, melee swing, RC-XD boom/drive, empty, hit, headshot, kill, whoosh) | 9 | `tools/build_sfx.py`, `tools/gen_sounds.py` | own (CC0) | OK |
 | Speed FX wind loop (`wind_loop.wav`, generated placeholder) | 1 | `tools/gen_sounds.py` (`wind_loop()`, deterministic, cross-faded so it loops) | own (CC0) | GENERATE |
 | Combo SFX (`combo_*.wav`, "THUG2-style") | 4 | Synthesized from scratch in `tools/gen_combo_sfx.py` (no samples) | own (CC0) | OK* |
-| Music (`music_menu/round_start/round_final.wav`) | 3 | Synthesized in `tools/gen_music.py` | own (CC0) | OK |
+| Music (`music_round_start/round_final.wav`) | 2 | Synthesized in `tools/gen_music.py` | own (CC0) | OK |
+| Menu song (`songs/Reload.ogg`, "Reload") | 1 | Made by the project owner with Mystellic | Mystellic terms (passed Mystellic's checks); confirm commercial use before a Steam release (#135) | Check |
 | Announcer lines (radar / RC-XD) | 5 | Piper TTS `en_US-ljspeech-high` | MIT model, PD dataset | OK (keep credit) |
 | `reload.wav`, `radar_standby.wav`, `round_starting.wav` | 3 | Unknown: ffmpeg-converted (Lavf tag), no generator script, no credit | unknown | **VERIFY** |
 | `lmg_fire.wav`, `slug_fire.wav` | 2 | Unknown: added in 4ce9324 with no source, ffmpeg-converted | unknown | **VERIFY** |

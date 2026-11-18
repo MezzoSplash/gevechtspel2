@@ -58,6 +58,11 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   and would brake the run or air-dash (`check_shank` covers both). Gun Game demotes a shank kill; bots
   can draw it and close in and stab (`_fight_shank`). An older `classes.cfg` gains the preset once.
   `NET_VERSION` 0.5.20 (unreleased) covers the new weapon id.
+- Menu song: "Reload" (made with Mystellic) replaces the synthesized menu loop. It is
+  `assets/sounds/songs/Reload.ogg` (Ogg Vorbis q6, 2.9 MB; it was added as a 24 MB WAV), loaded as a
+  loop from `MatchAudio.MENU_SONG`; `music_menu.wav` and its generator are gone. `MENU_MUSIC_DB` went
+  -6 -> 0: the song averages 7.6 dB under the old loop and peaks at 0 dBFS. CREDITS/ASSETS list it;
+  its commercial terms are still to be confirmed (#135). `check_bot_kit` asserts it loops.
 - Foundry v2 (`tools/gen_foundry.py`, the second map rebuild, done blockout first and playtested in
   rounds): 64 x 90, walls 16 m. A real foundry, not boxes: the casting hall with the cupola furnace in
   the middle (stack through the skylight to 18 m; landmark, anchor, and the roof's divider), a 3 m

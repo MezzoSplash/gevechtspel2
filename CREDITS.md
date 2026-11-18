@@ -31,7 +31,9 @@ They were trimmed, mixed to mono, faded and normalized with `tools/build_sfx.py`
 | `radar_friendly.wav`, `radar_enemy.wav`, `rcxd_ready.wav`, `rcxd_friendly.wav`, `rcxd_enemy.wav` | "Friendly radar online." / "Enemy radar online." / "RC-XD ready for deployment." / "Friendly RC-XD deployed." / "Enemy RC-XD inbound." spoken by the [Piper](https://github.com/rhasspy/piper) TTS, voice `en_US-ljspeech-high`, then radio-filtered in `tools/build_sfx.py` | voice: Bryce Beattie, trained on the LJ Speech dataset (Keith Ito, Linda Johnson) | voice model MIT, training data public domain; we release the clips as CC0 |
 
 
-Music cues `music_round_start.wav` (round goes live) and `music_round_final.wav` (looping, last 30 s or a leader 3 kills from the limit) and the calm 48 s main menu loop `music_menu.wav` are synthesized from scratch in `tools/gen_music.py` (no samples): this project, CC0.
+Music cues `music_round_start.wav` (round goes live) and `music_round_final.wav` (looping, last 30 s or a leader 3 kills from the limit) are synthesized from scratch in `tools/gen_music.py` (no samples): this project, CC0.
+
+Main menu song "Reload" (`assets/sounds/songs/Reload.ogg`, 2:16, looped): made with Mystellic for this project; it passed Mystellic's checks. Its licence terms for commercial use still have to be confirmed before a Steam release (#135).
 
 - The Free Firearm Sound Library: <https://opengameart.org/content/the-free-firearm-sound-library> ("Prepared SFX Library")
 - Kenney Impact Sounds: <https://kenney.nl/assets/impact-sounds>

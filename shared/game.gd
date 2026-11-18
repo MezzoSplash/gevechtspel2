@@ -320,7 +320,7 @@ var _tension_start_stream: AudioStream
 var _tension_final_stream: AudioStream
 var _tension_fade: Tween
 ## Calm loop while the home menu is up (over its silent background bot match). Fades with the menu.
-const MENU_MUSIC_DB := -6.0
+const MENU_MUSIC_DB := 0.0 # "Reload" averages 7.6 dB under the old synth loop and peaks at 0 dBFS: no headroom to go above 0
 const MENU_FADE := 1.5 # fade out into a match / back in on return
 const MENU_FADE_IN_BOOT := 0.35 # first show of the menu: audible at once
 var _menu_music: AudioStreamPlayer
