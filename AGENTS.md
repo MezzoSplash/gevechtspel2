@@ -49,6 +49,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #270 wallrun routes run the wall: `tools/probe_bot_route` (not CI) plays an FFA per map and counts
+  route chances, picks, completions and wallruns on/off a route. It measured 1 wallrun per 15 routes:
+  a route is exactly `BotWall.MIN_LEN` of face, so the one scan per `TRICK_SCAN` came too late, the
+  last trick's `TRICK_CD` blocked a third of the picks and a route left `state` on FIGHT. On a wallrun
+  route a bot now scans every tick through the cooldown, skips the dice (Easy's 0 still means never)
+  and hunts; that is about 1 in 4 (Medium 8 -> 34, Hard 9 -> 36 wallruns on a route over five maps).
+  Check: route asserts in `tools/check_bot_wall`. No protocol change.
 - #270 (all maps): Townhouses, Foundry and Quay ship route hints too, so all five maps do
   (`data/bot_routes/*.json`, 60 wallrun routes each). `tools/gen_bot_routes` validates every candidate
   before it trims, and trims round-robin over wall faces (plane + height, both run directions, a start
