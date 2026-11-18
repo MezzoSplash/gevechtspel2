@@ -16,8 +16,13 @@ const WAIST_HANG := 0.80 # waist seam
 const FOOT_Y := 0.07
 const FOOT_HALF_W := 0.13
 const CROUCH_SPREAD := 0.10
-const CROUCH_LEAN := deg_to_rad(68.0) # a real crouch: the torso goes near-horizontal over the hips
-const CROUCH_TORSO_SCALE := 0.85 # the crouched head (0.78 m) leaves less room than the torso is tall
+## The crouched head (0.78 m, the hitbox) leaves a neck at 0.59 m: a 0.74 m torso cannot hang under it
+## upright. It used to lean 68° from the neck with the hips left under the head, so its bottom stuck out
+## 0.56 m behind the legs like a tail. Now it leans less, is a little shorter, its top tucks up under the
+## head (hunched shoulders) and the hips go back to meet its bottom: a squat, one connected figure.
+const CROUCH_LEAN := deg_to_rad(55.0)
+const CROUCH_TORSO_SCALE := 0.80 # along the spine, folded
+const CROUCH_HANG := 0.15 # torso centre below the neck when folded (standing: TORSO_HANG)
 const SPRINT_LEAN := deg_to_rad(16.0)
 const WALK_LEAN := deg_to_rad(6.0)
 const DIVE_PITCH := deg_to_rad(-80.0) # feet swing back behind the body
@@ -26,9 +31,10 @@ const THROW_PITCH := deg_to_rad(-14.0) # the knife throw leans over the front fo
 const THROW_TWIST := deg_to_rad(-16.0) # and turns the shoulders with the throwing hand
 const HIP_HALF_W := 0.09
 const HIP_Y := 0.80 # standing hips: the legs have to be long enough to read as legs (#164)
-const HIP_CROUCH_Y := 0.40 # folded: hips down, knees forward, feet planted
+const HIP_CROUCH_Y := 0.36 # folded: hips down and back, knees forward, feet planted
+const HIP_CROUCH_BACK := 0.28 # m behind the neck: under the folded torso's bottom
 const KNEE_FWD := 0.02 # standing: knees almost straight
-const KNEE_CROUCH_FWD := 0.20 # crouched: knees push forward
+const KNEE_CROUCH_FWD := 0.26 # crouched: knees push forward
 const KNEE_CROUCH_OUT := 0.05
 const SHOULDER_LOCAL := Vector3(0.31, 0.27, 0.0) # the shoulder shard, in torso space
 const RELOAD_TILT := deg_to_rad(26.0) # the mag dip, timed on the weapon's reload_time (#164)
@@ -65,7 +71,7 @@ static func solve(p: Dictionary) -> Dictionary:
 	var reload := clampf(float(p.get("reload", 0.0)), 0.0, 1.0)
 	var fold := k * (1.0 - dive)
 	var torso_basis := Basis(Vector3.RIGHT, -lean + RELOAD_TILT * reload * 0.5) \
-			* Basis.from_scale(Vector3(1, lerpf(1.0, 0.95, fold), 1))
+			* Basis.from_scale(Vector3(1, lerpf(1.0, CROUCH_TORSO_SCALE, fold), 1))
 	var up := torso_basis * Vector3.UP
 	# Whole-figure turn around the neck: dive pitch, wall-run roll, and the landing roll's forward flip
 	# (#205 - a rolling player used to stand upright in every view but their own camera).
@@ -80,7 +86,7 @@ static func solve(p: Dictionary) -> Dictionary:
 	# head. The torso used to be a vertical-only offset, so a dive or a roll pitched the figure while the
 	# torso hung straight down - "de torso draait niet mee" (#243 review). The crouch only shortens the
 	# hang, and the clamp that keeps it above the hips applies to the crouch alone, never to a dive.
-	var hang := lerpf(TORSO_HANG, TORSO_HANG * 0.62, fold)
+	var hang := lerpf(TORSO_HANG, CROUCH_HANG, fold)
 	var torso_pos: Vector3 = neck + rig * (-up * hang) + Vector3(0.0, bob - RELOAD_DROP * reload, 0.0)
 	if fold > 0.0:
 		torso_pos.y = maxf(torso_pos.y, pelvis_y + 0.10)
@@ -88,7 +94,7 @@ static func solve(p: Dictionary) -> Dictionary:
 	# stay long and still fold. Rotated with the rig so a dive keeps them attached.
 	# Drop along world up (not the spine's up): the hips sit at the crouch height regardless of the lean,
 	# and `rig` still carries them through a dive or a roll.
-	var hip_pos: Vector3 = neck + rig * Vector3(0.0, pelvis_y - neck.y, 0.0)
+	var hip_pos: Vector3 = neck + rig * Vector3(0.0, pelvis_y - neck.y, HIP_CROUCH_BACK * fold)
 
 	var out := {}
 	var torso_tf := Transform3D(rig * torso_basis, torso_pos)

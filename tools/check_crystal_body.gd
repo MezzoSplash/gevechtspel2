@@ -55,6 +55,13 @@ func _ready() -> void:
 	_ok(torso.position.y > crystal._legs[0].position.y,
 		"crouch: the torso stays above the hips instead of being squashed through them (torso %.2f, hip %.2f)" % [
 			torso.position.y, crystal._legs[0].position.y])
+	# A crouch is one connected figure: the torso's bottom (the mesh spans -0.36..0.38 on its axis) meets
+	# the pelvis. With the hips left under the head it stuck out 0.56 m behind the legs like a tail.
+	var cp := BodyPose.solve({"crouch": 1.0, "head_y": Player.HEAD_CROUCH_Y})
+	var bottom: Vector3 = (cp["torso"] as Transform3D) * Vector3(0.0, -0.36, 0.0)
+	var pelvis: Vector3 = (cp["pelvis"] as Transform3D).origin
+	_ok(bottom.distance_to(pelvis) < 0.2, "crouch: the torso's bottom meets the pelvis (%.2f m apart)" % bottom.distance_to(pelvis))
+	_ok(bottom.z < 0.45, "crouch: no tail behind the legs (torso bottom %.2f m back)" % bottom.z)
 	# #243 review: "de torso draait niet mee". The torso has to travel along the rotated spine, not hang
 	# vertically, or a dive and a roll pitch the figure while the torso stays upright.
 	var dive_pose := BodyPose.solve({"crouch": 0.0, "head_y": Player.HEAD_STAND_Y, "dive": 1.0})
