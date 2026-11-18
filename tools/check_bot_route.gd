@@ -136,7 +136,7 @@ func _follow() -> void:
 ## checked once at load, in the real map's space (`BotRoutes._validate`), because this scene has no
 ## arena to trace.
 func _files() -> void:
-	for m in [&"skyline", &"rooftops"]:
+	for m in Maps.ORDER: # every map ships routes, so no map has bots that only find walls by luck
 		var path := "res://data/bot_routes/" + str(m) + ".json"
 		var text := FileAccess.get_file_as_string(path)
 		var routes: Array = []
