@@ -49,6 +49,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #270 (all maps): Townhouses, Foundry and Quay ship route hints too, so all five maps do
+  (`data/bot_routes/*.json`, 60 wallrun routes each). `tools/gen_bot_routes` validates every candidate
+  before it trims, and trims round-robin over wall faces (plane + height, both run directions, a start
+  every `FACE_STEP` 6 m), so short walls survive the 60-route cap: Foundry's roof walls only got a
+  route that way. Seeded per map, so one map alone writes the same file as a full run. Skyline and
+  Rooftops were regenerated with the same tool. `check_bot_route` asserts every map in `Maps.ORDER`.
+  No protocol change.
 - Resolution pick survives a second monitor: `load_settings` used to clamp the saved size to the monitor the
   window *started* on and save the result, so with a 1080p primary and a 1440p game monitor a 2560x1440 pick
   became 1920x1080 on every launch (XWayland reports the primary until the compositor moves the window, so
