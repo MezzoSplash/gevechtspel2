@@ -4,7 +4,7 @@ extends Control
 ## bottom stack, right above the HP row. The big number is the local pawn's horizontal speed in m/s,
 ## and the shard's bottom seam is the meter: its lit length is the speed, with a notch at sprint
 ## speed so you can see at a glance whether a carry, dive or surf is paying off. A pale chip on the
-## left names the move you are in (WALLRUN / DIVE / SLIDE / SURF, in that priority).
+## left names the move you are in (WALLRUN / DIVE / GRAPPLE / SLIDE / SURF, in that priority).
 ##
 ## Local pawn only, and only while it is alive and not in the killcam; the HUD decides that and
 ## feeds `show_speed` every frame. The helpers are static so tools/check_speed_meter tests them
@@ -64,11 +64,13 @@ static func fill_of(s: float) -> float:
 
 
 ## The move label, highest priority first. Empty when you are only running or flying.
-static func state_name(wallrun: bool, dive: bool, slide: bool, surf: bool) -> String:
+static func state_name(wallrun: bool, dive: bool, slide: bool, surf: bool, grapple := false) -> String:
 	if wallrun:
 		return "WALLRUN"
 	if dive:
 		return "DIVE"
+	if grapple:
+		return "GRAPPLE"
 	if slide:
 		return "SLIDE"
 	if surf:
@@ -79,7 +81,7 @@ static func state_name(wallrun: bool, dive: bool, slide: bool, surf: bool) -> St
 static func state_of(p: Player) -> String:
 	if p == null:
 		return ""
-	return state_name(p.is_wallrunning(), p.is_diving(), p.is_sliding(), p.is_surfing())
+	return state_name(p.is_wallrunning(), p.is_diving(), p.is_sliding(), p.is_surfing(), p.is_grappling())
 
 
 ## One frame of the local pawn. The seam eases (frame-rate independent); the number does not.

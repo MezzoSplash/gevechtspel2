@@ -61,6 +61,17 @@ func hand_targets() -> Array[Vector3]:
 	return out
 
 
+## Where hand `i` goes to point at `world_at`: `arm` metres from its grip toward it, in this node's
+## space. `reach` lerps to a point, so it cannot take a far target (a grapple anchor 20 m off) directly:
+## the hand would fly most of the way there.
+func reach_toward(i: int, world_at: Vector3, arm: float) -> Vector3:
+	var t := hand_targets()
+	if t.size() <= i:
+		return Vector3.ZERO
+	var d := to_local(world_at) - t[i]
+	return t[i] + d.normalized() * arm if d.length_squared() > 1e-6 else t[i]
+
+
 ## Hand `i` position right now (for checks).
 func hand_position(i: int) -> Vector3:
 	return _hands[i].position

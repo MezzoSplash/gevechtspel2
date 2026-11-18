@@ -29,6 +29,8 @@ static func bind_inputs(g: GameState) -> void:
 	key(g, "sprint", KEY_SHIFT)
 	key(g, "crouch", KEY_CTRL)
 	key(g, "crouch", KEY_C)
+	key(g, "grapple", KEY_V)
+	mouse(g, "grapple", MOUSE_BUTTON_XBUTTON1) # the thumb button: grapple without leaving WASD
 	for a in g._saved_keys:
 		var ev := event_from_code(g, str(g._saved_keys[a]))
 		if ev != null and InputMap.has_action(a):
@@ -73,7 +75,7 @@ static func binding_text(g: GameState, action: String) -> String:
 			out.append(OS.get_keycode_string(shown))
 		elif ev is InputEventMouseButton:
 			var b := (ev as InputEventMouseButton).button_index
-			out.append({MOUSE_BUTTON_LEFT: "Mouse L", MOUSE_BUTTON_RIGHT: "Mouse R", MOUSE_BUTTON_MIDDLE: "Mouse M"}.get(b, "Mouse %d" % b))
+			out.append({MOUSE_BUTTON_LEFT: "Mouse L", MOUSE_BUTTON_RIGHT: "Mouse R", MOUSE_BUTTON_MIDDLE: "Mouse M", MOUSE_BUTTON_XBUTTON1: "Mouse 4", MOUSE_BUTTON_XBUTTON2: "Mouse 5"}.get(b, "Mouse %d" % b))
 	return " / ".join(out) if not out.is_empty() else "—"
 
 
