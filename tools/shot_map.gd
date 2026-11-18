@@ -4,13 +4,14 @@ extends Node
 
 const VIEWS := {
 	"rooftops": {
-		"overview": [Vector3(34, 36, 48), Vector3(0, 3, 0)],
-		"top": [Vector3(0.1, 95, 0.1), Vector3(0, 0, 0)],
-		"court_wide": [Vector3(22, 13, 22), Vector3(-2, 2, -2)],
-		"alley": [Vector3(0, 2.4, 11.5), Vector3(0, 2.2, -11)],
-		"bridge_w": [Vector3(-13, 8.2, 10), Vector3(-13, 6, -11)],
-		"bridge_side": [Vector3(2, 9, 16), Vector3(-13, 6, 0)],
-		"spawn_blue": [Vector3(0, 3.6, 39), Vector3(0, 3, 14)],
+		"overview": [Vector3(46, 44, 66), Vector3(0, 3, 0)],
+		"overview_o": [Vector3(-46, 44, -66), Vector3(0, 3, 0)],
+		"top": [Vector3(0.1, 120, 0.1), Vector3(0, 0, 0)],
+		"launch": [Vector3(-18, 7.7, 30), Vector3(-31, 4, 0)],
+		"flank_ride": [Vector3(-30.5, 7.0, 26), Vector3(-30, 2, -10)],
+		"gutter": [Vector3(-4, 7.8, 19), Vector3(-4, 0, -6)],
+		"court": [Vector3(14, 8.5, 15), Vector3(-4, 3, -6)],
+		"spawn_blue": [Vector3(0, 2.0, 45), Vector3(0, 2, 20)],
 	},
 	"foundry": {
 		"overview": [Vector3(38, 40, 44), Vector3(0, 3, 0)],

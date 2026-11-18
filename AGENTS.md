@@ -49,6 +49,18 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Rooftops v2 (`tools/gen_rooftops.py`, first of the map rebuilds: only Quay was built for surf chains,
+  the carry and the grapple). 70 x 100, walls 12.5 m. Same identity (two brick blocks, 6 m roofs, court,
+  skybridges), laid out around flow lines: per team a flank surf off its roof (launch deck at 6 m, 48 m
+  down the outer wall into the other back lane, mid and foot strips = LINE x2), a court surf from each
+  roof edge to mid-court with a strip whose run-out climbs the other team's court ramp, and a steel
+  gantry at 11 m as the grapple anchor. `surf_line(start, end, open)` builds any straight surf from its
+  toe line with a det +1 frame (it re-extrudes from the other end when the frame would come out upside
+  down). Two dead ends found on the way: a V gutter of two faces is a floor in Godot (the combined wall
+  normals), and a bare capsule cannot surf a 57° face, so `check_rooftops` rides with a real pawn that
+  feathers strafe. It also measures every ground lane at eye height (35 m max: lane breakers are 1.90 m
+  or taller, the eye sees over 1.40) and the 144 spawn pairs. Spawns, pickups and the bot routes were
+  redone. `NET_VERSION` stays 0.5.20 (unreleased; the note says Rooftops changed).
 - Grapple (`shared/grapple.gd`, a stateful helper like StyleTrack): `grapple` (V / Mouse 4, rebindable)
   fires a ray from the eye up to `RANGE` 32 m; a hit anchors and pulls while the key is held
   (`PULL_ACCEL` 55 m/s² up to `PULL_SPEED` 22 m/s, sideways bleed `SIDE_DAMP`), from the floor with a

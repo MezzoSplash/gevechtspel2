@@ -59,29 +59,32 @@ const INFO := {
 	},
 	&"rooftops": {
 		"name": "Rooftops",
-		"blurb": "Two roofed blocks, a court, flank surfs, and skybridges at roof height.",
+		"blurb": "Two brick blocks around a court: flank surfs off the roofs, court gutters, a grapple gantry.",
 		"kill_y": -4.0,
+		# Flank lanes between the wallrun wall and the surf toe, and the middle of the court between
+		# the two gutter exits (tools/gen_rooftops.py, v2).
 		"pickups": [
-			{"type": &"knives", "pos": Vector3(-24.0, 0.0, 0.0)},
-			{"type": &"heal", "pos": Vector3(24.0, 0.0, 0.0)},
-			{"type": &"shield", "pos": Vector3(0.0, 0.0, 9.5)},
+			{"type": &"knives", "pos": Vector3(-28.0, 0.0, 0.0)},
+			{"type": &"heal", "pos": Vector3(28.0, 0.0, 0.0)},
+			{"type": &"shield", "pos": Vector3(0.0, 0.0, 0.0)},
 		],
 		"scene": "res://scenes/maps/rooftops.tscn",
-		"menu_cam": [Vector3(34, 26, 54), Vector3(0, 2, 0)],
-		# Two rows behind the spawn wall (ends z=31). The truck sits at z 33.2–36.4, the crates beside it.
-		# Twelve points so 16 bots do not share a spot. Not on the surf or the roof.
+		"menu_cam": [Vector3(44, 34, 66), Vector3(0, 3, 0)],
+		# Three rows of four in the middle of the yard, behind the spawn wall (|x| <= 12) and between the
+		# two containers (|x| >= 14), clear of the truck (|x| < 1.6, z 44..47.6). The corners behind the
+		# baffles are closed off: a spawn there could not get out.
 		"team_spawns": [
-			[Vector3(-24, 0, 32.6), Vector3(-15, 0, 32.6), Vector3(-6, 0, 32.6), Vector3(3, 0, 32.6), Vector3(12, 0, 32.6), Vector3(21, 0, 32.6), Vector3(-20, 0, 38.2), Vector3(-11, 0, 38.2), Vector3(-2, 0, 38.2), Vector3(6, 0, 38.2), Vector3(14, 0, 38.2), Vector3(23, 0, 38.2)],
-			[Vector3(-24, 0, -32.6), Vector3(-15, 0, -32.6), Vector3(-6, 0, -32.6), Vector3(3, 0, -32.6), Vector3(12, 0, -32.6), Vector3(21, 0, -32.6), Vector3(-20, 0, -38.2), Vector3(-11, 0, -38.2), Vector3(-2, 0, -38.2), Vector3(6, 0, -38.2), Vector3(14, 0, -38.2), Vector3(23, 0, -38.2)],
+			[Vector3(-9, 0, 41), Vector3(-4.5, 0, 41), Vector3(4.5, 0, 41), Vector3(9, 0, 41), Vector3(-10, 0, 44.5), Vector3(-5, 0, 44.5), Vector3(5, 0, 44.5), Vector3(10, 0, 44.5), Vector3(-9, 0, 48), Vector3(-4.5, 0, 48), Vector3(4.5, 0, 48), Vector3(9, 0, 48)],
+			[Vector3(9, 0, -41), Vector3(4.5, 0, -41), Vector3(-4.5, 0, -41), Vector3(-9, 0, -41), Vector3(10, 0, -44.5), Vector3(5, 0, -44.5), Vector3(-5, 0, -44.5), Vector3(-10, 0, -44.5), Vector3(9, 0, -48), Vector3(4.5, 0, -48), Vector3(-4.5, 0, -48), Vector3(-9, 0, -48)],
 		],
+		# Half-turn pairs: yards, back lanes, court, roofs, the rooms.
 		"ffa_spawns": [
-			Vector3(-25.2, 0, 37.2), Vector3(-4.6, 0, 38.4), Vector3(24.6, 0, 37.4),
-			Vector3(25.2, 0, -37.2), Vector3(4.6, 0, -38.4), Vector3(-24.6, 0, -37.4),
-			Vector3(-16.2, 0, -11.2), Vector3(16.4, 0, 11.5),
-			Vector3(-7.4, 0, 7.8), Vector3(12.2, 0, -1.5),
-			Vector3(-1.2, 6.0, 22.0), Vector3(1.4, 6.0, -22.4),
-			# Was (8.8, 16.8), which the east stair now covers. Floor of the south room, clear of both stairs.
-			Vector3(3.2, 0, 17.8), Vector3(-2.5, 0, -16.2),
+			Vector3(-11, 0, 42), Vector3(11, 0, -42), Vector3(0, 0, 41), Vector3(0, 0, -41),
+			Vector3(11, 0, 48.5), Vector3(-11, 0, -48.5),
+			Vector3(-20, 0, -26), Vector3(20, 0, 26),
+			Vector3(-12, 0, -4), Vector3(12, 0, 4),
+			Vector3(12.5, 6.0, 30), Vector3(-12.5, 6.0, -30),
+			Vector3(-3, 0, 20), Vector3(3, 0, -20),
 		],
 	},
 	&"quay": {
