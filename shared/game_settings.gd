@@ -74,11 +74,16 @@ static func load_settings(g: GameState) -> void:
 			for a in cfg.get_section_keys("keys"):
 				g._saved_keys[a] = str(cfg.get_value("keys", a, ""))
 	g.apply_audio()
-	var size_before := g.window_size
+	# The saved size is the player's pick. It is only replaced when no connected monitor can show
+	# it, not when the window happens to start on a smaller one: with two monitors the window
+	# opens on the primary first (XWayland: before the compositor moves it), and measuring a
+	# 2560x1440 pick against a 1080p primary used to save 1920x1080 over it on every start.
+	if not g.display_headless():
+		var fit := clamp_window_size(g, g.window_size, largest_screen())
+		if fit != g.window_size:
+			g.window_size = fit
+			save_settings(g)
 	apply_display(g)
-	# A size that does not fit this monitor is replaced; remember the one we actually used.
-	if g.window_size != size_before:
-		save_settings(g)
 
 
 ## Rewrites the whole file from memory. Every key load_settings reads has to be written here.
@@ -187,8 +192,8 @@ static func resolutions_fitting(g: GameState, screen: Vector2i) -> Array:
 
 
 ## Window, VSync, the FPS cap, 3D scale and MSAA. Headless returns immediately; main.gd then
-## pins a dedicated server to 60 fps. A saved size bigger than this monitor is replaced with
-## the largest preset that fits, and load_settings writes that back.
+## pins a dedicated server to 60 fps. A saved size bigger than this monitor is shown at the
+## largest preset that fits, without overwriting the saved pick (see load_settings).
 static func apply_display(g: GameState) -> void:
 	if g.display_headless():
 		return
@@ -208,13 +213,30 @@ static func apply_vsync_and_fps(g: GameState) -> void:
 		Engine.max_fps = g.max_fps
 
 
-## Window mode and size from the settings, clamped to the current screen.
+## The biggest connected monitor: a saved size that fits it is a valid pick.
+static func largest_screen() -> Vector2i:
+	var sizes: Array[Vector2i] = []
+	for i in DisplayServer.get_screen_count():
+		sizes.append(DisplayServer.screen_get_size(i))
+	return largest_of(sizes)
+
+
+## The biggest of `sizes` by area (ZERO for none). Pure, for tools/check_window_pick.
+static func largest_of(sizes: Array[Vector2i]) -> Vector2i:
+	var best := Vector2i.ZERO
+	for s in sizes:
+		if s.x * s.y > best.x * best.y:
+			best = s
+	return best
+
+
+## Window mode and size from the settings. The size is fitted to the monitor the window is on now
+## (`fit`), but `g.window_size` stays the player's pick, so a start on a smaller monitor does not
+## overwrite it.
 static func apply_window(g: GameState) -> void:
 	var screen_id := DisplayServer.window_get_current_screen()
 	var screen := DisplayServer.screen_get_size(screen_id)
 	var fit := clamp_window_size(g, g.window_size, screen)
-	if fit != g.window_size:
-		g.window_size = fit
 	var mode_now := DisplayServer.window_get_mode()
 	if g.window_mode == g.WINDOW_BORDERLESS:
 		# Borderless follows the monitor. The stored size is for windowed / exclusive only.
@@ -222,12 +244,12 @@ static func apply_window(g: GameState) -> void:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 		return
 	if g.window_mode == g.WINDOW_FULLSCREEN:
-		if mode_now == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN and DisplayServer.window_get_size() == g.window_size:
+		if mode_now == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN and DisplayServer.window_get_size() == fit:
 			return
 		# Leave exclusive before changing size, or the mode switch keeps the old resolution.
 		if mode_now != DisplayServer.WINDOW_MODE_WINDOWED:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-		DisplayServer.window_set_size(g.window_size)
+		DisplayServer.window_set_size(fit)
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 		return
 	var size_now := DisplayServer.window_get_size()
@@ -235,10 +257,10 @@ static func apply_window(g: GameState) -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	if DisplayServer.window_get_flag(DisplayServer.WINDOW_FLAG_BORDERLESS):
 		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-	if size_now != g.window_size:
-		DisplayServer.window_set_size(g.window_size)
+	if size_now != fit:
+		DisplayServer.window_set_size(fit)
 		var origin := DisplayServer.screen_get_position(screen_id)
-		DisplayServer.window_set_position(origin + (screen - g.window_size) / 2)
+		DisplayServer.window_set_position(origin + (screen - fit) / 2)
 
 
 ## `size` if it is at least 640×480 and fits `screen`, else the largest resolution that fits.

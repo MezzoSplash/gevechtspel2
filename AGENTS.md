@@ -49,6 +49,12 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Resolution pick survives a second monitor: `load_settings` used to clamp the saved size to the monitor the
+  window *started* on and save the result, so with a 1080p primary and a 1440p game monitor a 2560x1440 pick
+  became 1920x1080 on every launch (XWayland reports the primary until the compositor moves the window, so
+  remembering a monitor index does not help). The pick is now only replaced when no connected monitor can
+  show it (`GameSettings.largest_screen`); `apply_window` still fits the window to its current monitor but
+  no longer writes that back into `Game.window_size`. Check: `tools/check_window_pick`. No protocol change.
 - UI crystal step 5 (layout, `docs/ui-crystal/HANDOFF.md` 4.4): the screens follow the mockups, not only
   the theme. `CrystalUi` (`scripts/ui/crystal_ui.gd`) holds the shared pieces - the wordmark (light GEVECHT
   over bold SPEL beside `CrystalMark`, the gem from the mockup), a tracked hint inside a button, a red seam
