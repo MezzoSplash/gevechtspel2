@@ -238,7 +238,7 @@
 </header>
 
 <section id="kern">
-  <p>Vijf tegen vijf, of iedereen voor zich. Bewegen is vlot, schieten is hitscan, een lichaam gaat in ongeveer een halve seconde neer. Trickshots geven punten, geen extra schade. Er zijn vier plekken: Townhouses, Foundry, Kade en Skyline. De geweren zijn pistool, revolver, geweer, SMG, shotgun en sniper, plus een frag, een werpmes en een kolfslag.</p>
+  <p>Vijf tegen vijf, of iedereen voor zich. Bewegen is vlot, schieten is hitscan, een lichaam gaat in ongeveer een halve seconde neer. Trickshots geven punten, geen extra schade. Er zijn drie plekken: Townhouses, Foundry en Rooftops. De geweren zijn pistool, revolver, geweer, SMG, shotgun en sniper, plus een frag, een werpmes en een kolfslag.</p>
   <p>Maten hieronder komen uit de code. Een model volgt die maten. De maten volgen het model niet. Decimaal met een punt, in meters, zoals in Godot.</p>
   <div class="rules">
     <div class="rule"><b>01 · Pion</b><span>Blauw, oranje en vijand-rood zijn van de speler. De wereld blijft stoffiger dan de pion.</span></div>
@@ -246,7 +246,7 @@
     <div class="rule"><b>03 · Opening</b><span>Een gat dat je ziet, is een gat voor de kogel. Glas en gaas komen er niet in.</span></div>
     <div class="rule"><b>04 · Zes wapens</b><span>Pistool, revolver, geweer, SMG, shotgun, sniper. Eén model per stuk. Frag en werpmes zijn geen geweer.</span></div>
     <div class="rule"><b>05 · Afstand</b><span>Gevechten zitten op 10–30 m. Een lane dekt nooit de hele map. Spawns zien elkaar niet.</span></div>
-    <div class="rule"><b>06 · Vloeren</b><span>De sprong haalt 1.31 m. De entresol ligt op 3.00 m. Daken liggen hoger, met een loopweg: het loodsdak van Foundry op 7.30 m, het loodsdak van Kade op 10.00 m.</span></div>
+    <div class="rule"><b>06 · Vloeren</b><span>De sprong haalt 1.31 m. De entresol ligt op 3.00 m. Daken liggen hoger, met een loopweg: Rooftops op 6.00 m, het loodsdak van Foundry op 7.30 m.</span></div>
     <div class="rule"><b>07 · Deze wereld</b><span>Bewoond, in gebruik, buiten, mat. Nederland, deze eeuw. Slijtage is groot en rustig, geschilderd.</span></div>
     <div class="rule"><b>08 · Cartoon</b><span>Vlakke kleur, harde leesbare vormen, eenvoudig materiaal. Cel-shading mag. De pion blijft 1.80 m.</span></div>
   </div>
@@ -261,7 +261,7 @@
 
 <section id="bord">
   <h2>Moodboard</h2>
-  <p>Zes platen, één licht. Ze leggen materiaal, slijtage en maat vast. Ze zijn geen plattegrond: de layouts blijven <span class="id">scenes/maps/townhouses.tscn</span> en <span class="id">scenes/maps/foundry.tscn</span>.</p>
+  <p>Zes platen, één licht. Ze leggen materiaal, slijtage en maat vast. Ze zijn geen plattegrond: de layouts blijven <span class="id">scenes/maps/townhouses.tscn</span>, <span class="id">scenes/maps/foundry.tscn</span> en <span class="id">scenes/maps/rooftops.tscn</span>.</p>
   <div class="note">
     <p>Drie dingen op de platen volg je niet. Gele strepen liggen daar soms als wegmarkering; geel hoort alleen op de rand van een ramp, een railing of de kop van een machine. De containers mogen niet feller dan de swatches hieronder. Op de wapenplaat raken de lopen elkaar; elk wapen wordt apart geleverd.</p>
   </div>
@@ -338,7 +338,24 @@
     <div class="swatch"><i style="background:#384C5C"></i><div><strong>Truck</strong><em>#384C5C · ruw 0.70</em></div></div>
     <div class="swatch"><i style="background:#9E9E99"></i><div><strong>Cabine</strong><em>#9E9E99 · ruw 0.70</em></div></div>
   </div>
-  <p>Het blauw en het oranje van de spawn-wanden zijn de dove neven van de teamkleuren, alleen op die wand. Een surf is koeler dan het beton, zodat de ramp leesbaar is. Geel blijft op de rand.</p>
+  <h3>Rooftops</h3>
+  <div class="swatches">
+    <div class="swatch"><i style="background:#3D4042"></i><div><strong>Vloer</strong><em>#3D4042 · ruw 0.92</em></div></div>
+    <div class="swatch"><i style="background:#666661"></i><div><strong>Beton</strong><em>#666661 · ruw 0.88</em></div></div>
+    <div class="swatch"><i style="background:#52575C"></i><div><strong>Buitenmuur</strong><em>#52575C · ruw 0.86</em></div></div>
+    <div class="swatch"><i style="background:#855C3D"></i><div><strong>Baksteen</strong><em>#855C3D · ruw 0.85</em></div></div>
+    <div class="swatch"><i style="background:#4D574F"></i><div><strong>Dak</strong><em>#4D574F · ruw 0.90</em></div></div>
+    <div class="swatch"><i style="background:#7A6652"></i><div><strong>Dekking</strong><em>#7A6652 · ruw 0.82</em></div></div>
+    <div class="swatch"><i style="background:#5C6B7A"></i><div><strong>Surf</strong><em>#5C6B7A · ruw 0.62</em></div></div>
+    <div class="swatch"><i style="background:#C79E24"></i><div><strong>Geel, rand</strong><em>#C79E24 · ruw 0.75</em></div></div>
+    <div class="swatch"><i style="background:#73787A"></i><div><strong>Airco</strong><em>#73787A · ruw 0.72</em></div></div>
+    <div class="swatch"><i style="background:#52575E"></i><div><strong>Staal</strong><em>#52575E · ruw 0.62</em></div></div>
+    <div class="swatch"><i style="background:#40525C"></i><div><strong>Busje</strong><em>#40525C · ruw 0.70</em></div></div>
+    <div class="swatch"><i style="background:#33363B"></i><div><strong>Trim</strong><em>#33363B · ruw 0.88</em></div></div>
+    <div class="swatch"><i style="background:#45759E"></i><div><strong>Spawn, dof blauw</strong><em>#45759E · ruw 0.82</em></div></div>
+    <div class="swatch"><i style="background:#B2702E"></i><div><strong>Spawn, dof oranje</strong><em>#B2702E · ruw 0.82</em></div></div>
+  </div>
+  <p>Het blauw en het oranje van de spawn-wanden zijn de dove neven van de teamkleuren, alleen op die wand. De surf is koeler dan het beton, zodat de ramp leesbaar is. Geel blijft op de rand.</p>
   <h3>Wapen en effect</h3>
   <div class="swatches">
     <div class="swatch"><i style="background:#242629"></i><div><strong>Staal</strong><em>#242629 · metaal 0.35–0.60</em></div></div>
@@ -362,7 +379,7 @@
     <div class="hrow"><b>1.10 m</b><div class="hbar" style="width:37%"></div></div>
     <div class="hrow"><b>1.00 m</b><div class="hbar pawn" style="width:33%"></div></div>
   </div>
-  <p>Blauw is de pion: staan 1.80 m, hurken 1.00 m. Bruin is dekking. De streep op 1.31 m is de sprong: die haalt de krat, en haalt de auto niet. Het oog zit op 1.60 m staand en op 0.88 m gehurkt. De balk stopt bij de entresol van 3.00 m. De daken zitten daarboven: het loodsdak van Foundry op 7.30 m, dat van Kade op 10.00 m.</p>
+  <p>Blauw is de pion: staan 1.80 m, hurken 1.00 m. Bruin is dekking. De streep op 1.31 m is de sprong: die haalt de krat, en haalt de auto niet. Het oog zit op 1.60 m staand en op 0.88 m gehurkt. De balk stopt bij de entresol van 3.00 m. De daken zitten daarboven: Rooftops op 6.00 m, het loodsdak van Foundry op 7.30 m.</p>
   <table>
     <thead><tr><th>Hoogte</th><th>Wat de speler doet</th><th>Bestaat al als</th></tr></thead>
     <tbody>
@@ -372,8 +389,8 @@
       <tr><td>1.90</td><td>Volle dekking. Niet overheen kijken, niet op springen.</td><td>truck bij spawn, 1.9 hoog</td></tr>
       <tr><td>2.40–2.60</td><td>Breekt een lane. Alleen bovenop via een ramp.</td><td>bus 2.40; container 2.60</td></tr>
       <tr><td>3.00</td><td>Entresol. Minstens twee wegen omhoog.</td><td>verdieping, mezzanine</td></tr>
-      <tr><td>4.00</td><td>Tussendek. Een loopramp gaat verder naar het dak.</td><td>kade Kade</td></tr>
-      <tr><td>6.00–7.30</td><td>Dak. Via ramp of trap, nooit als enige route.</td><td>loodsdak Foundry 7.30</td></tr>
+      <tr><td>4.00</td><td>Tussendek. Een loopramp gaat verder naar het dak.</td><td>flankdek Rooftops</td></tr>
+      <tr><td>6.00–7.30</td><td>Dak. Via ramp of trap, nooit als enige route.</td><td>Rooftops 6.00; loodsdak Foundry 7.30</td></tr>
       <tr><td>10.00</td><td>Hoog dak. Twee loopwegen, en de surf begint hier.</td><td>loodsdak Kade</td></tr>
     </tbody>
   </table>
@@ -383,10 +400,11 @@
 
 <section id="maps">
   <h2>Maps</h2>
-  <p>Vier plekken, dezelfde wereld. Townhouses is een straat van ongeveer 56 × 82 m. Foundry is een werf van ongeveer 52 × 69 m. Kade is een dok van ongeveer 90 × 120 m. De buitenmuren van Kade zijn 16.5 m, boven de surfrichel.</p>
+  <p>Vier plekken, dezelfde wereld. Townhouses is een straat van ongeveer 56 × 82 m. Foundry is een werf van ongeveer 52 × 69 m. Rooftops is een hof van ongeveer 58 × 82 m. Kade is een dok van ongeveer 90 × 120 m. De buitenmuren van Rooftops zijn 9.6 m. Die van Kade zijn 16.5 m, boven de surfrichel.</p>
   <ul>
     <li>Townhouses: twee rijen huizen, bovenverdieping, voortuinen, flanken, een bus dwars op het midden. Twee surframps van ongeveer 60°, 48 m lang, langs de west- en oostmuur, met een kicker van 40° aan beide uiteinden. Bots lopen de straat. Surfen doen ze niet.</li>
     <li>Foundry: loods met een mezzanine op 3 m en een loopdak op 7.3 m. Loopramps net ten westen van de grote deuren. De deuren blijven open. Een brug over de lichtstraat. Twee surframps langs de westmuur, gesplitst door de container. Containers in het westen, steeg en schuren in het oosten, laadplaatsen achter beide spawns. Bots nemen de loopramp als er iemand op het dak staat.</li>
+    <li>Rooftops: twee daken op 6 m rond een court. Surfs langs de flanken landen op een dek van 4 m, daarna een loopramp naar het dak. Een korte surf over de court. Een drop door een gat in de rand. Trappen binnen, en die blokkeren de zijdeuren niet. De begane grond is één kamer met vier deuren. Lange flanken met kratten. Bots nemen trap en flank, niet de surf. Team Deathmatch en Free For All, in het menu of met <span class="id">--map rooftops</span>.</li>
     <li>Kade: dokvloer op 0 m, kade op 4 m, loodsdak op 10 m. Een surf langs elke buitenmuur, van het dak naar de kade, door het midden van de map. Een kortere surf op de kademuur, het dok in. Een vlakke surf dwars door het dok. Aan het oostdak een balkon naar een kwartcirkel met straal 14 m, van 10 m naar 4 m. De bocht is een reeks korte rechte stukken en draait het dok in, naar het midden. Dezelfde hoek aan de oranje kant draait ook het dok in. Een stalen loopplank aan de noordoosthoek van elke loods klimt van de kade naar het dak, ongeveer 24°, zodat je de bocht weer kunt pakken. Trap in de loods en een smalle straatramp die op het dak aansluit, allebei met de voet op open vloer. Bots nemen die, niet de surf. In het menu of met <span class="id">--map quay</span>.</li>
   </ul>
   <div class="lanes" aria-hidden="true">
@@ -435,6 +453,7 @@
   <ul>
     <li>Townhouses: bakstenen gevel, kozijn zonder glas, stoep, groene bus, kliko, lage tuinmuur, bank, fiets plat tegen de muur. Heg is een massief blok dekking, geen doorzichtig blad. Twee lange surframps langs de buitenmuren. Geel alleen op de kicker of de rand.</li>
     <li>Foundry: container 2.4 × 2.6 × 6.1, stapel tot 5.2 met een ramp, krat, pers, band, schuur van 3.4 hoog, watertank, truck. Golfplaat alleen op de loods, niet op de huizen. Loopramps naar het dak van 7.3 m, een brug over de lichtstraat, surframps op de westmuur.</li>
+    <li>Rooftops: bakstenen blok, betonnen dakrand van 1.15 m, airco op het dak, kratten op de flank, een surf over de court. Het dek zit op 4 m, het dak op 6 m. Ramen zijn gaten, zonder glas.</li>
     <li>Kade: bakstenen loods, betonnen kade, surf in het koelere grijs, gele rand alleen op de kicker. Bus in de straat, container van 2.60 in het dok, kratten van 1.10 op de flank en de kade. De kwartcirkel is een holle hoek, straal 14 m aan de teen, opgebouwd uit korte rechte stukken, en wijst naar het midden van het dok.</li>
   </ul>
   <p>Een object dat in beide werelden kan staan zonder uitleg is goed. Een object dat een derde wereld nodig heeft, gaat eruit.</p>
@@ -506,15 +525,15 @@
   <p>Tonemap staat op AgX. SSAO is licht en staat alleen op High. Glow pakt alleen emission, de monding en de tracer, met een drempel van 1.4. De wereld gloeit niet. Mist is lichte afstandsmist vanaf ongeveer 35 m. Die verbergt nooit een speler: op 10–30 m is er geen mist, en verder weg blijft een pion leesbaar. Nacht, regen en dikke mist horen er niet in.</p>
   <p>Graphics staat in de instellingen: Low, Medium of High. Low heeft geen SSAO, glow of mist, vlakke muren en een harde zonneschaduw tot 60 m. Medium heeft glow, mist, de muurshader en zachte schaduw, zonder SSAO. High heeft alles. Een effect maakt een gevecht nooit leesbaar: op Low lees je de pion even goed.</p>
   <table>
-    <thead><tr><th></th><th>Townhouses</th><th>Foundry</th></tr></thead>
+    <thead><tr><th></th><th>Townhouses</th><th>Foundry</th><th>Rooftops</th></tr></thead>
     <tbody>
-      <tr><td>Lucht</td><td>#21262E</td><td>#302B2B</td></tr>
-      <tr><td>Zon</td><td>#FFF5E6 · energie 1.15</td><td>#FFE0BD · energie 1.1</td></tr>
-      <tr><td>Ambient</td><td>#858F9E · 0.58</td><td>#998A80 · 0.70</td></tr>
-      <tr><td>Lampen</td><td>geen</td><td>warm #FFD19E onder het dak, koel #BFDBFF in de schuur, zonder schaduw</td></tr>
+      <tr><td>Lucht</td><td>#21262E</td><td>#302B2B</td><td>#292E33</td></tr>
+      <tr><td>Zon</td><td>#FFF5E6 · energie 1.15</td><td>#FFE0BD · energie 1.1</td><td>#FFF2E0 · energie 1.12</td></tr>
+      <tr><td>Ambient</td><td>#858F9E · 0.58</td><td>#998A80 · 0.70</td><td>#8C949E · 0.62</td></tr>
+      <tr><td>Lampen</td><td>geen</td><td>warm #FFD19E onder het dak, koel #BFDBFF in de schuur, zonder schaduw</td><td>warm #FFDBB3 binnen en op de dekken, koel #C7DBFF op de court, zonder schaduw</td></tr>
     </tbody>
   </table>
-  <p>Kade heeft de nieuwe lucht al: boven #5C7394, horizon #ADB5BD, ambient uit de lucht 0.75, zon #FFF2E0 · energie 1.12. Townhouses en Foundry staan nog op de tabel hierboven, tot ze dezelfde pas krijgen.</p>
+  <p>Kade heeft de nieuwe lucht al: boven #5C7394, horizon #ADB5BD, ambient uit de lucht 0.75, zon #FFF2E0 · energie 1.12. Townhouses, Foundry en Rooftops staan nog op de tabel hierboven, tot ze dezelfde pas krijgen.</p>
   <p>Een nieuwe lamp is vulling, geen tweede zon. Geen gekleurde rim, geen tl-zee, geen lichtgevend bord.</p>
 </section>
 
@@ -588,10 +607,10 @@
     <li><label><input type="checkbox"> Het wapen is zwart op duimbreedte nog steeds dat ene wapen.</label></li>
     <li><label><input type="checkbox"> Geen merk, geen skin, geen geweer buiten de zes, geen verdieping boven het dak.</label></li>
     <li><label><input type="checkbox"> De verf is cartoony: vlakke kleur, harde vorm. De verhoudingen blijven menselijk.</label></li>
-    <li><label><input type="checkbox"> Het kan in Townhouses, Foundry, Kade of Skyline staan zonder een nieuwe rendertruc.</label></li>
+    <li><label><input type="checkbox"> Het kan in Townhouses, Foundry of Rooftops staan zonder een nieuwe rendertruc.</label></li>
     <li><label><input type="checkbox"> Op Graphics Low is het even leesbaar als op High.</label></li>
   </ul>
-  <p class="src">Getallen uit <span class="id">scripts/player.gd</span>, <span class="id">project.godot</span>, <span class="id">data/weapons/</span>, <span class="id">scripts/weapon.gd</span> (<span class="id">fit_model</span>), <span class="id">scenes/maps/townhouses.tscn</span>, <span class="id">tools/gen_foundry.py</span>, <span class="id">tools/gen_quay.py</span>, <span class="id">assets/ui/icon_*.svg</span>. Versie 0.3.0. Wijzigt de code, dan wijzigt deze pagina mee.</p>
+  <p class="src">Getallen uit <span class="id">scripts/player.gd</span>, <span class="id">project.godot</span>, <span class="id">data/weapons/</span>, <span class="id">scripts/weapon.gd</span> (<span class="id">fit_model</span>), <span class="id">scenes/maps/townhouses.tscn</span>, <span class="id">tools/gen_foundry.py</span>, <span class="id">tools/gen_rooftops.py</span>, <span class="id">tools/gen_quay.py</span>, <span class="id">assets/ui/icon_*.svg</span>. Versie 0.3.0. Wijzigt de code, dan wijzigt deze pagina mee.</p>
 </section>
 </main>
 </div>
