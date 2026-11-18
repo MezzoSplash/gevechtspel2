@@ -97,6 +97,10 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
+- v0.5.19 (released): the UI crystal restyle (#292 theme, #293 HUD skin, #295 speed meter, #296 layout of
+  menu, pause, settings and kill feed; `docs/ui-crystal/HANDOFF.md`, only the HP gem is left) and a saved
+  resolution that survives a second, smaller monitor (#297). `NET_VERSION` stays 0.5.16 - nothing goes over
+  the wire.
 - v0.5.18 (released): bots have characters (#267 - aggressive, holder, flanker and chaos as `data/bots/*.tres`
   behind `BotStyle`, assigned per bot slot, so difficulty sets how sharp a bot is and the character how it
   fights), they find and run wallrun walls themselves (#278, raycast only, `trick` chance per difficulty) and
