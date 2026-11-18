@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run a headless dedicated server from source (needs Godot, see run.sh).
-# Usage: ./run-server.sh [port] [--map townhouses|foundry|quay|skyline] [--mode tdm|ffa|style-tdm|style-ffa]
+# Usage: ./run-server.sh [port] [--map townhouses|foundry|rooftops|quay|skyline] [--mode tdm|ffa|style-tdm|style-ffa]
 #                        [--bots 0-16] [--bot-difficulty easy|medium|hard] [--kills 5-50] [--style total-style-points] [--time 1-20]
 #                        [--bots-allies 0-16] [--bots-enemies 0-16]  (stored for the menu and a listen host;
 #                        a dedicated server always fills bots by balance, so they change nothing here)
