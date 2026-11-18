@@ -17,6 +17,7 @@ const BLEND := 7.0 # 1/s, how fast pose weights follow their targets
 const GAIT_RATE := 4.4 # gait radians per metre travelled
 const WALL_RAY := 0.9
 const WALL_HAND_GAP := 0.06 # the wall-side hand stops this far from the wall
+const GRAPPLE_ARM := 0.45 # m the left hand leaves the gun toward the anchor
 
 ## Synced state, pushed in by Player.pose_body.
 var crouch := 0.0
@@ -27,6 +28,9 @@ var throw_amt := 0.0 # 0..1, the knife throw's wind-up and follow-through (#25)
 var reload_amt := 0.0 # 0..1, the procedural reload dip (#164), timed on the weapon's reload_time
 ## #252: which reload style the body's left hand plays (mag / shells / cylinder / bolt), from the pawn.
 var reload_style: StringName = &"mag"
+## The grapple (Player._draw_grapple): the left hand reaches for the anchor while the rope pulls.
+var grapple_on := false
+var grapple_at := Vector3.ZERO
 var glow: StandardMaterial3D
 var hands: CrystalHands
 var _torso: Node3D
@@ -204,6 +208,9 @@ func _apply(pose: Dictionary) -> void:
 			var hw := float(s.hand_w)
 			if hw > 0.001:
 				hands.reach[0] = [hands.to_local(hands.weapon.to_global(s.hand as Vector3)), hw]
+		# The grapple wins over both: the rope leaves from that hand, so it has to be on the rope.
+		if grapple_on:
+			hands.reach[0] = [hands.reach_toward(0, grapple_at, GRAPPLE_ARM), 1.0]
 
 
 ## Body on the floor (or close above it), from a short down ray.

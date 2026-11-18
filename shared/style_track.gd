@@ -40,6 +40,7 @@ var walljump_seen_t := IDLE_T
 var walljumps_seen := -1
 var dive_seen_t := IDLE_T
 var roll_seen_t := IDLE_T
+var grapple_seen_t := IDLE_T
 var air_time := 0.0 # seconds with free space under the feet
 var combo_surf := false
 var combo_slide := false
@@ -87,6 +88,10 @@ func tick(delta: float) -> void:
 		if clock - roll_seen_t > Style.MOVE_RECENT:
 			Game.combo_move(p.peer_id, Combo.ROLL)
 		roll_seen_t = clock
+	elif fx == Player.MOVE_GRAPPLE and (trust or claim_backed(fx)):
+		if clock - grapple_seen_t > Style.MOVE_RECENT:
+			Game.combo_move(p.peer_id, Combo.GRAPPLE)
+		grapple_seen_t = clock
 	if p.walljumps != walljumps_seen:
 		if walljumps_seen >= 0 and (trust or claim_backed(Player.MOVE_WALLRUN)):
 			walljump_seen_t = clock
@@ -138,6 +143,9 @@ func claim_backed(fx: int) -> bool:
 			return in_air and pawn._obs_speed >= Player.WALLRUN_KEEP_SPEED * 0.8 and wall_beside()
 		Player.MOVE_DIVE:
 			return pawn._obs_speed >= Player.DIVE_MIN_SPEED * 0.7 or air_time > 0.2
+		Player.MOVE_GRAPPLE:
+			# A pull is fast or airborne within a few ticks; standing still on the ground it is a lie.
+			return pawn._obs_speed >= Player.WALK_SPEED or air_time > 0.15
 		Player.MOVE_ROLL:
 			return pawn._obs_speed >= Player.WALK_SPEED * 0.9
 		_:
@@ -227,6 +235,11 @@ func roll() -> bool:
 	return clock - roll_seen_t <= Style.ROLL_RECENT
 
 
+## On the rope now, or let go of it within Style.GRAPPLE_RECENT.
+func grapple() -> bool:
+	return clock - grapple_seen_t <= Style.GRAPPLE_RECENT
+
+
 ## Match authority: surfing right now (or within Style.SURF_RECENT).
 func surfing() -> bool:
 	return in_air and clock - surf_seen_t <= Style.SURF_RECENT
@@ -271,6 +284,7 @@ func reset() -> void:
 	walljumps_seen = -1
 	dive_seen_t = IDLE_T
 	roll_seen_t = IDLE_T
+	grapple_seen_t = IDLE_T
 	air_time = 0.0
 	combo_surf = false
 	combo_slide = false

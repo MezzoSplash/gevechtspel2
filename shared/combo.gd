@@ -11,15 +11,16 @@ const WALLJUMP := &"walljump"
 const WALL_TO_WALL := &"wall2wall"
 const DIVE := &"dive"
 const ROLL := &"roll"
+const GRAPPLE := &"grapple"
 const SLIDE := &"slide"
 const SURF := &"surf"
 const AIR := &"air" # long air time (strafe jumps, drops) without surfing
 
 const POINTS := {
-	WALLRUN: 60, WALLJUMP: 80, WALL_TO_WALL: 120, DIVE: 60, ROLL: 40, SLIDE: 30, SURF: 70, AIR: 40,
+	WALLRUN: 60, WALLJUMP: 80, WALL_TO_WALL: 120, DIVE: 60, ROLL: 40, GRAPPLE: 60, SLIDE: 30, SURF: 70, AIR: 40,
 }
 const LABELS := {
-	WALLRUN: "WALLRUN", WALLJUMP: "WALL JUMP", WALL_TO_WALL: "WALL TO WALL", DIVE: "DIVE", ROLL: "ROLL",
+	WALLRUN: "WALLRUN", WALLJUMP: "WALL JUMP", WALL_TO_WALL: "WALL TO WALL", DIVE: "DIVE", ROLL: "ROLL", GRAPPLE: "GRAPPLE",
 	SLIDE: "SLIDE", SURF: "SURF", AIR: "AIR",
 }
 const TIME := 3.0 # s on the bar after each move

@@ -68,6 +68,7 @@ const WALLRUN := &"wallrun"
 const WALLJUMP := &"walljump"
 const DIVE := &"dive"
 const ROLL := &"roll"
+const GRAPPLE := &"grapple" # the shooter is on the grapple rope (or just let go of it)
 const WALL_TO_WALL := &"wall2wall" # not a kill (now a combo move, see Combo)
 const RCXD := &"rcxdkill" # #87: the RC-XD streak had no tricks, so in style modes its kills were worth nothing
 const LOS := &"los" # melee kill during the hands streak, only if the BODY is still fast
@@ -83,7 +84,7 @@ const POINTS := {
 	POINT_BLANK: 100, DOUBLE: 150, SPRAY: 150, HS_STREAK: 200, SURF: 150, DROP: 100,
 	RUN_GUN: 125, HOSE: 150, QUICKDRAW: 150, SIX_SHOOTER: 200, MOW: 200, SLUG_SNIPE: 125, YEET: 250, YEET_X2: 500,
 	LINE: 100, LINE_X2: 200,
-	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, WALL_TO_WALL: 75, RCXD: 150, LOS: 175, LOS_LONG: 350, COMBO: 0,
+	WALLRUN: 175, WALLJUMP: 200, DIVE: 150, ROLL: 125, GRAPPLE: 175, WALL_TO_WALL: 75, RCXD: 150, LOS: 175, LOS_LONG: 350, COMBO: 0,
 }
 const LABELS := {
 	NOSCOPE: "NOSCOPE", SPIN: "360 NOSCOPE", AIRSHOT: "AIRSHOT", LONGSHOT: "LONGSHOT",
@@ -93,17 +94,18 @@ const LABELS := {
 	MOW: "MOW DOWN", SLUG_SNIPE: "SLUG SNIPE",
 	YEET: "YEET", YEET_X2: "YEET ×2",
 	LINE: "LINE", LINE_X2: "LINE ×2",
-	WALLRUN: "WALLRUN KILL", WALLJUMP: "WALL JUMP KILL", DIVE: "DIVE KILL", ROLL: "ROLL KILL",
+	WALLRUN: "WALLRUN KILL", WALLJUMP: "WALL JUMP KILL", DIVE: "DIVE KILL", ROLL: "ROLL KILL", GRAPPLE: "GRAPPLE KILL",
 	WALL_TO_WALL: "WALL TO WALL", RCXD: "RCXPLODIE KILL", LOS: "LOS", LOS_LONG: "LOS LONG", COMBO: "COMBO",
 }
 ## Biggest first in popups and the kill feed.
 const ORDER: Array[StringName] = [
-	COMBO, LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, LOS_LONG, WALLJUMP, WALLRUN, LOS, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF, RCXD,
+	COMBO, LINE_X2, LINE, WALL_TO_WALL, YEET_X2, YEET, SPIN, LOS_LONG, WALLJUMP, WALLRUN, GRAPPLE, LOS, HS_STREAK, SIX_SHOOTER, MOW, NOSCOPE, SPRAY, DOUBLE, HOSE, QUICKDRAW, SURF, RCXD,
 	SLUG_SNIPE, DIVE, RUN_GUN, POINT_BLANK, ROLL, DROP, AIRSHOT, LONGSHOT,
 ]
 const MOVE_RECENT := 0.3 # s: wallrun/dive state seen on the server this recently still counts (sync jitter)
 const WALLJUMP_RECENT := 1.2
 const ROLL_RECENT := 0.4
+const GRAPPLE_RECENT := 0.5 # s: a kill just after letting go of the rope is still a grapple kill
 const WALL_TO_WALL_WINDOW := 1.6 # s from a wall jump to the next wallrun (8 m gap at WALLJUMP_PUSH ≈ 1.2 s)
 
 const SPIN_DEG := 360.0
@@ -193,6 +195,8 @@ static func detect(c: Dictionary) -> Array[StringName]:
 			out.append(DIVE)
 		elif bool(c.get("roll", false)):
 			out.append(ROLL)
+		if bool(c.get("grapple", false)):
+			out.append(GRAPPLE)
 		if surf:
 			out.append(SURF)
 		if drop:
@@ -205,7 +209,8 @@ static func detect(c: Dictionary) -> Array[StringName]:
 			else:
 				out.append(LOS)
 	if gun:
-		var moved := bool(c.get("wallrun", false)) or bool(c.get("walljump", false)) or bool(c.get("dive", false))
+		var moved := bool(c.get("wallrun", false)) or bool(c.get("walljump", false)) or bool(c.get("dive", false)) \
+				or bool(c.get("grapple", false))
 		var shooter_air := float(c.get("shooter_air", 0.0)) >= AIR_MIN_TIME and not surf and not drop and not moved
 		if shooter_air or float(c.get("victim_air", 0.0)) >= AIR_MIN_TIME:
 			out.append(AIRSHOT)

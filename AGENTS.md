@@ -2,7 +2,7 @@
 
 Feel-first arena FPS built around style and movement: surf, wallrun, dive, slide, and land Tony Hawk style combos and trickshots. If a change does not make shooting, moving or pulling off tricks more satisfying, it is out of scope. When making maps, props or weapons, follow [docs/art/index.html](docs/art/index.html).
 
-Current game: 6 modes (TDM, FFA, Style TDM, Style FFA, Gun Game, CTF on Quay), 5 maps (Townhouses, Foundry, Rooftops, Quay, Skyline; see `scripts/maps.gd`), 8 guns plus frag, knife and melee, bots up to 16, UAV (a physical drone you can shoot down), RC-XD and LOS scorestreaks, MVP killcam, B1 crystal bodies.
+Current game: 6 modes (TDM, FFA, Style TDM, Style FFA, Gun Game, CTF on Quay), 5 maps (Townhouses, Foundry, Rooftops, Quay, Skyline; see `scripts/maps.gd`), 8 guns plus frag, knife and melee, a grapple, bots up to 16, UAV (a physical drone you can shoot down), RC-XD and LOS scorestreaks, MVP killcam, B1 crystal bodies.
 
 ## Stack
 
@@ -49,6 +49,18 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Grapple (`shared/grapple.gd`, a stateful helper like StyleTrack): `grapple` (V / Mouse 4, rebindable)
+  fires a ray from the eye up to `RANGE` 32 m; a hit anchors and pulls while the key is held
+  (`PULL_ACCEL` 55 m/s² up to `PULL_SPEED` 22 m/s, sideways bleed `SIDE_DAMP`), from the floor with a
+  `GROUND_LIFT`. It ends on release, arrival (`ARRIVE` 1.8 m), `PULL_TIME` 1.6 s, a wallrun or dive taking
+  over, death, or the line being cut - traced from `LINE_FROM` 1.5 m (the eye's height: from the chest a
+  wall the eye saw over cut the rope on tick one) after `CUT_GRACE`. The velocity is kept: the release
+  is the move. `COOLDOWN` 3 s from the start, `MISS_COOLDOWN` 0.35 s after a miss. `move_fx` gains
+  `MOVE_GRAPPLE` (wallrun and dive outrank it); `grappling` / `grapple_at` are synced so every client
+  draws `GrappleRope` from the left hand, which `CrystalHands.reach_toward` points at the anchor (body and
+  view hands). Style: `GRAPPLE KILL` (175, within `GRAPPLE_RECENT` 0.5 s of the rope, not also an
+  AIRSHOT), combo move GRAPPLE (60), speed meter chip. Not yet: bots, the rope in the killcam.
+  Check: `tools/check_grapple`. `NET_VERSION` 0.5.20.
 - Crouch pose: the crouched torso no longer sticks out behind the legs. The crouched head (0.78 m, the
   hitbox) leaves a neck at 0.59 m, and the torso hung from it at 68° with the hips left under the head,
   so its bottom ended 0.54 m behind the pelvis like a tail. Now `CROUCH_LEAN` 55°, `CROUCH_TORSO_SCALE`

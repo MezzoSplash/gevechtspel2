@@ -241,10 +241,16 @@ const MOVE_NONE := 0
 const MOVE_WALLRUN := 1
 const MOVE_DIVE := 2
 const MOVE_ROLL := 3
+const MOVE_GRAPPLE := 4 # the grapple pull (shared/grapple.gd); a wallrun or a dive outranks it
 ## Synced from the owner: what the pawn is doing (style tricks on the server, remote visuals).
 @export var move_fx := MOVE_NONE
 ## Synced from the owner: +1 on every wall jump (the server sees the change: WALL JUMP KILL).
 @export var walljumps := 0
+## Synced from the owner: the grapple's rope, so every client draws it and poses the body's reaching
+## hand. `grapple_at` only means something while `grappling` is true.
+@export var grappling := false
+@export var grapple_at := Vector3.ZERO
+var _grapple := Grapple.new()
 var _wallrunning := false
 var _wall_n := Vector3.ZERO
 var _wall_key := "" # collider id + face of the current / last wall
@@ -452,6 +458,7 @@ func _tick_audio_bus(delta: float) -> void:
 func _process(delta: float) -> void:
 	_tick_audio_bus(delta)
 	_update_nametag(delta)
+	_draw_grapple()
 
 
 ## Server: what this peer picked (or the default). Owner: what the server last confirmed.
@@ -805,6 +812,8 @@ func _die() -> void:
 		weapon.cancel_reload()
 	_carry_t = 0.0
 	_was_surfing = false
+	_grapple.release()
+	grappling = false
 	collision_layer = 0
 	if is_local():
 		weapon.visible = false
@@ -973,6 +982,7 @@ func _physics_process(delta: float) -> void:
 	_try_start_slide(on_floor, input_locked)
 	_try_air_dive(on_floor, input_locked)
 	_update_stance(delta, on_floor)
+	_tick_grapple_input(on_floor, input_locked, delta)
 
 	# A jump pressed during the roll lock is held, not eaten: the buffer does not run down until the
 	# roll lets a jump through again (#249). Only on the ground, so an air press still expires.
@@ -1092,6 +1102,7 @@ func _physics_process(delta: float) -> void:
 		# Gravity was added above; the wall replaces it. A jump's rise bleeds off instead of snapping.
 		var vy := velocity.y - float(get_gravity().y) * delta
 		velocity.y = move_toward(vy, -sink, WALLRUN_RISE_DAMP * delta) if vy > -sink else -sink
+	_apply_grapple_pull(delta)
 	_surf_t = maxf(_surf_t - delta, 0.0)
 	if not on_floor and _surf_t > 0.0:
 		velocity = clip_to_plane(velocity, _surf_normal)
@@ -1662,6 +1673,10 @@ func style_roll() -> bool:
 	return _style != null and _style.roll()
 
 
+func style_grapple() -> bool:
+	return _style != null and _style.grapple()
+
+
 ## Match authority: surfing right now (or within Style.SURF_RECENT).
 func style_surfing() -> bool:
 	return _style != null and _style.surfing()
@@ -1707,6 +1722,89 @@ func _end_wallrun() -> void:
 
 func _wall_jump() -> void:
 	Movement.wall_jump(self)
+
+
+# ---------------------------------------------------------------------------------------------
+# Grapple (shared/grapple.gd): press to anchor, hold to be pulled, let go to fly on.
+
+
+## m the first-person left hand leaves the gun toward the anchor (the view hands are 0.6 scale).
+const GRAPPLE_VIEW_ARM := 0.22
+
+
+func is_grappling() -> bool:
+	return _grapple.active
+
+
+func grapple_cooldown() -> float:
+	return _grapple.cd
+
+
+## The chest: where the rope pulls and where its line of sight is traced.
+func _grapple_chest() -> Vector3:
+	return global_position + Vector3.UP * Grapple.CHEST
+
+
+## Anchor at `at` and start pulling (the press, and the checks).
+func start_grapple(at: Vector3, on_floor := false) -> void:
+	_grapple.begin(at)
+	_after_grapple_start(on_floor)
+
+
+func _after_grapple_start(on_floor: bool) -> void:
+	if on_floor:
+		velocity.y = maxf(velocity.y, Grapple.GROUND_LIFT) # off the floor, or friction eats the pull
+	if _wallrunning:
+		_end_wallrun() # a grapple off a wall leaves the wall
+
+
+## The key, once per tick: a press fires the anchor ray from the eye along the aim.
+func _tick_grapple_input(on_floor: bool, locked: bool, delta: float) -> void:
+	_grapple.tick_cooldown(delta)
+	if is_dead or locked or not Input.is_action_just_pressed("grapple"):
+		return
+	var eye := camera.global_position if camera else global_position + Vector3.UP * STAND_EYE
+	var aim := -camera.global_transform.basis.z if camera else -transform.basis.z
+	var ex: Array[RID] = [get_rid()]
+	if _grapple.try_start(get_world_3d().direct_space_state, eye, aim, ex):
+		_after_grapple_start(on_floor)
+
+
+## After the tick's own movement: end the pull if it is over, else pull. A wallrun or a dive that
+## started this tick takes over (the grapple carried you into it), the key comes off, the line is cut.
+func _apply_grapple_pull(delta: float) -> void:
+	if _grapple.active:
+		var held := (not is_dead) and Input.is_action_pressed("grapple")
+		var ex: Array[RID] = [get_rid()]
+		if _wallrunning or _diving or _grapple.should_end(global_position, held, get_world_3d().direct_space_state, ex):
+			_grapple.release()
+		else:
+			_grapple.t += delta
+			velocity = Grapple.pull(velocity, _grapple_chest(), _grapple.anchor, delta)
+	grappling = _grapple.active
+	if grappling:
+		grapple_at = _grapple.anchor
+
+
+## Every machine, every frame: the rope from the reaching hand to the anchor, and the hand itself.
+func _draw_grapple() -> void:
+	if Game.is_dedicated:
+		return
+	var on := grappling and not is_dead
+	var crystal := body_mesh.get_node_or_null("Crystal") as CrystalBody if body_mesh else null
+	if crystal:
+		crystal.grapple_on = on
+		crystal.grapple_at = grapple_at
+	var view_hands := camera.get_node_or_null("ViewHands") as CrystalHands if camera and is_local() else null
+	if view_hands:
+		view_hands.reach[0] = [view_hands.reach_toward(0, grapple_at, GRAPPLE_VIEW_ARM), 1.0] if on else [Vector3.ZERO, 0.0]
+	if not on and get_node_or_null("GrappleRope") == null:
+		return
+	var from := global_position + Vector3.UP * Grapple.CHEST
+	var hands: CrystalHands = view_hands if view_hands else (crystal.hands if crystal else null)
+	if hands and hands.get_child_count() > 0:
+		from = (hands.get_child(0) as Node3D).global_position
+	GrappleRope.ensure(self).show_line(on, from, grapple_at)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1771,6 +1869,8 @@ func _tick_move_fx(delta: float) -> void:
 		move_fx = MOVE_WALLRUN
 	elif _diving:
 		move_fx = MOVE_DIVE
+	elif _grapple.active:
+		move_fx = MOVE_GRAPPLE
 	elif _roll_t > 0.0:
 		move_fx = MOVE_ROLL
 	else:
@@ -1898,6 +1998,8 @@ func _reset_style_track() -> void:
 	_carry_t = 0.0
 	_surf_t = 0.0
 	_was_surfing = false
+	_grapple.reset()
+	grappling = false
 	_strip_cd.clear()
 	_strip_prev = Vector3.INF
 	move_fx = MOVE_NONE
