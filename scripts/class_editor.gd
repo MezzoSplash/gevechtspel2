@@ -160,6 +160,9 @@ static func weapon_blurb(id: StringName) -> String:
 	var d := Game.weapon_def(id)
 	if d == null:
 		return ""
+	if d.melee:
+		return "%s: 100 in the back, 50 in front · %.1f m · sprint lunge %.1f m · moves %d%% faster" % [
+			d.display_name, Melee.SHANK_RANGE, Melee.LUNGE_M, roundi((d.move_speed_mult - 1.0) * 100.0)]
 	var dmg := "%d×%d" % [roundi(d.damage), d.pellet_count] if d.pellet_count > 1 else "%d" % roundi(d.damage)
 	var extra := ""
 	match id:

@@ -158,6 +158,9 @@ var knives := 0 # throwing knives (grenade slot, F); bots carry none
 ## Empty = bot or a remote copy: full armory, GRENADE_MAX.
 var loadout: Dictionary = {}
 var is_sprinting := false
+var _lunge_left := 0.0
+var _lunge_dir := Vector3.ZERO
+var _lunge_speed := 0.0
 var los_coast := false # LOS: this pawn keeps the line it already had; the hands are the camera
 @export var crouch := 0.0
 @export var display_name := "Player"
@@ -794,6 +797,7 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	_lunge_left = 0.0
 	# The RC is gone with you, and it does not explode on the way out.
 	# LOS ends the same way: camera back on the body, no bash from a corpse.
 	if is_local() and Game.rc_view:
@@ -905,11 +909,46 @@ func _notify_grenades() -> void:
 		hud.set_grenades(grenades, knives)
 
 
-## Held gun's movement speed factor (SMG 1.08). Bots use it too.
+## Held gun's movement speed factor (SMG 1.08, shank 1.23). Bots use it too.
 func gun_speed_mult() -> float:
 	if weapon == null or weapon.def == null:
 		return 1.0
 	return weapon.def.move_speed_mult
+
+
+## Sprint key, or already moving at sprint speed (a remote pawn has no sprint key on the server).
+## The shank lunge uses this so a fast slide or dive lunges too.
+func at_sprint() -> bool:
+	return is_sprinting or flat_speed() >= SPRINT_SPEED - 0.8
+
+
+## Horizontal speed: the velocity on the machine that simulates this pawn, the observed speed on a
+## server copy of a remote human (its velocity is not simulated there).
+func flat_speed() -> float:
+	var spd := Vector2(velocity.x, velocity.z).length()
+	return spd if spd >= 1.0 else _obs_speed
+
+
+func is_lunging() -> bool:
+	return _lunge_left > 0.0
+
+
+## Commit a shank lunge. The next movement tick spends it; walls stop it via move_and_slide.
+func start_lunge(look_dir: Vector3, dist: float) -> void:
+	var flat := Vector3(look_dir.x, 0.0, look_dir.z)
+	if flat.length_squared() < 0.0001 or dist <= 0.05:
+		return
+	flat = flat.normalized()
+	_lunge_dir = flat
+	_lunge_speed = dist / Melee.LUNGE_TIME
+	_lunge_left = Melee.LUNGE_TIME
+
+
+## One tick of an in-progress lunge. Sets the horizontal velocity and shortens the timer.
+func consume_lunge(delta: float) -> void:
+	_lunge_left = maxf(_lunge_left - delta, 0.0)
+	velocity.x = _lunge_dir.x * _lunge_speed
+	velocity.z = _lunge_dir.z * _lunge_speed
 
 
 ## This pawn fired: flash it on the minimap and let bots hear it. Called from Weapon._fire (every shot
@@ -1056,7 +1095,12 @@ func _physics_process(delta: float) -> void:
 			wish_speed = 0.0
 
 	var horiz := Vector3(velocity.x, 0.0, velocity.z)
-	if jumped or not on_floor:
+	var lunging := _lunge_left > 0.0
+	if lunging:
+		# The shank's step. Friction would eat it before it covered the 2.5 m.
+		_lunge_left = maxf(_lunge_left - delta, 0.0)
+		horiz = _lunge_dir * _lunge_speed
+	elif jumped or not on_floor:
 		# The jump tick is already air: no ground friction, so sprint speed carries into the jump.
 		horiz = _air_accelerate(horiz, wish, WALK_SPEED * minf(wish.length(), 1.0), delta)
 		if not _air_steer_locked:
@@ -1093,7 +1137,7 @@ func _physics_process(delta: float) -> void:
 		horiz = _friction(horiz, delta)
 		horiz = _accelerate(horiz, wish, wish_speed, GROUND_ACCEL, delta)
 
-	if _wallrunning:
+	if _wallrunning and not lunging:
 		horiz = _wallrun_horiz(horiz, wish, delta)
 	velocity.x = horiz.x
 	velocity.z = horiz.z

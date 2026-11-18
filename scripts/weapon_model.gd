@@ -44,7 +44,7 @@ static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dicti
 		&"slug":
 			root = Vector3(0.22, -0.18, -0.30)
 			length = 0.54
-		&"knife":
+		&"knife", &"shank":
 			root = Vector3(0.19, -0.15, -0.30)
 			length = 0.25
 	var aabb := aabb_in_parent(model)

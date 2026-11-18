@@ -49,6 +49,15 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #145 Shank class (#306): knife primary (`data/weapons/shank.tres`, `WeaponDef.melee`), pistol, 1 frag.
+  Fire or E stabs through `Melee.swing_shank`: 100 from behind (`BACK_DOT` -0.34), 50 from the front
+  or side, `SHANK_RANGE` 2.2 m, a tighter cone than the bash, same 0.8 s cooldown. Holding it moves
+  you x1.23 (sprint about 14 m/s). At sprint, on the ground and slower than the lunge itself, a stab
+  lunges `LUNGE_M` 2.5 m in 0.16 s and the blade reaches from where the step ends; faster than the
+  lunge (surf, grapple, carry) or in the air there is no lunge, because it sets the horizontal velocity
+  and would brake the run or air-dash (`check_shank` covers both). Gun Game demotes a shank kill; bots
+  can draw it and close in and stab (`_fight_shank`). An older `classes.cfg` gains the preset once.
+  `NET_VERSION` 0.5.20 (unreleased) covers the new weapon id.
 - Menu song: "Reload" (made with Mystellic) replaces the synthesized menu loop. It is
   `assets/sounds/songs/Reload.ogg` (Ogg Vorbis q6, 2.9 MB; it was added as a 24 MB WAV), loaded as a
   loop from `MatchAudio.MENU_SONG`; `music_menu.wav` and its generator are gone. `MENU_MUSIC_DB` went

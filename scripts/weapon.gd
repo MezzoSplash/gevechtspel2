@@ -14,6 +14,7 @@ const LOADOUT: Array[WeaponDef] = [
 	preload("res://data/weapons/revolver.tres"),
 	preload("res://data/weapons/lmg.tres"), # v0.3.9
 	preload("res://data/weapons/slug.tres"),
+	preload("res://data/weapons/shank.tres"), # #145: append only, killcam frames store the index
 ]
 
 @export var def: WeaponDef
@@ -29,6 +30,7 @@ const MODEL_SCENES := {
 	&"revolver": preload("res://assets/weapons/revolver.tscn"),
 	&"lmg": preload("res://assets/weapons/lmg.tscn"), # low-poly, tools/build_lowpoly_weapons.py
 	&"slug": preload("res://assets/weapons/slug.tscn"),
+	&"shank": preload("res://assets/weapons/knife.tscn"), # same blade as the throw, held as a primary
 }
 ## Throwing knife: in hand for the F throw, and the flying/stuck projectile.
 const KNIFE_SCENE := preload("res://assets/weapons/knife.tscn")
@@ -178,8 +180,12 @@ func _process(delta: float) -> void:
 		burst_seq += 1
 	_trigger_held = trigger
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _owner_alive() and not trigger_locked():
-		if Input.is_action_just_pressed("melee"):
-			Game.melee.swing(owner_player)
+		var shank := def != null and def.melee
+		if Input.is_action_just_pressed("melee") or (shank and Input.is_action_just_pressed("fire")):
+			if shank:
+				Game.melee.swing_shank(owner_player)
+			else:
+				Game.melee.swing(owner_player)
 		elif Input.is_action_just_pressed("switch_weapon"):
 			_cycle_weapon()
 		elif Input.is_action_just_pressed("weapon_1"):
@@ -190,9 +196,9 @@ func _process(delta: float) -> void:
 			_equip(2)
 		elif Input.is_action_just_pressed("weapon_4"):
 			_equip(3)
-		elif _reload_left > 0.0 or _melee_left > 0.0:
+		elif _reload_left > 0.0 or _melee_left > 0.0 or (def != null and def.melee):
 			pass
-		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size:
+		elif Input.is_action_just_pressed("reload") and ammo < def.mag_size and def.mag_size > 0:
 			_start_reload()
 		elif _wants_fire():
 			_try_fire()
@@ -353,6 +359,11 @@ func _tick_melee_pose(delta: float, base: Vector3) -> void:
 		return
 	_melee_left = maxf(_melee_left - delta, 0.0)
 	var k := _melee_amount() if _melee_left > 0.0 else 0.0
+	if def != null and def.melee:
+		# A thrust, not the gun-butt. The blade leads.
+		position = _view_rest + base + Vector3(0.02, 0.03, -0.28) * k
+		rotation = Vector3(0.2, 0.05, -0.15) * k
+		return
 	position = _view_rest + base + Vector3(-0.13, 0.05, -0.12) * k
 	rotation = Vector3(-0.1, 0.75, 0.4) * k
 
@@ -779,6 +790,8 @@ func is_reloading() -> bool:
 
 
 func bot_try_fire() -> bool:
+	if def != null and def.melee:
+		return Game.melee != null and Game.melee.swing_shank(owner as Player)
 	if _cooldown > 0.0 or _reload_left > 0.0:
 		return false
 	if ammo <= 0:

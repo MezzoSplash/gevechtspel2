@@ -590,7 +590,7 @@ func _refresh_weapon_slots() -> void:
 			_fit_label(name_l, slot.custom_minimum_size.x - 14.0, 16, 12)
 			name_l.modulate = ink if on else Color(0.72, 0.74, 0.78)
 		if ammo_l:
-			ammo_l.text = ("%d / %d" % [_ammo, _mag]) if on else ""
+			ammo_l.text = "" if not on else ("—" if _mag <= 0 else ("%d / %d" % [_ammo, _mag]))
 
 
 ## A new radar charge plays "Radar on standby", a new RC-XD charge "RC-XD ready for deployment".
