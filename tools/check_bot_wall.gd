@@ -87,6 +87,7 @@ func _ready() -> void:
 	_ok(not BotWall.floor_below(space, BASE + Vector3(0, 40, 10), ex), "floor_below: a point 40 m up is too far above the floor")
 
 	await _drive_wall()
+	await _drive_route()
 	_done()
 
 
@@ -136,6 +137,62 @@ func _drive_wall() -> void:
 	_ok(started, "the dice eventually start a trick at a long wall (60 tries, chance %.1f)" % float(Game.bot_profile().trick))
 	_ok(runs >= 1, "the jump at the wall becomes a real wallrun (%d runs)" % runs)
 	_ok(running_ticks >= 25, "and the run lasts (%.2f s of wallrunning)" % (running_ticks * dt))
+
+
+## #270: on a wallrun route the run is the plan. The probe (tools/probe_bot_route) measured one wallrun in
+## fifteen routes taken while the route still rolled the dice, waited for the next scan and respected the
+## last trick's cooldown. On a route: no dice (but Easy still never runs a wall), and a scan every tick
+## through the cooldown.
+func _drive_route() -> void:
+	var bot := (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
+	bot.peer_id = -1
+	bot.is_bot = true
+	bot.position = BASE + Vector3(-12, 0.2, 0.5)
+	bot.set_physics_process(false)
+	bot.set_process(false)
+	add_child(bot)
+	bot.grenades = 0
+	var brain := BotBrain.new()
+	brain.setup(bot, null)
+	await _frames(4)
+	for i in 8:
+		bot.move_and_slide()
+	var route := {"kind": &"wallrun", "points": [BASE + Vector3(-12, 0, 2.3), BASE + Vector3(-5, 0, 2.3)]}
+	var tries := 40
+	var counts := {}
+	for diff in [Game.BOT_EASY, Game.BOT_MEDIUM]:
+		Game.bot_difficulty = diff
+		for on_route in [false, true]:
+			var n := 0
+			brain.rng.seed = 270
+			for i in tries:
+				brain._hint = route if on_route else {}
+				brain._trick = BotBrain.Trick.NONE
+				brain._trick_cd = 0.0
+				bot.velocity = Vector3(Player.SPRINT_SPEED, 0.0, 0.0)
+				brain._try_start_wall_trick()
+				if brain._trick == BotBrain.Trick.AIR:
+					n += 1
+			counts["%d|%s" % [diff, on_route]] = n
+	_ok(counts["%d|false" % Game.BOT_MEDIUM] < tries, "off a route Medium still rolls its dice (%d of %d)" % [counts["%d|false" % Game.BOT_MEDIUM], tries])
+	_ok(counts["%d|true" % Game.BOT_MEDIUM] == tries, "on a wallrun route Medium always takes the wall (%d of %d)" % [counts["%d|true" % Game.BOT_MEDIUM], tries])
+	_ok(counts["%d|true" % Game.BOT_EASY] == 0, "on a route Easy still never wallruns (%d)" % counts["%d|true" % Game.BOT_EASY])
+	# The cooldown and the scan timer of the last trick do not hold a route back.
+	Game.bot_difficulty = Game.BOT_MEDIUM
+	brain._hint = route
+	brain._trick = BotBrain.Trick.NONE
+	brain._trick_cd = BotBrain.TRICK_CD
+	brain._trick_scan_t = BotBrain.TRICK_SCAN
+	bot.velocity = Vector3(Player.SPRINT_SPEED, 0.0, 0.0)
+	brain._tick_wall_trick(1.0 / 60.0, true, false)
+	_ok(brain._trick == BotBrain.Trick.AIR, "on a route the wall is tried in the tick it comes up, cooldown or not")
+	brain._hint = {}
+	brain._trick = BotBrain.Trick.NONE
+	brain._trick_cd = BotBrain.TRICK_CD
+	bot.velocity = Vector3(Player.SPRINT_SPEED, 0.0, 0.0)
+	brain._tick_wall_trick(1.0 / 60.0, true, false)
+	_ok(brain._trick == BotBrain.Trick.NONE, "off a route the cooldown still holds")
+	bot.queue_free()
 
 
 func _done() -> void:

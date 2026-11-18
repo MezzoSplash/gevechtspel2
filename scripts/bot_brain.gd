@@ -309,6 +309,8 @@ func physics_tick(delta: float) -> void:
 		if _hint.is_empty():
 			_hunt(enemy, delta)
 		else:
+			# A route is a hunt: left on FIGHT, the wall trick refused to start on it.
+			_set_state(State.HUNT_DIRECT if _route == Route.DIRECT else State.HUNT_FLANK)
 			_follow_hint(enemy, delta)
 	_move(delta)
 
@@ -390,7 +392,13 @@ func _tick_wall_trick(delta: float, on_floor: bool, has_foe: bool) -> void:
 	_trick_scan_t = maxf(_trick_scan_t - delta, 0.0)
 	match _trick:
 		Trick.NONE:
-			if on_floor and _trick_cd <= 0.0 and _trick_scan_t <= 0.0:
+			# #270: a wallrun route is exactly BotWall.MIN_LEN of face from its start, so the one scan
+			# every TRICK_SCAN mostly came too late (or before the bot had turned along it) and the
+			# cooldown of the last trick blocked the rest: tools/probe_bot_route measured one wallrun
+			# in fifteen routes taken. On the route the run is the plan, so it looks every tick.
+			if on_floor and _on_wall_route():
+				_try_start_wall_trick()
+			elif on_floor and _trick_cd <= 0.0 and _trick_scan_t <= 0.0:
 				_trick_scan_t = TRICK_SCAN
 				_try_start_wall_trick()
 		Trick.AIR:
@@ -435,7 +443,9 @@ func _try_start_wall_trick() -> void:
 	var plan := BotWall.find(space, pawn.global_position, heading, [pawn.get_rid()])
 	if plan.is_empty():
 		return
-	if rng.randf() >= chance:
+	# On a wallrun route the run is the plan, so no dice: the profile's chance only decides whether this
+	# difficulty wallruns at all (Easy is 0 and returned above).
+	if not _on_wall_route() and rng.randf() >= chance:
 		_trick_cd = TRICK_SKIP_CD # this bot's own roll series, seeded per slot (#289) # said no to this wall: do not roll again at the next scan
 		return
 	_trick_plan = plan
@@ -742,6 +752,10 @@ func _follow_hint(enemy: Player, delta: float) -> void:
 	_tick_aim_wobble(enemy, delta)
 	_face_travel(dest - pawn.global_position)
 	_steer_to(dest, Player.SPRINT_SPEED, delta, false)
+
+
+func _on_wall_route() -> bool:
+	return StringName(_hint.get("kind", &"")) == &"wallrun"
 
 
 func _clear_hint() -> void:
