@@ -10,26 +10,31 @@ const ORDER: Array[StringName] = [&"townhouses", &"foundry", &"rooftops", &"quay
 const INFO := {
 	&"townhouses": {
 		"name": "Townhouses",
-		"blurb": "Two rows of houses, a street with a bus, plaza wallrun alleys, backyards and flanks.",
-		"kill_y": -4.0,
+		"blurb": "A canal street: surf the canal houses' roofs, wallrun the quays, grapple the drawbridge.",
+		# The canal floor is at -3 m: the void plane sits under it.
+		"kill_y": -6.0,
+		# v2 (tools/gen_townhouses.py): the back alleys and the drawbridge.
 		"pickups": [
-			{"type": &"knives", "pos": Vector3(-8.0, 0.0, 0.0)},
-			{"type": &"heal", "pos": Vector3(8.0, 0.0, 0.0)},
-			{"type": &"shield", "pos": Vector3(-24.0, 0.0, 4.0)},
+			{"type": &"knives", "pos": Vector3(-28.0, 0.0, 2.0)},
+			{"type": &"heal", "pos": Vector3(28.0, 0.0, -2.0)},
+			{"type": &"shield", "pos": Vector3(0.0, 0.0, 0.0)},
 		],
 		"scene": "res://scenes/maps/townhouses.tscn",
-		"menu_cam": [Vector3(26, 24, 62), Vector3(0, 2, 0)],
-		# Two rows in the backyard, past the wings (they end at z=33.5) and short of the south wall (z=41).
-		# Twelve points so 16 bots do not share a spot.
+		"menu_cam": [Vector3(40, 30, 60), Vector3(0, 2, 0)],
+		# Behind the spawn wall (|x| <= 10, z 41): three rows of four.
 		"team_spawns": [
-			[Vector3(-23, 0, 34.8), Vector3(-15, 0, 34.8), Vector3(-7, 0, 34.8), Vector3(1, 0, 34.8), Vector3(9, 0, 34.8), Vector3(17, 0, 34.8), Vector3(-19, 0, 38.6), Vector3(-11, 0, 38.6), Vector3(-3, 0, 38.6), Vector3(5, 0, 38.6), Vector3(13, 0, 38.6), Vector3(21, 0, 38.6)],
-			[Vector3(-23, 0, -34.8), Vector3(-15, 0, -34.8), Vector3(-7, 0, -34.8), Vector3(1, 0, -34.8), Vector3(9, 0, -34.8), Vector3(17, 0, -34.8), Vector3(-19, 0, -38.6), Vector3(-11, 0, -38.6), Vector3(-3, 0, -38.6), Vector3(5, 0, -38.6), Vector3(13, 0, -38.6), Vector3(21, 0, -38.6)],
+			[Vector3(-7.5, 0, 43), Vector3(-2.5, 0, 43), Vector3(2.5, 0, 43), Vector3(7.5, 0, 43), Vector3(-7.5, 0, 45), Vector3(-2.5, 0, 45), Vector3(2.5, 0, 45), Vector3(7.5, 0, 45), Vector3(-7.5, 0, 47), Vector3(-2.5, 0, 47), Vector3(2.5, 0, 47), Vector3(7.5, 0, 47)],
+			[Vector3(7.5, 0, -43), Vector3(2.5, 0, -43), Vector3(-2.5, 0, -43), Vector3(-7.5, 0, -43), Vector3(7.5, 0, -45), Vector3(2.5, 0, -45), Vector3(-2.5, 0, -45), Vector3(-7.5, 0, -45), Vector3(7.5, 0, -47), Vector3(2.5, 0, -47), Vector3(-2.5, 0, -47), Vector3(-7.5, 0, -47)],
 		],
+		# Half-turn pairs: yards, quays, alleys, the canal, the roof decks, the plain roofs.
 		"ffa_spawns": [
-			Vector3(-17.4, 0, 31.6), Vector3(8.6, 0, 32.4), Vector3(17.4, 0, -31.6), Vector3(-8.6, 0, -32.4),
-			Vector3(-16.0, 0, 35.6), Vector3(16.0, 0, -35.6),
-			Vector3(-23.5, 0, 8.0), Vector3(23.5, 0, -8.0), Vector3(-23.5, 0, -12.0), Vector3(23.5, 0, 12.0),
-			Vector3(-6.5, 0, 4.0), Vector3(6.5, 0, -4.0), Vector3(3.5, 0, 10.5), Vector3(-3.5, 0, -10.5),
+			Vector3(-14, 0, 44), Vector3(14, 0, -44),
+			Vector3(8, 0, 4), Vector3(-8, 0, -4),
+			Vector3(-28, 0, 14), Vector3(28, 0, -14),
+			Vector3(0, -3, 26), Vector3(0, -3, -26),
+			Vector3(-17, 9, 37), Vector3(17, 9, -37),
+			Vector3(-17, 6, -24), Vector3(17, 6, 24),
+			Vector3(28, 0, 30), Vector3(-28, 0, -30),
 		],
 	},
 	&"foundry": {

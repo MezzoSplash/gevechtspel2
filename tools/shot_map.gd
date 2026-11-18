@@ -26,10 +26,14 @@ const VIEWS := {
 		"spawn": [Vector3(0, 2.0, 42), Vector3(0, 2, 10)],
 	},
 	"townhouses": {
-		"overview": [Vector3(40, 34, 52), Vector3(0, 2, 0)],
-		"plaza": [Vector3(0, 9, 22), Vector3(-10, 2, -4)],
-		"alley_w": [Vector3(-15.2, 2.6, 12), Vector3(-15.2, 1.6, -9)],
-		"street": [Vector3(0, 2.6, 26), Vector3(0, 2.4, -10)],
+		"overview": [Vector3(42, 40, 62), Vector3(0, 2, 0)],
+		"overview_o": [Vector3(-42, 40, -62), Vector3(0, 2, 0)],
+		"canal": [Vector3(0, 2.0, 34), Vector3(0, -1.0, 0)],
+		"roof": [Vector3(-17, 11.5, 39), Vector3(-12, 5, 0)],
+		"quay": [Vector3(9, 2.0, 30), Vector3(6, 1.5, -10)],
+		"drawbridge": [Vector3(14, 6, 10), Vector3(0, 6, 0)],
+		"alley": [Vector3(-28, 2.0, 30), Vector3(-28, 1.5, -10)],
+		"spawn": [Vector3(0, 2.0, 46), Vector3(0, 2, 20)],
 	},
 }
 
