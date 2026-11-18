@@ -49,6 +49,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Townhouses v2 (`tools/gen_townhouses.py`, the third map rebuild; the old scene was hand-written):
+  a Dutch canal street, 64 x 96, walls 15 m. Canal down the middle at -3 m (`kill_y` -6), quay walls
+  as wallruns, boats, two bridges and a drawbridge under an 11 m steel portal (landmark and anchor).
+  Each team owns one row of canal houses whose 57° roof is the flow line: 9 m at its own end to 3 m
+  past the middle, mid and foot strips. A back-alley ramp reaches the roof deck; each ramp ends flush
+  on the edge it climbs (overlapped into a deck it came out 0.6 m low, past the nav agent's 0.5 m).
+  Accepted as a blockout after one playtest. `check_townhouses` was rewritten on the Foundry pattern.
 - #145 Shank class (#306): knife primary (`data/weapons/shank.tres`, `WeaponDef.melee`), pistol, 1 frag.
   Fire or E stabs through `Melee.swing_shank`: 100 from behind (`BACK_DOT` -0.34), 50 from the front
   or side, `SHANK_RANGE` 2.2 m, a tighter cone than the bash, same 0.8 s cooldown. Holding it moves
