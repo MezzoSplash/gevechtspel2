@@ -2,6 +2,20 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.5.20** — A grapple, and two maps rebuilt for the way the game moves now.
+
+Hold the grapple key (V or Mouse 4, rebindable) and a rope shoots from your left hand to whatever you aim at, up to 32 m away, and pulls you there hard: up to 22 m/s, upward too. Let go and you keep every bit of that speed, so the release is the move: grapple into a wallrun, off a roof into a dive, across a gap into a surf. It ends when you let go, arrive, lose the line or wallrun or dive, and it is ready again 3 s after you fire it. Everyone sees your rope and your reaching hand. A kill on the rope or just after letting go is a GRAPPLE KILL, and a pull counts as a combo move.
+
+Foundry is a real foundry now. A casting hall stands in the middle with a cupola furnace whose stack rises through the skylight; the hall roof is high ground you reach by ramp or grapple, and the furnace splits it in two. Each team has an ore bunker by its dock with a long surf down the outer wall into the other team's back lane, two speed strips on the way. Ladles hang from two crane runways to grapple to, and the yard is containers, a shed, the water tank, a sand heap, ingots and moulds instead of loose crates.
+
+Townhouses is a Dutch canal street. A canal runs down the middle, three metres below the quays: wallrun the quay walls, take the steps down, hide behind the boats. Each team's row of canal houses has a steep tiled roof that is a surf from your own end to past the middle, with two strips; a ramp up the back alley takes you onto it. A drawbridge under a tall steel portal is the middle of the map and the anchor everyone grapples to.
+
+A new class: Shank. A knife as your primary, a pistol and one frag. Holding the knife you sprint about 14 m/s; a stab is 50 from the front and 100 from behind, and at sprint on the ground a stab lunges you 2.5 m forward. Bots can draw it too. In Gun Game a shank kill sets the victim back, like the bash.
+
+The crouch is a squat now instead of a torso sticking out behind the legs. Bots take the wallrun routes on all maps and actually run the wall when they take one. The main menu plays "Reload", a new song made for the game.
+
+**Not compatible with v0.5.19** (NET_VERSION 0.5.20): the grapple rope is synced, Foundry and Townhouses have new collision and the shank is a new weapon, so a 0.5.19 peer is refused. Update server and clients together.
+
 **v0.5.19** — The UI is cut from the same crystal as the characters. Every menu piece, button and HUD slot is a shard now: a rectangle with four unequal chamfered corners, flat facets and a glowing seam along one edge that carries the meaning (team colour on scores and the kill feed, ice on what is selected or ready). Smoke glass is the idle material, pale shell is what you have selected or are holding, and the old amber is gone; gold stays for trick rewards only.
 
 A speed meter sits right above your health: your horizontal speed as a big number, with the shard's bottom seam filling up to 24 m/s and a notch at sprint speed, so you see at a glance whether a carry, dive or surf is paying off. Past sprint the number turns ice, and a small chip names the move you are in (WALLRUN, DIVE, SLIDE or SURF). It hides while you are dead and in the final killcam. The combo meter moves up when the stack under it would cover it, which already happened at 720p.

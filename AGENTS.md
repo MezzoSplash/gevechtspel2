@@ -166,6 +166,11 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
+- v0.5.20 (released): the grapple (#302), Foundry v2 as a foundry (#307), Townhouses v2 as a canal street
+  (#309), the Shank class (#306), the crouch as a squat (#301), bots taking and running wallrun routes on
+  every map (#299, #300) and "Reload" as the menu song (#308). Rooftops went out and came back unchanged
+  (#304, #305). `NET_VERSION` 0.5.20 - the rope is synced, two maps have new collision and the shank is a
+  new weapon id, so a 0.5.19 peer is refused.
 - v0.5.19 (released): the UI crystal restyle (#292 theme, #293 HUD skin, #295 speed meter, #296 layout of
   menu, pause, settings and kill feed; `docs/ui-crystal/HANDOFF.md`, only the HP gem is left) and a saved
   resolution that survives a second, smaller monitor (#297). `NET_VERSION` stays 0.5.16 - nothing goes over
