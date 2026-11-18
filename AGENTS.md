@@ -58,6 +58,16 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   and would brake the run or air-dash (`check_shank` covers both). Gun Game demotes a shank kill; bots
   can draw it and close in and stab (`_fight_shank`). An older `classes.cfg` gains the preset once.
   `NET_VERSION` 0.5.20 (unreleased) covers the new weapon id.
+- Foundry v2 (`tools/gen_foundry.py`, the second map rebuild, done blockout first and playtested in
+  rounds): 64 x 90, walls 16 m. A real foundry, not boxes: the casting hall with the cupola furnace in
+  the middle (stack through the skylight to 18 m; landmark, anchor, and the roof's divider), a 3 m
+  mezzanine, press, pouring line of flasks; per team an ore bunker (10 m) with a 51 m surf down the
+  outer wall (mid and foot strips), a ramp to the hall roof; crane runways at 11 m with hanging
+  ladles as grapple anchors; per flank a container island, a shed and the tank; sand heap, ingots,
+  ladle cars, smokestacks outside. Playtest notes that shaped it: round 1 was too open ("er mag meer
+  staan, vooral binnen"), round 2 was generic blocks ("het moet een echte foundry zijn"). The longest
+  clean ground lane is printed by `check_foundry`, not enforced (see the Rooftops lesson below).
+  `heap_h` / `cylinder_h` place a piece and its half-turn. `NET_VERSION` stays 0.5.20 (unreleased).
 - Rooftops is back as it was (the original layout from before the map pass; #304 reverted). A v2
   rebuilt around flow lines (#303, closed) played too busy: the 35 m clean-lane rule was met with truck
   blocks everywhere, and the map turned into a maze of sightline blockers. Lesson for the rebuilds:

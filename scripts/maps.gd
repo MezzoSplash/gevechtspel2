@@ -34,27 +34,31 @@ const INFO := {
 	},
 	&"foundry": {
 		"name": "Foundry",
-		"blurb": "Warehouse hall with roof ramps, a wallrun roof, west surf, container yard and sheds.",
+		"blurb": "Rust hall with a roof to fight on, ore bunkers with surfs down the walls, crane runways to grapple.",
 		"kill_y": -4.0,
+		# v2 (tools/gen_foundry.py): the flank lanes either side of the hall, and the hall floor under
+		# the skylight.
 		"pickups": [
-			{"type": &"knives", "pos": Vector3(-22.6, 0.0, 0.0)},
-			{"type": &"heal", "pos": Vector3(21.0, 0.0, 4.0)},
-			{"type": &"shield", "pos": Vector3(0.0, 0.0, -6.0)},
+			{"type": &"knives", "pos": Vector3(-26.0, 0.0, -9.5)},
+			{"type": &"heal", "pos": Vector3(26.0, 0.0, 9.5)},
+			{"type": &"shield", "pos": Vector3(0.0, 0.0, -5.0)},
 		],
 		"scene": "res://scenes/maps/foundry.tscn",
-		"menu_cam": [Vector3(34, 30, 46), Vector3(0, 0, 2)],
-		# One row on the floor in front of the dock (dock face z=30.6, spawn wall ends z=24.5).
-		# Not on the dock: that slab is 1.2 m high. Twelve points so 16 bots do not share a spot.
+		"menu_cam": [Vector3(44, 38, 62), Vector3(0, 3, 0)],
+		# Behind the spawn wall (|x| <= 10, z 37.5): two rows on the floor and one on the dock (1.2 m).
 		"team_spawns": [
-			[Vector3(-24.2, 0, 27.5), Vector3(-19.8, 0, 27.5), Vector3(-15.4, 0, 27.5), Vector3(-11, 0, 27.5), Vector3(-6.6, 0, 27.5), Vector3(-2.2, 0, 27.5), Vector3(2.2, 0, 27.5), Vector3(6.6, 0, 27.5), Vector3(11, 0, 27.5), Vector3(15.4, 0, 27.5), Vector3(19.8, 0, 27.5), Vector3(24.2, 0, 27.5)],
-			[Vector3(-24.2, 0, -27.5), Vector3(-19.8, 0, -27.5), Vector3(-15.4, 0, -27.5), Vector3(-11, 0, -27.5), Vector3(-6.6, 0, -27.5), Vector3(-2.2, 0, -27.5), Vector3(2.2, 0, -27.5), Vector3(6.6, 0, -27.5), Vector3(11, 0, -27.5), Vector3(15.4, 0, -27.5), Vector3(19.8, 0, -27.5), Vector3(24.2, 0, -27.5)],
+			[Vector3(-7.5, 0, 39.6), Vector3(-2.5, 0, 39.6), Vector3(2.5, 0, 39.6), Vector3(7.5, 0, 39.6), Vector3(-7.5, 0, 41.8), Vector3(-2.5, 0, 41.8), Vector3(2.5, 0, 41.8), Vector3(7.5, 0, 41.8), Vector3(-7.5, 1.2, 44), Vector3(-2.5, 1.2, 44), Vector3(2.5, 1.2, 44), Vector3(7.5, 1.2, 44)],
+			[Vector3(7.5, 0, -39.6), Vector3(2.5, 0, -39.6), Vector3(-2.5, 0, -39.6), Vector3(-7.5, 0, -39.6), Vector3(7.5, 0, -41.8), Vector3(2.5, 0, -41.8), Vector3(-2.5, 0, -41.8), Vector3(-7.5, 0, -41.8), Vector3(7.5, 1.2, -44), Vector3(2.5, 1.2, -44), Vector3(-2.5, 1.2, -44), Vector3(-7.5, 1.2, -44)],
 		],
+		# Half-turn pairs: docks, flanks, the hall floor, its roof, the bunker tops, the yard.
 		"ffa_spawns": [
-			Vector3(-20, 0, 28), Vector3(20, 0, 28), Vector3(-20, 0, -28), Vector3(20, 0, -28),
-			Vector3(0, 1.25, 32.5), Vector3(0, 1.25, -32.5),
-			Vector3(-23, 0, 9.5), Vector3(-23, 0, -9.5), Vector3(-16, 0, 9), Vector3(-16, 0, -9),
-			Vector3(21, 0, 17), Vector3(21, 0, -17), Vector3(23.5, 0, 10.5), Vector3(23.5, 0, -10.5),
-			Vector3(-9, 3.05, 0), Vector3(9.6, 0, 1.6), Vector3(9.6, 0, -1.6),
+			Vector3(-5, 1.2, 44), Vector3(5, 1.2, -44),
+			Vector3(-26, 0, 2), Vector3(26, 0, -2),
+			Vector3(-8, 0, 22), Vector3(8, 0, -22),
+			Vector3(6, 7.3, -8), Vector3(-6, 7.3, 8),
+			Vector3(-27, 10, 31), Vector3(27, 10, -31),
+			Vector3(18, 0, 28), Vector3(-18, 0, -28),
+			Vector3(5, 0, 5), Vector3(-5, 0, -5),
 		],
 	},
 	&"rooftops": {
