@@ -187,3 +187,76 @@ static func push_live_name(game: GameState) -> void:
 		else:
 			game.apply_display_name(peer, n)
 		game._retitle()
+
+
+## The peer whose RPC is running (the server itself for a local call).
+static func sender(game: GameState) -> int:
+	var peer := game.multiplayer.get_remote_sender_id()
+	return peer if peer != 0 else game.multiplayer.get_unique_id()
+
+
+## Server (submit_display_name): the asking peer's name, made unique, and its team pick. In the lobby
+## it becomes a lobby row; in a match every machine is told (apply_display_name).
+static func submit_name(game: GameState, n: String, team: int) -> void:
+	if not game.multiplayer.is_server():
+		return
+	var peer := sender(game)
+	n = unique_name(game, peer, n)
+	game.pending_names[peer] = n
+	if team == game.TEAM_A or team == game.TEAM_B:
+		game.pending_teams[peer] = team
+	if game.in_lobby:
+		set_lobby_member(game, peer, n, int(game.pending_teams.get(peer, game.preferred_team)))
+		return
+	game.apply_display_name.rpc(peer, n)
+
+
+## Every machine (apply_display_name): the pawn shows the name and the scoreboard row keeps its kills
+## and team.
+static func apply_name(game: GameState, peer_id: int, n: String) -> void:
+	var p := game.player_for_peer(peer_id)
+	var team := int(game.pending_teams.get(peer_id, 0))
+	var kills := 0
+	if game.scores.has(peer_id):
+		kills = int(game.scores[peer_id].kills)
+		team = int(game.scores[peer_id].get("team", team))
+	if p:
+		p.set_display_name(n)
+		team = p.team_id
+	game._apply_score(peer_id, kills, n, team)
+
+
+## This machine's profile name: cleaned, saved, pushed to a running match, and the menu told.
+static func set_player_name(game: GameState, n: String) -> void:
+	var cleaned := clean_name(game, n)
+	if cleaned == game.player_name:
+		return
+	game.player_name = cleaned
+	game.profile_name = cleaned
+	game.save_settings()
+	push_live_name(game)
+	game.local_name_changed.emit(game.player_name)
+
+
+## Server (submit_chat): trimmed to CHAT_MAX, empty lines dropped, then relayed.
+static func submit_chat(game: GameState, text: String) -> void:
+	if not game.multiplayer.is_server():
+		return
+	text = text.strip_edges()
+	if text.length() > game.CHAT_MAX:
+		text = text.substr(0, game.CHAT_MAX)
+	if text == "":
+		return
+	relay_chat(game, sender(game), text)
+
+
+## Server (request_lobby_team): a lobby row switches side.
+static func request_team(game: GameState, team: int) -> void:
+	if not game.multiplayer.is_server() or not game.in_lobby:
+		return
+	var peer := sender(game)
+	if not game.lobby.has(peer):
+		return
+	game.lobby[peer].team = clampi(team, game.TEAM_A, game.TEAM_B)
+	game.pending_teams[peer] = int(game.lobby[peer].team)
+	push_lobby(game)

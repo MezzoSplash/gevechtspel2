@@ -309,3 +309,122 @@ static func snap_fps(g: GameState, v: int) -> int:
 ## Render scale clamped to 0.5–1.0 in steps of 0.05.
 static func snap_scale(g: GameState, v: float) -> float:
 	return clampf(round(clampf(v, 0.5, 1.0) * 20.0) / 20.0, 0.5, 1.0)
+
+
+## The menu's last match choice, remembered in settings.cfg [match]. -1 leaves a value as it was.
+static func remember_match_choice(g: GameState, m: StringName, md: int, kills: int, time_min: int, bots: int,
+		skill: int, allies: int, enemies: int) -> void:
+	g.last_map = m
+	if skill >= 0:
+		g.last_bot_difficulty = clampi(skill, g.BOT_EASY, g.BOT_HARD)
+		g.bot_difficulty = g.last_bot_difficulty
+	g.last_mode = md
+	if kills >= 0:
+		g.last_kills = clampi(kills, g.KILLS_MIN, g.KILLS_MAX)
+	if time_min >= 0:
+		g.last_time_min = clampi(time_min, g.TIME_MIN_MINUTES, g.TIME_MAX_MINUTES)
+	if allies >= 0 and enemies >= 0:
+		g.last_bot_allies = clampi(allies, 0, g.BOT_COUNT_MAX)
+		g.last_bot_enemies = clampi(enemies, 0, g.BOT_COUNT_MAX)
+	if bots >= 0:
+		g.last_bots = clampi(bots, 0, g.BOT_COUNT_MAX)
+	save_settings(g)
+
+
+## Colourblind palette: saved, every pawn repaints its team colour, the HUD is told.
+static func set_colorblind(g: GameState, v: int) -> void:
+	g.colorblind = clampi(v, 0, g.COLORBLIND_NAMES.size() - 1)
+	save_settings(g)
+	if g.is_inside_tree():
+		for n in g.get_tree().get_nodes_in_group("player"):
+			if n.has_method("_apply_team_visual"):
+				n._apply_team_visual()
+	g.hud_settings_changed.emit()
+
+
+## Whether a start should restart once with the chosen renderer (Graphics > Renderer): never for a
+## server, headless, the editor, a renderer already running, or a process that already relaunched.
+static func should_relaunch(choice: int, user_args: PackedStringArray, is_server: bool, headless: bool, editor: bool,
+		current_method := "") -> bool:
+	if choice <= 0 or choice >= GameState.RENDERER_IDS.size():
+		return false
+	if is_server or headless or editor:
+		return false
+	# Already running the chosen renderer: relaunching would flash the window on every single start.
+	if current_method != "" and current_method == GameState.RENDERER_IDS[choice]:
+		return false
+	return not user_args.has(GameState.RENDERER_MARKER)
+
+
+## Starts this executable again with `--rendering-method method`, keeping the user args. True if it started.
+static func relaunch_with_renderer(method: String) -> bool:
+	if method == "":
+		return false
+	var exe := OS.get_executable_path()
+	if exe.is_empty() or not FileAccess.file_exists(exe):
+		return false
+	var argv := PackedStringArray(["--rendering-method", method, "--", GameState.RENDERER_MARKER])
+	for a in OS.get_cmdline_user_args():
+		if a != GameState.RENDERER_MARKER:
+			argv.append(a)
+	return OS.create_process(exe, argv) > 0
+
+
+## Settings > HUD perf overlay level: saved, the HUD told, the fps label shown or hidden at once.
+static func set_perf_overlay(g: GameState, v: int) -> void:
+	g.perf_overlay = clampi(v, 0, g.PERF_NAMES.size() - 1)
+	save_settings(g)
+	if not g.is_inside_tree():
+		return
+	g.hud_settings_changed.emit()
+	var label := g.get_tree().root.get_node_or_null("Main/CanvasLayer/Hud/Fps") as Label
+	if label:
+		label.visible = g.show_fps
+
+
+## A new hip FOV on the live camera, unless it is aiming (ADS keeps its own absolute FOV).
+static func apply_fov_now(g: GameState) -> void:
+	if not g.is_inside_tree() or g.display_headless():
+		return
+	var cam := g.get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var ads = cam.get("ads_fov")
+	if ads == null or float(ads) > 1.0:
+		return
+	var extra = cam.get("extra_fov")
+	cam.fov = g.fov + (float(extra) if extra != null else 0.0)
+
+
+## Join tab: the server just joined goes to the front of the recent list (RECENT_SERVERS_MAX kept).
+static func remember_server(g: GameState, ip: String, port: int) -> void:
+	var key := "%s:%d" % [ip.strip_edges(), port]
+	var out := PackedStringArray([key])
+	for e in g.recent_servers:
+		if e != key and out.size() < g.RECENT_SERVERS_MAX:
+			out.append(e)
+	g.recent_servers = out
+	g.last_server = key
+	save_settings(g)
+
+
+## Saved server list ("label|host:port"): no duplicates by address. True if it was added.
+static func add_favorite(g: GameState, label: String, address: String) -> bool:
+	address = address.strip_edges()
+	if address.is_empty():
+		return false
+	for e in g.favorite_servers:
+		if e.get_slice("|", 1) == address or e == address:
+			return false
+	g.favorite_servers.append("%s|%s" % [label.strip_edges(), address])
+	save_settings(g)
+	return true
+
+
+static func remove_favorite(g: GameState, address: String) -> void:
+	var out := PackedStringArray()
+	for e in g.favorite_servers:
+		if e.get_slice("|", 1) != address and e != address:
+			out.append(e)
+	g.favorite_servers = out
+	save_settings(g)
