@@ -382,56 +382,7 @@ func _exit_tree() -> void:
 
 
 func _ready() -> void:
-	_style = StyleTrack.new(self)
-	add_to_group("player")
-	Game.invalidate_roster() # #272: a pawn that appeared mid-tick must be seen at once
-	floor_snap_length = 0.2
-	collision_layer = 2
-	collision_mask = 1
-	_spawn_xform = global_transform
-	_yaw = rotation.y # Orange spawns turned 180°; the first mouse move must not snap back
-	_capsule = col_shape.shape.duplicate() as CapsuleShape3D
-	col_shape.shape = _capsule
-	if peer_id == 0:
-		peer_id = _owner_peer()
-	_dup_body_mat()
-	_attach_arms()
-	_apply_team_visual()
-	_init_loadout()
-	# Bots/offline skip MultiplayerSynchronizer; bot poses are Game.sync_bot_poses.
-	if has_node("Sync") and (Game.is_offline or is_bot or peer_id < 0):
-		$Sync.public_visibility = false
-	if Game.is_offline:
-		pass
-	elif is_bot or peer_id < 0:
-		set_multiplayer_authority(1, true)
-	elif peer_id > 0:
-		set_multiplayer_authority(peer_id, true)
-	_spawn_protect = SPAWN_PROTECT
-	_feet_last = global_position
-	if is_bot and (Game.is_offline or multiplayer.is_server()):
-		_bot_brain = Brain.new()
-		_bot_brain.setup(self, get_node_or_null("NavigationAgent3D") as NavigationAgent3D)
-	if is_bot:
-		call_deferred("_apply_bot_loadout")
-	if is_local():
-		_whoosh = AudioStreamPlayer.new()
-		_whoosh.stream = WHOOSH
-		_whoosh.bus = "SFX"
-		_whoosh.volume_db = -4.0
-		add_child(_whoosh)
-		# Its own node: the carry whoosh belongs to Movement, with its own pitch.
-		_los_sfx = AudioStreamPlayer.new()
-		_los_sfx.stream = WHOOSH
-		_los_sfx.bus = "SFX"
-		_los_sfx.volume_db = -2.0
-		add_child(_los_sfx)
-		_wind = AudioStreamPlayer.new()
-		_wind.stream = looped_wind()
-		_wind.bus = "SFX"
-		_wind.volume_db = WIND_VOL_DB_MIN
-		add_child(_wind)
-	call_deferred("_configure_control")
+	PawnSetup.ready(self)
 
 
 const ENEMY_SFX_NODES := [
@@ -443,19 +394,7 @@ var _bus_check_t := 0.0
 ## Enemy pawns play their shots and movement on the "Enemies" bus (own slider, #59). Teams can change
 ## mid-match, so this is re-checked twice a second rather than once at spawn.
 func _tick_audio_bus(delta: float) -> void:
-	_bus_check_t -= delta
-	if _bus_check_t > 0.0:
-		return
-	_bus_check_t = 0.5
-	var bus := "SFX"
-	if not is_local() and not Game.is_dedicated:
-		var me := Game.player_for_peer(multiplayer.get_unique_id())
-		if me and Game.is_enemy(me, self):
-			bus = "Enemies"
-	for path in ENEMY_SFX_NODES:
-		var n := get_node_or_null(path)
-		if n and n.get("bus") != null and n.bus != bus:
-			n.bus = bus
+	PawnSetup.tick_audio_bus(self, delta)
 
 
 func _process(delta: float) -> void:
@@ -466,16 +405,7 @@ func _process(delta: float) -> void:
 
 ## Server: what this peer picked (or the default). Owner: what the server last confirmed.
 func _init_loadout() -> void:
-	if is_bot or peer_id < 0:
-		return
-	if Game._is_match_authority():
-		loadout = Game.loadouts.spawn_loadout(peer_id)
-	elif is_local():
-		var mine := Game.loadouts.mine
-		loadout = mine.duplicate(true) if not mine.is_empty() else PlayerClasses.default_loadout()
-	else:
-		return
-	apply_loadout()
+	PawnSetup.init_loadout(self)
 
 
 func weapon_ids() -> Array[StringName]:
@@ -535,32 +465,7 @@ func _apply_bot_loadout() -> void:
 
 ## Local: hide body, capture mouse. Remote/bot: show mesh, nametag, world gun.
 func _configure_control() -> void:
-	_apply_team_visual()
-	if weapon:
-		weapon.refit_view() # third-person guns sit closer to the body (B1)
-	if is_local():
-		body_mesh.visible = false
-		weapon.visible = true
-		if _arms_enabled() and camera.get_node_or_null("ViewHands") == null:
-			var crystal := body_mesh.get_node_or_null("Crystal") as CrystalBody
-			CrystalHands.attach_view(camera, weapon, crystal.glow if crystal else _body_mat) # #164: first-person crystal hands
-		nametag.visible = false
-		# Online the server's (deduplicated) name from the spawn data wins.
-		if Game.player_name != "" and not Game.is_networked():
-			set_display_name(Game.player_name)
-		make_active_camera()
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		Game.local_player_ready.emit(self)
-		health_changed.emit(hp, MAX_HP)
-		_notify_grenades()
-		if Game.is_networked() and not multiplayer.is_server():
-			Game.submit_display_name.rpc_id(1, Game.player_name)
-	else:
-		body_mesh.visible = not is_dead
-		camera.current = false
-		weapon.visible = true
-		set_display_name(display_name)
-		_update_nametag(0.0, true)
+	PawnSetup.configure_control(self)
 
 
 func make_active_camera() -> void:
@@ -631,30 +536,11 @@ func _attach_arms() -> void:
 
 
 func _dup_body_mat() -> void:
-	if body_mesh == null:
-		return
-	var src_mesh := body_mesh.get_node_or_null("Torso") as MeshInstance3D
-	var src: Material = src_mesh.get_active_material(0) if src_mesh else null
-	if src is StandardMaterial3D:
-		_body_mat = (src as StandardMaterial3D).duplicate()
-	else:
-		_body_mat = StandardMaterial3D.new()
-	for child in body_mesh.get_children():
-		var part := child as MeshInstance3D
-		if part:
-			part.set_surface_override_material(0, _body_mat)
-			part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	PawnSetup.dup_body_mat(self)
 
 
 func _apply_team_visual() -> void:
-	var col: Color = team_color(team_id)
-	if _body_mat:
-		paint_body(_body_mat, team_id)
-	if nametag:
-		nametag.modulate = col
-	var crystal := body_mesh.get_node_or_null("Crystal") as CrystalBody if body_mesh else null
-	if crystal:
-		crystal.repaint(col)
+	PawnSetup.apply_team_visual(self)
 
 
 ## Body/tag/feed colour of a team. FFA has no teams: everyone gets FFA_COLOR.
@@ -899,27 +785,7 @@ func _tick_feet(delta: float) -> void:
 ## Client-side bot transform from Game.sync_bot_poses (Synchronizer is off for bots).
 ## `stance` (optional, newer servers): [crouch, move_fx], so remote bots crouch, dive and wall-run visibly.
 func apply_network_pose(pos: Vector3, yaw: float, pitch: float, stance: Array = []) -> void:
-	global_position = pos
-	rotation.y = yaw
-	_yaw = yaw
-	_pitch = pitch
-	if head:
-		head.rotation.x = pitch
-	velocity = Vector3.ZERO
-	if stance.size() >= 2:
-		crouch = clampf(float(stance[0]), 0.0, 1.0)
-		var was := move_fx
-		move_fx = int(stance[1])
-		_apply_stance()
-		# A remote pawn never runs Movement.tick_dive_roll, so _roll_t stays 0 and the roll was
-		# invisible on everyone else's screen and in the killcam (#236). The synced move_fx is the
-		# signal: the frame it turns MOVE_ROLL, run the local timer that drives the body's flip.
-		if move_fx == MOVE_ROLL and was != MOVE_ROLL:
-			_roll_t = ROLL_TIME
-	if body_mesh:
-		body_mesh.visible = not is_dead
-	if nametag:
-		nametag.text = display_name
+	PawnNet.apply_network_pose(self, pos, yaw, pitch, stance)
 
 
 ## Where bots aim: chest height of the current stance (crouch is 1.0 m tall, not 1.8).
@@ -944,47 +810,18 @@ func apply_regen_hp(new_hp: float) -> void:
 ## Teammates keep their tag through walls (where is my team). Enemies only show it in line of sight,
 ## so the tag is no wallhack and the UAV streak (minimap) is still the way to find them.
 func _update_nametag(delta: float, force: bool = false) -> void:
-	if nametag == null or is_local():
-		return
-	if Game.is_dedicated or DisplayServer.get_name() == "headless":
-		nametag.visible = false
-		return
-	_tag_check_t -= delta
-	if force or _tag_check_t <= 0.0:
-		_tag_check_t = TAG_CHECK + randf() * 0.03 # spread the rays over frames
-		var me := Game.player_for_peer(multiplayer.get_unique_id())
-		var mate := me != null and not Game.is_enemy(self, me)
-		nametag.no_depth_test = mate
-		_tag_show = mate or _enemy_in_sight()
-	nametag.visible = _tag_show and not is_dead
+	PawnNet.update_nametag(self, delta, force)
 
 
 ## World-only rays (players do not block) from the active camera to the head and the chest.
 func _enemy_in_sight() -> bool:
-	var cam := get_viewport().get_camera_3d()
-	if cam == null:
-		return false
-	var space := get_world_3d().direct_space_state
-	var from := cam.global_position
-	for to in [head_point(), aim_point()]:
-		var query := PhysicsRayQueryParameters3D.create(from, to)
-		query.collision_mask = 1
-		if space.intersect_ray(query).is_empty():
-			return true
-	return false
+	return PawnNet.enemy_in_sight(self)
 
 
 ## See net_pos. First pose, the server, or a jump past NET_SNAP_M (respawn) snaps.
 ## On the server a claim is checked first: the client only gets to say where it is (#B1).
 func _receive_net_pos(v: Vector3) -> void:
-	if multiplayer.is_server() and not is_bot:
-		_accept_claim(v)
-		return
-	var smooth := is_inside_tree() and _net_has and not multiplayer.is_server()
-	_net_target = v
-	_net_has = true
-	if not smooth or v.distance_to(position) > NET_SNAP_M:
-		position = v
+	PawnNet.receive_net_pos(self, v)
 
 
 ## #B1 server authority over position. Accept a claim only if the pawn could have reached it since the
@@ -992,24 +829,12 @@ func _receive_net_pos(v: Vector3) -> void:
 ## modified client could teleport anywhere and shoot from there — and origin_plausible would agree,
 ## because it compares the shot against the position that same client just claimed.
 func _accept_claim(v: Vector3) -> void:
-	var now := Time.get_ticks_msec()
-	var dt := maxf(float(now - _net_pos_ms) / 1000.0, NET_CLAIM_MIN_DT)
-	if is_dead or _claim_reachable(v, dt):
-		position = v
-		_net_pos_ms = now
-		return
-	# Refused. Reset the window as well, so the budget cannot pile up and turn into a slow teleport.
-	_net_pos_ms = now
-	if now - _corr_ms >= NET_CORRECTION_MS and Game.is_networked() and peer_id in multiplayer.get_peers():
-		_corr_ms = now
-		Game.correct_position.rpc_id(peer_id, position)
+	PawnNet.accept_claim(self, v)
 
 
 ## Could a pawn have gone from where we have it to `v` in `dt` seconds?
 func _claim_reachable(v: Vector3, dt: float) -> bool:
-	var d := v - position
-	var h := Vector2(d.x, d.z).length()
-	return h <= NET_CLAIM_H_CAP * dt + NET_CLAIM_SLACK and absf(d.y) <= NET_CLAIM_V_CAP * dt + NET_CLAIM_SLACK
+	return PawnNet.claim_reachable(self, v, dt)
 
 
 ## The server refused our claim: take its copy. Called by Game.correct_position.
@@ -1023,13 +848,7 @@ func apply_position_correction(v: Vector3) -> void:
 ## move here, so the claim check does not read the jump as a teleport and pull the body back.
 ## Velocity is dropped: the snap is a cut, not a carry. INF-safe (the caller checks).
 func apply_snap(v: Vector3) -> void:
-	global_position = v
-	_net_target = v
-	_net_has = true
-	_net_pos_ms = Time.get_ticks_msec()
-	velocity = Vector3.ZERO
-	if _style != null:
-		_style.forget_position() # a teleport, so it is never counted as a fall
+	PawnNet.apply_snap(self, v)
 
 
 ## LOS hand sounds, local machine only: leaving the body (pitch > 1) and snapping back (< 1).
@@ -1043,22 +862,11 @@ func play_los_sfx(pitch: float) -> void:
 ## Client-side glide of a remote human toward _net_target (frame-rate independent).
 ## A local teleport of the pawn (e.g. a respawn RPC) re-bases the target instead of being pulled back.
 func _smooth_remote(delta: float) -> void:
-	if not _net_has or multiplayer.is_server():
-		return
-	if position.distance_to(_net_target) > NET_SNAP_M:
-		_net_target = position
-		return
-	position = _net_target + (position - _net_target) * exp(-delta / NET_SMOOTH_S)
+	PawnNet.smooth_remote(self, delta)
 
 
 func _apply_remote_visual() -> void:
-	_apply_stance()
-	_apply_team_visual()
-	body_mesh.visible = not is_dead
-	weapon.visible = not is_dead
-	collision_layer = 0 if is_dead else 2
-	if nametag:
-		nametag.text = display_name
+	PawnNet.apply_remote_visual(self)
 
 
 func is_sliding() -> bool:
