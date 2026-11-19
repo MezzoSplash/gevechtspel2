@@ -25,10 +25,16 @@ var visual := false
 var _net_pos := Vector3.ZERO
 var _has_net := false
 var _life := FUSE + 1.0 # a predicted throw the server refused frees itself after this
+var _age := 0.0 # since the throw, on every copy: drives the fuse band (#342)
+## The crystal frag (#342). Null on a dedicated server.
+var look: GrenadeLook
 
 const POSE_SYNC := 0.1 # server corrections per grenade (the client simulates in between)
 const SNAP_M := 2.5 # farther off than this: jump to the server pose
 const CORRECT := 10.0 # 1/s blend toward the server pose
+## A bounce leaves the centre 0.06 m off the floor and the frag's point reaches 0.11 below it: the
+## look sits this much higher so a frag at rest stands on its point instead of in the floor (#342).
+const LOOK_LIFT := 0.05
 
 
 static func initial_velocity(dir: Vector3) -> Vector3:
@@ -67,23 +73,30 @@ static func launch(thrower: Player, origin: Vector3, dir: Vector3, client_seq :=
 
 func _ready() -> void:
 	add_to_group("grenade") # Game.reset_session frees leftovers on leave
-	var mesh := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.12
-	sphere.height = 0.24
-	mesh.mesh = sphere
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.15, 0.45, 0.18)
-	mat.emission_enabled = true
-	mat.emission = Color(0.2, 0.8, 0.25)
-	mat.emission_energy_multiplier = 1.4
-	mesh.material_override = mat
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mesh)
+	if Game.is_dedicated:
+		return # nobody looks at a dedicated server's grenade
+	look = GrenadeLook.new()
+	look.position.y = LOOK_LIFT
+	add_child(look)
+	look.fuse_left = FUSE - _age
+	look.set_team(thrower_team if thrower_id != 0 else -1)
+
+
+## The thrower's team, for a client copy (the spawn RPC carries the thrower's peer).
+func set_thrower(peer: int) -> void:
+	thrower_id = peer
+	var p := Game.player_for_peer(peer)
+	if p:
+		thrower_team = p.team_id
+		if look:
+			look.set_team(thrower_team)
 
 
 ## Ray-step so it bounces instead of tunneling. Fuse is time, not first impact.
 func _physics_process(delta: float) -> void:
+	_age += delta
+	if look:
+		look.fuse_left = FUSE - _age
 	if visual:
 		_tick_visual(delta)
 		return
@@ -166,7 +179,7 @@ func _thrower() -> Player:
 	return Game.player_for_peer(thrower_id)
 
 
-## Local-only FX: flash, light, boom, and outward tracer shards.
+## Local-only FX: flash, light, boom, the crystal bursting into shards and a ring over the ground (#342).
 ## `heavy` is the RC-XD blast: its own clip, louder, and it carries farther than a frag.
 static func play_boom(pos: Vector3, heavy := false) -> void:
 	Game.killcam.note_boom(pos, heavy)
@@ -214,35 +227,80 @@ static func play_boom(pos: Vector3, heavy := false) -> void:
 	var glow := light.create_tween()
 	glow.tween_property(light, "light_energy", 0.0, 0.35)
 	glow.tween_callback(light.queue_free)
-	_spawn_fragments(scene, pos)
+	var reach := RcXd.BLAST_RADIUS if heavy else RADIUS
+	spawn_shards(scene, pos, reach)
+	spawn_shock_ring(scene, pos, reach)
 	tree.create_timer(2.3).timeout.connect(sfx.queue_free)
 
 
-## Short streaks, not extra damage. They fade inside the splash radius.
-static func _spawn_fragments(scene: Node, pos: Vector3) -> void:
-	for i in 18:
-		var dir := Vector3(randf_range(-1.0, 1.0), randf_range(0.15, 1.0), randf_range(-1.0, 1.0)).normalized()
-		var length := randf_range(0.35, 0.9)
+## How many splinters a boom throws, and how far they get as a share of the splash radius: the
+## shards end where the damage ends, so the blast reads its own size (#342). Visual, not damage.
+const SHARDS := 22
+const SHARD_REACH_MIN := 0.65
+const SHARD_REACH_MAX := 1.0
+const SHARD_TIME := 0.3
+const SHARD_COLORS: Array[Color] = [CrystalStyle.ICE, Color(0.36, 0.82, 0.42), Color(1.0, 0.6, 0.2)]
+const RING_TIME := 0.32
+
+
+## The frag bursts: splinters of its own crystal (ice, its olive glow, fire) fly out to the edge of
+## the splash and fade there.
+static func spawn_shards(scene: Node, pos: Vector3, reach: float) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for i in SHARDS:
+		var dir := Vector3(randf_range(-1.0, 1.0), randf_range(0.1, 0.9), randf_range(-1.0, 1.0))
+		if dir.length_squared() < 0.001:
+			dir = Vector3.UP
+		dir = dir.normalized()
 		var shard := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = Vector3(0.035, 0.035, length)
-		shard.mesh = box
+		shard.mesh = CrystalMesh.part(&"grenade_frag")
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.albedo_color = Color(1.0, 0.55, 0.15) if i % 3 != 0 else Color(1.0, 0.9, 0.55)
+		mat.albedo_color = SHARD_COLORS[i % SHARD_COLORS.size()]
 		mat.emission_enabled = true
 		mat.emission = mat.albedo_color
-		mat.emission_energy_multiplier = 3.2
+		mat.emission_energy_multiplier = 3.0
 		shard.material_override = mat
 		shard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		shard.scale = Vector3.ONE * randf_range(0.8, 1.5)
 		scene.add_child(shard)
 		shard.global_position = pos
-		if dir.length_squared() > 0.001:
-			shard.look_at(pos + dir, Vector3.UP)
-		var travel := dir * randf_range(2.2, 4.6)
+		# The shard's long axis (+Y) points along its flight.
+		var side := dir.cross(Vector3.UP if absf(dir.y) < 0.98 else Vector3.RIGHT).normalized()
+		shard.global_basis = Basis(side, dir, side.cross(dir)).scaled(shard.scale)
+		var end := pos + dir * reach * randf_range(SHARD_REACH_MIN, SHARD_REACH_MAX)
+		shard.set_meta("end", end)
 		var tw := shard.create_tween()
 		tw.set_parallel(true)
-		tw.tween_property(shard, "global_position", pos + travel, 0.22)
-		tw.tween_property(mat, "albedo_color:a", 0.0, 0.28)
+		tw.tween_property(shard, "global_position", end, SHARD_TIME).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		tw.tween_property(mat, "albedo_color:a", 0.0, SHARD_TIME + 0.08).set_ease(Tween.EASE_IN)
 		tw.chain().tween_callback(shard.queue_free)
+		out.append(shard)
+	return out
+
+
+## A flat ice ring that runs out over the ground to the splash radius and fades.
+static func spawn_shock_ring(scene: Node, pos: Vector3, reach: float) -> MeshInstance3D:
+	var ring := MeshInstance3D.new()
+	ring.mesh = CrystalMesh.ring_mesh(0.86, 1.0, 48)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_color = Color(CrystalStyle.ICE, 0.8)
+	mat.emission_enabled = true
+	mat.emission = CrystalStyle.ICE
+	mat.emission_energy_multiplier = 2.0
+	ring.material_override = mat
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	scene.add_child(ring)
+	ring.global_position = pos + Vector3.UP * 0.05
+	ring.scale = Vector3.ONE * 0.4
+	ring.set_meta("reach", reach)
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector3.ONE * reach, RING_TIME).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
+	tw.tween_property(mat, "albedo_color:a", 0.0, RING_TIME).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(ring.queue_free)
+	return ring
