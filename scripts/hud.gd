@@ -13,13 +13,8 @@ var _pickup_toast_t := 0.0
 var _hurt_flash := 0.0
 var _hp := 100.0
 var _max_hp := 100.0
-var _scoreboard_open := false
-var _scores: Array[Dictionary] = []
 var _local_peer_id := 0
-var _round_end_timer := 0.0
-var _round_end_winner := ""
 var _intermission_timer := 0.0
-var _board_refresh := 0.0
 var _freeze_left := 0.0
 ## Notice line and streak/flag popup: scripts/hud/notice_layer.gd.
 var _notice_layer: HudNotice
@@ -27,7 +22,7 @@ var _sniper_ads := false
 var _sniper_hip := false # sniper in hand and RMB zoom off: draw no crosshair
 var _player: Player # the local pawn from bind_player; crosshair bloom follows it
 var _dmg_dirs: Array[Dictionary] = [] # {pos: Vector3, t: float}: where recent damage came from
-var _standing: Label # FFA: your place and kills under the clock
+var _standing: StandingLine # FFA place / CTF flags under the clock, made on the first refresh
 var _standing_t := 0.0
 
 ## Geometry and palette: shared/hud_layout.gd (one source; check_hud_column compares the scene with it).
@@ -85,19 +80,9 @@ const CTF_STATUS_TOP := HudLayout.CTF_TOP
 const CTF_STATUS_H := HudLayout.CTF_HEIGHT
 const _POPUP_HOSTILE := HudLayout.POPUP_HOSTILE
 const TRICK_COLOR := HudLayout.TRICK
-const _TRICK_HOLD := 1.5
-const _TRICK_FADE := 0.45
-const _TRICK_SFX := preload("res://assets/sounds/trickshot.wav")
-
-var _trick: VBoxContainer # big centred trickshot word for the shooter
-var _trick_title: Label
-var _trick_sub: Label
-var _trick_tween: Tween
-var _trick_sfx: AudioStreamPlayer
-var _style_king: Label # round end, under the winner
-var _winner: PanelContainer # round end: winner card on top of the scoreboard
-var _round_end_peer := 0 # FFA: winner peer; TDM: winning team
-
+## Trick popup (TrickPopup), the Tab board and round-end cards (HudBoard): scripts/hud/.
+var trick: TrickPopup
+var board: HudBoard
 
 
 func _ready() -> void:
@@ -122,8 +107,7 @@ func _ready() -> void:
 	Game.hud_settings_changed.connect(_apply_hud_settings)
 	_apply_hud_settings()
 	death_layer.visible = false
-	scoreboard_container.visible = false
-	scoreboard_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	board = HudBoard.new(scoreboard_container)
 	intermission_label.visible = false
 	if countdown_label:
 		countdown_label.visible = false
@@ -138,7 +122,8 @@ func _ready() -> void:
 	_notice_layer.name = "NoticeLayer"
 	add_child(_notice_layer)
 	_notice_layer.setup(get_node_or_null("Bottom") as VBoxContainer, self)
-	_build_trick_popup()
+	trick = TrickPopup.new()
+	add_child(trick)
 	_chat = HudChat.new(chat_log, chat_input, presence_feed, _name_color)
 	call_deferred("bind_player", null)
 
@@ -312,17 +297,10 @@ func reset_session() -> void:
 	_hide_popup()
 	_hide_notice()
 	_hide_trick()
-	if _style_king:
-		_style_king.visible = false
-	if _winner:
-		_winner.visible = false
+	board.reset()
 	_freeze_left = 0.0
-	_round_end_timer = 0.0
-	_round_end_winner = ""
 	_intermission_timer = 0.0
 	death_layer.visible = false
-	if _winner:
-		_winner.visible = false
 	intermission_label.visible = false
 	if countdown_label:
 		countdown_label.visible = false
@@ -653,36 +631,23 @@ func _on_hit(killed: bool, headshot: bool) -> void:
 
 
 func _on_score_changed(_peer_id: int, _score: int, _n: String) -> void:
-	if _scoreboard_open:
+	if board.open:
 		_refresh_scoreboard()
 
 
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
-	if not Game.is_ffa() and int(a.get("team", 0)) != int(b.get("team", 0)):
-		return int(a.team) < int(b.team)
-	var key := Game.score_word()
-	if int(a.get(key, 0)) == int(b.get(key, 0)):
-		if key == "style" and a.kills != b.kills:
-			return a.kills > b.kills
-		return str(a.name) < str(b.name)
-	return int(a.get(key, 0)) > int(b.get(key, 0))
+	return HudBoard.sort_scores(a, b)
 
 
 func _on_round_ended(winner_peer_id: int, winner_name: String, _scores: Dictionary) -> void:
-	_round_end_timer = 5.0
-	_round_end_winner = winner_name
-	_round_end_peer = winner_peer_id
-	_show_winner(winner_peer_id, winner_name)
-	_show_style_king()
-	_scoreboard_open = true
-	scoreboard_container.visible = true
-	_refresh_scoreboard()
+	board.local_peer_id = _local_peer_id
+	board.round_ended(winner_peer_id, winner_name)
 
 
 ## The final killcam hid the round-end board; show it again for its full time.
 func _on_killcam_finished() -> void:
-	if _round_end_winner != "":
-		_on_round_ended(_round_end_peer, _round_end_winner, {})
+	board.local_peer_id = _local_peer_id
+	board.killcam_finished()
 
 
 func show_intermission() -> void:
@@ -700,221 +665,33 @@ func _on_trick_scored(killer_peer_id: int, tricks: String, points: int, multipli
 
 
 func show_trick(text: String, points: int, multiplier: float) -> void:
-	if _trick == null or text == "":
-		return
-	_trick_title.text = text + "!"
-	# Long combos ("HEADSHOT STREAK + SPRAY TRANSFER + AIRSHOT!") shrink to stay inside the popup.
-	var size := clampi(roundi(58.0 * 44.0 / float(maxi(_trick_title.text.length(), 1))), 34, 58)
-	_trick_title.add_theme_font_size_override("font_size", size)
-	var sub := "+%d STYLE" % points
-	if multiplier > 1.001:
-		sub += "   x%s COMBO" % String.num(multiplier, 2).trim_suffix("0").trim_suffix(".")
-	_trick_sub.text = sub
-	if _trick_tween:
-		_trick_tween.kill()
-	_trick.visible = true
-	_trick.modulate.a = 1.0
-	_trick.pivot_offset = _trick.size * 0.5
-	_trick.scale = Vector2(1.35, 1.35)
-	_trick_tween = _trick.create_tween()
-	_trick_tween.tween_property(_trick, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_trick_tween.tween_interval(_TRICK_HOLD)
-	_trick_tween.tween_property(_trick, "modulate:a", 0.0, _TRICK_FADE)
-	_trick_tween.tween_callback(_hide_trick)
-	if _trick_sfx:
-		_trick_sfx.play()
+	if trick:
+		trick.show_trick(text, points, multiplier)
 
 
 func trick_text() -> String:
-	return _trick_title.text if _trick and _trick.visible else ""
+	return trick.text() if trick else ""
 
 
 func _hide_trick() -> void:
-	if _trick_tween:
-		_trick_tween.kill()
-		_trick_tween = null
-	if _trick:
-		_trick.visible = false
-
-
-func _build_trick_popup() -> void:
-	_trick = VBoxContainer.new()
-	_trick.name = "TrickPopup"
-	_trick.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_trick.anchor_left = 0.5
-	_trick.anchor_right = 0.5
-	_trick.anchor_top = 0.5
-	_trick.anchor_bottom = 0.5
-	_trick.offset_left = -480.0
-	_trick.offset_right = 480.0
-	_trick.offset_top = -250.0
-	_trick.offset_bottom = -140.0
-	_trick.alignment = BoxContainer.ALIGNMENT_CENTER
-	_trick.add_theme_constant_override("separation", 0)
-	_trick.visible = false
-	add_child(_trick)
-	_trick_title = Label.new()
-	_trick_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_trick_title.add_theme_font_size_override("font_size", 58)
-	_trick_title.add_theme_color_override("font_color", TRICK_COLOR)
-	_trick_title.add_theme_color_override("font_outline_color", Color(0.12, 0.05, 0.0, 0.95))
-	_trick_title.add_theme_constant_override("outline_size", 12)
-	_trick_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_trick.add_child(_trick_title)
-	_trick_sub = Label.new()
-	_trick_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_trick_sub.add_theme_font_size_override("font_size", 22)
-	_trick_sub.add_theme_color_override("font_color", Color(1, 0.95, 0.82))
-	_trick_sub.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_trick_sub.add_theme_constant_override("outline_size", 6)
-	_trick_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_trick.add_child(_trick_sub)
-	_trick_sfx = AudioStreamPlayer.new()
-	_trick_sfx.stream = _TRICK_SFX
-	_trick_sfx.bus = "UI"
-	_trick_sfx.volume_db = -3.0
-	add_child(_trick_sfx)
-
-
-## Round end: a compact shard above the scoreboard (never over its header). Small caps line on top,
-## the name under it, the seam under both in the accent. FFA: ice; "YOU WIN" for this machine's
-## player is pale shell. TDM: the team's colour. No winner: no seam.
-func _show_winner(winner_peer_id: int, winner_name: String) -> void:
-	if _winner == null:
-		_winner = PanelContainer.new()
-		_winner.name = "WinnerCard"
-		_winner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_winner.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		_winner.custom_minimum_size = Vector2(340, 0)
-		var v := VBoxContainer.new()
-		v.name = "V"
-		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		v.add_theme_constant_override("separation", 0)
-		_winner.add_child(v)
-		var k := CrystalUi.caption("", 12, CrystalUi.MUTE)
-		k.name = "Kicker"
-		var nm := Label.new()
-		nm.name = "Name"
-		nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		nm.add_theme_font_override("font", CrystalUi.bold_font())
-		nm.add_theme_font_size_override("font_size", 32)
-		for l in [k, nm]:
-			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			v.add_child(l)
-		scoreboard_container.add_child(_winner)
-		scoreboard_container.move_child(_winner, 0)
-	var accent := HUD_ACCENT
-	var kicker := "WINNER"
-	var title := winner_name.to_upper()
-	var pale := false
-	if not Game.is_ffa():
-		accent = Player.team_color(clampi(winner_peer_id, Game.TEAM_A, Game.TEAM_B))
-		kicker = "YOUR TEAM WINS" if Game.local_team() == winner_peer_id else "WINNING TEAM"
-		if Game.is_style_mode():
-			kicker += "  ·  %d STYLE" % Game.team_score(clampi(winner_peer_id, Game.TEAM_A, Game.TEAM_B))
-	elif winner_peer_id != 0 and winner_peer_id == _local_peer_id:
-		kicker = "WINNER"
-		title = "YOU WIN"
-		pale = true
-	elif winner_peer_id == 0:
-		kicker = "ROUND OVER"
-		title = "NO WINNER"
-		accent = Color(0, 0, 0, 0)
-	var side := CrystalStyle.Side.BOTTOM if accent.a > 0.0 else CrystalStyle.Side.NONE
-	var sb := CrystalUi.shard(Vector4(14, 6, 18, 8), 30, pale, side, accent, 1.0, Vector2(30, 8))
-	sb.content_margin_bottom = 12
-	if not pale:
-		sb.fill = ScoreboardView.PANEL
-	_winner.add_theme_stylebox_override("panel", sb)
-	var k := _winner.get_node("V/Kicker") as Label
-	k.text = kicker
-	k.add_theme_color_override("font_color", Color(ScoreboardView.DARK, 0.6) if pale else (accent.lightened(0.2) if accent.a > 0.0 else CrystalUi.MUTE))
-	var nm := _winner.get_node("V/Name") as Label
-	nm.text = title
-	nm.add_theme_color_override("font_color", ScoreboardView.DARK if pale else ScoreboardView.TEXT)
-	_winner.visible = true
-
-
-## Round end, under the winner card: who got the most style this round (FFA and TDM alike). A slim
-## shard with a gold seam: gold is for trick rewards, and this is the round's biggest one.
-func _show_style_king() -> void:
-	var king := Game.style_king()
-	if _style_king == null:
-		_style_king = CrystalUi.caption("", 14, TRICK_COLOR)
-		_style_king.name = "StyleKing"
-		_style_king.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_style_king.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		var sb := CrystalUi.shard(Vector4(8, 3, 10, 4), 31, false, CrystalStyle.Side.BOTTOM, TRICK_COLOR, 1.0, Vector2(22, 6))
-		sb.fill = ScoreboardView.PANEL
-		_style_king.add_theme_stylebox_override("normal", sb)
-		# Lives in the scoreboard, right under the team totals (moved there on every refresh), so it
-		# never overlaps the winner line or the rows at any window size.
-		scoreboard_container.add_child(_style_king)
-	if king.is_empty():
-		_style_king.visible = false
-		return
-	_style_king.text = "STYLE KING  ·  %s  ·  %d STYLE" % [str(king.name).to_upper(), int(king.style)]
-	_style_king.visible = true
+	if trick:
+		trick.hide_trick()
 
 
 func style_king_text() -> String:
-	return _style_king.text if _style_king and _style_king.visible else ""
+	return board.style_king_text()
 
 
-## FFA: "2nd · 7 / 20 kills" (leader 9) under the clock; CTF: captures and flags. Other team modes hide it.
 func _refresh_standing() -> void:
 	if _standing == null:
-		_standing = Label.new()
-		_standing.name = "FfaStanding"
-		_standing.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_standing.anchor_left = 0.5
-		_standing.anchor_right = 0.5
-		_standing.offset_left = -220.0
-		_standing.offset_right = 220.0
-		_standing.offset_top = HudLayout.STANDING_TOP
-		_standing.offset_bottom = HudLayout.STANDING_BOTTOM
-		_standing.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_standing.add_theme_font_size_override("font_size", HudLayout.STANDING_FONT)
-		_standing.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		_standing.add_theme_constant_override("outline_size", 5)
+		_standing = StandingLine.new()
 		add_child(_standing)
-	_standing.visible = (Game.is_ffa() or Game.is_ctf()) and _local_peer_id != 0
-	if not _standing.visible:
-		return
-	_place_standing()
-	if Game.is_ctf(): # #160: captures and both flags instead of the FFA place
-		_standing.text = CtfStatus.line(Game, _local_peer_id)
-		_standing.add_theme_color_override("font_color", Color(0.92, 0.93, 0.95))
-		return
-	var board := Game.get_scores()
-	var place := 0
-	var mine := 0
-	var best := 0
-	for i in board.size():
-		var sc := int(board[i].get(Game.score_word(), 0))
-		best = maxi(best, sc)
-		if int(board[i].peer_id) == _local_peer_id:
-			place = i + 1
-			mine = sc
-	if place == 0:
-		_standing.text = "FREE FOR ALL"
-		return
-	var lead := "  ·  leader %d" % best if place > 1 else ("  ·  leading" if mine > 0 else "")
-	_standing.text = "%s  ·  %d / %d %s%s" % [_ordinal(place), mine, Game.score_limit(), Game.score_word(), lead]
-	if Game.is_gun_game():
-		_standing.text += "  ·  " + GunGame.hud_line(GunGame.level_of(Game, _local_peer_id)) # #148
-	_standing.add_theme_color_override(
-		"font_color", Player.SELF_COLOR if place == 1 and mine > 0 else Color(0.92, 0.93, 0.95)
-	)
+	_standing.refresh(_local_peer_id)
 
 
-## FFA: one line right under the clock. CTF: three lines with a clear gap below the clock; the
-## streak/flag popup then moves under them (see _popup_top), so the two never overlap.
 func _place_standing() -> void:
-	var ctf := Game.is_ctf()
-	_standing.offset_top = HudLayout.CTF_TOP if ctf else HudLayout.STANDING_TOP
-	_standing.offset_bottom = _standing.offset_top + (HudLayout.CTF_HEIGHT if ctf else HudLayout.STANDING_HEIGHT)
-	_standing.add_theme_font_size_override("font_size", HudLayout.CTF_LINE_FONT if ctf else HudLayout.STANDING_FONT)
+	if _standing:
+		_standing.place()
 
 
 ## Top of the streak/flag popup: under the CTF status block in CTF, the usual spot otherwise.
@@ -923,36 +700,16 @@ static func _popup_top() -> float:
 
 
 static func _ordinal(n: int) -> String:
-	var suffix := "th"
-	if n % 100 < 11 or n % 100 > 13:
-		match n % 10:
-			1:
-				suffix = "st"
-			2:
-				suffix = "nd"
-			3:
-				suffix = "rd"
-	return "%d%s" % [n, suffix]
+	return StandingLine.ordinal(n)
 
 
 const SB_MUTED := ScoreboardView.MUTED
 
 
-## Scoreboard building lives in ScoreboardView (scripts/hud/scoreboard_view.gd).
+## The Tab board: HudBoard, built by ScoreboardView.
 func _refresh_scoreboard() -> void:
-	for c in scoreboard_container.get_children():
-		if c != _style_king and c != _winner:
-			c.queue_free()
-	_scores = Game.get_scores()
-	_scores.sort_custom(_sort_scores)
-	var ffa := Game.is_ffa()
-
-	var backdrop := ScoreboardView.build(_scores, ffa, _local_peer_id)
-	scoreboard_container.add_child(backdrop)
-	if _style_king:
-		scoreboard_container.move_child(_style_king, backdrop.get_index())
-	if _winner:
-		scoreboard_container.move_child(_winner, 0)
+	board.local_peer_id = _local_peer_id
+	board.refresh()
 
 
 func _process(delta: float) -> void:
@@ -991,31 +748,9 @@ func _process(delta: float) -> void:
 			if _freeze_left <= 0.0:
 				countdown_label.visible = false
 
-	var tab_pressed := Input.is_key_pressed(KEY_TAB)
-	var want_board := tab_pressed or _round_end_timer > 0.0
-	if want_board != _scoreboard_open:
-		_scoreboard_open = want_board
-		scoreboard_container.visible = _scoreboard_open
-		if _scoreboard_open:
-			_board_refresh = 0.0
-			_refresh_scoreboard()
-	elif _scoreboard_open:
-		_board_refresh += delta
-		if _board_refresh >= 0.45:
-			_board_refresh = 0.0
-			_refresh_scoreboard()
+	board.local_peer_id = _local_peer_id
+	board.tick(delta, Input.is_key_pressed(KEY_TAB))
 
-	if _round_end_timer > 0.0:
-		_round_end_timer -= delta
-		if _round_end_timer <= 0.0:
-			if _style_king:
-				_style_king.visible = false
-			if _winner:
-				_winner.visible = false
-			if not tab_pressed:
-				_scoreboard_open = false
-				scoreboard_container.visible = false
-	
 	if _intermission_timer > 0.0:
 		_intermission_timer -= delta
 		if _intermission_timer <= 0.0:

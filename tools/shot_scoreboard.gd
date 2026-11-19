@@ -24,7 +24,7 @@ func _ready() -> void:
 	hud._local_peer_id = 1
 	hud.set_process(false)
 	await get_tree().process_frame
-	hud._scoreboard_open = true
+	hud.board.open = true
 	hud.scoreboard_container.visible = true
 	hud._refresh_scoreboard()
 	await get_tree().create_timer(0.5).timeout
