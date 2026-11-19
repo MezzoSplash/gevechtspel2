@@ -49,6 +49,12 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #314 the last flat HUD pieces: the death report is a smoke shard with a red (`CrystalUi.DANGER`) top
+  seam and caps head, the streak pips are tiny slanted shards (`Hud.PIP_OFF` / `PIP_MARK`, lit in the
+  accent), and the combo timer is a slim shard whose bottom seam is the time left (`ComboMeter.fill` is
+  that `CrystalStyle`; its `seam_color` is the state: pale, red under `Combo.WARN`, frozen ice). The HUD
+  builds no `StyleBoxFlat` any more; `check_crystal_layout` asserts that over `hud.gd` and
+  `scripts/hud/*.gd`. `tools/shot_hud` renders `/tmp/hud-combo*.png`. No protocol change.
 - #312/#313 crystal scoreboard and class select: the Tab board (`ScoreboardView`) is floating shards - a
   header shard, one panel per team whose top seam is the team colour lit to score / `score_limit()`
   (`ScoreboardView.progress`), a faint shard per row and your own row as pale shell with an ice seam

@@ -20,8 +20,10 @@ const FROZEN_COLOR := Color(0.45, 0.85, 1.0) # #89: surf holds the combo timer
 const LANDED_COLOR := Color(0.45, 0.95, 0.5)
 var total: Label
 var moves_label: Label
-var bar: ProgressBar
-var fill: StyleBoxFlat
+## The timer: a slim smoke shard whose bottom seam is the time left (HANDOFF: on a meter the seam's lit
+## length is the value). `fill` is that shard; its seam colour is the state (pale, red, frozen ice).
+var bar: Panel
+var fill: CrystalStyle
 var _left := 0.0
 var sfx: AudioStreamPlayer
 var _sfx_t := -10.0 # last combo sound (s, ticks)
@@ -57,20 +59,16 @@ func _init() -> void:
 	moves_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	moves_label.add_theme_constant_override("outline_size", 4)
 	add_child(moves_label)
-	bar = ProgressBar.new()
+	bar = Panel.new()
 	bar.name = "Bar"
-	bar.show_percentage = false
-	bar.custom_minimum_size = Vector2(260, 7)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.custom_minimum_size = Vector2(260, 9)
 	bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	bar.max_value = Combo.TIME
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0, 0, 0, 0.55)
-	bg.set_corner_radius_all(3)
-	fill = StyleBoxFlat.new()
-	fill.bg_color = COLOR
-	fill.set_corner_radius_all(3)
-	bar.add_theme_stylebox_override("background", bg)
-	bar.add_theme_stylebox_override("fill", fill)
+	fill = CrystalUi.shard(Vector4(5, 1, 5, 1), 34, false, CrystalStyle.Side.BOTTOM, COLOR, 1.0, Vector2.ZERO)
+	fill.fill = Color(CrystalStyle.SMOKE, 0.55)
+	fill.facet_strength = 0.4
+	fill.edge_alpha = 0.08
+	bar.add_theme_stylebox_override("panel", fill)
 	add_child(bar)
 	visible = false
 
@@ -87,16 +85,17 @@ func on_combo_changed(points: int, multiplier: float, time_left: float, moves: S
 		# #89: surfing holds the timer; the bar stays put until the server sends "build" again.
 		frozen = true
 		_left = time_left
-		bar.value = time_left
+		_set_left(time_left)
 		bar.visible = true
 		total.text = "%d  ×%s" % [points, mult]
 		total.add_theme_color_override("font_color", FROZEN_COLOR)
-		fill.bg_color = FROZEN_COLOR
+		fill.seam_color = FROZEN_COLOR
 		moves_label.text = "%s  ·  SURF: TIMER HELD" % moves if moves != "" else "SURF: TIMER HELD"
 		return
 	frozen = false
 	if state == "build":
-		_left = time_left
+		_set_left(time_left)
+		fill.seam_color = WARN_COLOR if _left <= Combo.WARN else COLOR
 		total.text = "%d  ×%s" % [points, mult]
 		total.add_theme_color_override("font_color", COLOR)
 		moves_label.text = moves
@@ -158,11 +157,15 @@ func _sound(points: int, multiplier: float, moves: String, state: String) -> voi
 func tick(delta: float) -> void:
 	if not bar.visible or _left <= 0.0 or frozen:
 		return
-	_left = maxf(_left - delta, 0.0)
-	bar.value = _left
+	_set_left(maxf(_left - delta, 0.0))
 	var warn := _left <= Combo.WARN
-	fill.bg_color = WARN_COLOR if warn else COLOR
+	fill.seam_color = WARN_COLOR if warn else COLOR
 	total.add_theme_color_override("font_color", WARN_COLOR if warn else COLOR)
+
+
+func _set_left(t: float) -> void:
+	_left = t
+	fill.seam_lit = clampf(t / Combo.TIME, 0.0, 1.0)
 
 
 ## Hides the meter (leave to menu).

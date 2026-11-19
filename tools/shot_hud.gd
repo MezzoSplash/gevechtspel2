@@ -49,6 +49,18 @@ func _ready() -> void:
 		# Crop scales with the real window: a desktop may hand out its own size instead of 1080p.
 		var k := img.get_height() / 1080.0
 		_save(img, "/tmp/hud-speed-%s.png" % shot[2], Rect2i(Vector2i(Vector2(560, 760) * k), Vector2i(Vector2(800, 320) * k)))
+	# Combo meter halfway through its timer (#314: the timer is the shard's seam), then in the red.
+	hud.speed_meter.visible = false
+	hud._on_combo_changed(240, 2.0, Combo.TIME, "WALLRUN > DIVE > ROLL", "build", 0)
+	hud.combo_meter.tick(Combo.TIME * 0.5)
+	img = await _frame()
+	var kc := img.get_height() / 1080.0
+	_save(img, "/tmp/hud-combo.png", Rect2i(Vector2i(Vector2(560, 620) * kc), Vector2i(Vector2(800, 200) * kc)))
+	hud.combo_meter.tick(Combo.TIME * 0.5 - Combo.WARN * 0.5)
+	img = await _frame()
+	_save(img, "/tmp/hud-combo-warn.png", Rect2i(Vector2i(Vector2(560, 620) * kc), Vector2i(Vector2(800, 200) * kc)))
+	hud.combo_meter.reset()
+	hud.speed_meter.visible = true
 	# Kill feed rows: one you are in, two between others, one with a trick tag.
 	hud._local_peer_id = 1
 	hud.kill_feed.add_kill("Bot 2", "Snommel", &"shotgun", 0, 1)

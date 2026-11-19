@@ -71,9 +71,9 @@ func _ready() -> void:
 	Game.combo_move(1, Combo.DIVE)
 	await get_tree().create_timer(Combo.TIME * 0.7).timeout
 	_ok(Combo.active(Game.combo_of(1)), "refreshed by a new move (still alive after 1.4× TIME)")
-	_ok(hud.combo_meter.fill.bg_color != ComboMeter.WARN_COLOR, "bar not red yet")
+	_ok(hud.combo_meter.fill.seam_color != ComboMeter.WARN_COLOR, "bar not red yet")
 	await get_tree().create_timer(Combo.TIME * 0.3 - Combo.WARN * 0.5).timeout
-	_ok(hud.combo_meter.fill.bg_color == ComboMeter.WARN_COLOR, "bar turns red near expiry")
+	_ok(hud.combo_meter.fill.seam_color == ComboMeter.WARN_COLOR, "bar turns red near expiry")
 
 	# Bail on timeout.
 	events.clear()

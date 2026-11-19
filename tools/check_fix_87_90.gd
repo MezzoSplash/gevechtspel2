@@ -109,7 +109,7 @@ func _ready() -> void:
 		await get_tree().process_frame
 	_ok(Combo.active(Game.combo_of(1)), "combo alive after 1.5× TIME of surfing")
 	_ok(events.any(func(ev: Array) -> bool: return ev[4] == "frozen"), "server sent 'frozen'")
-	_ok(hud.combo_meter.frozen and hud.combo_meter.fill.bg_color == ComboMeter.FROZEN_COLOR, "HUD bar shows frozen")
+	_ok(hud.combo_meter.frozen and hud.combo_meter.fill.seam_color == ComboMeter.FROZEN_COLOR, "HUD bar shows frozen")
 	var left := float(Game.combo_of(1).t)
 	_ok(left > Combo.TIME * 0.8, "timer held (%.2f s left)" % left)
 	me._style.in_air = false
