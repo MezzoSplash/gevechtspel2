@@ -118,3 +118,18 @@ static func is_best(best_trick: Dictionary, round_active: bool, bank: int, pts: 
 		return not victim_is_bot # player kill takes it from a bot kill, never the other way round
 	var best_bank := int(best_trick.get("bank", 0))
 	return bank > best_bank or (bank == 0 and best_bank == 0 and pts > int(best_trick.get("pts", 0)))
+
+
+## Every machine (sync_trick / the authority itself): the killer's style total, the replay kept for the
+## final killcam when it is the round's best, the HUD told, and the style win checked on the authority.
+static func apply(g: GameState, killer_peer_id: int, victim_peer_id: int, tricks: String, points: int,
+		multiplier: float, total: int, trick_id: int, is_best: bool) -> void:
+	if g.scores.has(killer_peer_id):
+		g.scores[killer_peer_id].style = maxi(total, 0)
+	if is_best and g.killcam:
+		g.killcam.note_trick(trick_id, victim_peer_id)
+	g.trick_scored.emit(killer_peer_id, tricks, points, multiplier, total)
+	if g._is_match_authority():
+		g._check_style_win(killer_peer_id)
+	if g.scores.has(killer_peer_id):
+		g.score_changed.emit(killer_peer_id, int(g.scores[killer_peer_id].kills), str(g.scores[killer_peer_id].name))

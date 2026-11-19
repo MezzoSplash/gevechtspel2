@@ -176,3 +176,108 @@ static func clear_round_streaks(g: GameState) -> void:
 		humans[me] = true
 	for id in humans:
 		push_streak(g, int(id))
+
+
+## HUD calls Game.request_use_streak. Clients ask the server; clients cannot grant their own UAV.
+static func request_use(g: GameState, slot: int) -> void:
+	if g.is_networked() and not g.multiplayer.is_server():
+		g.request_streak.rpc_id(1, slot)
+	else:
+		var id := g.multiplayer.get_unique_id() if g.is_networked() else 1
+		g.try_activate_streak(id, slot)
+
+
+## Server (rc_drive): only the car's owner steers it. No fallback to the local id: the host drives locally.
+static func rc_drive(g: GameState, net_id: int, yaw_in: float, throttle_in: float) -> void:
+	if not g.multiplayer.is_server():
+		return
+	var car := RcXd.authority_by_id(net_id)
+	if car == null or car.owner_peer != g.multiplayer.get_remote_sender_id():
+		return
+	car.apply_remote_input(yaw_in, throttle_in)
+
+
+## Server (rc_detonate): only the owner, and not while play is locked.
+static func rc_detonate(g: GameState, net_id: int) -> void:
+	if not g.multiplayer.is_server() or g.play_locked():
+		return
+	var car := RcXd.authority_by_id(net_id)
+	if car == null or car.owner_peer != g.multiplayer.get_remote_sender_id():
+		return
+	car.shutdown(true)
+
+
+## Client (sync_rc_pose): a late unreliable pose must not move a car that is already gone.
+static func on_rc_pose(g: GameState, net_id: int, pos: Vector3, yaw_in: float, life_in: float, vel_in: Vector3) -> void:
+	if g.multiplayer.is_server() or g._rc_done.has(net_id):
+		return
+	var car := RcXd.by_id(net_id)
+	if car:
+		car.apply_net_pose(pos, yaw_in, life_in, vel_in)
+
+
+## Client (sync_rc_end): the car ends; with no copy here an explosion still plays its boom.
+static func on_rc_end(g: GameState, net_id: int, pos: Vector3, exploded: bool) -> void:
+	if g.multiplayer.is_server():
+		return
+	g._rc_done[net_id] = true
+	var car := RcXd.by_id(net_id)
+	if car:
+		car.client_end(exploded, pos)
+	elif exploded and not g.is_dedicated:
+		Grenade.play_boom(pos, true)
+
+
+static func on_rc_hp(g: GameState, net_id: int, value: float) -> void:
+	if g.multiplayer.is_server():
+		return
+	var car := RcXd.by_id(net_id)
+	if car:
+		car.apply_hp(value)
+
+
+## Same popup split as the radar: your team sees RC-XD, the other team sees ENEMY RC-XD.
+static func announce_rc(g: GameState, peer_id: int, team: int) -> void:
+	var by := g._display_name_for(peer_id)
+	if g.scores.has(peer_id):
+		by = str(g.scores[peer_id].name)
+	if g.is_networked():
+		g.sync_rc_announce.rpc(team, by, peer_id)
+	show_rc_announce(g, team, by, peer_id)
+
+
+## FFA: only the driver's own machine sees it as friendly.
+static func show_rc_announce(g: GameState, team: int, by_name: String, by_peer: int) -> void:
+	var mine := g.local_team()
+	if mine < 0:
+		return
+	var hud := g.get_tree().get_first_node_in_group("hud") as Hud
+	if hud == null:
+		return
+	var friendly := team == mine
+	if g.is_ffa():
+		friendly = by_peer == g.multiplayer.get_unique_id()
+	hud.show_rc_event(by_name, team, friendly)
+
+
+## Authority: drone `d` reached 0 HP from `shooter_peer`. Kill feed, notice, early radar end everywhere.
+static func uav_shot_down(g: GameState, d: UavDrone, shooter_peer: int, shooter_team: int, weapon_id: StringName) -> void:
+	var shooter := g._display_name_for(shooter_peer)
+	if g.scores.has(shooter_peer):
+		shooter = str(g.scores[shooter_peer].name)
+	g._emit_kill_feed(shooter, "UAV", weapon_id, shooter_team, d.team, "")
+	if g.is_networked():
+		g.sync_kill_feed.rpc(shooter, "UAV", String(weapon_id), shooter_team, d.team, "")
+		g.sync_uav_end.rpc(d.net_id, d.team, d.owner_peer, shooter_peer)
+	uav_end(g, d.net_id, d.team, d.owner_peer, shooter_peer)
+
+
+## Every machine: the drone falls, the radar stops early, and the shooter gets the notice.
+static func uav_end(g: GameState, id: int, team: int, owner_peer: int, shooter_peer: int) -> void:
+	var d := UavDrone.by_id(id)
+	if d:
+		d.shoot_down()
+	uav_down(g, team, owner_peer)
+	var hud := g.get_tree().get_first_node_in_group("hud") as Hud
+	if hud and shooter_peer == g.multiplayer.get_unique_id():
+		hud.show_notice("UAV neergeschoten", 2.5)

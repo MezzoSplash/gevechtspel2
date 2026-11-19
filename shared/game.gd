@@ -1009,21 +1009,13 @@ func try_activate_streak(peer_id: int, slot: int) -> void:
 
 ## HUD calls this. Clients cannot grant their own UAV.
 func request_use_streak(slot: int) -> void:
-	if is_networked() and not multiplayer.is_server():
-		request_streak.rpc_id(1, slot)
-	else:
-		var id := multiplayer.get_unique_id() if is_networked() else 1
-		try_activate_streak(id, slot)
+	Streaks.request_use(self, slot)
 
 
 @rpc("any_peer", "call_remote", "reliable", 1)
 func request_streak(slot: int) -> void:
-	if not multiplayer.is_server():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	if peer == 0:
-		peer = multiplayer.get_unique_id()
-	try_activate_streak(peer, slot)
+	if multiplayer.is_server():
+		try_activate_streak(Lobby.sender(self), slot)
 
 
 func next_rc_id() -> int:
@@ -1038,24 +1030,12 @@ func mark_rc_done(net_id: int) -> void:
 ## Driver's aim (where the car should head; it turns toward it) and throttle. The server car is the one that explodes.
 @rpc("any_peer", "call_remote", "unreliable", 1)
 func rc_drive(net_id: int, yaw_in: float, throttle_in: float) -> void:
-	if not multiplayer.is_server():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	var car := RcXd.authority_by_id(net_id)
-	if car == null or car.owner_peer != peer:
-		return
-	car.apply_remote_input(yaw_in, throttle_in)
+	Streaks.rc_drive(self, net_id, yaw_in, throttle_in)
 
 
 @rpc("any_peer", "call_remote", "reliable", 1)
 func rc_detonate(net_id: int) -> void:
-	if not multiplayer.is_server() or play_locked():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	var car := RcXd.authority_by_id(net_id)
-	if car == null or car.owner_peer != peer:
-		return
-	car.shutdown(true)
+	Streaks.rc_detonate(self, net_id)
 
 
 ## Blast push for one player, sent to the machine that simulates that pawn.
@@ -1084,32 +1064,17 @@ func sync_rc_spawn(net_id: int, peer: int, team: int, pos: Vector3, yaw_in: floa
 
 @rpc("authority", "call_remote", "unreliable", 1)
 func sync_rc_pose(net_id: int, pos: Vector3, yaw_in: float, life_in: float, vel_in: Vector3) -> void:
-	if multiplayer.is_server() or _rc_done.has(net_id):
-		return
-	var car := RcXd.by_id(net_id)
-	if car:
-		car.apply_net_pose(pos, yaw_in, life_in, vel_in)
+	Streaks.on_rc_pose(self, net_id, pos, yaw_in, life_in, vel_in)
 
 
 @rpc("authority", "call_remote", "reliable", 1)
 func sync_rc_end(net_id: int, pos: Vector3, exploded: bool) -> void:
-	if multiplayer.is_server():
-		return
-	_rc_done[net_id] = true
-	var car := RcXd.by_id(net_id)
-	if car:
-		car.client_end(exploded, pos)
-	elif exploded and not is_dedicated:
-		Grenade.play_boom(pos, true)
+	Streaks.on_rc_end(self, net_id, pos, exploded)
 
 
 @rpc("authority", "call_remote", "reliable", 1)
 func sync_rc_hp(net_id: int, value: float) -> void:
-	if multiplayer.is_server():
-		return
-	var car := RcXd.by_id(net_id)
-	if car:
-		car.apply_hp(value)
+	Streaks.on_rc_hp(self, net_id, value)
 
 
 ## LOS hands. The server spawns them; everyone else builds a visual. Poses are unreliable on purpose:
@@ -1162,12 +1127,7 @@ func los_recall() -> void:
 
 ## Same popup split as the radar: your team sees RC-XD, the other team sees ENEMY RC-XD.
 func announce_rc(peer_id: int, team: int) -> void:
-	var by := _display_name_for(peer_id)
-	if scores.has(peer_id):
-		by = str(scores[peer_id].name)
-	if is_networked():
-		sync_rc_announce.rpc(team, by, peer_id)
-	_apply_rc_announce(team, by, peer_id)
+	Streaks.announce_rc(self, peer_id, team)
 
 
 @rpc("authority", "call_remote", "reliable", 2)
@@ -1178,16 +1138,7 @@ func sync_rc_announce(team: int, by_name: String, by_peer: int) -> void:
 
 
 func _apply_rc_announce(team: int, by_name: String, by_peer: int) -> void:
-	var mine := local_team()
-	if mine < 0:
-		return
-	var hud := get_tree().get_first_node_in_group("hud") as Hud
-	if hud == null:
-		return
-	var friendly := team == mine
-	if is_ffa():
-		friendly = by_peer == multiplayer.get_unique_id()
-	hud.show_rc_event(by_name, team, friendly)
+	Streaks.show_rc_announce(self, team, by_name, by_peer)
 
 
 func _grant_radar(peer_id: int) -> void:
@@ -1203,14 +1154,7 @@ func sync_uav_spawn(id: int, team: int, peer: int, c: Vector3, r: float, h: floa
 
 ## Authority: drone `d` reached 0 HP from `shooter_peer`. Kill feed, notice, early radar end everywhere.
 func uav_shot_down(d: UavDrone, shooter_peer: int, shooter_team: int, weapon_id: StringName) -> void:
-	var shooter := _display_name_for(shooter_peer)
-	if scores.has(shooter_peer):
-		shooter = str(scores[shooter_peer].name)
-	_emit_kill_feed(shooter, "UAV", weapon_id, shooter_team, d.team, "")
-	if is_networked():
-		sync_kill_feed.rpc(shooter, "UAV", String(weapon_id), shooter_team, d.team, "")
-		sync_uav_end.rpc(d.net_id, d.team, d.owner_peer, shooter_peer)
-	_uav_end(d.net_id, d.team, d.owner_peer, shooter_peer)
+	Streaks.uav_shot_down(self, d, shooter_peer, shooter_team, weapon_id)
 
 
 @rpc("authority", "call_remote", "reliable", 2)
@@ -1221,13 +1165,7 @@ func sync_uav_end(id: int, team: int, owner_peer: int, shooter_peer: int) -> voi
 
 
 func _uav_end(id: int, team: int, owner_peer: int, shooter_peer: int) -> void:
-	var d := UavDrone.by_id(id)
-	if d:
-		d.shoot_down()
-	Streaks.uav_down(self, team, owner_peer)
-	var hud := get_tree().get_first_node_in_group("hud") as Hud
-	if hud and shooter_peer == multiplayer.get_unique_id():
-		hud.show_notice("UAV neergeschoten", 2.5)
+	Streaks.uav_end(self, id, team, owner_peer, shooter_peer)
 
 
 @rpc("authority", "call_remote", "reliable", 2)
@@ -1293,25 +1231,13 @@ func _apply_trick(
 	killer_peer_id: int, victim_peer_id: int, tricks: String, points: int, multiplier: float, total: int,
 	trick_id: int, is_best: bool
 ) -> void:
-	if scores.has(killer_peer_id):
-		scores[killer_peer_id].style = maxi(total, 0)
-	if is_best and killcam:
-		killcam.note_trick(trick_id, victim_peer_id)
-	trick_scored.emit(killer_peer_id, tricks, points, multiplier, total)
-	if _is_match_authority():
-		_check_style_win(killer_peer_id)
-	if scores.has(killer_peer_id):
-		score_changed.emit(killer_peer_id, int(scores[killer_peer_id].kills), str(scores[killer_peer_id].name))
+	Tricks.apply(self, killer_peer_id, victim_peer_id, tricks, points, multiplier, total, trick_id, is_best)
 
 
 ## What the final killcam replays: the round's best trickshot if there was one (with the last kill as
 ## fallback for machines that have no replay of it), else the last kill.
 func killcam_pick() -> Dictionary:
-	if best_trick.is_empty():
-		return final_kill
-	var info := best_trick.duplicate()
-	info["fallback"] = final_kill.duplicate()
-	return info
+	return MatchFlow.killcam_pick(self)
 
 
 func style_king() -> Dictionary:
@@ -1339,14 +1265,7 @@ func _combo_end(peer_id: int, state: String, banked: int) -> void:
 
 ## #160: authority runs the flags; clients only count the dropped-flag timer down for the HUD.
 func _tick_ctf(delta: float) -> void:
-	if not is_ctf():
-		return
-	if _is_match_authority():
-		CTF.tick(self, delta)
-		return
-	for f in flags:
-		if int(f.state) == Objective.DROPPED:
-			f.drop_t = maxf(float(f.drop_t) - delta, 0.0)
+	CTF.tick_any(self, delta)
 
 
 func _tick_combos(delta: float) -> void:
@@ -1408,16 +1327,7 @@ func sync_round_time(time_left: float) -> void:
 
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_all_scores(scores_data: Array) -> void:
-	for entry in scores_data:
-		if typeof(entry) != TYPE_DICTIONARY:
-			continue
-		var pid: int = int(entry.peer_id)
-		var n: String = str(entry.name)
-		var kills: int = int(entry.kills)
-		var team: int = int(entry.get("team", 0))
-		_apply_score(pid, kills, n, team)
-		scores[pid].style = maxi(int(entry.get("style", 0)), 0)
-		scores[pid].deaths = maxi(int(entry.get("deaths", 0)), 0)
+	MatchFlow.apply_all_scores(self, scores_data)
 
 
 func _check_win_team(team_id: int) -> void:
@@ -1452,15 +1362,7 @@ func sync_intermission() -> void:
 
 
 func set_round_frozen(on: bool) -> void:
-	round_frozen = on
-	if on:
-		clear_radar()
-	round_freeze_changed.emit(on)
-	if on:
-		play_round_sting()
-		play_tension(false) # intermission over, countdown starts: build-up cue for everyone
-	else:
-		stop_round_sting()
+	MatchFlow.apply_freeze(self, on)
 	if is_networked() and multiplayer.is_server():
 		sync_round_frozen.rpc(on)
 
@@ -1469,16 +1371,9 @@ func set_round_frozen(on: bool) -> void:
 func sync_round_frozen(on: bool) -> void:
 	if multiplayer.is_server():
 		return
-	round_frozen = on
 	if on:
 		_round_active = false
-		clear_radar()
-	round_freeze_changed.emit(on)
-	if on:
-		play_round_sting()
-		play_tension(false) # intermission over, countdown starts: build-up cue for everyone
-	else:
-		stop_round_sting()
+	MatchFlow.apply_freeze(self, on)
 
 
 func play_round_sting() -> void:
@@ -1558,14 +1453,7 @@ func get_scores() -> Array[Dictionary]:
 
 
 func _sort_scores(a: Dictionary, b: Dictionary) -> bool:
-	if not is_ffa() and int(a.get("team", 0)) != int(b.get("team", 0)):
-		return int(a.team) < int(b.team)
-	var key := score_word()
-	if int(a.get(key, 0)) == int(b.get(key, 0)):
-		if key == "style" and a.kills != b.kills:
-			return a.kills > b.kills
-		return str(a.name) < str(b.name)
-	return int(a.get(key, 0)) > int(b.get(key, 0))
+	return MatchRules.sort_scores(self, a, b)
 
 
 func get_round_time_left() -> float:
@@ -1636,17 +1524,7 @@ func _physics_process(delta: float) -> void:
 	if _ping_accum >= 0.45:
 		_ping_accum = 0.0
 		_sample_pings()
-	if multiplayer.get_peers().is_empty():
-		return
-	var poses: Array = []
-	for n in get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p == null or not p.is_bot:
-			continue
-		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx])
-	if poses.is_empty():
-		return
-	sync_bot_poses.rpc(poses)
+	MatchFlow.push_bot_poses(self)
 
 
 func _tick_regen(delta: float) -> void:
@@ -1655,26 +1533,14 @@ func _tick_regen(delta: float) -> void:
 
 @rpc("authority", "call_remote", "reliable", 1)
 func sync_regen(batch: Array) -> void:
-	if multiplayer.is_server():
-		return
-	for entry in batch:
-		if typeof(entry) != TYPE_ARRAY or entry.size() < 2:
-			continue
-		var p := player_for_peer(int(entry[0]))
-		if p:
-			p.apply_regen_hp(clampf(float(entry[1]), 0.0, Player.MAX_HP))
+	if not multiplayer.is_server():
+		MatchFlow.apply_regen(self, batch)
 
 
 @rpc("authority", "call_remote", "unreliable", 2)
 func sync_bot_poses(poses: Array) -> void:
-	if multiplayer.is_server():
-		return
-	for entry in poses:
-		if typeof(entry) != TYPE_ARRAY or entry.size() < 4:
-			continue
-		var p := player_for_peer(int(entry[0]))
-		if p and p.is_bot:
-			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), entry.slice(4, 6))
+	if not multiplayer.is_server():
+		MatchFlow.apply_bot_poses(self, poses)
 
 
 ## Local human switched guns. Everyone needs the same def: sound, viewmodel, kill feed, server checks.
@@ -1699,12 +1565,7 @@ func sync_flags(packed: Array, caps_a: int, caps_b: int) -> void:
 
 
 func _apply_flags(packed: Array, caps_a: int, caps_b: int) -> void:
-	if flags.size() != 2:
-		CTF.setup(self)
-	for t in mini(packed.size(), 2):
-		Objective.unpack(flags[t], packed[t])
-	ctf_caps = [caps_a, caps_b]
-	flags_changed.emit()
+	CTF.apply_flags(self, packed, caps_a, caps_b)
 
 
 ## #160: a flag event for the HUD/killfeed: kind is taken / dropped / returned / captured.
@@ -1775,17 +1636,8 @@ func broadcast_roster() -> void:
 ## Client deletes pawns the server no longer has (ghost bots after join-replace).
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_roster(ids: Array) -> void:
-	if multiplayer.is_server():
-		return
-	var valid := {}
-	for id in ids:
-		valid[int(id)] = true
-	for n in get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p == null or p.is_local() or p.is_queued_for_deletion():
-			continue
-		if not valid.has(p.peer_id):
-			p.queue_free()
+	if not multiplayer.is_server():
+		MatchFlow.apply_roster(self, ids)
 
 
 func _ready() -> void:

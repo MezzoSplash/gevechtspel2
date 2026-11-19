@@ -152,3 +152,26 @@ static func status_text(g: Node, team: int) -> String:
 		Objective.DROPPED:
 			return "%s FLAG: DROPPED %ds" % [TEAM_NAMES[team], ceili(float(f.drop_t))]
 	return "%s FLAG: HOME" % TEAM_NAMES[team]
+
+
+## Every machine, every physics tick in CTF: the authority runs the flags; clients only count the
+## dropped-flag timer down for the HUD.
+static func tick_any(g: Node, delta: float) -> void:
+	if not g.is_ctf():
+		return
+	if g._is_match_authority():
+		tick(g, delta)
+		return
+	for f in g.flags:
+		if int(f.state) == Objective.DROPPED:
+			f.drop_t = maxf(float(f.drop_t) - delta, 0.0)
+
+
+## Client (sync_flags): both flags and the capture score.
+static func apply_flags(g: Node, packed: Array, caps_a: int, caps_b: int) -> void:
+	if g.flags.size() != 2:
+		setup(g)
+	for t in mini(packed.size(), 2):
+		Objective.unpack(g.flags[t], packed[t])
+	g.ctf_caps = [caps_a, caps_b]
+	g.flags_changed.emit()

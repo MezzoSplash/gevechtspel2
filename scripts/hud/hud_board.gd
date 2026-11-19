@@ -25,16 +25,9 @@ func _init(board: VBoxContainer) -> void:
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
-## Team modes: team first; then the mode's score, style ties broken on kills, then the name.
+## The scoreboard order: MatchRules.sort_scores, the same one Game.get_scores uses.
 static func sort_scores(a: Dictionary, b: Dictionary) -> bool:
-	if not Game.is_ffa() and int(a.get("team", 0)) != int(b.get("team", 0)):
-		return int(a.team) < int(b.team)
-	var key := Game.score_word()
-	if int(a.get(key, 0)) == int(b.get(key, 0)):
-		if key == "style" and a.kills != b.kills:
-			return a.kills > b.kills
-		return str(a.name) < str(b.name)
-	return int(a.get(key, 0)) > int(b.get(key, 0))
+	return MatchRules.sort_scores(Game, a, b)
 
 
 ## Rebuilds the board, keeping the winner card on top and the style king under the totals.

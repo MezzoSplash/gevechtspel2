@@ -321,3 +321,86 @@ static func broadcast_roster(game: GameState) -> void:
 	if not game.is_networked() or not game.multiplayer.is_server():
 		return
 	game.sync_roster.rpc(live_peer_ids(game))
+
+
+## The final killcam's clip: the round's best trickshot (with the last kill as the fallback for machines
+## that have no replay of it), else the last kill.
+static func killcam_pick(g: GameState) -> Dictionary:
+	if g.best_trick.is_empty():
+		return g.final_kill
+	var info := g.best_trick.duplicate()
+	info["fallback"] = g.final_kill.duplicate()
+	return info
+
+
+## Client (sync_all_scores): every row, with style and deaths clamped at 0.
+static func apply_all_scores(g: GameState, scores_data: Array) -> void:
+	for entry in scores_data:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var pid: int = int(entry.peer_id)
+		g._apply_score(pid, int(entry.kills), str(entry.name), int(entry.get("team", 0)))
+		g.scores[pid].style = maxi(int(entry.get("style", 0)), 0)
+		g.scores[pid].deaths = maxi(int(entry.get("deaths", 0)), 0)
+
+
+## Every machine: the round freeze went on or off. On clears the radar and plays the sting and the
+## build-up cue (intermission over, countdown starts); off stops the sting.
+static func apply_freeze(g: GameState, on: bool) -> void:
+	g.round_frozen = on
+	if on:
+		g.clear_radar()
+	g.round_freeze_changed.emit(on)
+	if on:
+		g.play_round_sting()
+		g.play_tension(false)
+	else:
+		g.stop_round_sting()
+
+
+## Client (sync_regen): [peer_id, hp] pairs.
+static func apply_regen(g: GameState, batch: Array) -> void:
+	for entry in batch:
+		if typeof(entry) != TYPE_ARRAY or entry.size() < 2:
+			continue
+		var p := g.player_for_peer(int(entry[0]))
+		if p:
+			p.apply_regen_hp(clampf(float(entry[1]), 0.0, Player.MAX_HP))
+
+
+## Listen server: bots have MultiplayerSynchronizer off, so their poses go out from here each tick.
+static func push_bot_poses(g: GameState) -> void:
+	if g.multiplayer.get_peers().is_empty():
+		return
+	var poses: Array = []
+	for n in g.get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p == null or not p.is_bot:
+			continue
+		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx])
+	if poses.is_empty():
+		return
+	g.sync_bot_poses.rpc(poses)
+
+
+## Client (sync_bot_poses): [peer_id, pos, yaw, pitch, crouch, move_fx] per bot.
+static func apply_bot_poses(g: GameState, poses: Array) -> void:
+	for entry in poses:
+		if typeof(entry) != TYPE_ARRAY or entry.size() < 4:
+			continue
+		var p := g.player_for_peer(int(entry[0]))
+		if p and p.is_bot:
+			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), entry.slice(4, 6))
+
+
+## Client (sync_roster): remote pawns the server no longer has are removed.
+static func apply_roster(g: GameState, ids: Array) -> void:
+	var valid := {}
+	for id in ids:
+		valid[int(id)] = true
+	for n in g.get_tree().get_nodes_in_group("player"):
+		var p := n as Player
+		if p == null or p.is_local() or p.is_queued_for_deletion():
+			continue
+		if not valid.has(p.peer_id):
+			p.queue_free()

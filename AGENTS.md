@@ -49,6 +49,16 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #316 slice 3 (game.gd split): streaks, rounds and scores. `Streaks` has `request_use`, the RC-XD RPC bodies
+  (`rc_drive`, `rc_detonate`, `on_rc_pose`, `on_rc_end`, `on_rc_hp`; drive and detonate keep their
+  owner-only sender rule), `announce_rc` / `show_rc_announce`, `uav_shot_down` and `uav_end`. `MatchFlow` has
+  `killcam_pick`, `apply_all_scores`, `apply_freeze` (one body for `set_round_frozen` and
+  `sync_round_frozen`, which were two copies), `apply_regen`, `push_bot_poses` / `apply_bot_poses` and
+  `apply_roster`; `Tricks.apply` is `_apply_trick`, `CTF.tick_any` / `apply_flags` are `_tick_ctf` /
+  `_apply_flags`. The score order is `MatchRules.sort_scores`, one source: `Game._sort_scores` and
+  `HudBoard.sort_scores` were two copies and now both call it. game.gd ~2210 -> ~2060 lines. Checks: the
+  suite, `tools/net_grenade.sh` and `check_death_report -- --net` (a client in an 8-bot match, no script
+  errors on either side). No behaviour or protocol change.
 - #316 slice 2 (game.gd split): the shot path and the throwables' RPC bodies left Game. `Combat` has
   `request_fire` (the server side of `request_weapon_fire`: class, freeze, fire-rate and origin checks, lag
   rewind, tracer and hit marker), `on_shot_fx`, `announce_weapon`, `request_switch`, `on_weapon_sync`,
