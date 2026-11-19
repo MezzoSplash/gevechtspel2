@@ -49,6 +49,15 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #316 slice 1 (game.gd split): the bot difficulty table is `BotProfiles` (`shared/bot_profiles.gd`: `EASY..HARD`,
+  `IDS`, `NAMES`, `PROFILES`, `profile`, `parse`); Game's `BOT_*` names are aliases of it. The lobby RPC bodies
+  (`submit_display_name`, `apply_display_name`, `submit_chat`, `request_lobby_team`) and `set_player_name`
+  are `Lobby.submit_name` / `apply_name` / `submit_chat` / `request_team` / `set_player_name` (`Lobby.sender`
+  is the peer whose RPC runs); the settings entry points (`remember_match_choice`, `set_colorblind`,
+  `should_relaunch`, `relaunch_with_renderer`, `set_perf_overlay`, `_apply_fov_now`, `remember_server`,
+  `add_favorite`, `remove_favorite`) are in `GameSettings`. The RPCs and names stay on Game.
+  game.gd 2504 -> ~2360 lines. Check: `tools/check_game_helpers` (new; also green on the code before the
+  move). No behaviour or protocol change.
 - #315 slice 4 (hud.gd split, the last): everything `Hud._draw` drew is `HudOverlay`, a full-rect Control that
   is the HUD's first child, so it draws under every other node as before - crosshair (gap from spread and
   `fire_punch`, none on sniper hip), LOS bar, hurt vignette (`HURT_TIME`), damage wedges (`DMG_*`, static

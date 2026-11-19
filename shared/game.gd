@@ -15,7 +15,8 @@ extends Node
 ##   shared/streaks.gd       UAV / RC-XD scorestreaks and the radar
 ##   shared/throwables.gd    frag grenades and throwing knives
 ##   shared/lobby.gd         names, participants, lobby roster, join notices, chat
-##   shared/game_settings.gd settings file, window, resolution, render
+##   shared/game_settings.gd settings file, window, resolution, render, server list, menu choices
+##   shared/bot_profiles.gd  bot difficulty table and parsing
 ##   shared/keybinds.gd      key and mouse bindings
 ## A helper takes the autoload as its first argument (`game: GameState`) and never declares RPCs.
 
@@ -187,45 +188,24 @@ var last_bots := BOT_COUNT_DEFAULT
 ## Menu: bots on your own side and bots on the other side (team modes). -1 = not chosen (FFA).
 var last_bot_allies := BOT_ALLIES_DEFAULT
 var last_bot_enemies := BOT_ENEMIES_DEFAULT
-## #90 bot difficulty (server/offline only; bots run there). HARD is how bots played up to v0.4.1.
-const BOT_EASY := 0
-const BOT_MEDIUM := 1
-const BOT_HARD := 2
-const BOT_DIFFICULTY_IDS := ["easy", "medium", "hard"]
-const BOT_DIFFICULTY_NAMES := ["Easy", "Medium", "Hard"]
-## acquire: s before the first shot on a new target; wobble: × aim hand size; track: aim catch-up (1/s);
-## pause: × pause between bursts; nade: × grenade cooldown; streak: s before using an earned streak.
-## Awareness: omni: knows where every enemy is, through walls (how bots played up to now; Hard keeps it).
-## Without it a bot only knows an enemy it has seen (or been shot by, or heard fire within `hear` metres)
-## and walks to the last place it knew them for `memory` seconds, then patrols the navmesh.
-## cover (#269): an empty gun is reloaded out of sight. Easy and Medium reload where they stand.
-## trick (#278): chance, per wall met on the way, that a bot jumps onto a wallrun wall (BotWall).
-const BOT_PROFILES := [
-	{"acquire": 0.75, "wobble": 2.3, "track": 5.0, "pause": 1.9, "nade": 2.5, "streak": 6.0,
-		"omni": false, "memory": 4.0, "hear": 10.0, "cover": false, "trick": 0.0},
-	{"acquire": 0.48, "wobble": 1.6, "track": 8.5, "pause": 1.4, "nade": 1.6, "streak": 3.0,
-		"omni": false, "memory": 8.0, "hear": 22.0, "cover": false, "trick": 0.3},
-	{"acquire": 0.28, "wobble": 1.0, "track": 14.0, "pause": 1.0, "nade": 1.0, "streak": 1.2,
-		"omni": true, "memory": 0.0, "hear": 0.0, "cover": true, "trick": 0.7},
-]
+## #90 bot difficulty: the table is shared/bot_profiles.gd (one source); these names stay for callers.
+const BOT_EASY := BotProfiles.EASY
+const BOT_MEDIUM := BotProfiles.MEDIUM
+const BOT_HARD := BotProfiles.HARD
+const BOT_DIFFICULTY_IDS := BotProfiles.IDS
+const BOT_DIFFICULTY_NAMES := BotProfiles.NAMES
+const BOT_PROFILES := BotProfiles.PROFILES
 var bot_difficulty := BOT_MEDIUM
 var last_bot_difficulty := BOT_MEDIUM
 
 
 func bot_profile() -> Dictionary:
-	return BOT_PROFILES[clampi(bot_difficulty, BOT_EASY, BOT_HARD)]
+	return BotProfiles.profile(bot_difficulty)
 
 
 ## "easy" / "e" / "0" → BOT_EASY ... Unknown → -1.
 static func parse_bot_difficulty(raw: String) -> int:
-	var s := raw.strip_edges().to_lower()
-	if s in ["easy", "e", "0"]:
-		return BOT_EASY
-	if s in ["medium", "normal", "m", "1"]:
-		return BOT_MEDIUM
-	if s in ["hard", "h", "2"]:
-		return BOT_HARD
-	return -1
+	return BotProfiles.parse(raw)
 var kill_limit := WIN_KILLS # this match: TDM team total, FFA personal
 var round_time := ROUND_TIME # this match, seconds
 var bot_count := BOT_COUNT_DEFAULT # this match: how many bot pawns to keep (FFA: the only number)
@@ -941,19 +921,7 @@ func notify_hit(killed: bool, headshot: bool) -> void:
 
 @rpc("any_peer", "call_remote", "reliable", 0)
 func submit_display_name(n: String, team: int = -1) -> void:
-	if not multiplayer.is_server():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	if peer == 0:
-		peer = multiplayer.get_unique_id()
-	n = unique_name(peer, n)
-	pending_names[peer] = n
-	if team == TEAM_A or team == TEAM_B:
-		pending_teams[peer] = team
-	if in_lobby:
-		set_lobby_member(peer, n, int(pending_teams.get(peer, preferred_team)))
-		return
-	apply_display_name.rpc(peer, n)
+	Lobby.submit_name(self, n, team)
 
 
 ## Also writes the scoreboard name. Spawn often happens before the client's name RPC, but on a
@@ -962,16 +930,7 @@ func submit_display_name(n: String, team: int = -1) -> void:
 ## register_participant corrects the team again when the pawn spawns.
 @rpc("authority", "call_local", "reliable", 0)
 func apply_display_name(peer_id: int, n: String) -> void:
-	var p := player_for_peer(peer_id)
-	var team := int(pending_teams.get(peer_id, 0))
-	var kills := 0
-	if scores.has(peer_id):
-		kills = int(scores[peer_id].kills)
-		team = int(scores[peer_id].get("team", team))
-	if p:
-		p.set_display_name(n)
-		team = p.team_id
-	_apply_score(peer_id, kills, n, team)
+	Lobby.apply_name(self, peer_id, n)
 
 
 ## `from_pos`: where the damage came from (shooter, melee attacker, grenade blast) for the
@@ -1052,17 +1011,7 @@ func _relay_chat(peer_id: int, text: String) -> void:
 ## Client → server. Strip/cap here again in case of a bad peer.
 @rpc("any_peer", "call_remote", "reliable", 2)
 func submit_chat(text: String) -> void:
-	if not multiplayer.is_server():
-		return
-	text = text.strip_edges()
-	if text.length() > CHAT_MAX:
-		text = text.substr(0, CHAT_MAX)
-	if text == "":
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	if peer == 0:
-		peer = multiplayer.get_unique_id()
-	_relay_chat(peer, text)
+	Lobby.submit_chat(self, text)
 
 
 ## call_local so the listen-server HUD sees the line too.
@@ -1097,16 +1046,7 @@ func sync_lobby(data: Dictionary) -> void:
 
 @rpc("any_peer", "call_remote", "reliable", 0)
 func request_lobby_team(team: int) -> void:
-	if not multiplayer.is_server() or not in_lobby:
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	if peer == 0:
-		peer = multiplayer.get_unique_id()
-	if not lobby.has(peer):
-		return
-	lobby[peer].team = clampi(team, TEAM_A, TEAM_B)
-	pending_teams[peer] = int(lobby[peer].team)
-	_push_lobby()
+	Lobby.request_team(self, team)
 
 
 @rpc("authority", "call_local", "reliable", 0)
@@ -2077,14 +2017,7 @@ func save_settings() -> void:
 ## A trailing space is stripped here but the focused field keeps it until blur, so "Bob Smith" can be typed.
 ## `--name` must assign `player_name` directly so a one-off launch does not overwrite the file.
 func set_player_name(n: String) -> void:
-	var cleaned := clean_name(n)
-	if cleaned == player_name:
-		return
-	player_name = cleaned
-	profile_name = cleaned
-	save_settings()
-	_push_live_name()
-	local_name_changed.emit(player_name)
+	Lobby.set_player_name(self, n)
 
 
 ## Scoreboard and lobby follow the profile name: see Lobby.push_live_name.
@@ -2116,21 +2049,7 @@ func set_invert_y(on: bool) -> void:
 ## Menu choice for solo/host, remembered for next time.
 func remember_match_choice(m: StringName, md: int, kills: int = -1, time_min: int = -1, bots: int = -1, skill: int = -1,
 		allies: int = -1, enemies: int = -1) -> void:
-	last_map = m
-	if skill >= 0:
-		last_bot_difficulty = clampi(skill, BOT_EASY, BOT_HARD)
-		bot_difficulty = last_bot_difficulty
-	last_mode = md
-	if kills >= 0:
-		last_kills = clampi(kills, KILLS_MIN, KILLS_MAX)
-	if time_min >= 0:
-		last_time_min = clampi(time_min, TIME_MIN_MINUTES, TIME_MAX_MINUTES)
-	if allies >= 0 and enemies >= 0:
-		last_bot_allies = clampi(allies, 0, BOT_COUNT_MAX)
-		last_bot_enemies = clampi(enemies, 0, BOT_COUNT_MAX)
-	if bots >= 0:
-		last_bots = clampi(bots, 0, BOT_COUNT_MAX)
-	save_settings()
+	GameSettings.remember_match_choice(self, m, md, kills, time_min, bots, skill, allies, enemies)
 
 
 func set_master_vol(v: float) -> void:
@@ -2193,13 +2112,7 @@ func set_show_killfeed(on: bool) -> void:
 
 ## Repaints every pawn so the new palette shows at once.
 func set_colorblind(v: int) -> void:
-	colorblind = clampi(v, 0, COLORBLIND_NAMES.size() - 1)
-	save_settings()
-	if is_inside_tree():
-		for n in get_tree().get_nodes_in_group("player"):
-			if n.has_method("_apply_team_visual"):
-				n._apply_team_visual()
-	hud_settings_changed.emit()
+	GameSettings.set_colorblind(self, v)
 
 
 func set_reduce_shake(on: bool) -> void:
@@ -2230,29 +2143,13 @@ func apply_shadows(map: Node) -> void:
 ## restart it in a loop), never headless, never from the editor, and never twice: the relaunched
 ## process carries RENDERER_MARKER in its user args.
 static func should_relaunch(choice: int, user_args: PackedStringArray, is_server: bool, headless: bool, editor: bool, current_method := "") -> bool:
-	if choice <= 0 or choice >= RENDERER_IDS.size():
-		return false
-	if is_server or headless or editor:
-		return false
-	# Already running the chosen renderer: relaunching would flash the window on every single start.
-	if current_method != "" and current_method == RENDERER_IDS[choice]:
-		return false
-	return not user_args.has(RENDERER_MARKER)
+	return GameSettings.should_relaunch(choice, user_args, is_server, headless, editor, current_method)
 
 
 ## Restarts the game with --rendering-method <method>, keeping every other user argument.
 ## False when the executable cannot be started (the caller then just keeps running).
 func relaunch_with_renderer(method: String) -> bool:
-	if method == "":
-		return false
-	var exe := OS.get_executable_path()
-	if exe.is_empty() or not FileAccess.file_exists(exe):
-		return false
-	var argv := PackedStringArray(["--rendering-method", method, "--", RENDERER_MARKER])
-	for a in OS.get_cmdline_user_args():
-		if a != RENDERER_MARKER:
-			argv.append(a)
-	return OS.create_process(exe, argv) > 0
+	return GameSettings.relaunch_with_renderer(method)
 
 
 func set_renderer_choice(v: int) -> void:
@@ -2261,14 +2158,7 @@ func set_renderer_choice(v: int) -> void:
 
 
 func set_perf_overlay(v: int) -> void:
-	perf_overlay = clampi(v, 0, PERF_NAMES.size() - 1)
-	save_settings()
-	if not is_inside_tree():
-		return
-	hud_settings_changed.emit()
-	var label := get_tree().root.get_node_or_null("Main/CanvasLayer/Hud/Fps") as Label
-	if label:
-		label.visible = show_fps
+	GameSettings.set_perf_overlay(self, v)
 
 
 func set_fov(v: float) -> void:
@@ -2280,16 +2170,7 @@ func set_fov(v: float) -> void:
 ## The live camera picks the new hip FOV immediately. ADS (absolute, ~38 for the sniper) is left alone.
 ## The menu camera has no ads_fov and is not a CameraFeel, so it stays on its own fov.
 func _apply_fov_now() -> void:
-	if not is_inside_tree() or display_headless():
-		return
-	var cam := get_viewport().get_camera_3d()
-	if cam == null:
-		return
-	var ads = cam.get("ads_fov")
-	if ads == null or float(ads) > 1.0:
-		return
-	var extra = cam.get("extra_fov")
-	cam.fov = fov + (float(extra) if extra != null else 0.0)
+	GameSettings.apply_fov_now(self)
 
 
 func set_window_mode(mode: int) -> void:
@@ -2454,14 +2335,7 @@ func hitstop(seconds: float = 0.05, scale: float = 0.22) -> void:
 
 ## A successful connect puts "ip:port" on top of the recent list (deduped, capped) and saves.
 func remember_server(ip: String, port: int) -> void:
-	var key := "%s:%d" % [ip.strip_edges(), port]
-	var out := PackedStringArray([key])
-	for e in recent_servers:
-		if e != key and out.size() < RECENT_SERVERS_MAX:
-			out.append(e)
-	recent_servers = out
-	last_server = key
-	save_settings()
+	GameSettings.remember_server(self, ip, port)
 
 
 func set_last_server(key: String) -> void:
@@ -2471,24 +2345,11 @@ func set_last_server(key: String) -> void:
 
 ## "label|host:port" entries; label may be empty. Same address twice is ignored.
 func add_favorite(label: String, address: String) -> bool:
-	address = address.strip_edges()
-	if address.is_empty():
-		return false
-	for e in favorite_servers:
-		if e.get_slice("|", 1) == address or e == address:
-			return false
-	favorite_servers.append("%s|%s" % [label.strip_edges(), address])
-	save_settings()
-	return true
+	return GameSettings.add_favorite(self, label, address)
 
 
 func remove_favorite(address: String) -> void:
-	var out := PackedStringArray()
-	for e in favorite_servers:
-		if e.get_slice("|", 1) != address and e != address:
-			out.append(e)
-	favorite_servers = out
-	save_settings()
+	GameSettings.remove_favorite(self, address)
 
 
 ## Every frame, not per physics tick: the menu fade must not wait for the first physics step (#62).
