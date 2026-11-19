@@ -879,13 +879,16 @@ func _facelift_hud() -> void:
 		var col := streak_label.get_parent()
 		col.add_child(_streak_pips)
 		col.move_child(_streak_pips, streak_label.get_index() + 1)
+		# Each pip is a tiny slanted shard (one cut top-left, one bottom-right), so the row reads as
+		# shards of the crystal, not rounded dots.
 		for i in Game.LOS_AT:
 			var pip := Panel.new()
 			pip.custom_minimum_size = Vector2(14, 6)
 			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var sb := StyleBoxFlat.new()
-			sb.set_corner_radius_all(3)
-			sb.bg_color = Color(1, 1, 1, 0.14)
+			var sb := CrystalUi.shard(Vector4(3, 0, 3, 0), 40 + i)
+			sb.fill = PIP_OFF
+			sb.facet_strength = 0.0
+			sb.edge_alpha = 0.0
 			pip.add_theme_stylebox_override("panel", sb)
 			_streak_pips.add_child(pip)
 	for i in _streak_slots.size():
@@ -915,10 +918,10 @@ func _refresh_streak_extras() -> void:
 	if _streak_pips:
 		for i in _streak_pips.get_child_count():
 			var pip := _streak_pips.get_child(i) as Panel
-			var sb := pip.get_theme_stylebox("panel") as StyleBoxFlat
+			var sb := pip.get_theme_stylebox("panel") as CrystalStyle
 			var lit := i < _streak_n
 			var mark := i == Game.STREAK_AT - 1 or i == Game.RCXD_AT - 1 or i == Game.LOS_AT - 1
-			sb.bg_color = HUD_ACCENT if lit else (Color(1, 1, 1, 0.26) if mark else Color(1, 1, 1, 0.12))
+			sb.fill = HUD_ACCENT if lit else (PIP_MARK if mark else PIP_OFF)
 	for i in _streak_costs.size():
 		var c := _streak_costs[i]
 		if c == null:
@@ -1016,34 +1019,26 @@ func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, 
 		_death_report.anchor_right = 0.5
 		_death_report.anchor_top = 0.5
 		_death_report.anchor_bottom = 0.5
-		_death_report.offset_left = -190.0
-		_death_report.offset_right = 190.0
+		_death_report.offset_left = -215.0
+		_death_report.offset_right = 215.0
 		_death_report.offset_top = 48.0
 		_death_report.grow_horizontal = Control.GROW_DIRECTION_BOTH
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.05, 0.06, 0.08, 0.88)
-		sb.set_corner_radius_all(12)
-		sb.border_color = Color(0.92, 0.3, 0.25)
-		sb.border_width_top = 3
-		sb.content_margin_left = 18
-		sb.content_margin_right = 18
-		sb.content_margin_top = 10
+		# A smoke shard with a red seam on top: red is danger, and this is what killed you.
+		var sb := CrystalUi.shard(Vector4(14, 6, 18, 8), 33, false, CrystalStyle.Side.TOP, CrystalUi.DANGER, 1.0, Vector2(20, 10))
 		sb.content_margin_bottom = 12
+		sb.fill = ScoreboardView.PANEL
 		_death_report.add_theme_stylebox_override("panel", sb)
 		var v := VBoxContainer.new()
 		v.name = "V"
 		v.add_theme_constant_override("separation", 6)
 		_death_report.add_child(v)
-		var head := Label.new()
+		var head := CrystalUi.caption("", 17, ScoreboardView.TEXT)
 		head.name = "Head"
 		head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		head.add_theme_font_size_override("font_size", 18)
 		v.add_child(head)
-		var wl := Label.new()
+		var wl := CrystalUi.caption("", 12, CrystalUi.MUTE.lightened(0.2))
 		wl.name = "Weapon"
 		wl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		wl.add_theme_font_size_override("font_size", 15)
-		wl.add_theme_color_override("font_color", Color(0.85, 0.87, 0.9))
 		v.add_child(wl)
 		for row in ["Taken", "Dealt"]:
 			var h := HBoxContainer.new()
@@ -1052,7 +1047,7 @@ func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, 
 			l.name = "L"
 			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			l.add_theme_font_size_override("font_size", 15)
-			l.add_theme_color_override("font_color", Color(0.72, 0.76, 0.82))
+			l.add_theme_color_override("font_color", CrystalUi.MUTE.lightened(0.15))
 			h.add_child(l)
 			var r := Label.new()
 			r.name = "R"
@@ -1435,6 +1430,9 @@ static func _ordinal(n: int) -> String:
 
 
 const SB_MUTED := ScoreboardView.MUTED
+## Streak pips: unlit, and unlit on a reward's kill (UAV, RC-XD, LOS).
+const PIP_OFF := Color(1, 1, 1, 0.12)
+const PIP_MARK := Color(1, 1, 1, 0.26)
 
 
 ## Scoreboard building lives in ScoreboardView (scripts/hud/scoreboard_view.gd).

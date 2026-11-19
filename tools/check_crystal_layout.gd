@@ -18,6 +18,7 @@ func _ready() -> void:
 	await _check_feed()
 	await _check_scoreboard()
 	await _check_class_select()
+	await _check_hud_leftovers()
 	print("CRYSTAL LAYOUT CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
 
@@ -196,6 +197,47 @@ func _check_class_select() -> void:
 	_ok(cs._back.visible and sb.seam_side == CrystalStyle.Side.NONE, "change class: Back shows, no countdown seam")
 	cs.close_silently()
 	cs.queue_free()
+	await get_tree().process_frame
+
+
+## #314: the last flat HUD pieces. The HUD builds no StyleBoxFlat at all any more; the death report,
+## the streak pips and the combo timer are shards, and the combo seam is the time left.
+func _check_hud_leftovers() -> void:
+	print("-- HUD leftovers")
+	var flat := []
+	var files := ["res://scripts/hud.gd"]
+	for f in DirAccess.get_files_at("res://scripts/hud"):
+		if f.ends_with(".gd"):
+			files.append("res://scripts/hud/" + f)
+	for path in files:
+		if FileAccess.get_file_as_string(path).contains("StyleBoxFlat.new()"):
+			flat.append(path.get_file())
+	_ok(flat.is_empty(), "the HUD builds no flat boxes %s" % [flat])
+	var hud: Control = (load("res://scenes/hud.tscn") as PackedScene).instantiate()
+	add_child(hud)
+	hud.set_process(false)
+	await get_tree().process_frame
+	hud.show_death_report("Bot 8", 124, 5, 63, 3, 37, "rifle")
+	var dsb := hud._death_report.get_theme_stylebox("panel") as CrystalStyle
+	_ok(dsb != null and dsb.seam_side == CrystalStyle.Side.TOP and dsb.seam_color == CrystalUi.DANGER, "death report: a shard with a red seam")
+	var pips_ok: bool = hud._streak_pips != null and hud._streak_pips.get_child_count() == Game.LOS_AT
+	if pips_ok:
+		for pip in hud._streak_pips.get_children():
+			pips_ok = pips_ok and (pip as Panel).get_theme_stylebox("panel") is CrystalStyle
+	_ok(pips_ok, "streak pips: one shard per kill up to LOS")
+	hud._streak_n = 2
+	hud._refresh_streak_extras()
+	var p0 := (hud._streak_pips.get_child(0) as Panel).get_theme_stylebox("panel") as CrystalStyle
+	var p5 := (hud._streak_pips.get_child(5) as Panel).get_theme_stylebox("panel") as CrystalStyle
+	_ok(p0.fill == hud.HUD_ACCENT and p5.fill != hud.HUD_ACCENT, "streak pips: the kills so far are lit")
+	var cm := ComboMeter.new()
+	add_child(cm)
+	cm.on_combo_changed(120, 1.5, Combo.TIME, "WALLRUN", "build", 0)
+	_ok(cm.fill is CrystalStyle and is_equal_approx(cm.fill.seam_lit, 1.0), "combo: a full seam on a fresh combo")
+	cm.tick(Combo.TIME * 0.5)
+	_ok(is_equal_approx(cm.fill.seam_lit, 0.5), "combo: the seam is the time left (%.2f)" % cm.fill.seam_lit)
+	cm.queue_free()
+	hud.queue_free()
 	await get_tree().process_frame
 
 
