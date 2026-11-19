@@ -181,7 +181,7 @@ func _hud() -> void:
 		_ok(held.pale and held.seam_side == CrystalStyle.Side.BOTTOM, "held weapon: pale shell + bottom seam")
 		_ok(not idle.pale and idle.seam_side == CrystalStyle.Side.NONE, "idle weapon: smoke, no seam")
 		_ok(held.variant != idle.variant, "slots get different facet fans")
-	hud._streak_sel = 0
+	hud.streaks.sel = 0
 	hud.set_streak(3, Game.CHARGE_RADAR, Game.CHARGE_RADAR)
 	var uav := _skin_of(hud._streak_slots[0])
 	var rc := _skin_of(hud._streak_slots[1])

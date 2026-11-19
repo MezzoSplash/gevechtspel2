@@ -220,15 +220,15 @@ func _check_hud_leftovers() -> void:
 	hud.show_death_report("Bot 8", 124, 5, 63, 3, 37, "rifle")
 	var dsb := hud._death_report.get_theme_stylebox("panel") as CrystalStyle
 	_ok(dsb != null and dsb.seam_side == CrystalStyle.Side.TOP and dsb.seam_color == CrystalUi.DANGER, "death report: a shard with a red seam")
-	var pips_ok: bool = hud._streak_pips != null and hud._streak_pips.get_child_count() == Game.LOS_AT
+	var pips_ok: bool = hud.streaks.pips != null and hud.streaks.pips.get_child_count() == Game.LOS_AT
 	if pips_ok:
-		for pip in hud._streak_pips.get_children():
+		for pip in hud.streaks.pips.get_children():
 			pips_ok = pips_ok and (pip as Panel).get_theme_stylebox("panel") is CrystalStyle
 	_ok(pips_ok, "streak pips: one shard per kill up to LOS")
-	hud._streak_n = 2
-	hud._refresh_streak_extras()
-	var p0 := (hud._streak_pips.get_child(0) as Panel).get_theme_stylebox("panel") as CrystalStyle
-	var p5 := (hud._streak_pips.get_child(5) as Panel).get_theme_stylebox("panel") as CrystalStyle
+	hud.streaks.n = 2
+	hud.streaks.refresh()
+	var p0 := (hud.streaks.pips.get_child(0) as Panel).get_theme_stylebox("panel") as CrystalStyle
+	var p5 := (hud.streaks.pips.get_child(5) as Panel).get_theme_stylebox("panel") as CrystalStyle
 	_ok(p0.fill == hud.HUD_ACCENT and p5.fill != hud.HUD_ACCENT, "streak pips: the kills so far are lit")
 	var cm := ComboMeter.new()
 	add_child(cm)
