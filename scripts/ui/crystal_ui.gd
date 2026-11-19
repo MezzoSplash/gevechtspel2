@@ -113,6 +113,46 @@ static func stagger(buttons: Array, widths: Array, centred := false) -> void:
 		b.custom_minimum_size.x = widths[mini(i, widths.size() - 1)]
 
 
+static func bold_font() -> FontVariation:
+	_fonts()
+	return _bold
+
+
+## A shard for a piece built in code (scoreboard, round-end card, class select): smoke glass, or
+## pale shell with `pale`; a seam on `side` in `seam`, lit to `lit` (0..1, the value on a meter).
+## `margin` is the content margin (x left/right, y top/bottom). One source for these pieces, so
+## no screen keeps its own flat-box copy of the look.
+static func shard(cuts: Vector4, variant: int, pale := false, side := CrystalStyle.Side.NONE,
+		seam := CrystalStyle.ICE, lit := 1.0, margin := Vector2(14, 6)) -> CrystalStyle:
+	var sb := CrystalStyle.new()
+	sb.cuts = cuts
+	sb.variant = variant
+	if pale:
+		sb.fill = CrystalStyle.SHELL
+		sb.pale = true
+		sb.edge_alpha = 0.0
+	sb.seam_side = side
+	sb.seam_color = seam
+	sb.seam_lit = lit
+	sb.content_margin_left = margin.x
+	sb.content_margin_right = margin.x
+	sb.content_margin_top = margin.y
+	sb.content_margin_bottom = margin.y
+	return sb
+
+
+## Tracked uppercase caption ("BLUE", "CHOOSE CLASS", column heads) in the caps face.
+static func caption(text: String, size: int, col: Color) -> Label:
+	_fonts()
+	var l := Label.new()
+	l.text = text.to_upper()
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_theme_font_override("font", _caps)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	return l
+
+
 ## The key-hint line at the foot of a screen as a slim smoke shard, sized to its text.
 static func footer(l: Label) -> void:
 	_fonts()

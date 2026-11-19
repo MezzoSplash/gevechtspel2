@@ -16,6 +16,8 @@ func _ready() -> void:
 	await _check_pause()
 	await _check_settings()
 	await _check_feed()
+	await _check_scoreboard()
+	await _check_class_select()
 	print("CRYSTAL LAYOUT CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
 	get_tree().quit(0 if fails == 0 else 1)
 
@@ -115,3 +117,90 @@ func _check_feed() -> void:
 	_ok(row.get_child_count() == 4 and row.get_child(1) is TextureRect, "a row is still killer, icon, victim, tag")
 	_ok(row.draw.get_connections().size() > 0, "the row draws its own shard")
 	feed.queue_free()
+
+
+## #312: the Tab board, the winner card and the style king are crystal shards, not flat boxes.
+func _check_scoreboard() -> void:
+	print("-- scoreboard")
+	for path in ["res://scripts/hud/scoreboard_view.gd", "res://scripts/class_select.gd"]:
+		_ok(not FileAccess.get_file_as_string(path).contains("StyleBoxFlat"), "%s builds no flat boxes" % path.get_file())
+	Game.scores.clear()
+	Game.scores[1] = {"name": "Me", "kills": 9, "team": 0, "style": 120, "deaths": 2}
+	Game.scores[-1] = {"name": "Bot", "kills": 4, "team": 1, "style": 0, "deaths": 5}
+	Game.team_kills = [10, 5]
+	Game.mode = Game.MODE_TDM
+	var scores := Game.get_scores()
+	var board := ScoreboardView.build(scores, false, 1)
+	add_child(board)
+	await get_tree().process_frame
+	var all_crystal := true
+	for n in _all(board):
+		var c := n as Control
+		if c is PanelContainer:
+			all_crystal = all_crystal and c.get_theme_stylebox("panel") is CrystalStyle
+	_ok(all_crystal, "every piece of the board is a CrystalStyle shard")
+	var teams := board.get_child(1)
+	for t in [Game.TEAM_A, Game.TEAM_B]:
+		var sb := (teams.get_child(t) as PanelContainer).get_theme_stylebox("panel") as CrystalStyle
+		_ok(sb.seam_side == CrystalStyle.Side.TOP and sb.seam_color == Player.team_color(t), "team %d: its colour on the seam" % t)
+		_ok(is_equal_approx(sb.seam_lit, ScoreboardView.progress(Game.team_score(t))), "team %d: the lit seam is the score (%.2f)" % [t, sb.seam_lit])
+	var me := board.find_child("Me", true, false) as PanelContainer
+	_ok(me != null and (me.get_theme_stylebox("panel") as CrystalStyle).pale, "your own row is pale shell")
+	board.queue_free()
+	var hud: Control = (load("res://scenes/hud.tscn") as PackedScene).instantiate()
+	add_child(hud)
+	hud.set_process(false)
+	hud._local_peer_id = 1
+	await get_tree().process_frame
+	hud._on_round_ended(Game.TEAM_A, "Blue", {})
+	var card := hud.scoreboard_container.get_node("WinnerCard") as PanelContainer
+	var csb := card.get_theme_stylebox("panel") as CrystalStyle
+	_ok(csb != null and csb.seam_color == Player.team_color(Game.TEAM_A), "winner card: a shard with the team colour on its seam")
+	var king := hud.scoreboard_container.get_node("StyleKing") as Label
+	_ok(king.get_theme_stylebox("normal") is CrystalStyle and hud.style_king_text().begins_with("STYLE KING"), "style king: a shard")
+	Game.mode = Game.MODE_FFA
+	hud._on_round_ended(1, "Me", {})
+	_ok((card.get_theme_stylebox("panel") as CrystalStyle).pale, "FFA, you win: the card is pale shell")
+	hud.queue_free()
+	Game.mode = Game.MODE_TDM
+	Game.scores.clear()
+	Game.team_kills = [0, 0]
+	await get_tree().process_frame
+
+
+## #313: the in-game class picker uses the crystal theme, and a long loadout never runs into the name.
+func _check_class_select() -> void:
+	print("-- class select")
+	var cs := ClassSelect.new()
+	add_child(cs)
+	await get_tree().process_frame
+	cs.open_initial()
+	await get_tree().process_frame
+	_ok(cs.theme == CrystalTheme.install(), "the picker carries the crystal theme")
+	var shards := true
+	var fits := true
+	for b in cs._buttons:
+		shards = shards and b.theme_type_variation == &"MenuButtonBig" and not b.has_theme_stylebox_override("hover")
+		var hint := b.get_node("Hint") as Label
+		fits = fits and b.custom_minimum_size.x >= b.get_minimum_size().x + hint.get_minimum_size().x
+	_ok(cs._buttons.size() == Game.loadouts.classes.size() and shards, "one MenuButtonBig shard per class, theme states kept")
+	_ok(fits, "every class shard is wide enough for name + loadout")
+	var sb := cs._sub.get_theme_stylebox("normal") as CrystalStyle
+	_ok(sb.seam_side == CrystalStyle.Side.BOTTOM and sb.seam_lit > 0.95, "countdown: a (near) full seam at the start")
+	cs.time_left = 2.0
+	cs._refresh_sub()
+	_ok(is_equal_approx(sb.seam_lit, 0.2) and sb.seam_color == CrystalUi.DANGER, "countdown: the seam runs out and turns red in the last 3 s")
+	cs.close_silently()
+	cs.open_change()
+	await get_tree().process_frame
+	_ok(cs._back.visible and sb.seam_side == CrystalStyle.Side.NONE, "change class: Back shows, no countdown seam")
+	cs.close_silently()
+	cs.queue_free()
+	await get_tree().process_frame
+
+
+func _all(n: Node) -> Array:
+	var out := [n]
+	for c in n.get_children():
+		out.append_array(_all(c))
+	return out

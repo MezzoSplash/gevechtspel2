@@ -1,7 +1,7 @@
 # UI restyle "crystal" — handoff
 
 Owner: MezzoSplash. Language with the owner: Dutch. Code, comments and commit messages: follow the repo (mixed, mostly English comments).
-This file is the brief; the mockups next to it are the target. Status: steps 1-3 merged (#292, #293), step 4 (speed meter, #295) and step 5 (layout) in their own PRs. Left open: the HP gem.
+This file is the brief; the mockups next to it are the target. Status: steps 1-5 merged (#292, #293, #295, #296); the Tab scoreboard, the round-end winner card / style king and the in-game class select follow it too (#312, #313). Left open: the HP gem (#319) and the last flat HUD pieces (#314).
 
 ## 1. What the owner wants
 
