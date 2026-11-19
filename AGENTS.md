@@ -49,6 +49,15 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #316 slice 6 (player.gd split): how a pawn lives on other machines is `PawnNet` (`scripts/pawn_net.gd`:
+  `apply_network_pose`, `update_nametag`, `enemy_in_sight`, `receive_net_pos`, `accept_claim`,
+  `claim_reachable`, `apply_snap`, `smooth_remote`, `apply_remote_visual`) and how it is set up is
+  `PawnSetup` (`scripts/pawn_setup.gd`: `ready`, `tick_audio_bus`, `init_loadout`, `configure_control`,
+  `dup_body_mat`, `apply_team_visual`). Static on the pawn; Player keeps the synced properties, the input
+  callbacks and every old name. player.gd ~1620 -> ~1425 lines. Checks: the suite, the movement trace still
+  byte-identical to main, `check_death_report -- --net` clean. `check_movement -- --net` fails "WALL TO WALL
+  in the combo" on main as well: the server's `correct_position` RPC is called with one argument where it
+  takes two, so no correction ever reaches a client (#338). No behaviour or protocol change here.
 - #316 slice 5 (player.gd split): a pawn's life is `PawnVitals` (`scripts/pawn_vitals.gd`: `check_kill_y`,
   `pull_out_of_void`, `apply_hit`, `point_hits_head`, `apply_hurt_state`, `die`, `apply_respawn_state`) and how
   it feels and sounds while it moves is `PawnFeel` (`scripts/pawn_feel.gd`: `tick_feet`, `apply_carry_fov`,
