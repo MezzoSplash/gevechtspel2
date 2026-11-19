@@ -1275,8 +1275,9 @@ func _build_trick_popup() -> void:
 	add_child(_trick_sfx)
 
 
-## Round end: a compact card above the scoreboard (never over its header). Small caps line on top,
-## the name under it. FFA: gold, or "YOU WIN" for this machine's player. TDM: the team's colour.
+## Round end: a compact shard above the scoreboard (never over its header). Small caps line on top,
+## the name under it, the seam under both in the accent. FFA: ice; "YOU WIN" for this machine's
+## player is pale shell. TDM: the team's colour. No winner: no seam.
 func _show_winner(winner_peer_id: int, winner_name: String) -> void:
 	if _winner == null:
 		_winner = PanelContainer.new()
@@ -1286,23 +1287,25 @@ func _show_winner(winner_peer_id: int, winner_name: String) -> void:
 		_winner.custom_minimum_size = Vector2(340, 0)
 		var v := VBoxContainer.new()
 		v.name = "V"
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_theme_constant_override("separation", 0)
 		_winner.add_child(v)
-		for n in ["Kicker", "Name"]:
-			var l := Label.new()
-			l.name = n
+		var k := CrystalUi.caption("", 12, CrystalUi.MUTE)
+		k.name = "Kicker"
+		var nm := Label.new()
+		nm.name = "Name"
+		nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		nm.add_theme_font_override("font", CrystalUi.bold_font())
+		nm.add_theme_font_size_override("font_size", 32)
+		for l in [k, nm]:
 			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-			l.add_theme_constant_override("outline_size", 4)
 			v.add_child(l)
-		(v.get_node("Kicker") as Label).add_theme_font_size_override("font_size", 14)
-		(v.get_node("Name") as Label).add_theme_font_size_override("font_size", 30)
 		scoreboard_container.add_child(_winner)
 		scoreboard_container.move_child(_winner, 0)
 	var accent := HUD_ACCENT
 	var kicker := "WINNER"
 	var title := winner_name.to_upper()
+	var pale := false
 	if not Game.is_ffa():
 		accent = Player.team_color(clampi(winner_peer_id, Game.TEAM_A, Game.TEAM_B))
 		kicker = "YOUR TEAM WINS" if Game.local_team() == winner_peer_id else "WINNING TEAM"
@@ -1311,46 +1314,45 @@ func _show_winner(winner_peer_id: int, winner_name: String) -> void:
 	elif winner_peer_id != 0 and winner_peer_id == _local_peer_id:
 		kicker = "WINNER"
 		title = "YOU WIN"
+		pale = true
 	elif winner_peer_id == 0:
 		kicker = "ROUND OVER"
 		title = "NO WINNER"
-		accent = SB_MUTED
-	var sb := _sb_box(SB_BG, 12)
-	sb.border_color = accent
-	sb.border_width_top = 3
-	sb.content_margin_left = 28
-	sb.content_margin_right = 28
-	sb.content_margin_top = 8
-	sb.content_margin_bottom = 10
+		accent = Color(0, 0, 0, 0)
+	var side := CrystalStyle.Side.BOTTOM if accent.a > 0.0 else CrystalStyle.Side.NONE
+	var sb := CrystalUi.shard(Vector4(14, 6, 18, 8), 30, pale, side, accent, 1.0, Vector2(30, 8))
+	sb.content_margin_bottom = 12
+	if not pale:
+		sb.fill = ScoreboardView.PANEL
 	_winner.add_theme_stylebox_override("panel", sb)
 	var k := _winner.get_node("V/Kicker") as Label
 	k.text = kicker
-	k.add_theme_color_override("font_color", Color(accent, 0.9) if accent != SB_MUTED else SB_MUTED)
+	k.add_theme_color_override("font_color", Color(ScoreboardView.DARK, 0.6) if pale else (accent.lightened(0.2) if accent.a > 0.0 else CrystalUi.MUTE))
 	var nm := _winner.get_node("V/Name") as Label
 	nm.text = title
-	nm.add_theme_color_override("font_color", accent.lightened(0.15))
+	nm.add_theme_color_override("font_color", ScoreboardView.DARK if pale else ScoreboardView.TEXT)
 	_winner.visible = true
 
 
-## Round end, under the winner card: who got the most style this round (FFA and TDM alike).
+## Round end, under the winner card: who got the most style this round (FFA and TDM alike). A slim
+## shard with a gold seam: gold is for trick rewards, and this is the round's biggest one.
 func _show_style_king() -> void:
 	var king := Game.style_king()
 	if _style_king == null:
-		_style_king = Label.new()
+		_style_king = CrystalUi.caption("", 14, TRICK_COLOR)
 		_style_king.name = "StyleKing"
-		_style_king.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_style_king.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_style_king.add_theme_font_size_override("font_size", 22)
-		_style_king.add_theme_color_override("font_color", TRICK_COLOR)
-		_style_king.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-		_style_king.add_theme_constant_override("outline_size", 6)
+		_style_king.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		var sb := CrystalUi.shard(Vector4(8, 3, 10, 4), 31, false, CrystalStyle.Side.BOTTOM, TRICK_COLOR, 1.0, Vector2(22, 6))
+		sb.fill = ScoreboardView.PANEL
+		_style_king.add_theme_stylebox_override("normal", sb)
 		# Lives in the scoreboard, right under the team totals (moved there on every refresh), so it
 		# never overlaps the winner line or the rows at any window size.
 		scoreboard_container.add_child(_style_king)
 	if king.is_empty():
 		_style_king.visible = false
 		return
-	_style_king.text = "STYLE KING  ·  %s  ·  %d style" % [str(king.name), int(king.style)]
+	_style_king.text = "STYLE KING  ·  %s  ·  %d STYLE" % [str(king.name).to_upper(), int(king.style)]
 	_style_king.visible = true
 
 
@@ -1432,15 +1434,10 @@ static func _ordinal(n: int) -> String:
 	return "%d%s" % [n, suffix]
 
 
-const SB_BG := ScoreboardView.BG
 const SB_MUTED := ScoreboardView.MUTED
 
 
 ## Scoreboard building lives in ScoreboardView (scripts/hud/scoreboard_view.gd).
-func _sb_box(col: Color, radius: int = 0, border: Color = Color(0, 0, 0, 0)) -> StyleBoxFlat:
-	return ScoreboardView.box(col, radius, border)
-
-
 func _refresh_scoreboard() -> void:
 	for c in scoreboard_container.get_children():
 		if c != _style_king and c != _winner:

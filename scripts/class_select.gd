@@ -9,6 +9,10 @@ signal picked(index: int, queued: bool)
 signal back_pressed
 
 const AUTO_TIME := 10.0
+## Width of the first class shard; each next one is STEP narrower (CrystalUi.stagger).
+const WIDE := 560.0
+const STEP := 22.0
+const HINT_GAP := 64.0
 
 var initial := false
 var time_left := 0.0
@@ -55,9 +59,10 @@ func _show() -> void:
 	_open_seq += 1
 	_title.text = "CHOOSE CLASS" if initial else "CHANGE CLASS"
 	_back.visible = not initial
-	_hint.text = "Click or press 1–%d" % Game.loadouts.classes.size()
+	_hint.text = "1–%d  or  click  to pick" % Game.loadouts.classes.size()
 	if not initial:
-		_hint.text += "  ·  Esc to go back"
+		_hint.text += "   ·   esc  back"
+	_hint.text = _hint.text.to_upper()
 	_rebuild()
 	_refresh_sub()
 	visible = true
@@ -86,12 +91,19 @@ func _process(delta: float) -> void:
 
 
 func _refresh_sub() -> void:
+	var sb := _sub.get_theme_stylebox("normal") as CrystalStyle
 	if initial:
-		_sub.text = "Auto-pick in %d s: %s" % [ceili(time_left), Game.loadouts.class_name_at(Game.loadouts.auto_index())]
-		_sub.add_theme_color_override("font_color", Color(1, 0.92, 0.55) if time_left > 3.0 else Color(1, 0.55, 0.4))
+		_sub.text = "AUTO-PICK IN %d S  ·  %s" % [ceili(time_left), Game.loadouts.class_name_at(Game.loadouts.auto_index()).to_upper()]
+		# The seam runs out with the clock; red (danger) only in the last 3 s.
+		var late := time_left <= 3.0
+		sb.seam_side = CrystalStyle.Side.BOTTOM
+		sb.seam_lit = time_left / AUTO_TIME
+		sb.seam_color = CrystalUi.DANGER if late else CrystalStyle.ICE
+		_sub.add_theme_color_override("font_color", CrystalUi.DANGER.lightened(0.25) if late else ScoreboardView.TEXT)
 	else:
-		_sub.text = "Applies at your next spawn"
-		_sub.add_theme_color_override("font_color", Color(0.85, 0.88, 0.92))
+		_sub.text = "APPLIES AT YOUR NEXT SPAWN"
+		sb.seam_side = CrystalStyle.Side.NONE
+		_sub.add_theme_color_override("font_color", ScoreboardView.TEXT)
 
 
 func _input(event: InputEvent) -> void:
@@ -141,24 +153,54 @@ func _rebuild() -> void:
 		b.queue_free()
 	_buttons.clear()
 	var classes := Game.loadouts.classes
+	var widths := []
 	for i in classes.size():
 		var c: Dictionary = classes[i]
+		var queued := i == Game.loadouts.queued_index
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(0, 46)
+		b.name = "Class%d" % (i + 1)
+		b.theme_type_variation = &"MenuButtonBig"
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.add_theme_font_size_override("font_size", 18)
-		_style_button(b, i == Game.loadouts.queued_index)
-		var tag := ""
-		if i == Game.loadouts.queued_index:
-			tag = "   (next spawn)"
-		b.text = "  %d   %s   —   %s%s" % [i + 1, c.name, PlayerClasses.summary(c), tag]
+		b.custom_minimum_size.y = 50
+		b.text = "%d    %s" % [i + 1, str(c.name).to_upper()]
+		var hint := PlayerClasses.summary(c)
+		if queued:
+			hint = "NEXT SPAWN  ·  " + hint
+		CrystalUi.button_hint(b, hint.to_upper())
+		if queued:
+			_mark_queued(b)
 		var idx := i
 		b.pressed.connect(func() -> void: _pick(idx))
 		_list.add_child(b)
 		_buttons.append(b)
+		widths.append(WIDE - i * STEP)
+	CrystalUi.stagger(_buttons, widths, true)
+	# A long loadout ("SMG · REVOLVER · 1 FRAG · 2 KNIVES") must not run into the name: a shard is at
+	# least name + hint + a gap wide, and the column stays staggered from there.
+	var floor_w := 0.0
+	for b in _buttons:
+		var hint := b.get_node("Hint") as Label
+		floor_w = maxf(floor_w, b.get_minimum_size().x + hint.get_minimum_size().x + HINT_GAP)
+	var grow := maxf(floor_w - (WIDE - (_buttons.size() - 1) * STEP), 0.0)
+	for b in _buttons:
+		b.custom_minimum_size.x += grow
+
+
+## The class waiting for the next spawn: pale shell with its seam lit even when idle, so it reads
+## as chosen next to the smoke rows (the theme's hover shard, kept for every state).
+func _mark_queued(b: Button) -> void:
+	var pale := b.get_theme_stylebox("hover", &"MenuButtonBig")
+	if pale != null:
+		b.add_theme_stylebox_override("normal", pale)
+	b.add_theme_color_override("font_color", ScoreboardView.DARK)
+	var hint := b.get_node_or_null("Hint") as Label
+	if hint:
+		hint.add_theme_color_override("font_color", Color(ScoreboardView.DARK, 0.6))
 
 
 func _build() -> void:
+	# Built in code, so it does not inherit the menu theme from a scene: take the crystal one.
+	theme = CrystalTheme.install()
 	var dim := ColorRect.new()
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0.02, 0.03, 0.04, 0.62)
@@ -168,68 +210,45 @@ func _build() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
-	var card := PanelContainer.new()
-	var csb := _box(Color(0.05, 0.06, 0.08, 0.9), 12)
-	csb.content_margin_left = 22
-	csb.content_margin_right = 22
-	csb.content_margin_top = 18
-	csb.content_margin_bottom = 18
-	csb.border_color = Color(1.0, 0.84, 0.42)
-	csb.border_width_top = 3
-	card.add_theme_stylebox_override("panel", csb)
-	center.add_child(card)
+	# No card: a centred column of floating shards, like the pause menu.
 	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(600, 0)
+	box.name = "Column"
+	box.custom_minimum_size = Vector2(WIDE, 0)
 	box.add_theme_constant_override("separation", 10)
-	card.add_child(box)
-	_title = Label.new()
-	_title.add_theme_font_size_override("font_size", 28)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(box)
+	_title = CrystalUi.caption("", 14, CrystalStyle.ICE)
+	_title.name = "Title"
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_title)
-	_sub = Label.new()
-	_sub.add_theme_font_size_override("font_size", 18)
+	_sub = CrystalUi.caption("", 16, ScoreboardView.TEXT)
+	_sub.name = "Countdown"
 	_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_sub.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_sub.custom_minimum_size = Vector2(360, 0)
+	_sub.add_theme_stylebox_override("normal", CrystalUi.shard(Vector4(10, 10, 12, 12), 5, false,
+			CrystalStyle.Side.NONE, CrystalStyle.ICE, 1.0, Vector2(22, 8)))
 	box.add_child(_sub)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 8)
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(gap)
 	_list = VBoxContainer.new()
-	_list.add_theme_constant_override("separation", 8)
+	_list.add_theme_constant_override("separation", 10)
+	_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(_list)
-	_hint = Label.new()
-	_hint.add_theme_color_override("font_color", Color(0.72, 0.76, 0.82))
-	_hint.add_theme_font_size_override("font_size", 14)
-	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(_hint)
 	_back = Button.new()
-	_back.text = "Back"
-	_back.custom_minimum_size = Vector2(0, 36)
+	_back.name = "Back"
+	_back.theme_type_variation = &"PrimaryButton"
+	_back.text = "‹  BACK"
+	_back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_back.custom_minimum_size = Vector2(160, 44)
 	_back.pressed.connect(_go_back)
-	_style_button(_back, false)
 	box.add_child(_back)
-
-
-func _box(col: Color, radius: int) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = col
-	sb.set_corner_radius_all(radius)
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	return sb
-
-
-## Same look as the scoreboard rows: dark rounded rows, gold edge on hover/focus and the queued class.
-func _style_button(b: Button, queued: bool) -> void:
-	var gold := Color(1.0, 0.84, 0.42)
-	var normal := _box(Color(0.1, 0.11, 0.14, 0.92), 8)
-	if queued:
-		normal.border_color = Color(gold, 0.6)
-		normal.border_width_left = 3
-	var hover := _box(Color(0.16, 0.15, 0.11, 0.96), 8)
-	hover.border_color = gold
-	hover.border_width_left = 3
-	var pressed := _box(Color(0.24, 0.2, 0.09, 0.98), 8)
-	b.add_theme_stylebox_override("normal", normal)
-	b.add_theme_stylebox_override("hover", hover)
-	b.add_theme_stylebox_override("focus", hover)
-	b.add_theme_stylebox_override("pressed", pressed)
-	b.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
-	b.add_theme_color_override("font_hover_color", gold)
-	b.add_theme_color_override("font_focus_color", gold)
+	# The key hints sit under the column, not at the screen's foot: that is where the HUD's weapon
+	# slots are while a match runs behind this.
+	_hint = Label.new()
+	_hint.name = "Footer"
+	_hint.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(_hint)
+	CrystalUi.footer(_hint)

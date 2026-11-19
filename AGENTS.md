@@ -49,6 +49,18 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #312/#313 crystal scoreboard and class select: the Tab board (`ScoreboardView`) is floating shards - a
+  header shard, one panel per team whose top seam is the team colour lit to score / `score_limit()`
+  (`ScoreboardView.progress`), a faint shard per row and your own row as pale shell with an ice seam
+  (no more gold name; gold stays on the STYLE column and the style king, trick rewards). The winner card
+  is a shard with the accent on its bottom seam ("YOU WIN" is pale shell), the style king a slim shard
+  with a gold seam. The in-game `ClassSelect` takes `CrystalTheme` itself (it is built in code): a
+  centred staggered column of `MenuButtonBig` shards with the loadout as a button hint, widened so a
+  long loadout never runs into the name, the countdown as a seam that runs out over `AUTO_TIME` (red
+  in the last 3 s), "‹ BACK" and a footer shard under the column. Shared pieces are `CrystalUi.shard`,
+  `caption` and `bold_font`; `Hud._sb_box` and `ScoreboardView.box` are gone. Check: scoreboard and
+  class-select asserts in `tools/check_crystal_layout`; `tools/shot_scoreboard`, `shot_winner` and
+  `shot_hud` render them. No protocol change.
 - Townhouses v2 (`tools/gen_townhouses.py`, the third map rebuild; the old scene was hand-written):
   a Dutch canal street, 64 x 96, walls 15 m. Canal down the middle at -3 m (`kill_y` -6), quay walls
   as wallruns, boats, two bridges and a drawbridge under an 11 m steel portal (landmark and anchor).
