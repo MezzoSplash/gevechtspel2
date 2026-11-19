@@ -506,3 +506,124 @@ static func spawn_net_tracer(game: GameState, from: Vector3, to: Vector3) -> voi
 	if from.distance_squared_to(to) > 0.0001:
 		mesh_inst.look_at(to, Vector3.UP)
 	game.get_tree().create_timer(0.055).timeout.connect(mesh_inst.queue_free)
+
+
+## Name for a kill source as players see it: a gun's display_name, else grenade/knife/RC-XD/streaks.
+static func weapon_display_name(game: GameState, weapon_id: StringName) -> String:
+	if weapon_id == &"":
+		return ""
+	var d := game.weapon_def(weapon_id)
+	if d:
+		return d.display_name
+	if game._KILL_SOURCE_NAMES.has(weapon_id):
+		return str(game._KILL_SOURCE_NAMES[weapon_id])
+	return String(weapon_id).replace("_", " ").capitalize()
+
+
+## Server (request_weapon_fire): a client's shot. Checks the equipped gun, its class, freeze, fire rate
+## and that the shot starts near our copy of the shooter; resolves it against where the client saw the
+## targets (#105) and sends the tracer and the hit marker back. `shot_seed` matches the client's pellets.
+static func request_fire(game: GameState, origin: Vector3, look_dir: Vector3, weapon_id: StringName, muzzle_pos: Vector3,
+		spread_mult: float, shot_seed: int, scoped: bool, burst: int, mag: int, view_ms: int) -> void:
+	if not game.multiplayer.is_server():
+		return
+	var peer := Lobby.sender(game)
+	var shooter := game.player_for_peer(peer)
+	if shooter == null or shooter.is_dead or shooter.is_bot or game.play_locked():
+		return
+	if shooter.weapon == null or shooter.weapon.def == null or shooter.weapon.def.id != weapon_id:
+		return
+	if not shooter.has_weapon(weapon_id): # not in their class
+		return
+	var def := shooter.weapon.def
+	if look_dir.length_squared() < 0.0001 or not origin_plausible(game, shooter, origin):
+		return
+	if not take_fire_credit(game, peer, def):
+		return
+	# A shot was accepted: the server marks it itself instead of waiting for the fx path to do it, so bot
+	# hearing works on a dedicated server (no sound there) exactly like on a listen host.
+	shooter.mark_shot()
+	var floor_mult := def.spread_mult_for(shooter.min_spread_multiplier(), scoped)
+	var mult := clampf(spread_mult, floor_mult, game.SPREAD_MAX)
+	# Lag compensation (#105): cast against the targets where this client saw them, then put them back.
+	game._shot_rewind = LagComp.offsets_for(game, shooter, LagComp.rewind_ms_for(game, peer, view_ms))
+	var best := resolve_weapon_fire(game, shooter, origin, look_dir, def, mult, shot_seed, scoped, burst, mag, true)
+	game._shot_rewind = []
+	if best.get("refused", false):
+		return # empty magazine and no finished reload: no hit, no tracer (B4)
+	var from := muzzle_pos
+	if from == Vector3.ZERO or from.distance_to(origin) > 2.0:
+		from = origin
+	broadcast_shot_fx(game, from, best.get("end", origin + look_dir.normalized() * def.range_m), peer)
+	if best.get("hit", false):
+		game.notify_hit.rpc_id(peer, best.killed, best.headshot)
+
+
+## Client (sync_shot_fx): another shooter's tracer and gun sound. The shooter drew their own already.
+static func on_shot_fx(game: GameState, from: Vector3, to: Vector3, shooter_peer_id: int) -> void:
+	if shooter_peer_id != 0 and shooter_peer_id == game.multiplayer.get_unique_id():
+		return
+	spawn_net_tracer(game, from, to)
+	var shooter := game.player_for_peer(shooter_peer_id)
+	if shooter and shooter.weapon:
+		shooter.weapon.play_fire_sfx()
+	note_net_shot(game, from, to, shooter)
+
+
+## Local human switched guns. Everyone needs the same def: sound, viewmodel, kill feed, server checks.
+## By weapon id: slot numbers differ per class.
+static func announce_weapon(game: GameState, p: Player, weapon_id: StringName) -> void:
+	if not game.is_networked() or p == null or p.is_bot:
+		return
+	if game.multiplayer.is_server():
+		game.sync_weapon.rpc(p.peer_id, String(weapon_id))
+	else:
+		game.request_weapon_switch.rpc_id(1, String(weapon_id))
+
+
+## Server (request_weapon_switch): a gun outside the sender's class is refused (the server copy keeps
+## the old one, so its shots fail too).
+static func request_switch(game: GameState, weapon_id: String) -> void:
+	if not game.multiplayer.is_server():
+		return
+	var peer := game.multiplayer.get_remote_sender_id()
+	var p := game.player_for_peer(peer)
+	if p == null or p.is_bot or p.weapon == null:
+		return
+	var id := StringName(weapon_id)
+	if game.weapon_def(id) == null or not p.has_weapon(id):
+		print("SERVER: refused switch to %s from %d (not in loadout)" % [weapon_id, peer])
+		return
+	p.weapon.equip_remote(id)
+	game.sync_weapon.rpc(peer, weapon_id)
+
+
+## Client (sync_weapon): another pawn's gun changed.
+static func on_weapon_sync(game: GameState, peer_id: int, weapon_id: String) -> void:
+	if game.multiplayer.is_server():
+		return
+	var p := game.player_for_peer(peer_id)
+	if p == null or p.is_local() or p.weapon == null:
+		return
+	p.weapon.equip_remote(StringName(weapon_id))
+
+
+## #252: a reload started. The owner tells the server, the server tells everyone else.
+static func notify_reload(game: GameState, p: Player, wire_index: int, reload_time: float) -> void:
+	if p == null or not game.is_networked() or p.weapon == null:
+		return
+	if game.multiplayer.is_server():
+		game.sync_reload.rpc(p.peer_id, wire_index, reload_time)
+	else:
+		game.request_reload.rpc_id(1, wire_index, reload_time)
+
+
+## Server (request_reload): clamped, so a client cannot animate a pawn reloading for an hour.
+static func request_reload(game: GameState, wire_index: int, reload_time: float) -> void:
+	if not game.multiplayer.is_server():
+		return
+	var id := game.multiplayer.get_remote_sender_id()
+	var p := game.player_for_peer(id)
+	if p == null or p.is_dead:
+		return
+	game.sync_reload.rpc(id, wire_index, clampf(reload_time, 0.0, 10.0))
