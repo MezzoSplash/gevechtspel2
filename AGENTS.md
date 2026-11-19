@@ -49,6 +49,16 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #316 slice 4 (player.gd split, the first): the local human's movement tick left `_physics_process` (188
+  lines -> 22) for `MoveTick` (`scripts/move_tick.gd`, static on the pawn like `Movement`): `run` calls
+  `read_keys` (the lock and the `_in_*` keys), the pawn's slide/dive/stance/grapple starts, `tick_jump`
+  (gravity, jump buffer, wall jump, slide-dive, crouch jump, roll lock), `wish` (direction, speed, sprint,
+  LOS coast), `horizontal` (lunge, air, knockback, `carry`, roll, slide, ground), the wallrun's horizontal,
+  `vertical` (wallrun sink, grapple pull, surf clip), `move_and_slide` and `after_move`, in the old order;
+  every phase is under 60 lines. Bots and remote pawns keep their branches in `_physics_process`.
+  player.gd 2052 -> ~1880 lines. Checks: the 15 movement checks, and `tools/probe_move_trace` (new, a
+  parity probe: a fixed input script traced per tick) gives byte-identical traces on main and this
+  branch, slide, dive and wallrun included. No behaviour or protocol change.
 - #316 slice 3 (game.gd split): streaks, rounds and scores. `Streaks` has `request_use`, the RC-XD RPC bodies
   (`rc_drive`, `rc_detonate`, `on_rc_pose`, `on_rc_end`, `on_rc_hp`; drive and detonate keep their
   owner-only sender rule), `announce_rc` / `show_rc_announce`, `uav_shot_down` and `uav_end`. `MatchFlow` has
