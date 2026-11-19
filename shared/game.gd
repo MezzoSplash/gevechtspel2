@@ -605,14 +605,7 @@ const _KILL_SOURCE_NAMES := {
 
 ## Name for a kill source as players see it: a gun's display_name, else grenade/knife/RC-XD/streaks.
 func weapon_display_name(weapon_id: StringName) -> String:
-	if weapon_id == &"":
-		return ""
-	var d := weapon_def(weapon_id)
-	if d:
-		return d.display_name
-	if _KILL_SOURCE_NAMES.has(weapon_id):
-		return str(_KILL_SOURCE_NAMES[weapon_id])
-	return String(weapon_id).replace("_", " ").capitalize()
+	return Combat.weapon_display_name(self, weapon_id)
 
 
 ## Client → server fire. Hits resolve here; tracers/sfx go back out via broadcast_shot_fx.
@@ -631,40 +624,7 @@ func request_weapon_fire(
 	mag: int = 0,
 	view_ms: int = 0
 ) -> void:
-	if not multiplayer.is_server():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	if peer == 0:
-		peer = multiplayer.get_unique_id()
-	var shooter := player_for_peer(peer)
-	if shooter == null or shooter.is_dead or shooter.is_bot or play_locked():
-		return
-	if shooter.weapon == null or shooter.weapon.def == null or shooter.weapon.def.id != weapon_id:
-		return
-	if not shooter.has_weapon(weapon_id): # not in their class
-		return
-	var def := shooter.weapon.def
-	if look_dir.length_squared() < 0.0001 or not origin_plausible(shooter, origin):
-		return
-	if not _take_fire_credit(peer, def):
-		return
-	# A shot was accepted: the server marks it itself instead of waiting for the fx path to do it, so bot
-	# hearing works on a dedicated server (no sound there) exactly like on a listen host.
-	shooter.mark_shot()
-	var floor_mult := def.spread_mult_for(shooter.min_spread_multiplier(), scoped)
-	var mult := clampf(spread_mult, floor_mult, SPREAD_MAX)
-	# Lag compensation (#105): cast against the targets where this client saw them, then put them back.
-	_shot_rewind = LagComp.offsets_for(self, shooter, LagComp.rewind_ms_for(self, peer, view_ms))
-	var best := _resolve_weapon_fire(shooter, origin, look_dir, def, mult, shot_seed, scoped, burst, mag, true)
-	_shot_rewind = []
-	if best.get("refused", false):
-		return # empty magazine and no finished reload: no hit, no tracer (B4)
-	var from := muzzle_pos
-	if from == Vector3.ZERO or from.distance_to(origin) > 2.0:
-		from = origin
-	broadcast_shot_fx(from, best.get("end", origin + look_dir.normalized() * def.range_m), peer)
-	if best.get("hit", false):
-		notify_hit.rpc_id(peer, best.killed, best.headshot)
+	Combat.request_fire(self, origin, look_dir, weapon_id, muzzle_pos, spread_mult, shot_seed, scoped, burst, mag, view_ms)
 
 
 func origin_plausible(shooter: Player, origin: Vector3) -> bool:
@@ -690,67 +650,30 @@ func predict_grenade(thrower: Player, origin: Vector3, dir: Vector3) -> int:
 ## Client throw. Server re-checks ammo, death, and freeze.
 @rpc("any_peer", "call_remote", "reliable", 1)
 func request_grenade(origin: Vector3, dir: Vector3, client_seq: int = 0) -> void:
-	if not multiplayer.is_server():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	if peer == 0:
-		peer = multiplayer.get_unique_id()
-	var thrower := player_for_peer(peer)
-	if thrower == null or dir.length_squared() < 0.0001 or not origin_plausible(thrower, origin):
-		return
-	throw_grenade(thrower, origin, dir, client_seq)
+	Throwables.request_grenade(self, origin, dir, client_seq)
 
 
 @rpc("authority", "call_local", "reliable", 0)
 func sync_grenade_count(peer_id: int, n: int) -> void:
-	var p := player_for_peer(peer_id)
-	if p == null:
-		return
-	p.grenades = n
-	p._notify_grenades()
+	Throwables.set_grenade_count(self, peer_id, n)
 
 
 ## Visual copy on clients, flying on its own from the spawn velocity. Damage stays on the server grenade.
 ## The thrower's own predicted copy is adopted instead of spawning a second one.
 @rpc("authority", "call_remote", "reliable", 1)
 func sync_grenade_spawn(net_id: int, pos: Vector3, vel: Vector3, thrower_peer: int, client_seq: int) -> void:
-	if multiplayer.is_server() or _grenade_done.has(net_id):
-		return
-	if thrower_peer == multiplayer.get_unique_id() and _grenade_predicted.has(client_seq):
-		var pred = _grenade_predicted[client_seq]
-		_grenade_predicted.erase(client_seq)
-		if is_instance_valid(pred):
-			_grenade_visuals[net_id] = pred
-			return
-	var existing = _grenade_visuals.get(net_id)
-	if is_instance_valid(existing):
-		(existing as Grenade).velocity = vel # a pose beat the spawn here; give it the real arc
-		return
-	_grenade_visual(net_id, pos, vel)
+	Throwables.on_grenade_spawn(self, net_id, pos, vel, thrower_peer, client_seq)
 
 
 @rpc("authority", "call_remote", "unreliable", 1)
 func sync_grenade_pose(net_id: int, pos: Vector3) -> void:
-	# Unreliable can arrive after the reliable boom; that would leave a ghost grenade.
-	if multiplayer.is_server() or _grenade_done.has(net_id):
-		return
-	var g := _grenade_visual(net_id, pos, Vector3.ZERO) as Grenade
-	if g:
-		g.apply_net_pose(pos)
+	Throwables.on_grenade_pose(self, net_id, pos)
 
 
 ## Drop the flying mesh, then play the same boom the server already showed.
 @rpc("authority", "call_remote", "reliable", 1)
 func sync_grenade_boom(pos: Vector3, net_id: int) -> void:
-	if multiplayer.is_server():
-		return
-	_grenade_done[net_id] = true
-	if _grenade_visuals.has(net_id):
-		var vis: Node = _grenade_visuals[net_id]
-		_grenade_visuals.erase(net_id)
-		if is_instance_valid(vis):
-			vis.queue_free()
-	Grenade.play_boom(pos)
+	Throwables.on_grenade_boom(self, pos, net_id)
 
 
 func _grenade_visual(net_id: int, pos: Vector3, vel: Vector3) -> Node3D:
@@ -765,15 +688,7 @@ func throw_knife(thrower: Player, origin: Vector3, dir: Vector3) -> void:
 
 @rpc("any_peer", "call_remote", "reliable", 1)
 func request_knife(origin: Vector3, dir: Vector3) -> void:
-	if not multiplayer.is_server():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	if peer == 0:
-		peer = multiplayer.get_unique_id()
-	var thrower := player_for_peer(peer)
-	if thrower == null or thrower.is_bot or dir.length_squared() < 0.0001 or not origin_plausible(thrower, origin):
-		return
-	throw_knife(thrower, origin, dir)
+	Throwables.request_knife(self, origin, dir)
 
 
 ## Map pickups (#144). Authority decides, clients draw.
@@ -795,51 +710,19 @@ func sync_pickup_state(pickup_id: int, ready: bool, timer: float) -> void:
 
 @rpc("authority", "call_local", "reliable", 0)
 func sync_knife_count(peer_id: int, n: int) -> void:
-	var p := player_for_peer(peer_id)
-	if p == null:
-		return
-	# A count that drops is a throw, and this RPC already reaches every client: that is how the body
-	# animation gets the right thrower without a new field in sync_knife_spawn (#25). A refill (respawn,
-	# Game reset) goes up and stays silent.
-	if n < p.knives:
-		p.play_throw_anim()
-	p.knives = n
-	p._notify_grenades()
+	Throwables.set_knife_count(self, peer_id, n)
 
 
 ## Clients fly a visual copy from the release; sync_knife_done ends it where the server says.
 @rpc("authority", "call_remote", "reliable", 1)
 func sync_knife_spawn(net_id: int, pos: Vector3, vel: Vector3) -> void:
-	if multiplayer.is_server():
-		return
-	var scene := get_tree().current_scene
-	if scene == null:
-		return
-	var k := ThrowingKnife.new()
-	k.is_visual = true
-	k.velocity = vel
-	k.origin = pos
-	scene.add_child(k)
-	k.global_position = pos
-	_knife_visuals[net_id] = k
+	Throwables.on_knife_spawn(self, net_id, pos, vel)
 
 
 ## `end`: ThrowingKnife.END_* (stuck in the world at `pos` for a moment, hit a body, or flew off).
 @rpc("authority", "call_remote", "reliable", 0)
 func sync_knife_done(net_id: int, pos: Vector3, normal: Vector3, end: int) -> void:
-	if multiplayer.is_server():
-		return
-	var k := _knife_visuals.get(net_id) as ThrowingKnife
-	_knife_visuals.erase(net_id)
-	if k == null or not is_instance_valid(k):
-		return
-	if end == ThrowingKnife.END_STUCK:
-		k.stick(pos, normal)
-		return
-	k.global_position = pos
-	if end == ThrowingKnife.END_BODY:
-		k.play_flesh()
-	k.queue_free()
+	Throwables.on_knife_done(self, net_id, pos, normal, end)
 
 
 func knife_hit(knife: ThrowingKnife, victim: Player, point: Vector3, normal: Vector3) -> void:
@@ -1696,13 +1579,7 @@ func broadcast_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int) -> void
 ## Skip the shooter: they already spawned tracers locally in Weapon._fire.
 @rpc("authority", "call_remote", "unreliable", 2)
 func sync_shot_fx(from: Vector3, to: Vector3, shooter_peer_id: int = 0) -> void:
-	if shooter_peer_id != 0 and shooter_peer_id == multiplayer.get_unique_id():
-		return
-	_spawn_net_tracer(from, to)
-	var shooter := player_for_peer(shooter_peer_id)
-	if shooter and shooter.weapon:
-		shooter.weapon.play_fire_sfx()
-	_note_net_shot(from, to, shooter)
+	Combat.on_shot_fx(self, from, to, shooter_peer_id)
 
 
 func _note_net_shot(from: Vector3, to: Vector3, shooter: Player) -> void:
@@ -1803,30 +1680,14 @@ func sync_bot_poses(poses: Array) -> void:
 ## Local human switched guns. Everyone needs the same def: sound, viewmodel, kill feed, server checks.
 ## By weapon id: slot numbers differ per class.
 func announce_weapon(p: Player, weapon_id: StringName) -> void:
-	if not is_networked() or p == null or p.is_bot:
-		return
-	if multiplayer.is_server():
-		sync_weapon.rpc(p.peer_id, String(weapon_id))
-	else:
-		request_weapon_switch.rpc_id(1, String(weapon_id))
+	Combat.announce_weapon(self, p, weapon_id)
 
 
 ## Reliable and on the same channel as request_weapon_fire, so the server sees the switch before the shot.
 ## A gun outside the sender's class is refused (the server copy keeps the old one, so its shots fail too).
 @rpc("any_peer", "call_remote", "reliable", 1)
 func request_weapon_switch(weapon_id: String) -> void:
-	if not multiplayer.is_server():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	var p := player_for_peer(peer)
-	if p == null or p.is_bot or p.weapon == null:
-		return
-	var id := StringName(weapon_id)
-	if weapon_def(id) == null or not p.has_weapon(id):
-		print("SERVER: refused switch to %s from %d (not in loadout)" % [weapon_id, peer])
-		return
-	p.weapon.equip_remote(id)
-	sync_weapon.rpc(peer, weapon_id)
+	Combat.request_switch(self, weapon_id)
 
 
 ## #160: both flags and the capture score (authority → everyone, on every change and to late joiners).
@@ -1876,12 +1737,7 @@ func _apply_gun_level(peer_id: int, level: int) -> void:
 
 @rpc("authority", "call_remote", "reliable", 1)
 func sync_weapon(peer_id: int, weapon_id: String) -> void:
-	if multiplayer.is_server():
-		return
-	var p := player_for_peer(peer_id)
-	if p == null or p.is_local() or p.weapon == null:
-		return
-	p.weapon.equip_remote(StringName(weapon_id))
+	Combat.on_weapon_sync(self, peer_id, weapon_id)
 
 
 ## #252: a reload started. The owner tells the server, the server tells everyone else, and every client
@@ -1891,24 +1747,13 @@ func sync_weapon(peer_id: int, weapon_id: String) -> void:
 ## never a slot index. The receiver maps it back through Weapon.LOADOUT, and a human's `slots` is only
 ## their class's two guns.
 func notify_reload(p: Player, wire_index: int, reload_time: float) -> void:
-	if p == null or not is_networked() or p.weapon == null:
-		return
-	if multiplayer.is_server():
-		sync_reload.rpc(p.peer_id, wire_index, reload_time)
-	else:
-		request_reload.rpc_id(1, wire_index, reload_time)
+	Combat.notify_reload(self, p, wire_index, reload_time)
 
 
 ## Client → server. The server clamps the time so a client cannot animate a pawn reloading for an hour.
 @rpc("any_peer", "call_remote", "reliable", 1)
 func request_reload(wire_index: int, reload_time: float) -> void:
-	if not multiplayer.is_server():
-		return
-	var id := multiplayer.get_remote_sender_id()
-	var p := player_for_peer(id)
-	if p == null or p.is_dead:
-		return
-	sync_reload.rpc(id, wire_index, clampf(reload_time, 0.0, 10.0))
+	Combat.request_reload(self, wire_index, reload_time)
 
 
 @rpc("authority", "call_local", "unreliable", 2)

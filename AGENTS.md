@@ -49,6 +49,15 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #316 slice 2 (game.gd split): the shot path and the throwables' RPC bodies left Game. `Combat` has
+  `request_fire` (the server side of `request_weapon_fire`: class, freeze, fire-rate and origin checks, lag
+  rewind, tracer and hit marker), `on_shot_fx`, `announce_weapon`, `request_switch`, `on_weapon_sync`,
+  `notify_reload`, `request_reload` and `weapon_display_name`; `Throwables` has `request_grenade` /
+  `request_knife`, the grenade and knife counts, and the client sides of `sync_grenade_spawn` / `pose` /
+  `boom` and `sync_knife_spawn` / `done`. The RPC signatures and channels are untouched; `request_weapon_switch`
+  and `request_reload` keep their own sender rule (no fallback to the local id). game.gd ~2360 -> ~2210
+  lines. Checks: the existing ones, plus `tools/net_grenade.sh` and `check_death_report -- --net` against a
+  local server. No behaviour or protocol change.
 - #316 slice 1 (game.gd split): the bot difficulty table is `BotProfiles` (`shared/bot_profiles.gd`: `EASY..HARD`,
   `IDS`, `NAMES`, `PROFILES`, `profile`, `parse`); Game's `BOT_*` names are aliases of it. The lobby RPC bodies
   (`submit_display_name`, `apply_display_name`, `submit_chat`, `request_lobby_team`) and `set_player_name`
