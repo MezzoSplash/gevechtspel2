@@ -409,17 +409,7 @@ func _init_loadout() -> void:
 
 
 func weapon_ids() -> Array[StringName]:
-	var ids: Array[StringName] = []
-	if Game.is_gun_game(): # #148: only the ladder step's gun, for humans and bots
-		ids.append(GunGame.weapon_at(GunGame.level_of(Game, peer_id)))
-		return ids
-	if loadout.is_empty():
-		for w in Weapon.LOADOUT:
-			ids.append(w.id)
-		return ids
-	ids.append(StringName(loadout.primary))
-	ids.append(StringName(loadout.secondary))
-	return ids
+	return PawnKit.weapon_ids(self)
 
 
 ## Server fire/switch check. Remote copies (empty loadout) say yes; they never validate anything.
@@ -429,38 +419,20 @@ func has_weapon(id: StringName) -> bool:
 
 ## Per type in the class (frags on G, knives on F); the class shares PlayerClasses.MAX_GRENADES slots.
 func grenade_max() -> int:
-	if Game.is_gun_game():
-		return 0 # #148: guns and the knife only
-	if loadout.is_empty():
-		return GRENADE_MAX
-	var g: Dictionary = loadout.get("grenades", {})
-	return clampi(int(g.get("frag", 0)), 0, PlayerClasses.MAX_GRENADES)
+	return PawnKit.grenade_max(self)
 
 
 func knife_max() -> int:
-	if Game.is_gun_game():
-		return 0
-	if loadout.is_empty():
-		return 0
-	var g: Dictionary = loadout.get("grenades", {})
-	return clampi(int(g.get("knife", 0)), 0, PlayerClasses.MAX_GRENADES)
+	return PawnKit.knife_max(self)
 
 
 ## Carry the class's guns (holding the primary), full ammo, class grenades.
 func apply_loadout() -> void:
-	if weapon:
-		weapon.set_slots(weapon_ids())
-		weapon.refill()
-	grenades = grenade_max()
-	knives = knife_max()
-	_notify_grenades()
+	PawnKit.apply_loadout(self)
 
 
 func _apply_bot_loadout() -> void:
-	if weapon and Game.is_gun_game():
-		apply_loadout() # #148: the bot's ladder step, not its fixed gun
-	elif weapon:
-		weapon.equip_loadout(loadout_index)
+	PawnKit.apply_bot_loadout(self)
 
 
 ## Local: hide body, capture mouse. Remote/bot: show mesh, nametag, world gun.
@@ -518,21 +490,17 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func set_display_name(n: String) -> void:
-	display_name = n
-	if nametag:
-		nametag.text = n
-		nametag.modulate = team_color(team_id)
+	PawnBody.set_display_name(self, n)
 
 
 ## #164: the crystal body is visuals only; a dedicated server never builds it.
 func _arms_enabled() -> bool:
-	return not Game.is_dedicated and body_mesh != null and weapon != null
+	return PawnBody.arms_enabled(self)
 
 
 ## #164: B1 crystal body with floating hands that hold the gun (CrystalBody).
 func _attach_arms() -> void:
-	if _arms_enabled():
-		CrystalBody.attach(body_mesh, weapon)
+	PawnBody.attach_arms(self)
 
 
 func _dup_body_mat() -> void:
@@ -545,19 +513,12 @@ func _apply_team_visual() -> void:
 
 ## Body/tag/feed colour of a team. FFA has no teams: everyone gets FFA_COLOR.
 static func team_color(team: int) -> Color:
-	if Game.is_ffa():
-		return FFA_COLOR
-	var pal: Array = Game.COLORBLIND_TEAMS[Game.colorblind] if Game.colorblind > 0 else TEAM_COLORS
-	return pal[clampi(team, 0, pal.size() - 1)]
+	return PawnBody.team_color(team)
 
 
 ## Team colour on a body material. Also used for the killcam ghosts.
 static func paint_body(mat: StandardMaterial3D, team: int) -> void:
-	var col: Color = team_color(team)
-	mat.albedo_color = col
-	mat.emission_enabled = true
-	mat.emission = col * 0.45
-	mat.emission_energy_multiplier = 0.7
+	PawnBody.paint_body(mat, team)
 
 
 ## Blast push (Knockback). Runs on the machine that simulates this pawn.
@@ -626,47 +587,21 @@ func apply_respawn_state() -> void:
 
 ## G. Offline/host throws here; a client only sends origin and look direction.
 func _try_throw_grenade() -> void:
-	if grenades <= 0 or camera == null:
-		return
-	var origin := camera.global_position + (-camera.global_basis.z) * 0.6
-	var dir := -camera.global_basis.z
-	if Game.is_networked() and not multiplayer.is_server():
-		# Show it now; the server still decides (count, death, freeze) and adopts this copy.
-		var seq := 0
-		if not Game.play_locked():
-			seq = Game.predict_grenade(self, origin, dir)
-		Game.request_grenade.rpc_id(1, origin, dir, seq)
-	else:
-		Game.throw_grenade(self, origin, dir)
+	PawnKit.try_throw_grenade(self)
 
 
 ## F. The knife leaves from the right hand, a little lower than the eye, along the crosshair.
 func _try_throw_knife() -> void:
-	if knives <= 0 or camera == null or (weapon and weapon.is_throwing()):
-		return
-	var origin := camera.global_position + (-camera.global_basis.z) * 0.5 + camera.global_basis.x * 0.12
-	var dir := -camera.global_basis.z
-	if weapon:
-		weapon.play_throw()
-	if Game.is_networked() and not multiplayer.is_server():
-		Game.request_knife.rpc_id(1, origin, dir)
-	else:
-		Game.throw_knife(self, origin, dir)
+	PawnKit.try_throw_knife(self)
 
 
 func _notify_grenades() -> void:
-	if not is_local():
-		return
-	var hud := get_tree().get_first_node_in_group("hud") as Hud
-	if hud:
-		hud.set_grenades(grenades, knives)
+	PawnKit.notify_grenades(self)
 
 
 ## Held gun's movement speed factor (SMG 1.08, shank 1.23). Bots use it too.
 func gun_speed_mult() -> float:
-	if weapon == null or weapon.def == null:
-		return 1.0
-	return weapon.def.move_speed_mult
+	return PawnKit.gun_speed_mult(self)
 
 
 ## Sprint key, or already moving at sprint speed (a remote pawn has no sprint key on the server).
@@ -688,20 +623,12 @@ func is_lunging() -> bool:
 
 ## Commit a shank lunge. The next movement tick spends it; walls stop it via move_and_slide.
 func start_lunge(look_dir: Vector3, dist: float) -> void:
-	var flat := Vector3(look_dir.x, 0.0, look_dir.z)
-	if flat.length_squared() < 0.0001 or dist <= 0.05:
-		return
-	flat = flat.normalized()
-	_lunge_dir = flat
-	_lunge_speed = dist / Melee.LUNGE_TIME
-	_lunge_left = Melee.LUNGE_TIME
+	PawnKit.start_lunge(self, look_dir, dist)
 
 
 ## One tick of an in-progress lunge. Sets the horizontal velocity and shortens the timer.
 func consume_lunge(delta: float) -> void:
-	_lunge_left = maxf(_lunge_left - delta, 0.0)
-	velocity.x = _lunge_dir.x * _lunge_speed
-	velocity.z = _lunge_dir.z * _lunge_speed
+	PawnKit.consume_lunge(self, delta)
 
 
 ## This pawn fired: flash it on the minimap and let bots hear it. Called from Weapon._fire (every shot
@@ -718,18 +645,12 @@ func run_time() -> float:
 ## Server floor for a remote human's claimed spread: half the walk penalty at the speed we see them move.
 ## Lenient on purpose (sync lag), it only stops "always standing still" clients.
 func min_spread_multiplier() -> float:
-	return 1.0 + minf(_obs_speed / WALK_SPEED, 1.0) * SPREAD_WALK_K * 0.5
+	return PawnKit.min_spread_multiplier(self)
 
 
 ## 1.0 is standing still. Walk, sprint, then slide stack on top of the gun's own spread.
 func spread_multiplier() -> float:
-	# Still is the accurate state. Slide is wider than sprint, which is wider than walking.
-	if is_sliding():
-		return SPREAD_SLIDE
-	if is_sprinting:
-		return SPREAD_SPRINT
-	var move := minf(Vector2(velocity.x, velocity.z).length() / WALK_SPEED, 1.0)
-	return 1.0 + move * SPREAD_WALK_K
+	return PawnKit.spread_multiplier(self)
 
 
 ## Server simulates bots. Remote humans/bots on a client only apply visuals + footsteps.
@@ -882,26 +803,15 @@ func _finish_slide() -> void:
 
 
 func _update_stance(delta: float, _on_floor: bool) -> void:
-	var want := _sliding or _diving or _roll_t > 0.0 or ((not is_dead) and _in_crouch)
-	if (not want) and crouch > 0.05 and _ceiling_blocked():
-		want = true
-	var target := 1.0 if want else 0.0
-	crouch = move_toward(crouch, target, CROUCH_BLEND * delta)
-	_apply_stance()
+	PawnBody.update_stance(self, delta, _on_floor)
 
 
 func _apply_stance() -> void:
-	if _capsule == null:
-		return
-	var h := lerpf(STAND_CAPSULE, CROUCH_CAPSULE, crouch)
-	_capsule.height = h
-	col_shape.position.y = h * 0.5
-	head.position.y = lerpf(STAND_EYE, CROUCH_EYE, crouch)
-	_pose_figure()
+	PawnBody.apply_stance(self)
 
 
 func _pose_figure() -> void:
-	pose_body(body_mesh, crouch, move_fx, roll_flip(), throw_amt(), reload_amt(), reload_style())
+	PawnBody.pose_figure(self)
 
 
 ## Schildplaat (#144): armour never stacks above the plate's value, and it is gone when you die.
@@ -912,27 +822,7 @@ func set_armour(v: float) -> void:
 
 ## A pickup did something to this pawn: a short HUD flash in its colour plus a chime.
 func play_pickup_flash(t: StringName) -> void:
-	if not is_local():
-		return
-	var info := Pickups.type_info(t)
-	if pickup_sfx and pickup_sfx.stream:
-		pickup_sfx.pitch_scale = float(info["pitch"])
-		pickup_sfx.play()
-	var h := get_tree().get_first_node_in_group("hud") as Hud
-	if h == null or not h.has_method("flash_pickup"):
-		return
-	# The popup says what happened, not which type it was (#246 review).
-	var text := String(info["label"])
-	match t:
-		&"knives":
-			text = "MESSEN +%d" % Pickups.KNIVES
-		&"shield":
-			text = "SCHILD"
-		&"heal":
-			text = "+%d HP" % roundi(Pickups.HEAL)
-	h.flash_pickup(text, info["color"])
-	if t == &"knives" and h.has_method("blink_knives"):
-		h.blink_knives()
+	PawnBody.play_pickup_flash(self, t)
 
 
 ## Herstelkern / Schildplaat on a remote pawn (#144): HP and armour without any hurt feedback.
@@ -968,52 +858,24 @@ func play_throw_anim() -> void:
 
 ## 0..1 through the throw: wind up, then snap forward. Visual only.
 func throw_amt() -> float:
-	if _throw_t <= 0.0:
-		return 0.0
-	var t := 1.0 - _throw_t / THROW_ANIM_TIME
-	if t < 0.45:
-		return smoothstep(0.0, 0.45, t) # behind the shoulder
-	return smoothstep(0.45, 1.0, t) # follow through
+	return PawnBody.throw_amt(self)
 
 
 ## The landing roll as a rotation for the body, the same forward flip the local camera does (#205).
 ## 0 outside a roll, so a body that is not tumbling reads as flat.
 func roll_flip() -> float:
-	if _roll_t <= 0.0:
-		return 0.0
-	var pr := 1.0 - _roll_t / ROLL_TIME
-	return -TAU * ease(pr, -1.8)
+	return PawnBody.roll_flip(self)
 
 
 ## Puts the head marker (the hit target) on the stance's head height and hands the synced state to
 ## the crystal body (CrystalBody/BodyPose), which poses itself every frame. Static so the killcam
 ## ghosts (a copy of BodyMesh) use it too; they only know `crouch`.
 static func pose_body(body: Node3D, crouch_amt: float, fx := MOVE_NONE, flip := 0.0, throw_amt := 0.0, reload := 0.0, reload_kind: StringName = &"mag") -> void:
-	if body == null:
-		return
-	var head_y := lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch_amt)
-	var hit := body.get_node_or_null("HeadHit") as Node3D
-	if hit:
-		hit.position.y = head_y
-	var crystal := CrystalBody.ensure(body)
-	if crystal:
-		crystal.crouch = crouch_amt
-		crystal.head_y = head_y
-		crystal.move_fx = fx
-		crystal.flip = flip
-		crystal.throw_amt = throw_amt
-		crystal.reload_amt = reload
-		crystal.reload_style = reload_kind
+	PawnBody.pose_body(body, crouch_amt, fx, flip, throw_amt, reload, reload_kind)
 
 
 func _ceiling_blocked() -> bool:
-	var space := get_world_3d().direct_space_state
-	var from := global_position + Vector3(0.0, CROUCH_CAPSULE + 0.02, 0.0)
-	var to := global_position + Vector3(0.0, STAND_CAPSULE + 0.02, 0.0)
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 1
-	query.exclude = [get_rid()]
-	return space.intersect_ray(query).has("collider")
+	return PawnBody.ceiling_blocked(self)
 
 
 func _friction(vel: Vector3, delta: float) -> Vector3:
@@ -1279,23 +1141,7 @@ func _apply_grapple_pull(delta: float) -> void:
 
 ## Every machine, every frame: the rope from the reaching hand to the anchor, and the hand itself.
 func _draw_grapple() -> void:
-	if Game.is_dedicated:
-		return
-	var on := grappling and not is_dead
-	var crystal := body_mesh.get_node_or_null("Crystal") as CrystalBody if body_mesh else null
-	if crystal:
-		crystal.grapple_on = on
-		crystal.grapple_at = grapple_at
-	var view_hands := camera.get_node_or_null("ViewHands") as CrystalHands if camera and is_local() else null
-	if view_hands:
-		view_hands.reach[0] = [view_hands.reach_toward(0, grapple_at, GRAPPLE_VIEW_ARM), 1.0] if on else [Vector3.ZERO, 0.0]
-	if not on and get_node_or_null("GrappleRope") == null:
-		return
-	var from := global_position + Vector3.UP * Grapple.CHEST
-	var hands: CrystalHands = view_hands if view_hands else (crystal.hands if crystal else null)
-	if hands and hands.get_child_count() > 0:
-		from = (hands.get_child(0) as Node3D).global_position
-	GrappleRope.ensure(self).show_line(on, from, grapple_at)
+	PawnBody.draw_grapple(self)
 
 
 # ---------------------------------------------------------------------------------------------
