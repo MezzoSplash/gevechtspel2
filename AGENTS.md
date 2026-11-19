@@ -49,6 +49,16 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #338: the server's position corrections reach the client again. `Game.correct_position(peer_id, v)` was
+  called with only the position (`PawnNet.accept_claim`, `PawnVitals.pull_out_of_void`), so every client
+  dropped it ("Method expected 2 argument(s)") and a refused claim (#B1) or a remote void pull never put
+  anyone back. Both pass the peer now; the signature is unchanged, so no `NET_VERSION` bump. Check:
+  `tools/check_rpc_args` (new, a SceneTree script) reads every `@rpc func` and every `.rpc(` / `.rpc_id(`
+  call in scripts/ and shared/ and fails on a wrong argument count (it found exactly these two of 116).
+  `check_movement -- --net` flies the pawn to its test area under the claim limits (collision off on the
+  way: its own floor slab is in the route) instead of teleporting, asserts a refused 40 m jump is pulled
+  back, and online expects no wallrun moves along walls the server does not have (#B2's `wall_beside`);
+  in that run the deliberate jump is the only claim the server refuses.
 - #316 slice 6 (player.gd split): how a pawn lives on other machines is `PawnNet` (`scripts/pawn_net.gd`:
   `apply_network_pose`, `update_nametag`, `enemy_in_sight`, `receive_net_pos`, `accept_claim`,
   `claim_reachable`, `apply_snap`, `smooth_remote`, `apply_remote_visual`) and how it is set up is
@@ -57,7 +67,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   callbacks and every old name. player.gd ~1620 -> ~1425 lines. Checks: the suite, the movement trace still
   byte-identical to main, `check_death_report -- --net` clean. `check_movement -- --net` fails "WALL TO WALL
   in the combo" on main as well: the server's `correct_position` RPC is called with one argument where it
-  takes two, so no correction ever reaches a client (#338). No behaviour or protocol change here.
+  takes two, so no correction ever reached a client (#338, fixed since). No behaviour or protocol change here.
 - #316 slice 5 (player.gd split): a pawn's life is `PawnVitals` (`scripts/pawn_vitals.gd`: `check_kill_y`,
   `pull_out_of_void`, `apply_hit`, `point_hits_head`, `apply_hurt_state`, `die`, `apply_respawn_state`) and how
   it feels and sounds while it moves is `PawnFeel` (`scripts/pawn_feel.gd`: `tick_feet`, `apply_carry_fov`,

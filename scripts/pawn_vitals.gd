@@ -30,7 +30,7 @@ static func pull_out_of_void(p: Player) -> void:
 	p._net_target = p.global_position
 	p._net_has = true
 	if Game.is_networked() and p.multiplayer.is_server() and not p.is_bot and p.peer_id in p.multiplayer.get_peers():
-		Game.correct_position.rpc_id(p.peer_id, p.global_position)
+		Game.correct_position.rpc_id(p.peer_id, p.peer_id, p.global_position)
 
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
