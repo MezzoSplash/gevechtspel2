@@ -38,7 +38,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Code structure
 
-- `shared/game.gd` (autoload `Game`) is being split. Pure logic moves into `RefCounted` helpers with static functions (`shared/tricks.gd`, `shared/combo_ledger.gd`, `shared/match_rules.gd`). State, signals and every `@rpc` stay in `game.gd` on the same node path, and the old function names stay as thin wrappers. `player.gd` follows the same pattern with `shared/style_track.gd`: a helper may hold state, as long as it is one job, stays off the network and stays reachable through the pawn's own function names. `hud.gd` follows the HUD's own pattern: each piece is a node or helper in `scripts/hud/` (`ScoreboardView`, `ComboMeter`, `SpeedMeter`, `DeathReport`, `HudChat`, `PerfOverlay`, `WeaponBar`, `StreakColumn`, `HudSkin`, …) and `Hud` keeps the scene nodes, the signal hookups and its old function names as wrappers (#315, in slices).
+- `shared/game.gd` (autoload `Game`) is being split. Pure logic moves into `RefCounted` helpers with static functions (`shared/tricks.gd`, `shared/combo_ledger.gd`, `shared/match_rules.gd`). State, signals and every `@rpc` stay in `game.gd` on the same node path, and the old function names stay as thin wrappers. `player.gd` follows the same pattern with `shared/style_track.gd`: a helper may hold state, as long as it is one job, stays off the network and stays reachable through the pawn's own function names. `hud.gd` follows the HUD's own pattern: each piece is a node or helper in `scripts/hud/` (`ScoreboardView`, `ComboMeter`, `SpeedMeter`, `DeathReport`, `HudChat`, `PerfOverlay`, `WeaponBar`, `StreakColumn`, `HudSkin`, `HudBoard`, `TrickPopup`, `StandingLine`, …) and `Hud` keeps the scene nodes, the signal hookups and its old function names as wrappers (#315, in slices).
 - One responsibility per file, a file stops around 700 lines and a function around 60; going past that is a signal, not a rule. `game.gd`, `player.gd` and `hud.gd` are the three that still carry more than one job, and they are split in that order. One source per data table: a second copy of the same mapping (shadow quality, layout offsets, score order) is a bug waiting for one side to change.
 - A change to anything sent over the network bumps `NET_VERSION`. A refactor must not.
 
@@ -49,6 +49,15 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #315 slice 3 (hud.gd split): the Tab board's timing and the round-end cards are `HudBoard` (`open`,
+  `tick(delta, tab)`, `round_ended`, `killcam_finished`, the winner card and style king, static
+  `sort_scores`; `ScoreboardView` still builds the board), the trickshot word is a `TrickPopup` node
+  (`show_trick`, `text`, `hide_trick`) and the line under the clock a `StandingLine` label (FFA place / CTF
+  flags, `place`, static `ordinal`). Reachable as `hud.board` / `hud.trick` / `hud._standing`; `Hud`
+  keeps `show_trick`, `trick_text`, `_hide_trick`, `style_king_text`, `_refresh_scoreboard`,
+  `_refresh_standing`, `_place_standing`, `_sort_scores`, `_ordinal` and `_popup_top`. hud.gd 1142 -> ~880
+  lines. Check: `tools/check_hud_board` (new); `shot_hud` / `shot_scoreboard` set `hud.board.open`.
+  No behaviour or protocol change.
 - #315 slice 2 (hud.gd split): the weapon slots and grenade pill are `WeaponBar`, the scorestreak column
   (caption, pips, three slots with cost/READY tags, arrow-key `sel`, the RC-XD drive line, the announcer
   and its radar-voice cooldown) is `StreakColumn`, and the crystal skin behind a ColorRect is static

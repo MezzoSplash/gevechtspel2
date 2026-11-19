@@ -73,7 +73,7 @@ func _ready() -> void:
 	hud.set_weapon_index(2)
 	img = await _frame()
 	_save(img, "/tmp/hud-health-low.png", Rect2i(560, 820, 800, 260))
-	hud._scoreboard_open = true
+	hud.board.open = true
 	hud.scoreboard_container.visible = true
 	hud._refresh_scoreboard()
 	img = await _frame()
