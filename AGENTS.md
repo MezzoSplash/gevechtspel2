@@ -49,6 +49,14 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #316 slice 5 (player.gd split): a pawn's life is `PawnVitals` (`scripts/pawn_vitals.gd`: `check_kill_y`,
+  `pull_out_of_void`, `apply_hit`, `point_hits_head`, `apply_hurt_state`, `die`, `apply_respawn_state`) and how
+  it feels and sounds while it moves is `PawnFeel` (`scripts/pawn_feel.gd`: `tick_feet`, `apply_carry_fov`,
+  `tick_move_fx`, `tick_speed_fx`, `tick_speed_lines`, `tick_wind`). Both static on the pawn like `Movement`;
+  Player keeps the state, the constants, the signals and every old name as a wrapper. player.gd ~1880 ->
+  ~1620 lines. Checks: 19 checks on hits, deaths, pickups, killcam, speed FX and movement; the movement
+  trace (`tools/probe_move_trace`) still matches main byte for byte; `check_death_report -- --net` against
+  a local 8-bot server, no script errors on either side. No behaviour or protocol change.
 - #316 slice 4 (player.gd split, the first): the local human's movement tick left `_physics_process` (188
   lines -> 22) for `MoveTick` (`scripts/move_tick.gd`, static on the pawn like `Movement`): `run` calls
   `read_keys` (the lock and the `_in_*` keys), the pawn's slide/dive/stance/grapple starts, `tick_jump`

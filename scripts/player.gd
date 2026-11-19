@@ -690,26 +690,12 @@ func add_knockback(imp: Vector3) -> void:
 ## spawn, so the fall does not start another death. Spawn protection lasts longer than that second
 ## and would swallow the hit; a fall after the grace has to kill anyway.
 func _check_kill_y() -> void:
-	if is_dead or global_position.y >= Game.map_kill_y:
-		return
-	if _spawn_protect > SPAWN_PROTECT - VOID_GRACE:
-		_pull_out_of_void()
-		return
-	var saved := _spawn_protect
-	_spawn_protect = 0.0
-	apply_hit(global_position, Vector3.UP, 10000.0, false, peer_id, &"fall")
-	if not is_dead:
-		_spawn_protect = saved
+	PawnVitals.check_kill_y(self)
 
 
 ## Authority copy only. A remote human also gets correct_position, which already exists for claims.
 func _pull_out_of_void() -> void:
-	global_transform = _spawn_xform
-	velocity = Vector3.ZERO
-	_net_target = global_position
-	_net_has = true
-	if Game.is_networked() and multiplayer.is_server() and not is_bot and peer_id in multiplayer.get_peers():
-		Game.correct_position.rpc_id(peer_id, global_position)
+	PawnVitals.pull_out_of_void(self)
 
 
 ## Damage is applied on the server (or offline). Clients get HP via broadcast_hurt.
@@ -725,108 +711,21 @@ func apply_hit(
 	headshot_mult: float = 1.6,
 	source_pos: Vector3 = Vector3.INF
 ) -> Dictionary:
-	if is_dead or _spawn_protect > 0.0 or Game.killcam_active:
-		return {"killed": false, "headshot": false, "damage": 0}
-	if Game.is_networked() and not multiplayer.is_server():
-		return {"killed": false, "headshot": false, "damage": 0}
-	var headshot := allow_headshot and _point_hits_head(point)
-	var dmg := roundi(base_damage * (headshot_mult if headshot else 1.0))
-	# Armour first, then HP (#144). One shield plate absorbs 40 damage.
-	var absorbed := mini(roundi(armour), dmg)
-	if absorbed > 0:
-		dmg -= absorbed
-		set_armour(armour - float(absorbed))
-	if dmg > 0:
-		since_hurt = 0.0
-	var old_hp := Game.hp_of(self)
-	var new_hp := maxf(old_hp - float(dmg), 0.0)
-	Game.set_hp(self, new_hp)
-	Game.note_damage(killer_peer_id, peer_id, old_hp - new_hp)
-	var killed := new_hp <= 0.0
-	if killed:
-		Game.register_kill(killer_peer_id, peer_id, weapon_id, headshot)
-		Game.send_death_report(killer_peer_id, peer_id, weapon_id)
-	# #150: bots turn toward the pawn that hit them. A low HP hit also breaks the trade.
-	var attacker := Game.player_for_peer(killer_peer_id)
-	if dmg > 0 and not killed and is_bot and _bot_brain != null and attacker != null and attacker != self:
-		_bot_brain.note_threat(attacker)
-	if dmg <= 0:
-		source_pos = Vector3.INF
-	elif not source_pos.is_finite():
-		if attacker and attacker != self:
-			source_pos = attacker.global_position
-	if Game.is_networked():
-		Game.broadcast_hurt.rpc(peer_id, new_hp, killed, source_pos, roundi(armour))
-	else:
-		apply_hurt_state(new_hp, killed, source_pos, roundi(armour))
-	return {"killed": killed, "headshot": headshot, "damage": dmg}
+	return PawnVitals.apply_hit(self, point, _normal, base_damage, allow_headshot, killer_peer_id, weapon_id, headshot_mult, source_pos)
 
 
 ## True when the capsule hit lands on the drawn head, including while crouched.
 func _point_hits_head(point: Vector3) -> bool:
-	var center := global_position + Vector3(0.0, lerpf(HEAD_STAND_Y, HEAD_CROUCH_Y, crouch), 0.0)
-	var mark := body_mesh.get_node_or_null("HeadHit") if body_mesh else null
-	if mark is Node3D:
-		center = (mark as Node3D).global_position
-	return point.distance_to(center) <= HEAD_HIT_R
+	return PawnVitals.point_hits_head(self, point)
 
 
 ## `from_pos`: damage source for the HUD direction indicator (Vector3.INF = unknown).
 func apply_hurt_state(new_hp: float, killed: bool, from_pos: Vector3 = Vector3.INF, armour_now := -1) -> void:
-	hp = new_hp
-	if armour_now >= 0:
-		armour = float(armour_now)
-		armour_changed.emit(armour)
-	if not killed:
-		Game.killcam.note_hurt(peer_id)
-	if is_local() and from_pos.is_finite():
-		damage_from.emit(from_pos)
-	if is_local():
-		camera.add_shake(0.85, randf_range(-0.35, 0.35), 2.2)
-		if hurt_sfx.stream:
-			hurt_sfx.pitch_scale = randf_range(0.92, 1.08)
-			hurt_sfx.play()
-		health_changed.emit(hp, MAX_HP)
-	if killed:
-		if not is_local():
-			PhysFx.tumble(self, from_pos)
-		_die()
+	PawnVitals.apply_hurt_state(self, new_hp, killed, from_pos, armour_now)
 
 
 func _die() -> void:
-	if is_dead:
-		return
-	is_dead = true
-	_lunge_left = 0.0
-	# The RC is gone with you, and it does not explode on the way out.
-	# LOS ends the same way: camera back on the body, no bash from a corpse.
-	if is_local() and Game.rc_view:
-		RcXd.release_view()
-	var los_id := peer_id if peer_id != 0 else _owner_peer()
-	if Game._is_match_authority():
-		RcXd.abort_for(peer_id)
-		LosHands.abort_for(los_id)
-	elif is_local():
-		LosHands.abort_for(los_id)
-	Game.killcam.note_death(peer_id)
-	velocity = Vector3.ZERO
-	# #252: dying ends a reload. The weapon tells the other clients (a 0 on sync_reload) so a corpse and
-	# the respawned body never show a hand stuck on the mag.
-	if weapon != null:
-		weapon.cancel_reload()
-	_carry_t = 0.0
-	_was_surfing = false
-	_grapple.release()
-	grappling = false
-	collision_layer = 0
-	if is_local():
-		weapon.visible = false
-		died.emit()
-	else:
-		body_mesh.visible = false
-		weapon.visible = false
-	if Game.is_offline or multiplayer.is_server():
-		get_tree().create_timer(RESPAWN_TIME).timeout.connect(_server_respawn)
+	PawnVitals.die(self)
 
 
 func _server_respawn() -> void:
@@ -836,39 +735,7 @@ func _server_respawn() -> void:
 
 
 func apply_respawn_state() -> void:
-	hp = MAX_HP
-	# Armour does not survive a death (#144).
-	if armour != 0.0:
-		set_armour(0.0)
-	# Round-start respawns come through here too; the server's HP copy must reset with them.
-	if Game._is_match_authority():
-		Game.set_hp(self, MAX_HP)
-	is_dead = false
-	_spawn_protect = SPAWN_PROTECT
-	collision_layer = 2
-	velocity = Vector3.ZERO
-	crouch = 0.0
-	is_sprinting = false
-	global_transform = _spawn_xform
-	_yaw = rotation.y
-	_pitch = 0.0
-	_reset_style_track()
-	head.rotation.x = 0.0
-	weapon.visible = true
-	if not loadout.is_empty() and weapon:
-		weapon.set_slots(weapon_ids()) # spawn holding the primary
-	grenades = grenade_max()
-	knives = knife_max()
-	_notify_grenades()
-	if weapon:
-		weapon.refill()
-	_apply_stance()
-	_apply_team_visual()
-	if is_local():
-		health_changed.emit(hp, MAX_HP)
-		respawned.emit()
-	else:
-		body_mesh.visible = true
+	PawnVitals.apply_respawn_state(self)
 
 
 ## G. Offline/host throws here; a client only sends origin and look direction.
@@ -1026,52 +893,7 @@ func _tick_step_view(delta: float) -> void:
 
 ## Uses velocity when we simulate, otherwise position delta (puppets have velocity zeroed).
 func _tick_feet(delta: float) -> void:
-	var moved := global_position - _feet_last
-	var inst_speed := minf(Vector2(moved.x, moved.z).length() / maxf(delta, 0.0001), SPRINT_SPEED * 1.5)
-	_obs_speed = lerpf(_obs_speed, inst_speed, 0.15)
-	if is_dead:
-		_was_air = false
-		_feet_last = global_position
-		return
-	var dpos := global_position - _feet_last
-	var horiz := Vector2(velocity.x, velocity.z).length()
-	if horiz < 0.35:
-		horiz = Vector2(dpos.x, dpos.z).length() / maxf(delta, 0.0001)
-	var grounded := is_on_floor() or absf(dpos.y) < 0.05
-	if _was_air and grounded and land_sfx:
-		land_sfx.pitch_scale = randf_range(0.92, 1.06)
-		land_sfx.volume_db = -14.0 if is_local() else -8.0
-		land_sfx.play()
-	_was_air = not grounded
-	_feet_last = global_position
-	if _sliding:
-		_step_t = 0.2
-		return
-	if not grounded or horiz < 1.15:
-		_step_t = 0.12
-		return
-	var interval := 0.40
-	if crouch > 0.45:
-		interval = 0.52
-	elif horiz > WALK_SPEED * 1.15:
-		interval = 0.28
-	_step_t -= delta
-	if _step_t > 0.0:
-		return
-	_step_t = interval
-	if step_sfx == null:
-		return
-	var pick := randi() % (STEP_SOUNDS.size() - 1)
-	if pick >= _step_last:
-		pick += 1
-	_step_last = pick
-	step_sfx.stream = STEP_SOUNDS[pick]
-	step_sfx.pitch_scale = randf_range(0.92, 1.08)
-	var quiet := -16.0 if is_local() else -9.0
-	if crouch > 0.45:
-		quiet -= 6.0
-	step_sfx.volume_db = quiet
-	step_sfx.play()
+	PawnFeel.tick_feet(self, delta)
 
 
 ## Client-side bot transform from Game.sync_bot_poses (Synchronizer is off for bots).
@@ -1430,18 +1252,7 @@ func _tick_strip_cd(delta: float) -> void:
 ## (speed_fov_extra), so a surf or a dive widens the view and walking does not. Speed FX off: the old
 ## plain sprint flag plus the carry stack. ADS clears it either way; Game.fov stays the hip base.
 func _apply_carry_fov() -> void:
-	if weapon == null or camera == null:
-		return
-	if weapon.is_ads():
-		camera.extra_fov = 0.0
-		return
-	if Game.speed_fx:
-		camera.extra_fov = speed_fov_extra(_hspeed())
-		return
-	var extra := SPRINT_FOV if is_sprinting else 0.0
-	if _carry_t > 0.0:
-		extra += lerpf(CARRY_FOV_MIN, CARRY_FOV_MAX, clampf(_hspeed() / CARRY_MAX, 0.0, 1.0))
-	camera.extra_fov = minf(extra, FOV_EXTRA_CAP)
+	PawnFeel.apply_carry_fov(self)
 
 
 ## Horizontal speed the FOV kick, the wind and the speed lines all scale with.
@@ -1736,40 +1547,7 @@ func _tick_remote_anim(delta: float) -> void:
 
 
 func _tick_move_fx(delta: float) -> void:
-	_throw_t = maxf(_throw_t - delta, 0.0)
-	if _wallrunning:
-		move_fx = MOVE_WALLRUN
-	elif _diving:
-		move_fx = MOVE_DIVE
-	elif _grapple.active:
-		move_fx = MOVE_GRAPPLE
-	elif _roll_t > 0.0:
-		move_fx = MOVE_ROLL
-	else:
-		move_fx = MOVE_NONE
-	if camera == null:
-		return
-	# Take last tick's landing dip back out before the pitch is re-derived below. Without this the dip
-	# fed back into the decay: every tick added it again while the decay only shaved ~10% off, and at
-	# 60 Hz the camera dipped to ~2.3x LAND_CAM_DIP_MAX. The cap was never wrong, the channel was.
-	camera.move_pitch -= _land_dip_applied
-	_land_dip_applied = 0.0
-	var roll_target := 0.0
-	if _wallrunning:
-		var right := transform.basis.x
-		# Speed FX leans a touch further into the wall run; the away-from-wall direction is the feel (#80).
-		roll_target = -signf(right.dot(_wall_n)) * WALLRUN_TILT * (1.1 if Game.speed_fx else 1.0) * Game.shake_scale()
-	camera.move_roll = lerpf(camera.move_roll, roll_target, 1.0 - exp(-10.0 * delta))
-	if _roll_t > 0.0:
-		var p := 1.0 - _roll_t / ROLL_TIME
-		if Game.shake_scale() >= 0.5:
-			camera.move_pitch = -TAU * ease(p, -1.8) # full forward flip
-		else:
-			camera.move_pitch = -deg_to_rad(25.0) * sin(p * PI) # reduced motion: a dip
-	elif _diving:
-		camera.move_pitch = lerpf(camera.move_pitch, -0.12, 1.0 - exp(-8.0 * delta))
-	else:
-		camera.move_pitch = lerpf(wrapf(camera.move_pitch, -PI, PI), 0.0, 1.0 - exp(-14.0 * delta))
+	PawnFeel.tick_move_fx(self, delta)
 
 
 ## Speed FX, local player only (Game.speed_fx): the landing camera dip and its easing back to 0.
@@ -1777,45 +1555,13 @@ func _tick_move_fx(delta: float) -> void:
 ## asked for and never fights it. A dive roll already pitches the camera, so it skips the dip.
 ## The FOV kick lives in _apply_carry_fov; the speed lines and the wind latch onto this tick too.
 func _tick_speed_fx(delta: float) -> void:
-	if camera == null:
-		return
-	if is_dead:
-		_fall_vy = 0.0
-		_was_fall = false
-	elif is_on_floor():
-		if _was_fall:
-			if Game.speed_fx and not (_roll_t > 0.0 or _diving):
-				_land_cam_pitch = minf(_land_cam_pitch, speed_land_dip(-_fall_vy))
-			_fall_vy = 0.0
-			_was_fall = false
-	else:
-		_fall_vy = minf(_fall_vy, velocity.y)
-		_was_fall = true
-	if _land_cam_pitch != 0.0:
-		if Game.speed_fx:
-			camera.move_pitch += _land_cam_pitch
-			_land_dip_applied = _land_cam_pitch
-		_land_cam_pitch = lerpf(_land_cam_pitch, 0.0, 1.0 - exp(-LAND_CAM_RECOVER * delta))
-		if absf(_land_cam_pitch) < 0.0005:
-			_land_cam_pitch = 0.0
-	# Speed lines and wind run off the same horizontal speed. Aiming, death, the pause menu and anything
-	# else that locks play (chat, round freeze, RC view) silences both, so a fight never reads through a
-	# blurred screen and a menu never keeps the wind howling.
-	var quiet := is_dead or Game.chat_open or Game.pause_open or Game.play_locked() or Game.rc_view
-	if not quiet and weapon != null and weapon.is_ads():
-		quiet = true
-	var fast := Game.speed_fx and not quiet
-	var hspeed := _hspeed()
-	_tick_speed_lines(speed_lines_intensity(hspeed) if fast else 0.0, delta)
-	_tick_wind(speed_wind_level(hspeed) if fast else 0.0)
+	PawnFeel.tick_speed_fx(self, delta)
 
 
 ## Speed FX: eases the speed-lines overlay toward `target` (0..1). A missing overlay (headless,
 ## dedicated server) is not an error: there is simply nothing on screen to draw on.
 func _tick_speed_lines(target: float, delta: float) -> void:
-	if Game.speed_lines == null:
-		return
-	Game.speed_lines.set_intensity_smooth(target, delta, SPEED_LINES_SMOOTH)
+	PawnFeel.tick_speed_lines(self, target, delta)
 
 
 ## The wind wav has no loop point of its own (the wav importer's loop params do not survive the
@@ -1835,16 +1581,7 @@ static func looped_wind() -> AudioStreamWAV:
 ## Speed FX wind: one looped player, louder and a little higher with speed, stopped when slow.
 ## Local pawn only, so it is on the SFX bus (the Effects slider) and never on the Enemies bus.
 func _tick_wind(level: float) -> void:
-	if _wind == null:
-		return
-	if level <= 0.0:
-		if _wind.playing:
-			_wind.stop()
-		return
-	if not _wind.playing:
-		_wind.play()
-	_wind.volume_db = lerpf(WIND_VOL_DB_MIN, WIND_VOL_DB_MAX, level)
-	_wind.pitch_scale = lerpf(WIND_PITCH_MIN, WIND_PITCH_MAX, level)
+	PawnFeel.tick_wind(self, level)
 
 
 ## A fresh life: the style track (turn history, air time, move claims) and the movement state that
