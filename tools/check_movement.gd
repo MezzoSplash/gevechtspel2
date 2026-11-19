@@ -2,7 +2,8 @@ extends Node
 ## #80/#81 headless: wallrun, wall jump, wall to wall, dive (slide jump + air), roll keeps speed,
 ## and the movement tricks in Style.detect. Builds a test box high above the map.
 ##   godot --headless res://tools/check_movement.tscn      → "MOVEMENT CHECK OK"
-##   online (server scores WALL TO WALL from the synced move_fx/walljumps):
+##   online (the pawn flies to the test area under the claim limits; the server does not score the
+##   wallruns there, it has no such walls (#B2); a refused claim puts the client back (#338)):
 ##     godot --headless -- --server --port 7799 --map quay --mode ffa --bots 0
 ##     godot --headless res://tools/check_movement.tscn -- --net
 var fails := 0
@@ -42,6 +43,8 @@ func _release_all() -> void:
 
 func _place(pos: Vector3, vel: Vector3, yaw: float) -> void:
 	_release_all()
+	if net:
+		await _travel(pos)
 	me.global_position = pos
 	me.velocity = vel
 	me.rotation.y = yaw
@@ -49,6 +52,49 @@ func _place(pos: Vector3, vel: Vector3, yaw: float) -> void:
 	me._reset_style_track()
 	me._sliding = false
 	await _frames(1)
+
+
+## Online the server checks every position claim (#B1) and puts a client back on its own copy when it
+## jumps further than a pawn could move (#338). So the test does not teleport there: it flies the pawn in
+## steps well under NET_CLAIM_H_CAP / NET_CLAIM_V_CAP per physics frame, with its collision off on the way:
+## the test's own floor slab lies across the route up (only this machine has these boxes).
+const TRAVEL_H := 0.3 # m per frame (18 m/s at 60 Hz)
+const TRAVEL_V := 0.5 # m per frame (30 m/s)
+
+
+func _travel(to: Vector3) -> void:
+	var mask := me.collision_mask
+	me.collision_mask = 0
+	for i in 4000:
+		var d := to - me.global_position
+		if d.length() < 0.05:
+			break
+		var h := Vector2(d.x, d.z)
+		if h.length() > TRAVEL_H:
+			h = h.normalized() * TRAVEL_H
+		var step := Vector3(h.x, clampf(d.y, -TRAVEL_V, TRAVEL_V), h.y)
+		me.velocity = Vector3.ZERO
+		me.global_position += step
+		await _frames(1)
+	me.collision_mask = mask
+
+
+## #338: a claim the server refuses puts the client back. Teleport 40 m in one frame and expect to be
+## pulled back to where the server had us.
+func _correction() -> void:
+	_release_all()
+	me.velocity = Vector3.ZERO
+	await _frames(20)
+	var before := me.global_position
+	me.global_position = before + Vector3(40, 0, 0)
+	var back := false
+	for i in 90:
+		me.velocity = Vector3.ZERO
+		await _frames(1)
+		if me.global_position.distance_to(before) < 3.0:
+			back = true
+			break
+	_ok(back, "a refused claim puts the client back (#338): %.1f m from the server's copy" % me.global_position.distance_to(before))
 
 
 func _ready() -> void:
@@ -94,6 +140,8 @@ func _ready() -> void:
 	await _wallrun()
 	await _walljump()
 	await _dive()
+	if net:
+		await _correction()
 	_style_unit()
 	_done()
 
@@ -160,7 +208,12 @@ func _walljump() -> void:
 			break
 	_ok(second, "second wallrun on the other wall")
 	await _frames(30 if net else 3)
-	_ok(combo_label.contains("WALL TO WALL"), "WALL TO WALL in the combo (%s)" % combo_label)
+	if net:
+		# #B2: the server only banks a wallrun claim it can back with a wall of its own (wall_beside).
+		# These test walls exist on this machine alone, so online the claim must NOT score.
+		_ok(not combo_label.contains("WALL"), "online: no wallrun move without a wall the server can see (#B2) (%s)" % combo_label)
+	else:
+		_ok(combo_label.contains("WALL TO WALL"), "WALL TO WALL in the combo (%s)" % combo_label)
 	_ok(int(Game.scores[pid].get("style", 0)) == style0, "moves alone bank no style (#84)")
 	_release_all()
 

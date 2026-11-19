@@ -93,7 +93,7 @@ static func accept_claim(p: Player, v: Vector3) -> void:
 	p._net_pos_ms = now
 	if now - p._corr_ms >= p.NET_CORRECTION_MS and Game.is_networked() and p.peer_id in p.multiplayer.get_peers():
 		p._corr_ms = now
-		Game.correct_position.rpc_id(p.peer_id, p.position)
+		Game.correct_position.rpc_id(p.peer_id, p.peer_id, p.position)
 
 
 ## Could a pawn have gone from where we have it to `v` in `dt` seconds?
