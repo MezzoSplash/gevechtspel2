@@ -49,6 +49,16 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #316 slice 7 (player.gd split): what a pawn carries is `PawnKit` (`scripts/pawn_kit.gd`: `weapon_ids`,
+  `grenade_max`, `knife_max`, `apply_loadout`, `apply_bot_loadout`, `try_throw_grenade`, `try_throw_knife`,
+  `notify_grenades`, `gun_speed_mult`, `start_lunge`, `consume_lunge`, `spread_multiplier`,
+  `min_spread_multiplier`) and how it looks is `PawnBody` (`scripts/pawn_body.gd`: `set_display_name`,
+  `arms_enabled`, `attach_arms`, `team_color`, `paint_body`, `update_stance`, `apply_stance`, `pose_figure`,
+  `ceiling_blocked`, `play_pickup_flash`, `throw_amt`, `roll_flip`, `pose_body`, `draw_grapple`). Static
+  on the pawn; `team_color`, `paint_body` and `pose_body` stay static on Player too (killcam, HUD, minimap).
+  Player keeps the state, the input callbacks, the grapple press and pull, and every old name.
+  player.gd ~1425 -> ~1270 lines. Checks: the suite (178), the movement trace byte-identical to main,
+  `tools/net_grenade.sh` and `check_death_report -- --net` clean. No behaviour or protocol change.
 - #338: the server's position corrections reach the client again. `Game.correct_position(peer_id, v)` was
   called with only the position (`PawnNet.accept_claim`, `PawnVitals.pull_out_of_void`), so every client
   dropped it ("Method expected 2 argument(s)") and a refused claim (#B1) or a remote void pull never put
