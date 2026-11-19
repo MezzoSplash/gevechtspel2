@@ -27,9 +27,9 @@ func _ready() -> void:
 	hud._local_peer_id = 1
 	await get_tree().process_frame
 	hud.set_process(false)
-	hud._streak_sel = 1
+	hud.streaks.sel = 1
 	hud.set_streak(4, Game.CHARGE_RADAR, Game.CHARGE_RADAR)
-	hud._streak_sel = 0
+	hud.streaks.sel = 0
 	hud._refresh_streak_ui()
 	hud.set_weapon_slots(PackedStringArray(["Slug Shotgun", "Revolver"]))
 	hud.set_weapon_index(0)

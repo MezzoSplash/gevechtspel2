@@ -21,21 +21,10 @@ var _round_end_winner := ""
 var _intermission_timer := 0.0
 var _board_refresh := 0.0
 var _freeze_left := 0.0
-var _radar_left := 0.0
-var _streak_n := 0
-var _streak_charges := 0
-var _streak_earned := 0
-var _streak_sel := 0
-var _rc_on := false
-var _rc_hint: Label
-var _announcer: AudioStreamPlayer
 ## Notice line and streak/flag popup: scripts/hud/notice_layer.gd.
 var _notice_layer: HudNotice
 var _sniper_ads := false
 var _sniper_hip := false # sniper in hand and RMB zoom off: draw no crosshair
-var _weapon_index := 0
-var _ammo := 30
-var _mag := 30
 var _player: Player # the local pawn from bind_player; crosshair bloom follows it
 var _dmg_dirs: Array[Dictionary] = [] # {pos: Vector3, t: float}: where recent damage came from
 var _standing: Label # FFA: your place and kills under the clock
@@ -54,8 +43,10 @@ const HUD_PANEL := HudLayout.PANEL
 const HP_OK := Color(0.78, 0.93, 1.0, 0.95)
 const HP_MID := Color(0.95, 0.72, 0.25, 0.95)
 const HP_LOW := Color(0.92, 0.2, 0.16, 0.96)
-var _skin_seed := 11 # each skinned slot gets its own facet fan
-var _slot_names: PackedStringArray = ["RIFLE", "PISTOL", "SHOTGUN", "SNIPER"] # the local pawn's guns
+## The weapon slots + grenade pill and the scorestreak column: scripts/hud/weapon_bar.gd and
+## streak_column.gd. Their nodes stay in hud.tscn; these hold what happens to them.
+var weapons: WeaponBar
+var streaks: StreakColumn
 
 @onready var fps_label: Label = $Fps
 @onready var reload_label: Label = $Bottom/Reloading
@@ -137,16 +128,12 @@ func _ready() -> void:
 	if countdown_label:
 		countdown_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weapons = WeaponBar.new(_slots, grenade_label)
+	streaks = StreakColumn.new(self, streak_label, _streak_slots)
 	_style_bottom()
 	_facelift_hud()
-	_refresh_weapon_slots()
-	for slot in _streak_slots:
-		_add_streak_frame(slot)
-	_announcer = AudioStreamPlayer.new()
-	_announcer.bus = "UI"
-	_announcer.volume_db = -2.0
-	add_child(_announcer)
-	_refresh_streak_ui()
+	weapons.refresh()
+	streaks.build()
 	_notice_layer = HudNotice.new()
 	_notice_layer.name = "NoticeLayer"
 	add_child(_notice_layer)
@@ -276,17 +263,15 @@ func _input(event: InputEvent) -> void:
 	# Arrows pick a streak box. Enter asks the server to fire it. Chat keeps Enter.
 	if not Game.chat_open and not event.is_echo():
 		if event.is_action_pressed("ui_up"):
-			_streak_sel = (_streak_sel + 2) % 3
-			_refresh_streak_ui()
+			streaks.select(-1)
 			get_viewport().set_input_as_handled()
 			return
 		if event.is_action_pressed("ui_down"):
-			_streak_sel = (_streak_sel + 1) % 3
-			_refresh_streak_ui()
+			streaks.select(1)
 			get_viewport().set_input_as_handled()
 			return
 		if event.is_action_pressed("use_streak"):
-			Game.request_use_streak(_streak_sel)
+			Game.request_use_streak(streaks.sel)
 			get_viewport().set_input_as_handled()
 			return
 	if Game.chat_open:
@@ -323,11 +308,7 @@ func reset_session() -> void:
 	_player = null
 	_local_peer_id = 0
 	_dmg_dirs.clear()
-	_streak_n = 0
-	_streak_charges = 0
-	_streak_earned = 0
-	_radar_left = 0.0
-	set_rc_drive(false, 0.0, 0.0)
+	streaks.reset()
 	_hide_popup()
 	_hide_notice()
 	_hide_trick()
@@ -345,7 +326,6 @@ func reset_session() -> void:
 	intermission_label.visible = false
 	if countdown_label:
 		countdown_label.visible = false
-	_refresh_streak_ui()
 
 
 ## Freeze is the round start: show the countdown (the build-up music starts in Game).
@@ -361,21 +341,14 @@ func punch_crosshair(amount: float = 1.0) -> void:
 	_fire_punch = maxf(_fire_punch, amount)
 
 
+## Weapon slots: WeaponBar (scripts/hud/weapon_bar.gd).
 func set_ammo(current: int, mag: int) -> void:
-	_ammo = current
-	_mag = mag
-	_refresh_weapon_slots()
+	weapons.set_ammo(current, mag)
 
 
 ## The class decides the guns: one box per carried gun, keys 1..n in that order.
 func set_weapon_slots(names: PackedStringArray) -> void:
-	var upper: PackedStringArray = []
-	for n in names:
-		upper.append(n.strip_edges().to_upper())
-	if upper == _slot_names:
-		return
-	_slot_names = upper
-	_refresh_weapon_slots()
+	weapons.set_names(names)
 
 
 ## Tight crosshair + faint ring while sniper RMB zoom is held.
@@ -395,8 +368,7 @@ func set_sniper_hip(on: bool) -> void:
 
 
 func set_weapon_index(index: int) -> void:
-	_weapon_index = clampi(index, 0, maxi(_slot_names.size() - 1, 0))
-	_refresh_weapon_slots()
+	weapons.set_index(index)
 
 
 ## Bottom HUD: crystal HP bar (smoke track + fill), grenade/knife shard, outlined streak counter.
@@ -410,120 +382,24 @@ func _style_bottom() -> void:
 		_skin(hp_fill, 8)
 		_paint(hp_fill, HP_OK)
 		(hp_fill.get_node("Skin").get_theme_stylebox("panel") as CrystalStyle).edge_alpha = 0.0
-	if grenade_label:
-		var sb := CrystalStyle.new()
-		sb.fill = HUD_PANEL
-		sb.cuts = Vector4(6, 3, 7, 4)
-		sb.variant = 21
-		sb.content_margin_left = 14
-		sb.content_margin_right = 14
-		sb.content_margin_top = 3
-		sb.content_margin_bottom = 3
-		grenade_label.add_theme_stylebox_override("normal", sb)
-		grenade_label.add_theme_color_override("font_color", Color(0.9, 0.93, 0.96))
-		grenade_label.add_theme_font_size_override("font_size", 16)
-		grenade_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	weapons.style_grenades()
 	if streak_label:
 		streak_label.add_theme_font_size_override("font_size", 14)
 
 
-## Crystal shard behind a ColorRect slot (a ColorRect has no shape of its own). The rect itself
-## goes transparent; _paint recolours the shard. Same nodes and labels as before. `radius` is
-## unused since the crystal restyle; it only picks a smaller cut for the slim bars.
+## The crystal skin behind a ColorRect (HP bar, slots): HudSkin (scripts/hud/hud_skin.gd).
 func _skin(rect: ColorRect, radius: int = 8) -> void:
-	if rect == null or rect.get_node_or_null("Skin"):
-		return
-	var p := Panel.new()
-	p.name = "Skin"
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	p.show_behind_parent = true
-	p.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var sb := CrystalStyle.new()
-	sb.fill = rect.color
-	sb.cuts = Vector4(10, 4, 12, 6) if radius < 8 else Vector4(6, 3, 8, 4)
-	sb.variant = _skin_seed
-	_skin_seed += 1
-	p.add_theme_stylebox_override("panel", sb)
-	rect.add_child(p)
-	rect.move_child(p, 0)
-	rect.color = Color(0, 0, 0, 0)
+	HudSkin.skin(rect, radius)
 
 
-## `accent` lights the bottom seam (selection / held weapon / ready); `pale` makes it the pale
-## shell (white facets, no light edge). `top` is unused since the crystal restyle.
-func _paint(rect: ColorRect, bg: Color, accent: Color = Color(0, 0, 0, 0), top: int = 0, pale := false) -> void:
-	var p := rect.get_node_or_null("Skin") as Panel
-	if p == null:
-		rect.color = bg
-		return
-	var sb := p.get_theme_stylebox("panel") as CrystalStyle
-	# Every setter emits `changed`; skip the ones that did not change so a per-frame caller
-	# (HP) does not redraw for nothing.
-	if sb.fill != bg:
-		sb.fill = bg
-	if sb.pale != pale:
-		sb.pale = pale
-		sb.edge_alpha = 0.0 if pale else 0.16
-	var side := CrystalStyle.Side.BOTTOM if accent.a > 0.0 else CrystalStyle.Side.NONE
-	if sb.seam_side != side:
-		sb.seam_side = side
-	if accent.a > 0.0 and sb.seam_color != accent:
-		sb.seam_color = accent
+## `top` is unused since the crystal restyle; kept so old callers read the same.
+func _paint(rect: ColorRect, bg: Color, accent: Color = Color(0, 0, 0, 0), _top: int = 0, pale := false) -> void:
+	HudSkin.paint(rect, bg, accent, pale)
 
 
-## Shrink a one-line label until it fits `max_w` (SLUG SHOTGUN in a 122 px slot, #58).
-func _fit_label(l: Label, max_w: float, size: int, min_size: int) -> void:
-	var font := l.get_theme_font("font")
-	var fs := size
-	while fs > min_size and font and font.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > max_w:
-		fs -= 1
-	l.add_theme_font_size_override("font_size", fs)
-	l.clip_text = true
-	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-
-
-func _refresh_weapon_slots() -> void:
-	if _slots.is_empty() or _slots[0] == null:
-		return
-	for i in _slots.size():
-		var slot := _slots[i]
-		slot.visible = i < _slot_names.size()
-		if not slot.visible:
-			continue
-		var on := i == _weapon_index
-		_skin(slot)
-		_paint(slot, _SLOT_ON if on else _SLOT_IDLE, HUD_ACCENT if on else Color(0, 0, 0, 0), 0, on)
-		var name_l := slot.get_node("Name") as Label
-		var ammo_l := slot.get_node("Ammo") as Label
-		var key_l := slot.get_node_or_null("Key") as Label
-		var ink := HudLayout.SLOT_TEXT_ON if on else Color.WHITE
-		if key_l:
-			key_l.text = str(i + 1)
-			key_l.modulate = ink
-		if ammo_l:
-			ammo_l.modulate = ink
-		if name_l:
-			name_l.text = _slot_names[i]
-			_fit_label(name_l, slot.custom_minimum_size.x - 14.0, 16, 12)
-			name_l.modulate = ink if on else Color(0.72, 0.74, 0.78)
-		if ammo_l:
-			ammo_l.text = "" if not on else ("—" if _mag <= 0 else ("%d / %d" % [_ammo, _mag]))
-
-
-## A new radar charge plays "Radar on standby", a new RC-XD charge "RC-XD ready for deployment".
-## Only the player who owns the streak gets this call. The slot stays armed until Enter, including after death.
+## Scorestreaks: StreakColumn (scripts/hud/streak_column.gd). Only the owner gets set_streak.
 func set_streak(n: int, charges: int, earned: int) -> void:
-	var radar_new := (_streak_charges & Game.CHARGE_RADAR) == 0 and (charges & Game.CHARGE_RADAR) != 0
-	var rcxd_new := (_streak_charges & Game.CHARGE_RCXD) == 0 and (charges & Game.CHARGE_RCXD) != 0
-	_streak_n = n
-	_streak_charges = charges
-	_streak_earned = earned
-	_refresh_streak_ui()
-	# Both at once is not expected (3 vs 5 kills); the RC-XD line wins then, it is the newer reward.
-	if rcxd_new:
-		_play_announcer("res://assets/sounds/rcxd_ready.wav")
-	elif radar_new:
-		_play_announcer("res://assets/sounds/radar_standby.wav")
+	streaks.set_streak(n, charges, earned)
 
 
 ## Team radar switched on. Your team, including the player who turned it on, hears
@@ -531,8 +407,7 @@ func set_streak(n: int, charges: int, earned: int) -> void:
 ## Popups stay gold for your team and red for the other.
 func show_radar_event(by_name: String, team: int, friendly: bool) -> void:
 	if friendly:
-		_radar_left = maxf(_radar_left, Game.radar_left)
-		_refresh_streak_ui()
+		streaks.radar_started()
 		_play_radar_voice("friendly")
 		show_popup("UAV", _POPUP_FRIENDLY, by_name, team)
 	else:
@@ -553,40 +428,11 @@ func show_rc_event(by_name: String, team: int, friendly: bool) -> void:
 
 ## While the local camera is in the car. `on` false hides the line.
 func set_rc_drive(on: bool, hp: float, life: float) -> void:
-	_rc_on = on
-	if not on:
-		if _rc_hint:
-			_rc_hint.visible = false
-		_refresh_streak_ui()
-		return
-	if _rc_hint == null:
-		_rc_hint = Label.new()
-		_rc_hint.name = "RcHint"
-		_rc_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_rc_hint.anchor_left = 0.5
-		_rc_hint.anchor_right = 0.5
-		_rc_hint.anchor_top = 0.5
-		_rc_hint.anchor_bottom = 0.5
-		_rc_hint.offset_left = -220.0
-		_rc_hint.offset_right = 220.0
-		_rc_hint.offset_top = 48.0
-		_rc_hint.offset_bottom = 80.0
-		_rc_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_rc_hint.add_theme_font_size_override("font_size", 20)
-		_rc_hint.add_theme_color_override("font_color", Color(1, 0.86, 0.35))
-		_rc_hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		_rc_hint.add_theme_constant_override("outline_size", 6)
-		add_child(_rc_hint)
-	_rc_hint.text = "LMB DETONATE    %d HP    %ds" % [ceili(maxf(hp, 0.0)), ceili(maxf(life, 0.0))]
-	_rc_hint.visible = true
-	_refresh_streak_ui()
+	streaks.set_rc_drive(on, hp, life)
 
 
 func clear_radar() -> void:
-	if _radar_left <= 0.0:
-		return
-	_radar_left = 0.0
-	_refresh_streak_ui()
+	streaks.clear_radar()
 
 
 ## Top centre, under the round clock: what was switched on, and by whom (name in team colour).
@@ -639,117 +485,18 @@ func _hide_notice() -> void:
 		_notice_layer.hide_notice()
 
 
-## Left column: slot 0 radar (3), slot 1 RC-XD (5), slot 2 LOS (7).
-## The white frame is the arrow-key selection, not "ready". A gold box is a charge you still hold.
 func _refresh_streak_ui() -> void:
-	_refresh_streak_extras()
-	for i in _streak_slots.size():
-		var slot := _streak_slots[i]
-		if slot == null:
-			continue
-		var selected := i == _streak_sel
-		var ready := false
-		if i == 0:
-			ready = (_streak_charges & Game.CHARGE_RADAR) != 0
-		elif i == 1:
-			ready = (_streak_charges & Game.CHARGE_RCXD) != 0
-		elif i == 2:
-			ready = (_streak_charges & Game.CHARGE_LOS) != 0
-		var name_l := slot.get_node_or_null("Name") as Label
-		var shell := ready and selected # the one Enter fires: pale shell, dark text
-		if name_l:
-			# The UAV name always reads (it was never greyed); RC-XD and LOS grey out while empty.
-			var col := Color(0.92, 0.95, 0.98) if ready or i == 0 else Color(0.55, 0.58, 0.62)
-			if shell:
-				col = HudLayout.SLOT_TEXT_ON
-			name_l.add_theme_color_override("font_color", col)
-		_skin(slot)
-		# Crystal: idle smoke; a held charge lights the ice seam; the selected held charge is the
-		# pale shell. Selected but empty is lighter smoke with a white seam (the arrow-key cursor).
-		var bg := Color(CrystalStyle.SMOKE, 0.5 if i > 0 else 0.62)
-		if shell:
-			bg = HudLayout.SLOT_ON
-		elif ready or selected:
-			bg = Color(0.11, 0.14, 0.18, 0.8)
-		var edge := Color(0, 0, 0, 0)
-		if ready:
-			edge = HUD_ACCENT
-		elif selected:
-			edge = Color(0.92, 0.94, 0.97, 0.9)
-		_paint(slot, bg, edge, 0, shell)
-		_set_streak_frame(slot, false) # the rounded border replaces the old white bars
-
-
-## Four thin bars. A ColorRect has no border, so the selection is drawn as children.
-func _add_streak_frame(slot: ColorRect) -> void:
-	if slot == null or slot.get_node_or_null("FrameTop"):
-		return
-	var edges := {
-		"FrameTop": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 3.0],
-		"FrameBottom": [0.0, 1.0, 1.0, 1.0, 0.0, -3.0, 0.0, 0.0],
-		"FrameLeft": [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 3.0, 0.0],
-		"FrameRight": [1.0, 0.0, 1.0, 1.0, -3.0, 0.0, 0.0, 0.0],
-	}
-	for edge_name in edges:
-		var spec: Array = edges[edge_name]
-		var bar := ColorRect.new()
-		bar.name = edge_name
-		bar.color = Color.WHITE
-		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bar.visible = false
-		slot.add_child(bar)
-		bar.anchor_left = spec[0]
-		bar.anchor_top = spec[1]
-		bar.anchor_right = spec[2]
-		bar.anchor_bottom = spec[3]
-		bar.offset_left = spec[4]
-		bar.offset_top = spec[5]
-		bar.offset_right = spec[6]
-		bar.offset_bottom = spec[7]
-
-
-func _set_streak_frame(slot: ColorRect, on: bool) -> void:
-	for edge_name in ["FrameTop", "FrameBottom", "FrameLeft", "FrameRight"]:
-		var bar := slot.get_node_or_null(edge_name) as ColorRect
-		if bar:
-			bar.visible = on
-
-
-## "Friendly/Enemy radar online" at most once per RADAR_VOICE_COOLDOWN per type. With 12 bots calling
-## UAVs the line played all match long. The popup text still shows every time.
-const RADAR_VOICE_COOLDOWN := 20.0
-var _radar_voice_t := {} # "friendly"/"enemy" -> last play (s, ticks)
-var radar_voice_log: Array = [] # types that actually played (headless check)
+	streaks.refresh()
 
 
 func _play_radar_voice(kind: String) -> void:
-	var now := Time.get_ticks_msec() / 1000.0
-	if _radar_voice_t.has(kind) and now - float(_radar_voice_t[kind]) < RADAR_VOICE_COOLDOWN:
-		return
-	_radar_voice_t[kind] = now
-	radar_voice_log.append(kind)
-	_play_announcer("res://assets/sounds/%s.wav" % (kind if kind.begins_with("rcxd_") else "radar_" + kind))
-
-
-func _play_announcer(path: String) -> void:
-	if _announcer == null:
-		return
-	var stream := load(path) as AudioStream
-	if stream == null:
-		return
-	_announcer.stream = stream
-	_announcer.play()
+	streaks.play_radar_voice(kind)
 
 
 ## Grenade slot: frags on G, throwing knives on F (only shown when the class carries knives).
 ## Sits at the right end of the HP row (#65); the key letter is dimmer than the count.
 func set_grenades(n: int, knives: int = 0) -> void:
-	if grenade_label:
-		grenade_label.text = "G  FRAG %d" % n if knives <= 0 else "G  FRAG %d    F  KNIFE %d" % [n, knives]
-
-
-var _streak_pips: HBoxContainer
-var _streak_costs: Array[Label] = []
+	weapons.set_grenades(n, knives)
 
 
 ## #65: one HP row (bar + grenade/knife pill), even weapon slots, a scorestreak column with
@@ -784,77 +531,6 @@ func _facelift_hud() -> void:
 		hp_label.add_theme_font_size_override("font_size", 17)
 		hp_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
 		hp_label.add_theme_constant_override("outline_size", 4)
-	# Scorestreak column: small caps title, then one pip per kill toward the next reward.
-	if streak_label:
-		streak_label.add_theme_font_size_override("font_size", 13)
-		streak_label.add_theme_color_override("font_color", Color(0.85, 0.88, 0.92))
-		streak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		_streak_pips = HBoxContainer.new()
-		_streak_pips.name = "Pips"
-		_streak_pips.add_theme_constant_override("separation", 4)
-		_streak_pips.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var col := streak_label.get_parent()
-		col.add_child(_streak_pips)
-		col.move_child(_streak_pips, streak_label.get_index() + 1)
-		# Each pip is a tiny slanted shard (one cut top-left, one bottom-right), so the row reads as
-		# shards of the crystal, not rounded dots.
-		for i in Game.LOS_AT:
-			var pip := Panel.new()
-			pip.custom_minimum_size = Vector2(14, 6)
-			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var sb := CrystalUi.shard(Vector4(3, 0, 3, 0), 40 + i)
-			sb.fill = PIP_OFF
-			sb.facet_strength = 0.0
-			sb.edge_alpha = 0.0
-			pip.add_theme_stylebox_override("panel", sb)
-			_streak_pips.add_child(pip)
-	for i in _streak_slots.size():
-		var slot := _streak_slots[i]
-		var cost: Label = null
-		if slot and i < 3:
-			cost = Label.new()
-			cost.name = "Cost"
-			cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			cost.anchor_left = 0.0
-			cost.anchor_right = 1.0
-			cost.anchor_top = 1.0
-			cost.anchor_bottom = 1.0
-			cost.offset_top = -25.0
-			cost.offset_bottom = -7.0
-			cost.offset_right = -10.0
-			cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			cost.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			cost.add_theme_font_size_override("font_size", 11)
-			slot.add_child(cost)
-		_streak_costs.append(cost)
-
-
-func _refresh_streak_extras() -> void:
-	if streak_label:
-		streak_label.text = "SCORESTREAK"
-	if _streak_pips:
-		for i in _streak_pips.get_child_count():
-			var pip := _streak_pips.get_child(i) as Panel
-			var sb := pip.get_theme_stylebox("panel") as CrystalStyle
-			var lit := i < _streak_n
-			var mark := i == Game.STREAK_AT - 1 or i == Game.RCXD_AT - 1 or i == Game.LOS_AT - 1
-			sb.fill = HUD_ACCENT if lit else (PIP_MARK if mark else PIP_OFF)
-	for i in _streak_costs.size():
-		var c := _streak_costs[i]
-		if c == null:
-			continue
-		var bit := Game.CHARGE_RADAR
-		var kills := Game.STREAK_AT
-		if i == 1:
-			bit = Game.CHARGE_RCXD
-			kills = Game.RCXD_AT
-		elif i == 2:
-			bit = Game.CHARGE_LOS
-			kills = Game.LOS_AT
-		var is_ready := (_streak_charges & bit) != 0
-		c.text = "READY · ENTER" if is_ready else "%d KILLS" % kills
-		var on_shell := is_ready and i == _streak_sel # _refresh_streak_ui paints that slot pale
-		c.add_theme_color_override("font_color", HudLayout.SLOT_TEXT_ON if on_shell else (HUD_ACCENT if is_ready else Color(0.62, 0.66, 0.72, 0.85)))
 
 
 func set_reloading(on: bool) -> void:
@@ -1260,9 +936,6 @@ static func _ordinal(n: int) -> String:
 
 
 const SB_MUTED := ScoreboardView.MUTED
-## Streak pips: unlit, and unlit on a reward's kill (UAV, RC-XD, LOS).
-const PIP_OFF := Color(1, 1, 1, 0.12)
-const PIP_MARK := Color(1, 1, 1, 0.26)
 
 
 ## Scoreboard building lives in ScoreboardView (scripts/hud/scoreboard_view.gd).
@@ -1309,10 +982,7 @@ func _process(delta: float) -> void:
 	var secs: int = int(time_left) % 60
 	timer_label.text = "%d:%02d" % [mins, secs]
 	timer_label.visible = Game._round_active
-	if _radar_left > 0.0:
-		_radar_left = maxf(_radar_left - delta, 0.0)
-		if _radar_left <= 0.0:
-			_refresh_streak_ui()
+	streaks.tick(delta)
 	if _freeze_left > 0.0:
 		_freeze_left = maxf(_freeze_left - delta, 0.0)
 		if countdown_label:
