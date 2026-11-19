@@ -131,3 +131,16 @@ static func set_config(game: GameState, new_map: StringName, new_mode: int, kill
 		game.bot_enemies = clampi(enemies, 0, game.BOT_COUNT_MAX)
 	if game.match_config_handler.is_valid():
 		game.match_config_handler.call(game.map_id, game.mode)
+
+
+## The scoreboard order, one source (Game.get_scores and the HUD board both sort with it): team modes
+## team first; then the mode's score, style ties broken on kills, then the name.
+static func sort_scores(g: GameState, a: Dictionary, b: Dictionary) -> bool:
+	if not g.is_ffa() and int(a.get("team", 0)) != int(b.get("team", 0)):
+		return int(a.team) < int(b.team)
+	var key := g.score_word()
+	if int(a.get(key, 0)) == int(b.get(key, 0)):
+		if key == "style" and a.kills != b.kills:
+			return a.kills > b.kills
+		return str(a.name) < str(b.name)
+	return int(a.get(key, 0)) > int(b.get(key, 0))
