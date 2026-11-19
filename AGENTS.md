@@ -38,7 +38,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Code structure
 
-- `shared/game.gd` (autoload `Game`) is being split. Pure logic moves into `RefCounted` helpers with static functions (`shared/tricks.gd`, `shared/combo_ledger.gd`, `shared/match_rules.gd`). State, signals and every `@rpc` stay in `game.gd` on the same node path, and the old function names stay as thin wrappers. `player.gd` follows the same pattern with `shared/style_track.gd`: a helper may hold state, as long as it is one job, stays off the network and stays reachable through the pawn's own function names. `hud.gd` is still to do.
+- `shared/game.gd` (autoload `Game`) is being split. Pure logic moves into `RefCounted` helpers with static functions (`shared/tricks.gd`, `shared/combo_ledger.gd`, `shared/match_rules.gd`). State, signals and every `@rpc` stay in `game.gd` on the same node path, and the old function names stay as thin wrappers. `player.gd` follows the same pattern with `shared/style_track.gd`: a helper may hold state, as long as it is one job, stays off the network and stays reachable through the pawn's own function names. `hud.gd` follows the HUD's own pattern: each piece is a node or helper in `scripts/hud/` (`ScoreboardView`, `ComboMeter`, `SpeedMeter`, `DeathReport`, `HudChat`, `PerfOverlay`, …) and `Hud` keeps the scene nodes, the signal hookups and its old function names as wrappers (#315, in slices).
 - One responsibility per file, a file stops around 700 lines and a function around 60; going past that is a signal, not a rule. `game.gd`, `player.gd` and `hud.gd` are the three that still carry more than one job, and they are split in that order. One source per data table: a second copy of the same mapping (shadow quality, layout offsets, score order) is a bug waiting for one side to change.
 - A change to anything sent over the network bumps `NET_VERSION`. A refactor must not.
 
@@ -49,6 +49,14 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #315 slice 1 (hud.gd split): the death report is its own `DeathReport` node (`scripts/hud/death_report.gd`,
+  same "V/..." children, `show_report`), chat and the join/leave feed are `HudChat` (a `RefCounted` over the
+  scene's `ChatLog` / `ChatInput` / `PresenceFeed`, given the HUD's `_name_color`; `bb_escape` is static),
+  and the perf overlay text is `PerfOverlay` (`text`, `gpu_ms`, static `hint`). `Hud.show_death_report`,
+  `_open_chat` / `_close_chat`, `_on_chat_message`, `_on_presence`, `_bb_escape`, `_perf_text` and
+  `Hud.perf_hint` stay as wrappers; key handling stays in `Hud._input`. hud.gd 1642 -> ~1470 lines.
+  Check: `tools/check_hud_chat` (new); `check_death_report`, `check_perf_hint`, `check_crystal_layout`
+  unchanged. No behaviour or protocol change.
 - #314 the last flat HUD pieces: the death report is a smoke shard with a red (`CrystalUi.DANGER`) top
   seam and caps head, the streak pips are tiny slanted shards (`Hud.PIP_OFF` / `PIP_MARK`, lit in the
   accent), and the combo timer is a slim shard whose bottom seam is the time left (`ComboMeter.fill` is

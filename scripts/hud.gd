@@ -3,7 +3,8 @@ extends Control
 ## Crosshair, bottom HP bar + weapon slots, Tab scoreboard, kill feed. Mouse-filter ignore.
 
 var _hit_timer := 0.0
-var _gpu_measure := false
+var _perf := PerfOverlay.new()
+var _chat: HudChat
 var _kill_hit := false
 var _head_hit := false
 var _fire_punch := 0.0
@@ -151,10 +152,7 @@ func _ready() -> void:
 	add_child(_notice_layer)
 	_notice_layer.setup(get_node_or_null("Bottom") as VBoxContainer, self)
 	_build_trick_popup()
-	if chat_input:
-		chat_input.visible = false
-		chat_input.text_submitted.connect(_on_chat_submit)
-		chat_input.gui_input.connect(_on_chat_gui_input)
+	_chat = HudChat.new(chat_log, chat_input, presence_feed, _name_color)
 	call_deferred("bind_player", null)
 
 
@@ -170,57 +168,19 @@ func _apply_hud_settings() -> void:
 	queue_redraw()
 
 
-## Debug overlay (Settings > HUD > Show FPS): fps, the frame the engine measured, the CPU time it
-## took, physics time and the draw-call count. Frame ms well above cpu ms means the GPU is behind;
-## frame ms and cpu ms together mean the CPU is. Bottom-right so it never lands on the minimap.
+## Perf overlay text: scripts/hud/perf_overlay.gd.
 func _perf_text() -> String:
-	var fps := Engine.get_frames_per_second()
-	# Settings > HUD: fps only, fps + frame time, or everything a bottleneck question needs.
-	if Game.perf_overlay <= 1:
-		return "%d fps" % fps
-	var frame_ms := maxf(get_process_delta_time(), 0.0001) * 1000.0
-	if Game.perf_overlay == 2:
-		return "%d fps   %.1f ms" % [fps, frame_ms]
-	var cpu_ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
-	var phys_ms := Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
-	var draws := int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
-	var prims := int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
-	var gpu_ms := _gpu_ms()
-	var bound := perf_hint(frame_ms, cpu_ms, gpu_ms, DisplayServer.screen_get_refresh_rate(), Game.vsync)
-	# Which renderer and GPU are actually running: two builds of the same code can differ here, and a
-	# performance report has to name it. RenderingServer, not ProjectSettings: the project setting is
-	# the build default and does not change when the game is started with --rendering-method.
-	var method := RenderingServer.get_current_rendering_method()
-	var adapter := RenderingServer.get_video_adapter_name()
-	return "%d fps   %.1f ms   [%s]\ncpu %.1f ms   gpu %.1f ms   physics %.1f ms\ndraws %d   prims %dk\n%s · %s" % [
-		fps, frame_ms, bound, cpu_ms, gpu_ms, phys_ms, draws, roundi(float(prims) / 1000.0), method, adapter
-	]
+	return _perf.text(get_viewport(), get_process_delta_time())
 
 
-## The GPU time of the last frame, measured by the engine (0 when the driver does not report it).
+## The GPU time of the last frame (0 when the driver does not report it): PerfOverlay.gpu_ms.
 func _gpu_ms() -> float:
-	var vp := get_viewport()
-	if vp == null:
-		return 0.0
-	var rid := vp.get_viewport_rid()
-	if not _gpu_measure:
-		RenderingServer.viewport_set_measure_render_time(rid, true)
-		_gpu_measure = true
-	return RenderingServer.viewport_get_measured_render_time_gpu(rid)
+	return _perf.gpu_ms(get_viewport())
 
 
-## Which side is actually behind. Frame time alone cannot answer it: with V-Sync on the frame time is
-## the refresh interval most of the time, so calling that "[gpu]" blames the GPU for a vertical blank.
-## Refresh rate is a parameter so the rule can be tested on a headless box, where it is 0.
+## Which side is behind ("vsync", "gpu" or "cpu"): PerfOverlay.hint, kept here for its check.
 static func perf_hint(frame_ms: float, cpu_ms: float, gpu_ms: float, refresh_hz: float, vsync: bool) -> String:
-	if vsync and refresh_hz > 1.0:
-		var period := 1000.0 / refresh_hz
-		if absf(frame_ms - period) <= period * 0.08:
-			return "vsync"
-	if gpu_ms > 0.0:
-		return "gpu" if gpu_ms >= cpu_ms else "cpu"
-	# No GPU timing available: a frame that costs much more than the CPU work has to be waiting on it.
-	return "gpu" if frame_ms > cpu_ms * 1.35 else "cpu"
+	return PerfOverlay.hint(frame_ms, cpu_ms, gpu_ms, refresh_hz, vsync)
 
 
 func bind_player(player: Player) -> void:
@@ -339,64 +299,21 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Deferred focus so the T that opened chat is not typed into the box.
+## Chat and the presence feed: scripts/hud/hud_chat.gd. These names stay for the HUD's own callers.
 func _open_chat() -> void:
-	Game.chat_open = true
-	if chat_input:
-		chat_input.visible = true
-		chat_input.text = ""
-		chat_input.call_deferred("grab_focus")
-	if chat_log:
-		for c in chat_log.get_children():
-			(c as CanvasItem).modulate.a = 1.0
+	_chat.open()
 
 
 func _close_chat(send: bool) -> void:
-	if send and chat_input:
-		Game.send_chat(chat_input.text)
-	Game.chat_open = false
-	if chat_input:
-		chat_input.release_focus()
-		chat_input.text = ""
-		chat_input.visible = false
+	_chat.close(send)
 
 
-func _on_chat_submit(text: String) -> void:
-	Game.send_chat(text)
-	_close_chat(false)
-
-
-func _on_chat_gui_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("toggle_mouse"):
-		_close_chat(false)
-		get_viewport().set_input_as_handled()
-
-
-## Newest at the bottom. Name uses team colour; lines fade after 8s.
 func _on_chat_message(n: String, team: int, text: String) -> void:
-	if chat_log == null:
-		return
-	var row := RichTextLabel.new()
-	row.bbcode_enabled = true
-	row.fit_content = true
-	row.scroll_active = false
-	row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var col: Color = _name_color(n, team)
-	row.text = "[color=#%s]%s[/color]  %s" % [col.to_html(false), _bb_escape(n), _bb_escape(text)]
-	chat_log.add_child(row)
-	while chat_log.get_child_count() > 8:
-		var old := chat_log.get_child(0)
-		chat_log.remove_child(old)
-		old.queue_free()
-	var tw := row.create_tween()
-	tw.tween_interval(8.0)
-	tw.tween_property(row, "modulate:a", 0.0, 0.5)
+	_chat.add_message(n, team, text)
 
 
-## Player text must not become BBCode ([img], [font_size], …). [lb] is a literal "[".
 func _bb_escape(s: String) -> String:
-	return s.replace("[", "[lb]")
+	return HudChat.bb_escape(s)
 
 
 ## Leave to menu: drop streak/radar/death overlay from the old session.
@@ -1005,76 +922,15 @@ func _on_health(hp: float, max_hp: float) -> void:
 		_paint(hp_fill, fill)
 
 
-var _death_report: PanelContainer
-var _death_report_tw: Tween
+## #64 "Killed by X" card: scripts/hud/death_report.gd, made on the first death.
+var _death_report: DeathReport
 
 
-## #64: "Killed by X" card under RESPAWNING, then it stays a few seconds into the next life.
 func show_death_report(killer: String, taken: int, taken_hits: int, dealt: int, dealt_hits: int, killer_hp: int, weapon: String = "") -> void:
 	if _death_report == null:
-		_death_report = PanelContainer.new()
-		_death_report.name = "DeathReport"
-		_death_report.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_death_report.anchor_left = 0.5
-		_death_report.anchor_right = 0.5
-		_death_report.anchor_top = 0.5
-		_death_report.anchor_bottom = 0.5
-		_death_report.offset_left = -215.0
-		_death_report.offset_right = 215.0
-		_death_report.offset_top = 48.0
-		_death_report.grow_horizontal = Control.GROW_DIRECTION_BOTH
-		# A smoke shard with a red seam on top: red is danger, and this is what killed you.
-		var sb := CrystalUi.shard(Vector4(14, 6, 18, 8), 33, false, CrystalStyle.Side.TOP, CrystalUi.DANGER, 1.0, Vector2(20, 10))
-		sb.content_margin_bottom = 12
-		sb.fill = ScoreboardView.PANEL
-		_death_report.add_theme_stylebox_override("panel", sb)
-		var v := VBoxContainer.new()
-		v.name = "V"
-		v.add_theme_constant_override("separation", 6)
-		_death_report.add_child(v)
-		var head := CrystalUi.caption("", 17, ScoreboardView.TEXT)
-		head.name = "Head"
-		head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		v.add_child(head)
-		var wl := CrystalUi.caption("", 12, CrystalUi.MUTE.lightened(0.2))
-		wl.name = "Weapon"
-		wl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		v.add_child(wl)
-		for row in ["Taken", "Dealt"]:
-			var h := HBoxContainer.new()
-			h.name = row
-			var l := Label.new()
-			l.name = "L"
-			l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			l.add_theme_font_size_override("font_size", 15)
-			l.add_theme_color_override("font_color", CrystalUi.MUTE.lightened(0.15))
-			h.add_child(l)
-			var r := Label.new()
-			r.name = "R"
-			r.add_theme_font_size_override("font_size", 16)
-			h.add_child(r)
-			v.add_child(h)
+		_death_report = DeathReport.new()
 		add_child(_death_report)
-	var v2 := _death_report.get_node("V")
-	(v2.get_node("Head") as Label).text = "KILLED BY %s" % " ".join(killer.strip_edges().to_upper().split(" ", false))
-	var wlab := v2.get_node("Weapon") as Label
-	wlab.text = "with %s" % weapon.strip_edges().to_upper() if weapon.strip_edges() != "" else ""
-	wlab.visible = wlab.text != ""
-	(v2.get_node("Taken/L") as Label).text = "Their damage to you"
-	(v2.get_node("Taken/R") as Label).text = "%d  ·  %d %s" % [taken, taken_hits, "hit" if taken_hits == 1 else "hits"]
-	(v2.get_node("Taken/R") as Label).add_theme_color_override("font_color", Color(0.95, 0.45, 0.4))
-	(v2.get_node("Dealt/L") as Label).text = "Your damage to them"
-	var tail := "  ·  %d HP left" % killer_hp if killer_hp > 0 else ""
-	(v2.get_node("Dealt/R") as Label).text = "%d  ·  %d %s%s" % [dealt, dealt_hits, "hit" if dealt_hits == 1 else "hits", tail]
-	(v2.get_node("Dealt/R") as Label).add_theme_color_override("font_color", HUD_ACCENT if dealt > 0 else SB_MUTED)
-	_death_report.visible = true
-	_death_report.modulate.a = 1.0
-	if _death_report_tw and _death_report_tw.is_valid():
-		_death_report_tw.kill()
-	_death_report_tw = create_tween()
-	_death_report_tw.tween_interval(5.0)
-	_death_report_tw.tween_property(_death_report, "modulate:a", 0.0, 0.6)
-	_death_report_tw.tween_callback(func() -> void: _death_report.visible = false)
+	_death_report.show_report(killer, taken, taken_hits, dealt, dealt_hits, killer_hp, weapon)
 
 
 func _on_died() -> void:
@@ -1087,34 +943,8 @@ func _on_respawned() -> void:
 	_dmg_dirs.clear()
 
 
-## Newest row on top. Local name gets a white outline (CS-style).
 func _on_presence(player_name: String, joined: bool, team: int) -> void:
-	if presence_feed == null:
-		return
-	var row := Label.new()
-	var team_n: String = Game.TEAM_NAMES[clampi(team, 0, 1)]
-	if joined and Game.is_ffa():
-		row.text = "%s joined" % player_name
-		row.add_theme_color_override("font_color", Color(0.55, 0.92, 0.62, 0.95))
-	elif joined:
-		row.text = "%s joined  (%s)" % [player_name, team_n]
-		row.add_theme_color_override("font_color", Color(0.55, 0.92, 0.62, 0.95))
-	else:
-		row.text = "%s left" % player_name
-		row.add_theme_color_override("font_color", Color(0.92, 0.55, 0.5, 0.95))
-	row.add_theme_font_size_override("font_size", 16)
-	row.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	row.add_theme_constant_override("outline_size", 4)
-	presence_feed.add_child(row)
-	presence_feed.move_child(row, 0)
-	while presence_feed.get_child_count() > 5:
-		var old := presence_feed.get_child(presence_feed.get_child_count() - 1)
-		presence_feed.remove_child(old)
-		old.queue_free()
-	var tw := row.create_tween()
-	tw.tween_interval(4.5)
-	tw.tween_property(row, "modulate:a", 0.0, 0.4)
-	tw.tween_callback(row.queue_free)
+	_chat.add_presence(player_name, joined, team)
 
 
 func _on_kill_feed(
