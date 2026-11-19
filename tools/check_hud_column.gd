@@ -61,15 +61,16 @@ func _run() -> int:
 		"the CTF popup sits below the CTF block (%.0f >= %.0f)"
 			% [HudLayout.CTF_TOP + HudLayout.CTF_HEIGHT + HudLayout.POPUP_GAP, HudLayout.POPUP_TOP])
 
-	# hud.gd must not keep its own copy of these numbers: the aliases point at the table.
+	# hud.gd must not keep its own copy of these numbers: an alias points at the table, and a name
+	# hud.gd no longer needs may go (#315 dropped the unused ones; no copy is the best copy).
 	var hud := FileAccess.get_file_as_string("res://scripts/hud.gd")
 	for name in ["POPUP_TOP", "POPUP_HEIGHT", "CTF_STATUS_TOP", "CTF_STATUS_H", "HUD_ACCENT", "HUD_PANEL"]:
 		var line := ""
 		for l in hud.split("\n"):
 			if l.begins_with("const %s :=" % name):
 				line = l
-		fails += _ok(line.contains("HudLayout."),
-			"%s is the layout table's value, not a second copy" % name)
+		fails += _ok(line == "" or line.contains("HudLayout."),
+			"%s is the layout table's value or gone, not a second copy" % name)
 
 	print("HUD COLUMN CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	return fails

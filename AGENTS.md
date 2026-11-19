@@ -38,8 +38,8 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Code structure
 
-- `shared/game.gd` (autoload `Game`) is being split. Pure logic moves into `RefCounted` helpers with static functions (`shared/tricks.gd`, `shared/combo_ledger.gd`, `shared/match_rules.gd`). State, signals and every `@rpc` stay in `game.gd` on the same node path, and the old function names stay as thin wrappers. `player.gd` follows the same pattern with `shared/style_track.gd`: a helper may hold state, as long as it is one job, stays off the network and stays reachable through the pawn's own function names. `hud.gd` follows the HUD's own pattern: each piece is a node or helper in `scripts/hud/` (`ScoreboardView`, `ComboMeter`, `SpeedMeter`, `DeathReport`, `HudChat`, `PerfOverlay`, `WeaponBar`, `StreakColumn`, `HudSkin`, `HudBoard`, `TrickPopup`, `StandingLine`, …) and `Hud` keeps the scene nodes, the signal hookups and its old function names as wrappers (#315, in slices).
-- One responsibility per file, a file stops around 700 lines and a function around 60; going past that is a signal, not a rule. `game.gd`, `player.gd` and `hud.gd` are the three that still carry more than one job, and they are split in that order. One source per data table: a second copy of the same mapping (shadow quality, layout offsets, score order) is a bug waiting for one side to change.
+- `shared/game.gd` (autoload `Game`) is being split. Pure logic moves into `RefCounted` helpers with static functions (`shared/tricks.gd`, `shared/combo_ledger.gd`, `shared/match_rules.gd`). State, signals and every `@rpc` stay in `game.gd` on the same node path, and the old function names stay as thin wrappers. `player.gd` follows the same pattern with `shared/style_track.gd`: a helper may hold state, as long as it is one job, stays off the network and stays reachable through the pawn's own function names. `hud.gd` follows the HUD's own pattern: each piece is a node or helper in `scripts/hud/` (`ScoreboardView`, `ComboMeter`, `SpeedMeter`, `DeathReport`, `HudChat`, `PerfOverlay`, `WeaponBar`, `StreakColumn`, `HudSkin`, `HudBoard`, `TrickPopup`, `StandingLine`, `HudOverlay`, `HudVitals`) and `Hud` keeps the scene nodes, the signal hookups, the key handling and its old function names as wrappers (#315, done). A new HUD piece gets its own file there, not a block in `hud.gd`.
+- One responsibility per file, a file stops around 700 lines and a function around 60; going past that is a signal, not a rule. `game.gd` and `player.gd` still carry more than one job and are split in that order (`hud.gd` is done, #315). One source per data table: a second copy of the same mapping (shadow quality, layout offsets, score order) is a bug waiting for one side to change.
 - A change to anything sent over the network bumps `NET_VERSION`. A refactor must not.
 
 ## Checks
@@ -49,6 +49,16 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #315 slice 4 (hud.gd split, the last): everything `Hud._draw` drew is `HudOverlay`, a full-rect Control that
+  is the HUD's first child, so it draws under every other node as before - crosshair (gap from spread and
+  `fire_punch`, none on sniper hip), LOS bar, hurt vignette (`HURT_TIME`), damage wedges (`DMG_*`, static
+  `dir_angle`) and hit markers (`HIT_TIME` / `KILL_HIT_TIME`). `hurt` / `punch` / `clear` redraw at once, so a
+  frozen HUD (a shot tool) shows the same as a live one. HP bar, armour bar, pickup toast and the knife blink
+  are `HudVitals` (`set_health` returns whether HP dropped, static `fill_for`, `HP_OK/MID/LOW`). `Hud` keeps
+  `add_damage_dir`, `dir_angle`, `punch_crosshair`, `set_sniper_ads/hip`, `_on_hit`, `_on_health`,
+  `_on_armour`, `flash_pickup`, `blink_knives` and a `pickup_toast` property; unused constant aliases are gone.
+  hud.gd 1642 -> ~700 lines over the four slices, a coordinator. Check: `tools/check_hud_overlay` (new);
+  `shot_hud` renders pixel-identical to main inside the vignette border. No behaviour or protocol change.
 - #315 slice 3 (hud.gd split): the Tab board's timing and the round-end cards are `HudBoard` (`open`,
   `tick(delta, tab)`, `round_ended`, `killcam_finished`, the winner card and style king, static
   `sort_scores`; `ScoreboardView` still builds the board), the trickshot word is a `TrickPopup` node
