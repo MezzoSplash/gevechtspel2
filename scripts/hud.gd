@@ -1,43 +1,36 @@
 class_name Hud
 extends Control
-## Crosshair, bottom HP bar + weapon slots, Tab scoreboard, kill feed. Mouse-filter ignore.
+## The in-match HUD. It owns the scene's nodes, hooks them to Game and the local pawn, and handles
+## the keys (chat, streak selection); each piece's behaviour lives in scripts/hud/ (#315): HudOverlay
+## (crosshair, hit markers, damage wedges), HudVitals (HP, armour, pickups), WeaponBar, StreakColumn,
+## HudBoard + ScoreboardView, TrickPopup, StandingLine, HudNotice, ComboMeter, SpeedMeter, KillFeed,
+## DeathReport, HudChat and PerfOverlay. The old function names stay here as thin wrappers.
 
-var _hit_timer := 0.0
 var _perf := PerfOverlay.new()
 var _chat: HudChat
-var _kill_hit := false
-var _head_hit := false
-var _fire_punch := 0.0
-var pickup_toast: Label
-var _pickup_toast_t := 0.0
-var _hurt_flash := 0.0
-var _hp := 100.0
-var _max_hp := 100.0
 var _local_peer_id := 0
 var _intermission_timer := 0.0
 var _freeze_left := 0.0
 ## Notice line and streak/flag popup: scripts/hud/notice_layer.gd.
 var _notice_layer: HudNotice
-var _sniper_ads := false
-var _sniper_hip := false # sniper in hand and RMB zoom off: draw no crosshair
 var _player: Player # the local pawn from bind_player; crosshair bloom follows it
-var _dmg_dirs: Array[Dictionary] = [] # {pos: Vector3, t: float}: where recent damage came from
 var _standing: StandingLine # FFA place / CTF flags under the clock, made on the first refresh
 var _standing_t := 0.0
 
 ## Geometry and palette: shared/hud_layout.gd (one source; check_hud_column compares the scene with it).
-const DMG_DIR_LIFE := HudLayout.DMG_LIFE
-const DMG_DIR_MAX := HudLayout.DMG_MAX
-const DMG_DIR_RADIUS := HudLayout.DMG_RADIUS
-const DMG_DIR_HALF := HudLayout.DMG_HALF
-const _SLOT_IDLE := HudLayout.SLOT_IDLE
-const _SLOT_ON := HudLayout.SLOT_ON
 const HUD_ACCENT := HudLayout.ACCENT
-const HUD_PANEL := HudLayout.PANEL
 ## HP fill: ice when healthy, amber in the middle, red when low. The track is smoke glass.
-const HP_OK := Color(0.78, 0.93, 1.0, 0.95)
-const HP_MID := Color(0.95, 0.72, 0.25, 0.95)
-const HP_LOW := Color(0.92, 0.2, 0.16, 0.96)
+const HP_OK := HudVitals.HP_OK
+const HP_MID := HudVitals.HP_MID
+const HP_LOW := HudVitals.HP_LOW
+## The crosshair layer (HudOverlay: crosshair, hit markers, damage wedges, hurt vignette, LOS bar) and
+## HP / armour / pickups (HudVitals): scripts/hud/.
+var overlay: HudOverlay
+var vitals: HudVitals
+## The pickup toast lives in HudVitals; this name stays for its callers.
+var pickup_toast: Label:
+	get:
+		return vitals.toast if vitals else null
 ## The weapon slots + grenade pill and the scorestreak column: scripts/hud/weapon_bar.gd and
 ## streak_column.gd. Their nodes stay in hud.tscn; these hold what happens to them.
 var weapons: WeaponBar
@@ -75,9 +68,6 @@ var streaks: StreakColumn
 const _FEED_ICONS := KillFeed.ICONS # killcam and checks read it here
 const _POPUP_FRIENDLY := HudLayout.POPUP_FRIENDLY
 const POPUP_TOP := HudLayout.POPUP_TOP
-const POPUP_HEIGHT := HudLayout.POPUP_HEIGHT
-const CTF_STATUS_TOP := HudLayout.CTF_TOP
-const CTF_STATUS_H := HudLayout.CTF_HEIGHT
 const _POPUP_HOSTILE := HudLayout.POPUP_HOSTILE
 const TRICK_COLOR := HudLayout.TRICK
 ## Trick popup (TrickPopup), the Tab board and round-end cards (HudBoard): scripts/hud/.
@@ -112,6 +102,10 @@ func _ready() -> void:
 	if countdown_label:
 		countdown_label.visible = false
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay = HudOverlay.new()
+	add_child(overlay)
+	move_child(overlay, 0) # under every other HUD node, where Hud._draw used to draw
+	vitals = HudVitals.new($Bottom, get_node_or_null("Bottom/HpWrap/HpBg") as ColorRect, hp_fill, hp_label, armour_bg, armour_fill, grenade_label)
 	weapons = WeaponBar.new(_slots, grenade_label)
 	streaks = StreakColumn.new(self, streak_label, _streak_slots)
 	_style_bottom()
@@ -137,7 +131,8 @@ func _apply_hud_settings() -> void:
 	if fps_label:
 		fps_label.visible = Game.show_fps
 		fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	queue_redraw()
+	if overlay:
+		overlay.queue_redraw()
 
 
 ## Perf overlay text: scripts/hud/perf_overlay.gd.
@@ -161,6 +156,7 @@ func bind_player(player: Player) -> void:
 	if player == null:
 		return
 	_player = player
+	overlay.player = player
 	var mm := get_node_or_null("Minimap") as Minimap
 	if mm:
 		mm.player = player
@@ -179,43 +175,14 @@ func bind_player(player: Player) -> void:
 	_on_health(player.hp, Player.MAX_HP)
 
 
-## Damage direction indicator: a red wedge around the crosshair pointing at `from_pos`. Each hit
-## adds one (they stack); they turn with your view and fade over DMG_DIR_LIFE.
+## Damage direction wedge pointing at `from_pos`: HudOverlay.add_damage_dir.
 func add_damage_dir(from_pos: Vector3) -> void:
-	_dmg_dirs.append({"pos": from_pos, "t": DMG_DIR_LIFE})
-	while _dmg_dirs.size() > DMG_DIR_MAX:
-		_dmg_dirs.pop_front()
-	queue_redraw()
+	overlay.add_damage_dir(from_pos)
 
 
-## Screen angle of a world point around the crosshair: 0 = ahead (up), +PI/2 = right, PI = behind.
+## Screen angle of a world point around the crosshair: HudOverlay.dir_angle.
 static func dir_angle(view: Transform3D, world_pos: Vector3) -> float:
-	var to := world_pos - view.origin
-	var local := view.basis.inverse() * to
-	return atan2(local.x, -local.z)
-
-
-func _draw_damage_dirs(c: Vector2) -> void:
-	if _dmg_dirs.is_empty() or not is_instance_valid(_player):
-		return
-	var view := Transform3D(Basis(Vector3.UP, _player.rotation.y), _player.global_position)
-	for d in _dmg_dirs:
-		var a := dir_angle(view, d.pos) - PI * 0.5 # draw_* angles: 0 = right, clockwise on screen
-		var alpha := clampf(float(d.t) / DMG_DIR_LIFE, 0.0, 1.0)
-		alpha = alpha * alpha * (3.0 - 2.0 * alpha)
-		var pts := PackedVector2Array()
-		var steps := 10
-		for i in steps + 1:
-			var t := a - DMG_DIR_HALF + DMG_DIR_HALF * 2.0 * float(i) / steps
-			pts.append(c + Vector2(cos(t), sin(t)) * DMG_DIR_RADIUS)
-		for i in range(steps, -1, -1):
-			var t := a - DMG_DIR_HALF * 0.55 + DMG_DIR_HALF * 1.1 * float(i) / steps
-			pts.append(c + Vector2(cos(t), sin(t)) * (DMG_DIR_RADIUS + 26.0))
-		draw_colored_polygon(pts, Color(0.92, 0.1, 0.08, 0.72 * alpha))
-		var tip := c + Vector2(cos(a), sin(a)) * (DMG_DIR_RADIUS + 34.0)
-		var l := c + Vector2(cos(a - 0.1), sin(a - 0.1)) * (DMG_DIR_RADIUS + 25.0)
-		var r := c + Vector2(cos(a + 0.1), sin(a + 0.1)) * (DMG_DIR_RADIUS + 25.0)
-		draw_colored_polygon(PackedVector2Array([l, tip, r]), Color(1.0, 0.2, 0.15, 0.85 * alpha))
+	return HudOverlay.dir_angle(view, world_pos)
 
 
 func _local_player() -> Player:
@@ -291,8 +258,9 @@ func reset_session() -> void:
 	if combo_meter:
 		combo_meter.reset()
 	_player = null
+	overlay.player = null
 	_local_peer_id = 0
-	_dmg_dirs.clear()
+	overlay.clear()
 	streaks.reset()
 	_hide_popup()
 	_hide_notice()
@@ -316,7 +284,7 @@ func _on_round_freeze(on: bool) -> void:
 
 
 func punch_crosshair(amount: float = 1.0) -> void:
-	_fire_punch = maxf(_fire_punch, amount)
+	overlay.punch(amount)
 
 
 ## Weapon slots: WeaponBar (scripts/hud/weapon_bar.gd).
@@ -331,18 +299,18 @@ func set_weapon_slots(names: PackedStringArray) -> void:
 
 ## Tight crosshair + faint ring while sniper RMB zoom is held.
 func set_sniper_ads(on: bool) -> void:
-	if _sniper_ads == on:
+	if overlay.sniper_ads == on:
 		return
-	_sniper_ads = on
-	queue_redraw()
+	overlay.sniper_ads = on
+	overlay.queue_redraw()
 
 
 ## The sniper has no hip crosshair. Bars and the centre dot return while zoomed.
 func set_sniper_hip(on: bool) -> void:
-	if _sniper_hip == on:
+	if overlay.sniper_hip == on:
 		return
-	_sniper_hip = on
-	queue_redraw()
+	overlay.sniper_hip = on
+	overlay.queue_redraw()
 
 
 func set_weapon_index(index: int) -> void:
@@ -351,15 +319,7 @@ func set_weapon_index(index: int) -> void:
 
 ## Bottom HUD: crystal HP bar (smoke track + fill), grenade/knife shard, outlined streak counter.
 func _style_bottom() -> void:
-	var bg := get_node_or_null("Bottom/HpWrap/HpBg") as ColorRect
-	if bg:
-		bg.color = CrystalStyle.SMOKE
-		_skin(bg, 8)
-		_paint(bg, CrystalStyle.SMOKE)
-	if hp_fill:
-		_skin(hp_fill, 8)
-		_paint(hp_fill, HP_OK)
-		(hp_fill.get_node("Skin").get_theme_stylebox("panel") as CrystalStyle).edge_alpha = 0.0
+	vitals.style()
 	weapons.style_grenades()
 	if streak_label:
 		streak_label.add_theme_font_size_override("font_size", 14)
@@ -503,77 +463,32 @@ func _facelift_hud() -> void:
 		speed_meter.visible = false
 		bottom.add_child(speed_meter)
 		bottom.move_child(speed_meter, row.get_index())
-	if hp_label:
-		hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		hp_label.offset_left = 12.0
-		hp_label.add_theme_font_size_override("font_size", 17)
-		hp_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.75))
-		hp_label.add_theme_constant_override("outline_size", 4)
 
 
 func set_reloading(on: bool) -> void:
 	reload_label.visible = on
 
 
-## Schildplaat (#144): a thin bar above the HP bar, hidden when there is no armour.
+## HP, armour and pickups: HudVitals (scripts/hud/hud_vitals.gd).
 func _on_armour(a: float) -> void:
-	var on := a > 0.5
-	if armour_bg:
-		armour_bg.visible = on
-	if armour_fill:
-		armour_fill.visible = on
-		armour_fill.anchor_right = clampf(a / maxf(Pickups.ARMOUR, 1.0), 0.0, 1.0)
-	if on:
-		_sound_pickup_hint("+%d ARMOUR" % roundi(a), Pickups.type_info(&"shield")["color"])
+	vitals.set_armour(a)
 
 
-## Pickup taken: a short label in the pickup's colour above the HP bar (#144).
 func flash_pickup(label: String, col: Color) -> void:
-	_sound_pickup_hint(label, col)
+	vitals.show_toast(label, col)
 
 
-## Extra Messen taken: the knife counter blinks so the new count is noticed (#144).
 func blink_knives() -> void:
-	if grenade_label == null:
-		return
-	var tw := create_tween()
-	tw.tween_property(grenade_label, "modulate", Color(1.6, 1.6, 1.6, 1), 0.08)
-	tw.tween_property(grenade_label, "modulate", Color.WHITE, 0.35)
+	vitals.blink_knives()
 
 
 func _sound_pickup_hint(text: String, col: Color) -> void:
-	if pickup_toast == null:
-		pickup_toast = Label.new()
-		pickup_toast.name = "PickupToast"
-		$Bottom.add_child(pickup_toast)
-		pickup_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		pickup_toast.anchor_left = 0.0
-		pickup_toast.anchor_right = 1.0
-		pickup_toast.offset_top = -46.0
-		pickup_toast.offset_bottom = -18.0
-		pickup_toast.add_theme_font_size_override("font_size", 20)
-		pickup_toast.add_theme_constant_override("outline_size", 6)
-		pickup_toast.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	pickup_toast.text = text
-	pickup_toast.add_theme_color_override("font_color", col)
-	pickup_toast.modulate.a = 1.0
-	_pickup_toast_t = 2.0
+	vitals.show_toast(text, col)
 
 
 func _on_health(hp: float, max_hp: float) -> void:
-	if hp < _hp:
-		_hurt_flash = 0.35
-	_hp = hp
-	_max_hp = max_hp
-	var t := clampf(hp / maxf(max_hp, 1.0), 0.0, 1.0)
-	if hp_label:
-		hp_label.text = str(roundi(hp))
-	if hp_fill:
-		hp_fill.anchor_right = t
-		var fill := HP_LOW if t < 0.3 else HP_OK
-		if t >= 0.3 and t < 0.6:
-			fill = HP_MID
-		_paint(hp_fill, fill)
+	if vitals.set_health(hp, max_hp):
+		overlay.hurt()
 
 
 ## #64 "Killed by X" card: scripts/hud/death_report.gd, made on the first death.
@@ -593,8 +508,7 @@ func _on_died() -> void:
 
 func _on_respawned() -> void:
 	death_layer.visible = false
-	_hurt_flash = 0.0
-	_dmg_dirs.clear()
+	overlay.clear()
 
 
 func _on_presence(player_name: String, joined: bool, team: int) -> void:
@@ -624,10 +538,7 @@ func _local_name() -> String:
 
 
 func _on_hit(killed: bool, headshot: bool) -> void:
-	_hit_timer = 0.16 if killed or headshot else 0.085
-	_kill_hit = killed
-	_head_hit = headshot
-	queue_redraw()
+	overlay.hit(killed, headshot)
 
 
 func _on_score_changed(_peer_id: int, _score: int, _n: String) -> void:
@@ -703,7 +614,6 @@ static func _ordinal(n: int) -> String:
 	return StandingLine.ordinal(n)
 
 
-const SB_MUTED := ScoreboardView.MUTED
 
 
 ## The Tab board: HudBoard, built by ScoreboardView.
@@ -715,17 +625,8 @@ func _refresh_scoreboard() -> void:
 func _process(delta: float) -> void:
 	_tick_combo_ui(delta)
 	_tick_speed_meter(delta)
-	_hit_timer = maxf(_hit_timer - delta, 0.0)
-	_fire_punch = move_toward(_fire_punch, 0.0, delta * 9.0)
-	if _pickup_toast_t > 0.0:
-		_pickup_toast_t = maxf(_pickup_toast_t - delta, 0.0)
-		if pickup_toast:
-			pickup_toast.modulate.a = clampf(_pickup_toast_t / 0.6, 0.0, 1.0)
-	_hurt_flash = maxf(_hurt_flash - delta, 0.0)
-	for i in range(_dmg_dirs.size() - 1, -1, -1):
-		_dmg_dirs[i].t = float(_dmg_dirs[i].t) - delta
-		if float(_dmg_dirs[i].t) <= 0.0:
-			_dmg_dirs.remove_at(i)
+	overlay.tick(delta)
+	vitals.tick(delta)
 	_standing_t -= delta
 	if _standing_t <= 0.0:
 		_standing_t = 0.25
@@ -755,76 +656,6 @@ func _process(delta: float) -> void:
 		_intermission_timer -= delta
 		if _intermission_timer <= 0.0:
 			intermission_label.visible = false
-	
-	queue_redraw()
-
-
-## Crosshair gap grows with spread/punch. The sniper draws none until RMB zoom.
-## Hurt vignette, damage wedges, and hit markers stay up either way.
-func _draw() -> void:
-	var c := size * 0.5
-	var stance := 0.0
-	var player := _player if is_instance_valid(_player) else null
-	if player:
-		stance = maxf(player.spread_multiplier() - 1.0, 0.0) * 5.0
-	var sz := Game.crosshair_size
-	var gap := ((2.0 if _sniper_ads else 5.0) + _fire_punch * 7.0 + stance) * sz
-	var length := 8.0 * sz
-	var col := Game.crosshair_rgb()
-	col.a = 0.92
-	var thick := maxf(2.0 * sqrt(sz), 1.0)
-	var style := Game.crosshair_style # 0 cross+dot, 1 cross, 2 dot, 3 circle
-	# Hip-firing the sniper is unguided. Zoom (and every other gun) keeps the bars.
-	if not _sniper_hip:
-		if style <= 1:
-			_bar(c + Vector2(gap, 0), Vector2(length, 0), col, thick)
-			_bar(c + Vector2(-gap, 0), Vector2(-length, 0), col, thick)
-			_bar(c + Vector2(0, gap), Vector2(0, length), col, thick)
-			_bar(c + Vector2(0, -gap), Vector2(0, -length), col, thick)
-		elif style == 3:
-			draw_arc(c, gap + length * 0.5, 0.0, TAU, 40, col, thick, true)
-		if style != 1:
-			draw_circle(c, (2.2 if style == 2 else 1.4) * sz, col)
-		if _sniper_ads:
-			draw_arc(c, 22.0, 0.0, TAU, 48, Color(0.05, 0.05, 0.05, 0.45), 2.0, true)
-
-	# LOS: one thin bar under the crosshair draining with the hands' time left. Local only and
-	# drawn here, so it needs no node of its own. Gold, the streak family colour.
-	var hands := LosHands.local()
-	if hands:
-		var frac := clampf(hands.time_left / LosHands.DURATION, 0.0, 1.0)
-		var bar_w := 96.0
-		var bar_y := c.y + 34.0
-		draw_rect(Rect2(c.x - bar_w * 0.5, bar_y, bar_w, 4.0), Color(1, 1, 1, 0.16))
-		draw_rect(Rect2(c.x - bar_w * 0.5, bar_y, bar_w * frac, 4.0), Color(1, 0.92, 0.55, 0.95))
-
-	if _hurt_flash > 0.0:
-		var a := _hurt_flash * 0.55
-		var red := Color(0.7, 0.05, 0.05, a)
-		var t := 70.0
-		draw_rect(Rect2(0, 0, size.x, t), red)
-		draw_rect(Rect2(0, size.y - t, size.x, t), red)
-		draw_rect(Rect2(0, 0, t, size.y), red)
-		draw_rect(Rect2(size.x - t, 0, t, size.y), red)
-
-	_draw_damage_dirs(c)
-
-	if _hit_timer > 0.0:
-		var hit_a := clampf(_hit_timer / 0.08, 0.0, 1.0)
-		var hit_col := Color(1, 1, 1, hit_a)
-		if _kill_hit:
-			hit_col = Color(1.0, 0.22, 0.18, hit_a)
-		elif _head_hit:
-			hit_col = Color(1.0, 0.86, 0.2, hit_a)
-		var s := 11.0 if _kill_hit or _head_hit else 8.0
-		draw_line(c + Vector2(-s, -s), c + Vector2(-s * 0.35, -s * 0.35), hit_col, 2.2, true)
-		draw_line(c + Vector2(s, -s), c + Vector2(s * 0.35, -s * 0.35), hit_col, 2.2, true)
-		draw_line(c + Vector2(-s, s), c + Vector2(-s * 0.35, s * 0.35), hit_col, 2.2, true)
-		draw_line(c + Vector2(s, s), c + Vector2(s * 0.35, s * 0.35), hit_col, 2.2, true)
-
-
-func _bar(from: Vector2, delta: Vector2, col: Color, thick: float) -> void:
-	draw_line(from, from + delta, col, thick, true)
 
 
 # ---------------------------------------------------------------------------------------------
