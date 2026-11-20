@@ -30,7 +30,9 @@ static func predict_grenade(game: GameState, thrower: Player, origin: Vector3, d
 	if scene == null or thrower == null:
 		return 0
 	game._grenade_pred_seq += 1
-	game._grenade_predicted[game._grenade_pred_seq] = Grenade.spawn_visual(scene, origin, Grenade.initial_velocity(dir))
+	var g := Grenade.spawn_visual(scene, origin, Grenade.initial_velocity(dir))
+	g.set_thrower(thrower.peer_id)
+	game._grenade_predicted[game._grenade_pred_seq] = g
 	return game._grenade_pred_seq
 
 
@@ -111,8 +113,11 @@ static func on_grenade_spawn(game: GameState, net_id: int, pos: Vector3, vel: Ve
 	var existing = game._grenade_visuals.get(net_id)
 	if is_instance_valid(existing):
 		(existing as Grenade).velocity = vel # a pose beat the spawn here; give it the real arc
+		(existing as Grenade).set_thrower(thrower_peer)
 		return
-	grenade_visual(game, net_id, pos, vel)
+	var g := grenade_visual(game, net_id, pos, vel) as Grenade
+	if g:
+		g.set_thrower(thrower_peer) # the cap in the thrower's team colour (#342)
 
 
 ## Client (sync_grenade_pose). Unreliable can arrive after the reliable boom; that would leave a ghost.

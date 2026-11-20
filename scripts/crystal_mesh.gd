@@ -93,6 +93,14 @@ static func _build(id: StringName) -> ArrayMesh:
 		&"pickup_heart": # heart-shard core: a faceted drop
 			return ring_stack([[-0.24, 0.0, 0.0], [-0.12, 0.17, 0.15], [0.02, 0.24, 0.21],
 				[0.16, 0.16, 0.14], [0.26, 0.0, 0.0]], 6, PI / 6)
+		&"grenade": # the frag (#342): a cut gem, two hexagonal points on a short belt, 0.22 m tall
+			return ring_stack([[-0.11, 0.0, 0.0], [-0.03, 0.09, 0.09], [0.03, 0.09, 0.09], [0.11, 0.0, 0.0]], 6, PI / 6)
+		&"grenade_seam": # the fuse band round the belt (the fuse light)
+			return ring_stack([[-0.01, 0.097, 0.097], [0.01, 0.097, 0.097]], 6, PI / 6)
+		&"grenade_pin": # the pale cap on top (team colour in team modes)
+			return ring_stack([[0.0, 0.0, 0.0], [0.03, 0.034, 0.034], [0.065, 0.0, 0.0]], 4, PI / 4)
+		&"grenade_frag": # one splinter of the blast: a long thin shard along +Y
+			return ring_stack([[-0.18, 0.0, 0.0], [-0.05, 0.045, 0.045], [0.18, 0.0, 0.0]], 4, PI / 4)
 		&"spark": # small floating glow shard (ankles, wrists)
 			return ring_stack([[-0.04, 0.0, 0.0], [0.0, 0.025, 0.025], [0.04, 0.0, 0.0]], 4)
 	return ring_stack([[-0.05, 0.0, 0.0], [0.0, 0.05, 0.05], [0.05, 0.0, 0.0]], 4)

@@ -74,7 +74,7 @@ var _t_end := 0.0
 var _frame_i := 0
 var _ev_i := 0
 var _ghosts: Dictionary = {} # peer_id -> ghost parts (see _make_ghost)
-var _nades: Array[MeshInstance3D] = []
+var _nades: Array[GrenadeLook] = []
 var _knives: Array[Node3D] = [] # replay copies of throwing knives (frame slot 3: Transform3D each)
 var _hidden: Array[Node3D] = []
 var _hud: CanvasItem
@@ -709,10 +709,17 @@ func _apply_frames(t: float) -> void:
 			continue
 		_pose_ghost(_ghosts[id], sa, sb, w, id == int(_clip.info.get("k", 0)))
 	var nades: PackedVector3Array = a[2] if w < 0.5 else b[2]
+	var na: PackedVector3Array = a[2]
+	var nb: PackedVector3Array = b[2]
 	for i in _nades.size():
 		_nades[i].visible = i < nades.size()
 		if i < nades.size():
-			_nades[i].global_position = nades[i]
+			var at := nades[i]
+			# Glide between the two snapshots like the ghosts do, so the frag tumbles and streaks
+			# smoothly instead of hopping (#342). Same count and close: the same grenade in both.
+			if na.size() == nb.size() and na[i].distance_to(nb[i]) < 3.0:
+				at = na[i].lerp(nb[i], w)
+			_nades[i].global_position = at
 	var fk: Array = a if w < 0.5 else b
 	var knives: Array = fk[3] if fk.size() > 3 else []
 	for i in _knives.size():
@@ -915,18 +922,7 @@ func _build_ghosts(killer: int) -> void:
 			(g.root as Node3D).add_child(tag)
 	tmpl.free()
 	for i in 4:
-		var nade := MeshInstance3D.new()
-		var sphere := SphereMesh.new()
-		sphere.radius = 0.12
-		sphere.height = 0.24
-		nade.mesh = sphere
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.15, 0.45, 0.18)
-		mat.emission_enabled = true
-		mat.emission = Color(0.2, 0.8, 0.25)
-		mat.emission_energy_multiplier = 1.4
-		nade.material_override = mat
-		nade.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var nade := GrenadeLook.new() # the same crystal frag as the match (#342); no fuse is recorded
 		nade.visible = false
 		scene.add_child(nade)
 		_nades.append(nade)

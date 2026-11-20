@@ -49,6 +49,20 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #342 the frag is a crystal: `GrenadeLook` (`scripts/grenade_look.gd`) replaces the green sphere - a cut
+  olive gem (`CrystalMesh.part(&"grenade")`, 0.22 m, the art guide's frag #26732E with a little emission), a
+  fuse band round its belt (`grenade_seam`) and a pale cap (`grenade_pin`) that glows in the thrower's team
+  colour in team modes (`set_team`; FFA keeps it pale). It tumbles along its flight and trails a thin
+  streak above `TRAIL_FROM` 9 m/s, both from its own motion (sampled since it last moved, faster than
+  `SNAP_SPEED` is a snap), and the band pulses from `PULSE_SLOW` to `PULSE_FAST` and turns from ice to
+  `CrystalUi.DANGER` over the last `DANGER_TIME` 0.4 s of the fuse (`Grenade._age`, on every copy). One
+  source: the flying grenade and the killcam's replay grenades build the same node (the killcam had its own
+  sphere and now lerps them between snapshots). `LOOK_LIFT` keeps a resting frag on its point instead of in
+  the floor. The boom bursts into `grenade_frag` splinters (ice, olive, fire) that end between 65% and 100%
+  of the splash radius (`Grenade.spawn_shards`; the RC-XD uses its own radius) and a flat ice ring runs out
+  to the radius (`spawn_shock_ring`); flash, light and sound are unchanged. Client copies get the thrower
+  from the spawn RPC that already carried it (`Grenade.set_thrower`). Check: `tools/check_grenade_look`;
+  `tools/shot_grenade` renders it in a studio lit like Townhouses (xvfb). No protocol change.
 - #316 slice 7 (player.gd split): what a pawn carries is `PawnKit` (`scripts/pawn_kit.gd`: `weapon_ids`,
   `grenade_max`, `knife_max`, `apply_loadout`, `apply_bot_loadout`, `try_throw_grenade`, `try_throw_knife`,
   `notify_grenades`, `gun_speed_mult`, `start_lunge`, `consume_lunge`, `spread_multiplier`,
