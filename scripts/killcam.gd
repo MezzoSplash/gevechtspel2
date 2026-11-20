@@ -832,11 +832,12 @@ func _replay_fire(peer_id: int, weapon_id: StringName, speed: float, is_killer: 
 		return
 	var def := Game.weapon_def(weapon_id)
 	var sfx: AudioStreamPlayer3D = g.sfx
-	if def and def.fire_sound:
-		sfx.stream = def.fire_sound
+	var shot := WeaponKit.fire_sound(def) # the same sound as the match: the kit's, else the def's
+	if shot:
+		sfx.stream = shot
 		sfx.pitch_scale = randf_range(0.95, 1.05) * (0.72 if speed < 1.0 else 1.0)
 		sfx.play()
-	var model_flash := Weapon.play_model_shot(g.model as Node3D, speed, def.fire_rate if def else 0.0)
+	var model_flash := Weapon.play_model_shot(g.model as Node3D, speed, def.fire_rate if def else 0.0, def.flash_time if def else 0.045)
 	# Model particles replace the plain quad for this shot. flash_t would turn that quad back on.
 	if model_flash:
 		g.flash_t = 0.0
@@ -928,7 +929,7 @@ func _build_ghosts(killer: int) -> void:
 		_nades.append(nade)
 	for i in 4:
 		var knife := Node3D.new()
-		var model := Weapon.KNIFE_SCENE.instantiate() as Node3D
+		var model := Weapon.knife_scene().instantiate() as Node3D
 		model.rotation_degrees = Vector3(0.0, 90.0, 0.0) # same as ThrowingKnife: tip down -Z
 		model.scale = Vector3.ONE * 1.25
 		Weapon.no_shadows(model)
@@ -999,7 +1000,7 @@ func _ghost_weapon(g: Dictionary, index: int) -> void:
 	if g.model != null and is_instance_valid(g.model):
 		(g.model as Node).queue_free()
 	var def: WeaponDef = Weapon.LOADOUT[index]
-	var packed := Weapon.MODEL_SCENES.get(def.id) as PackedScene
+	var packed := Weapon.model_scene(def.id)
 	if packed == null:
 		g.model = null
 		return

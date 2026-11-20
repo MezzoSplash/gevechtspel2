@@ -26,7 +26,7 @@ func _check_scene_flags() -> int:
 
 
 func _check_smg() -> int:
-	var model := (load("res://assets/weapons/smg/weapon_smg.tscn") as PackedScene).instantiate() as Node3D
+	var model := (load("res://assets/weapons/smg/smg.tscn") as PackedScene).instantiate() as Node3D
 	add_child(model)
 	Weapon.prepare_muzzle(model)
 	var idle := 0

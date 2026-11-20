@@ -22,7 +22,7 @@ func _ready() -> void:
 	for id in [&"lmg", &"slug", &"shotgun", &"rifle"]:
 		var gun_root := Node3D.new()
 		add_child(gun_root)
-		var model := (Weapon.MODEL_SCENES[id] as PackedScene).instantiate() as Node3D
+		var model := Weapon.model_scene(id).instantiate() as Node3D
 		gun_root.add_child(model)
 		var fit: Dictionary = Weapon.fit_model(model, id, Vector3(0.24, -0.18, -0.42))
 		gun_root.position = fit.root
