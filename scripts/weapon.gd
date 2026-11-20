@@ -19,21 +19,17 @@ const LOADOUT: Array[WeaponDef] = [
 
 @export var def: WeaponDef
 
-## Preloaded, not load()ed per pawn: nothing else holds the PackedScenes, so every spawn re-read
-## all four GLBs (~0.4 s per pawn). Ten at match start stalled the host long enough for ENet to drop clients.
-const MODEL_SCENES := {
-	&"rifle": preload("res://assets/weapons/rifle.glb"),
-	&"pistol": preload("res://assets/weapons/pistol.glb"),
-	&"shotgun": preload("res://assets/weapons/shotgun.glb"),
-	&"sniper": preload("res://assets/weapons/sniper.glb"), # slot 4; two body / one head
-	&"smg": preload("res://assets/weapons/smg/weapon_smg.tscn"), # sqorchtech viewmodel, fire clip + muzzle particles
-	&"revolver": preload("res://assets/weapons/revolver.tscn"),
-	&"lmg": preload("res://assets/weapons/lmg.tscn"), # low-poly, tools/build_lowpoly_weapons.py
-	&"slug": preload("res://assets/weapons/slug.tscn"),
-	&"shank": preload("res://assets/weapons/knife.tscn"), # same blade as the throw, held as a primary
-}
-## Throwing knife: in hand for the F throw, and the flying/stuck projectile.
-const KNIFE_SCENE := preload("res://assets/weapons/knife.tscn")
+## The gun scenes come from WeaponKit (assets/weapons/<id>/, docs/art/wapens.md): loaded once and
+## kept, not per pawn (every spawn re-reading the GLBs was ~0.4 s a pawn; ten at match start stalled
+## the host long enough for ENet to drop clients). Game warms them at boot like the old preloads did.
+static func model_scene(id: StringName) -> PackedScene:
+	return WeaponKit.scene(id)
+
+
+## Throwing knife: in hand for the F throw, and the flying/stuck projectile. The knife kit.
+static func knife_scene() -> PackedScene:
+	return WeaponKit.scene(&"knife")
+
 
 @onready var camera: CameraFeel = get_parent() as CameraFeel
 @onready var gun_body: MeshInstance3D = $GunBody
@@ -110,6 +106,10 @@ var _ads_k := 0.0
 var _throw_left := 0.0
 var _knife_view: Node3D
 var _knife_root := Vector3.ZERO
+## The weapon scene's own reload and dry sounds, for guns whose kit has none.
+var _default_reload_sound: AudioStream
+var _default_dry_sound: AudioStream
+var _draw_sfx: AudioStreamPlayer3D
 
 
 func _ready() -> void:
@@ -117,6 +117,8 @@ func _ready() -> void:
 		def = LOADOUT[0]
 	_rest_pos = position
 	_view_rest = position
+	_default_reload_sound = reload_sfx.stream
+	_default_dry_sound = empty_sfx.stream
 	muzzle_flash.visible = false
 	muzzle_light.visible = false
 	_hide_blockout_meshes()
@@ -529,9 +531,10 @@ func _equip_def(weapon_def: WeaponDef, save_current: bool = true) -> void:
 	ammo = int(state.ammo)
 	_reload_left = 0.0
 	_reset_reload_pose()
-	if def.fire_sound:
-		fire_sfx.stream = def.fire_sound
+	_apply_kit_sounds()
 	_apply_view_for_def()
+	if save_current:
+		_play_draw()
 	_refresh_hud()
 	drawn_ms = Time.get_ticks_msec() if save_current else -100000
 	_ads_k = 0.0
@@ -563,6 +566,8 @@ func _cancel_reload() -> void:
 	var was := _reload_left > 0.0
 	_reload_left = 0.0
 	_reset_reload_pose()
+	if was:
+		WeaponModel.stop_clip(_current_model(), &"reload")
 	if was:
 		# #252: a reload that ends early has to end on every client too, otherwise the body keeps the
 		# hand at the mag after a weapon switch, a melee or a throw.
@@ -648,20 +653,23 @@ func _reload_box(size: Vector3) -> BoxMesh:
 ## Samples the gun's reload style at progress `t` and puts the viewmodel and the props there.
 func _apply_reload_pose(t: float) -> void:
 	var s := ReloadAnims.solve(def.reload_style, t, _reload_shells, def.reload_cover)
-	_reload_rot = s.rot
-	_reload_dip = s.pos
-	_place_reload_props(s)
+	var own := _own_reload()
+	# A gun with its own reload clip moves itself: the code's tilt, dip and loose parts stay out,
+	# only the left hand keeps the style's curve.
+	_reload_rot = Vector3.ZERO if own else s.rot
+	_reload_dip = Vector3.ZERO if own else s.pos
+	_place_reload_props(s, own)
 
 
 ## Puts the loose parts where the style wants them and pulls the first-person left hand off the gun
 ## toward the mag / port / cylinder. A scoped gun hides its model while aiming, so the props hide with
 ## it; the hands already follow `model_shown()` themselves.
-func _place_reload_props(s: Dictionary) -> void:
+func _place_reload_props(s: Dictionary, own_clip := false) -> void:
 	_reload_mag.visible = false
 	_reload_shell.visible = false
 	_reload_cover.visible = false
 	var hidden := _reload_left <= 0.0 or not model_shown()
-	if not hidden:
+	if not hidden and not own_clip:
 		match def.reload_style:
 			ReloadAnims.SHELLS:
 				_reload_shell.visible = true
@@ -702,8 +710,9 @@ func _reset_reload_pose() -> void:
 
 
 func _setup_view_models() -> void:
-	for id in MODEL_SCENES:
-		var ps := MODEL_SCENES[id] as PackedScene
+	for d in LOADOUT:
+		var id: StringName = d.id
+		var ps := model_scene(id)
 		if ps == null:
 			continue
 		var inst: Node3D = ps.instantiate() as Node3D
@@ -713,6 +722,20 @@ func _setup_view_models() -> void:
 		prepare_muzzle(inst)
 		add_child(inst)
 		_view_models[id] = inst
+
+
+## Reads every gun's scene and sounds from disk again and rebuilds the models (the weapon lab's L key,
+## so an artist sees an edit without restarting).
+func rebuild_view_models() -> void:
+	for id in _view_models:
+		(_view_models[id] as Node).queue_free()
+	_view_models.clear()
+	for d in LOADOUT:
+		WeaponKit.reload_scene((d as WeaponDef).id)
+	_setup_view_models()
+	if def != null:
+		_apply_kit_sounds()
+		_apply_view_for_def()
 
 
 static func no_shadows(n: Node) -> void:
@@ -742,8 +765,49 @@ static func prepare_muzzle(model: Node) -> void:
 	WeaponModel.prepare_muzzle(model)
 
 
-static func play_model_shot(model: Node3D, playback_speed: float = 1.0, fire_rate: float = 0.0) -> bool:
-	return WeaponModel.play_model_shot(model, playback_speed, fire_rate)
+static func play_model_shot(model: Node3D, playback_speed: float = 1.0, fire_rate: float = 0.0, flash_time: float = 0.045) -> bool:
+	return WeaponModel.play_model_shot(model, playback_speed, fire_rate, flash_time)
+
+
+## The scene of the gun in hand, or null (no model, or a remote pawn's hidden copy is fine too).
+func _current_model() -> Node3D:
+	if def == null or not _view_models.has(def.id):
+		return null
+	return _view_models[def.id]
+
+
+## True when the gun in hand brings its own reload clip (the kit's AnimationPlayer).
+func _own_reload() -> bool:
+	return WeaponModel.has_clip(_current_model(), &"reload")
+
+
+## True when the gun's own muzzle flash has a light, so the shared one stays off.
+func _own_light() -> bool:
+	return WeaponModel.has_own_light(_current_model())
+
+
+## The kit's reload and dry sounds for this gun, or the weapon scene's own. The fire sound is picked
+## per shot (play_fire_sfx), here only the first one for code that reads fire_sfx.stream.
+func _apply_kit_sounds() -> void:
+	fire_sfx.stream = WeaponKit.fire_sound(def)
+	reload_sfx.stream = WeaponKit.sound(def.id, &"reload", _default_reload_sound)
+	empty_sfx.stream = WeaponKit.sound(def.id, &"dry", _default_dry_sound)
+
+
+## Pulling the gun out: the kit's draw sound and draw clip, when it has them.
+func _play_draw() -> void:
+	WeaponModel.play_clip(_current_model(), &"draw")
+	var draw := WeaponKit.sound(def.id, &"draw")
+	if draw == null:
+		return
+	if _draw_sfx == null:
+		_draw_sfx = AudioStreamPlayer3D.new()
+		_draw_sfx.name = "DrawSfx"
+		_draw_sfx.bus = fire_sfx.bus
+		_draw_sfx.volume_db = -6.0
+		add_child(_draw_sfx)
+	_draw_sfx.stream = draw
+	_draw_sfx.play()
 
 
 func _try_fire() -> void:
@@ -765,7 +829,9 @@ func play_fire_sfx() -> bool:
 	if def != null and def.id != &"revolver" and def.id != &"knife":
 		PhysFx.eject(self, def.id, muzzle.position)
 	if def != null and _view_models.has(def.id):
-		model_flash = play_model_shot(_view_models[def.id], 1.0, def.fire_rate)
+		model_flash = play_model_shot(_view_models[def.id], 1.0, def.fire_rate, def.flash_time)
+	if fire_sfx != null and def != null:
+		fire_sfx.stream = WeaponKit.fire_sound(def) # a kit with several shots picks one per shot
 	if fire_sfx == null or fire_sfx.stream == null:
 		return model_flash
 	# Small random pitch so a held trigger does not sound like one looped sample.
@@ -814,7 +880,7 @@ func _fire() -> void:
 	_flash_left = def.flash_time
 	var model_flash := play_fire_sfx()
 	muzzle_flash.visible = not model_flash
-	muzzle_light.visible = true
+	muzzle_light.visible = not _own_light() # a kit flash with its own light replaces the shared one
 	muzzle_light.light_energy = def.flash_energy
 
 	var shooter := owner as Player
@@ -999,7 +1065,7 @@ func play_throw() -> void:
 	if _knife_view == null:
 		_knife_view = Node3D.new() # pivot; fit_model owns the model's own transform
 		_knife_view.name = "KnifeView"
-		var model := KNIFE_SCENE.instantiate() as Node3D
+		var model := knife_scene().instantiate() as Node3D
 		no_shadows(model)
 		_knife_view.add_child(model)
 		get_parent().add_child(_knife_view)
@@ -1137,6 +1203,7 @@ func _start_reload() -> void:
 	Game.notify_reload(owner as Player, reload_wire_index(), def.reload_time)
 	_save_weapon_state()
 	_play_reload_sfx()
+	WeaponModel.play_clip(_current_model(), &"reload", def.reload_time)
 	_refresh_hud()
 
 

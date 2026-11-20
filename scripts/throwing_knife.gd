@@ -65,7 +65,7 @@ func _ready() -> void:
 	add_to_group("knife") # killcam records it; Game.reset_session frees leftovers
 	_spin_pivot = Node3D.new()
 	add_child(_spin_pivot)
-	var model := Weapon.KNIFE_SCENE.instantiate() as Node3D
+	var model := Weapon.knife_scene().instantiate() as Node3D
 	Weapon.no_shadows(model)
 	_spin_pivot.add_child(model)
 	# Modeled along +X; turn the tip down -Z (the flight direction). ~40 cm so it reads in flight.

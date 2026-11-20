@@ -49,6 +49,26 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Weapon kits: an artist adds or replaces a gun's art without code (`docs/art/wapens.md`, Dutch, the
+  artist's side). `WeaponKit` (`scripts/weapon_kit.gd`) finds it by name: `assets/weapons/<id>/<id>.tscn`
+  (or `<id>.glb`), then the flat files from before (`assets/weapons/<id>.glb|.tscn`), and the sounds in
+  the folder by the start of their name (`fire*` - several are variations, picked per shot - `reload`,
+  `draw`/`equip`, `dry`/`empty`; ogg/wav/mp3) over `WeaponDef.fire_sound`. `SHARED` maps the shank to the
+  knife kit; `_`-folders (`_template`) are not guns. Loaded once, warmed in `Game._ready` like the old
+  preload table (`Weapon.MODEL_SCENES` / `KNIFE_SCENE` are `Weapon.model_scene(id)` / `knife_scene()`).
+  The scene contract is in `WeaponModel`: a non-mesh node named `Muzzle` (older `muzzle_flash`; the
+  low-poly barrel-tip meshes named Muzzle are not it) is where tracers leave and everything under it is
+  the flash - particles (GPU and CPU) burst per shot, meshes/sprites/lights show for `flash_time`
+  (`show_flash`, also in the killcam), a light there replaces the shared muzzle light, and the flash is
+  left out of the gun's size (`aabb_in_parent(..., skip)`); an optional `Sight` marker sets the ADS
+  height (older `Front_Sight*` mesh); clips `fire` / `reload` / `draw` by name (library prefix or a
+  `_fire` suffix, the SMG's). A reload clip is stretched to `reload_time` and replaces the code's gun
+  tilt and loose mag (the hand keeps the style's curve); draw plays on a switch with the kit's draw
+  sound. `WeaponKit.problems(id)` says what is wrong with a folder in the artist's words. The SMG moved
+  to `smg/smg.tscn`; every other gun still uses its flat file, unchanged. Tools: `tools/weapon_lab`
+  (F6 in the editor: every gun, no death, frozen clock, L rereads the files, problems on screen;
+  `-- --shot DIR` renders each gun firing) and `assets/weapons/_template`. Check:
+  `tools/check_weapon_kits`. No protocol change.
 - #342 the frag is a crystal: `GrenadeLook` (`scripts/grenade_look.gd`) replaces the green sphere - a cut
   olive gem (`CrystalMesh.part(&"grenade")`, 0.22 m, the art guide's frag #26732E with a little emission), a
   fuse band round its belt (`grenade_seam`) and a pale cap (`grenade_pin`) that glows in the thrower's team

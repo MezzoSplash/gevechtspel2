@@ -46,6 +46,6 @@ Main menu song "Reload" (`assets/sounds/songs/Reload.ogg`, 2:16, looped): made w
 
 `assets/ui/icon_melee.svg`, `icon_smg.svg`, `icon_revolver.svg` and `icon_knife.svg` (kill feed) are drawn for this project, like the other `icon_*.svg` files.
 
-The revolver and throwing-knife models (`assets/weapons/revolver.tscn`, `knife.tscn`) are low-poly boxes and cylinders built for this project by `tools/build_lowpoly_weapons.py` (CC0). The SMG viewmodel (`assets/weapons/smg/weapon_smg.tscn`, with its fire clip and muzzle flash) and the RC-XD mesh (`assets/gadgets/RCExplody.glb`) are by sqorchtech.
+The revolver and throwing-knife models (`assets/weapons/revolver.tscn`, `knife.tscn`) are low-poly boxes and cylinders built for this project by `tools/build_lowpoly_weapons.py` (CC0). The SMG viewmodel (`assets/weapons/smg/smg.tscn`, with its fire clip and muzzle flash) and the RC-XD mesh (`assets/gadgets/RCExplody.glb`) are by sqorchtech.
 
 The other files in `assets/sounds/` (hit, headshot, kill, empty click, land, slide, reload, the older announcer lines `radar_standby` / `round_starting`, round music) are not from these packs; the gun clicks and ticks come from `tools/gen_sounds.py`.

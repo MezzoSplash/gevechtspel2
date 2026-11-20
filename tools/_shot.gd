@@ -20,7 +20,7 @@ func _ready() -> void:
 
 	var gun_root := Node3D.new()
 	add_child(gun_root)
-	var model := (load("res://assets/weapons/smg/weapon_smg.tscn") as PackedScene).instantiate() as Node3D
+	var model := (load("res://assets/weapons/smg/smg.tscn") as PackedScene).instantiate() as Node3D
 	gun_root.add_child(model)
 	Weapon.prepare_muzzle(model)
 	var fit: Dictionary = Weapon.fit_model(model, &"smg", Vector3(0.24, -0.18, -0.42))

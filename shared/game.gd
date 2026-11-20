@@ -1642,6 +1642,7 @@ func sync_roster(ids: Array) -> void:
 
 func _ready() -> void:
 	CrystalTheme.install() # before main.tscn loads the menu: the patched theme is the cached one
+	WeaponKit.warm(Weapon.LOADOUT) # every gun scene and sound loaded once at boot, as the preloads were
 	killcam = Killcam.new()
 	killcam.name = "Killcam" # same path on every peer: its RPCs need that
 	add_child(killcam)
