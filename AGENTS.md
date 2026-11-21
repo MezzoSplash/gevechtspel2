@@ -44,7 +44,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Checks
 
-- `tools/run_checks.sh` imports the project and runs every headless `tools/check_*`; CI runs it on every push and PR. It must exit 0 before a merge, and only merge when the PR's own CI is green: no overrides or auto-merge on red. Known-failing and skipped checks are listed at the top of the script.
+- `tools/run_checks.sh` imports the project and runs every headless `tools/check_*`; CI runs it on every push and PR. It must exit 0 before a merge, and only merge when the PR's own CI is green: no overrides or auto-merge on red. Known-failing and skipped checks are listed at the top of the script. It gives Godot a fresh `XDG_DATA_HOME` per run, so checks neither read nor overwrite your own `user://` (the menu saves every match choice to `settings.cfg`); `CHECK_KEEP_USER_DATA=1` turns that off.
 - Add a `tools/check_*.tscn` for new behaviour.
 
 ## Recent work
