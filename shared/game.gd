@@ -381,21 +381,14 @@ func is_ffa(m: int = -1) -> bool:
 	return mm == MODE_FFA or mm == MODE_STYLE_FFA or mm == MODE_GUN_GAME
 
 
-## True when this match fills bots per team instead of balancing one total.
+## True when this match fills bots per team instead of balancing one total (BotRoster.split_active).
 func bot_split_active() -> bool:
-	# A dedicated server always balances: it has no owner whose side the allies would be on, and the
-	# per-side fill would keep every bot when humans join, so a public server would fill up with ten
-	# bots plus ten players. Local and listen-host matches run the split.
-	if is_dedicated:
-		return false
-	return not is_ffa() and bot_allies >= 0 and bot_enemies >= 0 and (bot_allies + bot_enemies) > 0
+	return BotRoster.split_active(self)
 
 
-## Bots wanted on `team`: the allies sit on bot_team_base, everyone else is an enemy bot.
+## Bots wanted on `team` (BotRoster.target): -1 when the match does not split.
 func bot_target(team: int) -> int:
-	if bot_allies < 0:
-		return -1
-	return bot_allies if team == bot_team_base else bot_enemies
+	return BotRoster.target(self, team)
 
 
 ## #160: Capture the Flag.
