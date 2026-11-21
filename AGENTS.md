@@ -49,6 +49,10 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- Export deps: the muzzle flashes' `@tool` preview script lived in `tools/`, which `export_presets.cfg`
+  leaves out, so the first v0.5.21 export lost all eight flashes and the gun scenes holding them (fine in
+  the editor and CI). It is `assets/vfx/play_muzzle_inspector_tool.gd` now. Check: `tools/check_export_deps`
+  (no .tscn/.tres ext_resource or .gd preload into an excluded folder). No protocol change.
 - Weapon kits: an artist adds or replaces a gun's art without code (`docs/art/wapens.md`, Dutch, the
   artist's side). `WeaponKit` (`scripts/weapon_kit.gd`) finds it by name: `assets/weapons/<id>/<id>.tscn`
   (or `<id>.glb`), then the flat files from before (`assets/weapons/<id>.glb|.tscn`), and the sounds in

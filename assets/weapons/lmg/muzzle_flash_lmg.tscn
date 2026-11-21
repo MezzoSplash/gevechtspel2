@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dvnpmk22yi8kk"]
 
-[ext_resource type="Script" uid="uid://dptyoi83g4arn" path="res://tools/play_muzzle_inspector_tool.gd" id="1_myx40"]
+[ext_resource type="Script" uid="uid://dptyoi83g4arn" path="res://assets/vfx/play_muzzle_inspector_tool.gd" id="1_myx40"]
 [ext_resource type="Texture2D" uid="uid://bagjxxr8766wu" path="res://assets/textures/muzzle_flashes/muzzle_cone_with_spike.png" id="2_33c6f"]
 [ext_resource type="ArrayMesh" uid="uid://ckk4g8itq8n6" path="res://assets/vfx/supporting objects/muzzle_planes.obj" id="3_di1y3"]
 [ext_resource type="Texture2D" uid="uid://duvh5uyym6bai" path="res://assets/textures/muzzle_flashes/muzzle cone round.png" id="4_33c6f"]
