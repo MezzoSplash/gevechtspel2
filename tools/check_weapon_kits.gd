@@ -90,13 +90,21 @@ func _ready() -> void:
 	_ok(not gun_anim.is_playing(), "a cut reload stops its clip")
 	_ok(not WeaponModel.play_clip(gun, &"draw"), "no draw clip: nothing plays")
 
-	# 6) Old scenes keep working: a mesh named Muzzle (the low-poly barrel tips) is not the point.
-	var lmg := WeaponKit.scene(&"lmg").instantiate() as Node3D
-	_ok(WeaponModel.muzzle_node(lmg) == null, "the LMG's barrel-tip mesh is not taken for the muzzle point")
-	lmg.free()
-	var smg_model := WeaponKit.scene(&"smg").instantiate() as Node3D
-	_ok(WeaponModel.muzzle_node(smg_model) != null and WeaponModel.flash_nodes(smg_model).is_empty(), "the SMG's particles flash keeps working (older name)")
-	smg_model.free()
+	# 6) Old scenes keep working: a mesh named Muzzle (the low-poly barrel tips) is not the point,
+	# the older "muzzle_flash" name still is, and a blade needs no Muzzle at all.
+	var tip_gun := Node3D.new()
+	var tip := MeshInstance3D.new()
+	tip.name = "Muzzle"
+	tip.mesh = BoxMesh.new()
+	tip_gun.add_child(tip)
+	_ok(WeaponModel.muzzle_node(tip_gun) == null, "a barrel-tip mesh named Muzzle is not taken for the muzzle point")
+	var old_name := Node3D.new()
+	old_name.name = "muzzle_flash"
+	tip_gun.add_child(old_name)
+	_ok(WeaponModel.muzzle_node(tip_gun) == old_name, "the older name muzzle_flash still marks the muzzle")
+	tip_gun.free()
+	_ok(WeaponKit.is_blade(&"knife") and WeaponKit.is_blade(&"shank") and not WeaponKit.is_blade(&"rifle"), "the knife and the shank are blades, they need no Muzzle")
+	_ok(WeaponKit.problems(&"knife").is_empty(), "the knife kit (or its old file) has nothing to report")
 
 	# 7) In a real pawn's weapon: a gun with its own reload clip moves itself, the code's own reload
 	# motion and loose parts stay out; a gun without one keeps the code's motion.

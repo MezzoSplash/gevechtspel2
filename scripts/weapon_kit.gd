@@ -165,7 +165,8 @@ static func problems(id: StringName) -> Array[String]:
 	elif box.size.x < maxf(box.size.y, box.size.z):
 		out.append("het model ligt niet langs X: de loop moet langs +X lopen, de monding aan de +X kant")
 	if muzzle == null:
-		out.append("geen Muzzle: zet een Marker3D met de naam Muzzle op het eind van de loop")
+		if not is_blade(id):
+			out.append("geen Muzzle: zet een Marker3D met de naam Muzzle op het eind van de loop")
 	elif box.size.x >= 0.05:
 		var mx := WeaponModel.origin_in_parent(model, muzzle).x
 		if mx < box.get_center().x:
@@ -181,6 +182,16 @@ static func problems(id: StringName) -> Array[String]:
 				out.append("animatie '%s' wordt niet gebruikt: noem hem fire, reload of draw" % name)
 	model.free()
 	return out
+
+
+## A kit for a blade (the knife, and the shank that holds it) has no barrel, so no Muzzle either.
+static func is_blade(id: StringName) -> bool:
+	if kit_id(id) == &"knife":
+		return true
+	for d in Weapon.LOADOUT:
+		if (d as WeaponDef).id == id:
+			return (d as WeaponDef).melee
+	return false
 
 
 ## Every weapon id a kit folder can be named after.
