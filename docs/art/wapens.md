@@ -74,7 +74,7 @@ eind van de loop. Daar beginnen de kogelsporen, en alles eronder is de muzzle fl
   geschoten wordt.
 - Zit er een **licht** in je flash, dan gebruikt het spel dat licht in plaats van het eigen licht.
   Zit er geen in, dan blijft het standaard flitslicht aan.
-- Zonder Muzzle pakt het spel de voorkant van het model, maar de check meldt het. Bij de SMG heet de
+- Zonder Muzzle pakt het spel de voorkant van het model, maar de check meldt het. Het mes heeft geen loop en dus ook geen Muzzle nodig. Bij de SMG heet de
   muzzle nog `muzzle_flash`. Die oude naam werkt ook.
 
 De flash telt niet mee voor de grootte van het wapen. Een grote vlam onder Muzzle maakt het wapen
