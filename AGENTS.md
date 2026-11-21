@@ -334,7 +334,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
-- v0.5.21 (released): weapon kits and real gun models with fire clips and muzzle VFX (#344, #347, #348),
+- v0.6.0 (released): weapon kits and real gun models with fire clips and muzzle VFX (#344, #347, #348),
   the crystal frag (#342), the G2 boot splash and icon (#346), position corrections that arrive (#338) and
   the hud/game/player splits (#315, #316 slices 1-7). `NET_VERSION` stays 0.5.20 - nothing new on the wire.
 - v0.5.20 (released): the grapple (#302), Foundry v2 as a foundry (#307), Townhouses v2 as a canal street
