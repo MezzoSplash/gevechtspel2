@@ -871,50 +871,12 @@ func _ffa_spawn(for_pawn: Player) -> Vector3:
 	return best
 
 
-func _team_count(team: int) -> int:
-	var n := 0
-	for child in players_root.get_children():
-		var p := child as Player
-		if p and p.team_id == team and not p.is_queued_for_deletion():
-			n += 1
-	return n
-
-
-func _human_count(team: int) -> int:
-	var n := 0
-	for child in players_root.get_children():
-		var p := child as Player
-		if p and not p.is_bot and p.team_id == team and not p.is_queued_for_deletion():
-			n += 1
-	return n
-
-
 ## First human → Blue, next → Orange (balance by human count, not bots).
 func _team_for_human() -> int:
-	if _human_count(Game.TEAM_A) <= _human_count(Game.TEAM_B):
+	var pawns := players_root.get_children()
+	if BotRoster.count(pawns, Game.TEAM_A, 0) <= BotRoster.count(pawns, Game.TEAM_B, 0):
 		return Game.TEAM_A
 	return Game.TEAM_B
-
-
-func _smaller_team() -> int:
-	if _team_count(Game.TEAM_A) <= _team_count(Game.TEAM_B):
-		return Game.TEAM_A
-	return Game.TEAM_B
-
-
-func _larger_team() -> int:
-	if _team_count(Game.TEAM_A) >= _team_count(Game.TEAM_B):
-		return Game.TEAM_A
-	return Game.TEAM_B
-
-
-func _bot_pawn_count() -> int:
-	var n := 0
-	for child in players_root.get_children():
-		var p := child as Player
-		if p and p.is_bot and not p.is_queued_for_deletion():
-			n += 1
-	return n
 
 
 ## loadout = abs(id) % 8 → armory index: rifle / pistol / shotgun / sniper / smg / revolver / lmg / slug.
@@ -938,57 +900,12 @@ func _spawn_bot(team: int) -> void:
 func _fill_bots() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
-	if Game.bot_split_active():
-		# Per-side match (you and a friend against ten bots): fill each team up to its own target.
-		# Bounded like every spawn loop: a target that cannot be satisfied must not spin forever.
-		for _i in Game.BOT_COUNT_MAX * 2:
-			var team := _team_short_of_bots()
-			if team < 0:
-				break
-			_spawn_bot(team)
-		return
-	while _bot_pawn_count() < Game.bot_count:
-		_spawn_bot(_smaller_team())
-
-
-## The first team still below its bot target (bot split), -1 when both are full.
-func _team_short_of_bots() -> int:
-	for team in [Game.TEAM_A, Game.TEAM_B]:
-		var want := Game.bot_target(team)
-		if want < 0:
-			continue
-		if _bot_count_on(team) < want:
-			return team
-	return -1
-
-
-## The first team holding more bots than its target, -1 when neither does.
-func _team_over_bots() -> int:
-	for team in [Game.TEAM_A, Game.TEAM_B]:
-		var want := Game.bot_target(team)
-		if want < 0:
-			continue
-		if _bot_count_on(team) > want and _first_bot_on(team) != null:
-			return team
-	return -1
-
-
-## Bots alive on `team` (pawns queued for deletion do not count).
-func _bot_count_on(team: int) -> int:
-	var n := 0
-	for child in players_root.get_children():
-		var p := child as Player
-		if p and p.is_bot and p.team_id == team and not p.is_queued_for_deletion():
-			n += 1
-	return n
-
-
-func _first_bot_on(team: int) -> Player:
-	for child in players_root.get_children():
-		var p := child as Player
-		if p and p.is_bot and p.team_id == team and not p.is_queued_for_deletion():
-			return p
-	return null
+	# Bounded like every spawn loop: a target that cannot be satisfied must not spin forever.
+	for _i in Game.BOT_COUNT_MAX * 2:
+		var team := BotRoster.team_to_fill(Game, players_root.get_children())
+		if team < 0:
+			break
+		_spawn_bot(team)
 
 
 ## Drop extra bots after a human joins so the match stays at bot_count bots. A per-side match keeps
@@ -996,19 +913,8 @@ func _first_bot_on(team: int) -> Player:
 func _trim_bots() -> void:
 	if Game.is_networked() and not multiplayer.is_server():
 		return
-	if Game.bot_split_active():
-		for _i in Game.BOT_COUNT_MAX * 2:
-			var over := _team_over_bots()
-			if over < 0:
-				break
-			_drop_bot(_first_bot_on(over))
-		return
-	while _bot_pawn_count() > Game.bot_count:
-		var bot := _first_bot_on(_larger_team())
-		if bot == null:
-			bot = _first_bot_on(Game.TEAM_A)
-		if bot == null:
-			bot = _first_bot_on(Game.TEAM_B)
+	for _i in Game.BOT_COUNT_MAX * 2:
+		var bot := BotRoster.bot_to_drop(Game, players_root.get_children())
 		if bot == null:
 			break
 		_drop_bot(bot)

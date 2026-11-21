@@ -49,6 +49,15 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #316 slice 8 (game.gd split): who fills which side is `BotRoster` (`shared/bot_roster.gd`, static and
+  pure: `split_active`, `target`, `count`, `first_bot_on`, `smaller_team`, `larger_team`, `team_to_fill`,
+  `bot_to_drop`). It takes `bot_split_active` / `bot_target` from Game (kept as wrappers; the numbers
+  stay on Game) and the counting and choosing from main.gd, whose `_fill_bots` / `_trim_bots` now only
+  ask, spawn or free, both bounded at `BOT_COUNT_MAX * 2` (the balanced fill and trim were `while`
+  loops). main.gd's `_team_count`, `_human_count`, `_smaller_team`, `_larger_team`, `_bot_pawn_count`,
+  `_bot_count_on`, `_first_bot_on`, `_team_short_of_bots` and `_team_over_bots` are gone. Check:
+  `tools/check_bot_roster` (new, loose pawns, no match); `check_tdm_team_setup` unchanged. No behaviour
+  or protocol change.
 - Export deps: the muzzle flashes' `@tool` preview script lived in `tools/`, which `export_presets.cfg`
   leaves out, so the first export for v0.6.0 lost all eight flashes and the gun scenes holding them (fine in
   the editor and CI). It is `assets/vfx/play_muzzle_inspector_tool.gd` now. Check: `tools/check_export_deps`
