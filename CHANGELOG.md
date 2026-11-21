@@ -2,6 +2,18 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.5.21** — The guns have real models now.
+
+The knife, rifle, LMG, pistol, revolver, shotgun, slug and sniper are proper models with their own fire animation and their own muzzle flash, instead of the low-poly placeholders. Tracers leave from the muzzle of each model, and the flash shows in the killcam too. The SMG already had its model.
+
+The frag is a crystal: a cut olive gem with a fuse band that tumbles through the air, trails a thin streak when thrown hard, and pulses faster and turns red in the last 0.4 s before it goes off. In team modes its cap glows in the thrower's team colour. The blast bursts into crystal splinters with a ring that runs out to the edge of the splash radius, so you can see how far it reaches.
+
+The game starts on the G2 logo instead of the Godot logo, and the logo is the window and taskbar icon.
+
+The server's position corrections reach players again. When the server refused a jump it could not believe, or pulled someone out of the void, the correction never arrived, so a player could stay where the server said they were not. Under the hood the biggest scripts were split into smaller pieces; nothing should play differently because of that.
+
+**Compatible with v0.5.20** (NET_VERSION stays 0.5.20): nothing new goes over the wire, so 0.5.20 and 0.5.21 play together. A 0.5.20 server still sends no corrections; update the server to get them.
+
 **v0.5.20** — A grapple, and two maps rebuilt for the way the game moves now.
 
 Hold the grapple key (V or Mouse 4, rebindable) and a rope shoots from your left hand to whatever you aim at, up to 32 m away, and pulls you there hard: up to 22 m/s, upward too. Let go and you keep every bit of that speed, so the release is the move: grapple into a wallrun, off a roof into a dive, across a gap into a surf. It ends when you let go, arrive, lose the line or wallrun or dive, and it is ready again 3 s after you fire it. Everyone sees your rope and your reaching hand. A kill on the rope or just after letting go is a GRAPPLE KILL, and a pull counts as a combo move.
