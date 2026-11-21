@@ -50,7 +50,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 ## Recent work
 
 - Export deps: the muzzle flashes' `@tool` preview script lived in `tools/`, which `export_presets.cfg`
-  leaves out, so the first v0.5.21 export lost all eight flashes and the gun scenes holding them (fine in
+  leaves out, so the first export for v0.6.0 lost all eight flashes and the gun scenes holding them (fine in
   the editor and CI). It is `assets/vfx/play_muzzle_inspector_tool.gd` now. Check: `tools/check_export_deps`
   (no .tscn/.tres ext_resource or .gd preload into an excluded folder). No protocol change.
 - Weapon kits: an artist adds or replaces a gun's art without code (`docs/art/wapens.md`, Dutch, the
@@ -335,7 +335,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
 - v0.6.0 (released): weapon kits and real gun models with fire clips and muzzle VFX (#344, #347, #348),
-  the crystal frag (#342), the G2 boot splash and icon (#346), position corrections that arrive (#338) and
+  the crystal frag (#342), the G2 boot splash and icon (#346), muzzle flashes that survive the export (#350), position corrections that arrive (#338) and
   the hud/game/player splits (#315, #316 slices 1-7). `NET_VERSION` stays 0.5.20 - nothing new on the wire.
 - v0.5.20 (released): the grapple (#302), Foundry v2 as a foundry (#307), Townhouses v2 as a canal street
   (#309), the Shank class (#306), the crouch as a squat (#301), bots taking and running wallrun routes on

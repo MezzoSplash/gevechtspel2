@@ -1,7 +1,7 @@
 extends Node
 ## Nothing the game exports may depend on a folder the export leaves out. export_presets.cfg drops
 ## tools/, docs/ and testmodels/ (exclude_filter), so a scene that points into one of them loads in the
-## editor and in every other check but fails in a release build: v0.5.21's first export lost all eight
+## editor and in every other check but fails in a release build: the first export for v0.6.0 lost all eight
 ## muzzle flashes (and the gun scenes holding them) to a @tool helper script in tools/.
 ## Reads every .tscn/.tres outside the excluded folders for an ext_resource into one, and every .gd for
 ## a preload() into one (a load() is a runtime choice, e.g. a dev tool, and is not counted).
