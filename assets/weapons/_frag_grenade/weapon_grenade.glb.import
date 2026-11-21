@@ -8,7 +8,7 @@ path="res://.godot/imported/weapon_grenade.glb-e860d78bf2d3680312eddea2d65e1a5b.
 
 [deps]
 
-source_file="res://assets/weapons/frag_grenade/weapon_grenade.glb"
+source_file="res://assets/weapons/_frag_grenade/weapon_grenade.glb"
 dest_files=["res://.godot/imported/weapon_grenade.glb-e860d78bf2d3680312eddea2d65e1a5b.scn"]
 
 [params]

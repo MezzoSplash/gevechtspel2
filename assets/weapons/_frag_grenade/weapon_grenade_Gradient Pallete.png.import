@@ -14,7 +14,7 @@ generator_parameters={
 
 [deps]
 
-source_file="res://assets/weapons/frag_grenade/weapon_grenade_Gradient Pallete.png"
+source_file="res://assets/weapons/_frag_grenade/weapon_grenade_Gradient Pallete.png"
 dest_files=["res://.godot/imported/weapon_grenade_Gradient Pallete.png-9c227ee4dd7ae934016cc6df2006a047.s3tc.ctex"]
 
 [params]

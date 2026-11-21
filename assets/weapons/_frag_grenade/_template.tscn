@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://n0uoh3soorna"]
 
-[ext_resource type="PackedScene" uid="uid://dn3dj3508wmb4" path="res://assets/weapons/frag_grenade/weapon_grenade.glb" id="1_b7a5w"]
+[ext_resource type="PackedScene" uid="uid://dn3dj3508wmb4" path="res://assets/weapons/_frag_grenade/weapon_grenade.glb" id="1_b7a5w"]
 
 [sub_resource type="Animation" id="anim_draw"]
 resource_name = "draw"

@@ -768,28 +768,9 @@ tracks/1/interp = 1
 tracks/1/loop_wrap = true
 tracks/1/keys = PackedFloat32Array(0, 1, 0.52238476, 0.04283692, 0)
 
-[sub_resource type="Animation" id="Animation_dgmhk"]
-resource_name = "reload"
-length = 0.29166666
-tracks/0/type = "position_3d"
-tracks/0/imported = true
-tracks/0/enabled = true
-tracks/0/path = NodePath("handle")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = PackedFloat32Array(0, 1, 0.52238476, 0.04283692, 5.7555187e-09, 0.033333335, 1, 0.52238476, 0.04283692, 5.7555187e-09, 0.06666667, 1, 0.48303983, 0.04283692, 5.7555187e-09, 0.1, 1, 0.43057993, 0.04283692, 5.7555187e-09, 0.13333334, 1, 0.391235, 0.04283692, 5.7555187e-09, 0.2, 1, 0.391235, 0.04283692, 5.7555187e-09, 0.23333333, 1, 0.43057993, 0.04283692, 5.7555187e-09, 0.29166666, 1, 0.52238476, 0.04283692, 5.7555187e-09)
-tracks/1/type = "rotation_3d"
-tracks/1/imported = true
-tracks/1/enabled = true
-tracks/1/path = NodePath("trigger")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = PackedFloat32Array(0, 1, 0.6892385, -0.16184837, -0.16184798, 0.6874305)
-
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_7qm5q"]
 _data = {
-&"fire": SubResource("Animation_jgkgq"),
-&"reload": SubResource("Animation_dgmhk")
+&"fire": SubResource("Animation_jgkgq")
 }
 
 [node name="Gun" type="Node3D" unique_id=694040637]
