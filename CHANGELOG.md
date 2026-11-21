@@ -2,7 +2,7 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
-**v0.5.21** — The guns have real models now.
+**v0.6.0** — The guns have real models now.
 
 The knife, rifle, LMG, pistol, revolver, shotgun, slug and sniper are proper models with their own fire animation and their own muzzle flash, instead of the low-poly placeholders. Tracers leave from the muzzle of each model, and the flash shows in the killcam too. The SMG already had its model.
 
@@ -12,7 +12,7 @@ The game starts on the G2 logo instead of the Godot logo, and the logo is the wi
 
 The server's position corrections reach players again. When the server refused a jump it could not believe, or pulled someone out of the void, the correction never arrived, so a player could stay where the server said they were not. Under the hood the biggest scripts were split into smaller pieces; nothing should play differently because of that.
 
-**Compatible with v0.5.20** (NET_VERSION stays 0.5.20): nothing new goes over the wire, so 0.5.20 and 0.5.21 play together. A 0.5.20 server still sends no corrections; update the server to get them.
+**Compatible with v0.5.20** (NET_VERSION stays 0.5.20): nothing new goes over the wire, so 0.5.20 and 0.6.0 play together. A 0.5.20 server still sends no corrections; update the server to get them.
 
 **v0.5.20** — A grapple, and two maps rebuilt for the way the game moves now.
 
