@@ -49,6 +49,18 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #317 slice 1 (bot_brain.gd split): the movement tricks are `BotTricks` (`scripts/bot_tricks.gd`: `tick`,
+  `tick_wall_trick`, `try_start_wall_trick`, `aim_into_wall`, `end_wall_trick`), the frag `BotGrenade`
+  (`try_throw`, `pitches`, `throw_pitched`, `arc_clear`) and Hard's cover reload `BotCover` (`seeks_cover`,
+  `should_reload`, `hold_last_round`, `tick_reload`, `pick`, `floor_ok`). Static on the brain (`b: BotBrain`)
+  like Movement on the pawn: BotBrain keeps the state, the constants and every old name as a wrapper (the
+  checks read both). bot_brain.gd 1550 -> 1300 lines. Parity: `tools/bot_parity.sh` (new) runs
+  `tools/probe_bot_trace` (new) - a seeded 60 s TDM fight of 8 Hard bots, one line per bot per tick - on
+  Quay, Foundry, Townhouses and Rooftops; this branch is byte-identical to main. It is deterministic only
+  with navigation updates made synchronous (Godot threads them) and only for Hard in TDM on those maps:
+  Easy/Medium hearing reads `Time.get_ticks_msec`, FFA spawns are spaced by wall-clock time, Skyline lands
+  on one of two traces. It runs Godot with its own `XDG_DATA_HOME`, because the menu saves every match
+  choice to `settings.cfg` (`run_checks.sh` does not isolate that yet). No behaviour or protocol change.
 - #316 slice 8 (game.gd split): who fills which side is `BotRoster` (`shared/bot_roster.gd`, static and
   pure: `split_active`, `target`, `count`, `first_bot_on`, `smaller_team`, `larger_team`, `team_to_fill`,
   `bot_to_drop`). It takes `bot_split_active` / `bot_target` from Game (kept as wrappers; the numbers
