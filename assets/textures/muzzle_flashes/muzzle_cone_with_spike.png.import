@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b8s5rkh1nkxyc"
-path.s3tc="res://.godot/imported/Muzzle flash tex.png-083e842f39258e0298c6d77658af11d8.s3tc.ctex"
+uid="uid://bagjxxr8766wu"
+path.s3tc="res://.godot/imported/muzzle_cone_with_spike.png-03c84a72ee1a143982084c60a5fd8ea3.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/weapons/smg/Muzzle flash tex.png"
-dest_files=["res://.godot/imported/Muzzle flash tex.png-083e842f39258e0298c6d77658af11d8.s3tc.ctex"]
+source_file="res://assets/textures/muzzle_flashes/muzzle_cone_with_spike.png"
+dest_files=["res://.godot/imported/muzzle_cone_with_spike.png-03c84a72ee1a143982084c60a5fd8ea3.s3tc.ctex"]
 
 [params]
 

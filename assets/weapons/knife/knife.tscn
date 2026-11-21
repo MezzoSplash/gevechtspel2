@@ -1,0 +1,32 @@
+[gd_scene format=3 uid="uid://cuublhv74yolq"]
+
+[ext_resource type="PackedScene" uid="uid://ltora6qd73js" path="res://assets/weapons/knife/weapon_knife.glb" id="1_povww"]
+
+[sub_resource type="Animation" id="anim_draw"]
+resource_name = "draw"
+length = 0.3
+
+[sub_resource type="Animation" id="anim_fire"]
+resource_name = "fire"
+length = 0.1
+
+[sub_resource type="Animation" id="anim_reload"]
+resource_name = "reload"
+length = 1.5
+
+[sub_resource type="AnimationLibrary" id="clips"]
+_data = {
+&"draw": SubResource("anim_draw"),
+&"fire": SubResource("anim_fire"),
+&"reload": SubResource("anim_reload")
+}
+
+[node name="Gun" type="Node3D" unique_id=1765076757]
+
+[node name="Sight" type="Marker3D" parent="." unique_id=1180815799]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35726133, 0.0021601468, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=966649727]
+libraries/ = SubResource("clips")
+
+[node name="weapon_knife" parent="." unique_id=524985131 instance=ExtResource("1_povww")]

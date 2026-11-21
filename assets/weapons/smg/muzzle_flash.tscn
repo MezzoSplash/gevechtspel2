@@ -1,10 +1,11 @@
 [gd_scene format=3 uid="uid://nng0gv4d3wv6"]
 
-[ext_resource type="Texture2D" uid="uid://b8s5rkh1nkxyc" path="res://assets/weapons/smg/Muzzle flash tex.png" id="1_yu5jt"]
-[ext_resource type="ArrayMesh" uid="uid://ckk4g8itq8n6" path="res://assets/weapons/smg/muzzle_planes.obj" id="2_8cf7x"]
-[ext_resource type="ArrayMesh" uid="uid://c6au80ubso7w8" path="res://assets/weapons/smg/muzzle_cone.obj" id="3_bf26l"]
-[ext_resource type="Texture2D" uid="uid://c2s86wjsek117" path="res://assets/weapons/smg/Muzzle cone flash tex.png" id="3_tugtg"]
-[ext_resource type="Texture2D" uid="uid://dhtv51a6003q4" path="res://assets/weapons/smg/transparant_feathered_sphere.png" id="4_idtme"]
+[ext_resource type="Script" uid="uid://dptyoi83g4arn" path="res://tools/play_muzzle_inspector_tool.gd" id="1_ce6pi"]
+[ext_resource type="ArrayMesh" uid="uid://ckk4g8itq8n6" path="res://assets/vfx/supporting objects/muzzle_planes.obj" id="2_8cf7x"]
+[ext_resource type="Texture2D" uid="uid://c3p42xj3003ie" path="res://assets/textures/muzzle_flashes/Muzzle flash flat  sharp tex.png" id="2_ce6pi"]
+[ext_resource type="ArrayMesh" uid="uid://c6au80ubso7w8" path="res://assets/vfx/supporting objects/muzzle_cone.obj" id="3_bf26l"]
+[ext_resource type="Texture2D" uid="uid://yp4t0tci7fua" path="res://assets/textures/muzzle_flashes/Muzzle cone flash small plus tex.png" id="4_103px"]
+[ext_resource type="Texture2D" uid="uid://dhtv51a6003q4" path="res://assets/textures/muzzle_flashes/transparant_feathered_sphere.png" id="4_idtme"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_oe5h4"]
 transparency = 1
@@ -13,7 +14,7 @@ cull_mode = 2
 shading_mode = 0
 vertex_color_use_as_albedo = true
 vertex_color_is_srgb = true
-albedo_texture = ExtResource("1_yu5jt")
+albedo_texture = ExtResource("2_ce6pi")
 
 [sub_resource type="Curve" id="Curve_fsin3"]
 _data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
@@ -45,7 +46,7 @@ cull_mode = 2
 shading_mode = 0
 vertex_color_use_as_albedo = true
 vertex_color_is_srgb = true
-albedo_texture = ExtResource("3_tugtg")
+albedo_texture = ExtResource("4_103px")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0q35d"]
 transparency = 1
@@ -57,7 +58,6 @@ vertex_color_is_srgb = true
 albedo_texture = ExtResource("4_idtme")
 
 [sub_resource type="QuadMesh" id="QuadMesh_oe5h4"]
-size = Vector2(2, 2)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_s44q1"]
 transparency = 1
@@ -91,46 +91,47 @@ alpha_curve = SubResource("CurveTexture_idtme")
 size = Vector2(0.2, 1)
 
 [node name="muzzle_flash" type="Node3D" unique_id=1098999538]
+script = ExtResource("1_ce6pi")
 
 [node name="muzzle_plane" type="GPUParticles3D" parent="." unique_id=1485149851]
-transform = Transform3D(0.99997294, 0, 0.007359758, 0, 1, 0, -0.007359758, 0, 0.99997294, 0, 0, 0)
-emitting = false
-one_shot = true
+transform = Transform3D(0.99997294, 0, 0.007359758, 0, 1, 0, -0.007359758, 0, 0.99997294, 0, 0, -0.0950619)
 material_override = SubResource("StandardMaterial3D_oe5h4")
+emitting = false
 amount = 1
 lifetime = 0.1
+one_shot = true
 fixed_fps = 60
 process_material = SubResource("ParticleProcessMaterial_wsocd")
 draw_pass_1 = ExtResource("2_8cf7x")
 
 [node name="muzzle_cone" type="GPUParticles3D" parent="." unique_id=1794188372]
-transform = Transform3D(0.9998917, 0, 0.014719117, 0, 1, 0, -0.014719117, 0, 0.9998917, 0, 0, 0)
-emitting = false
-one_shot = true
+transform = Transform3D(0.7070302, 0.70710677, 0.010407988, -0.7070302, 0.70710677, -0.010407988, -0.014719117, 0, 0.9998917, 0, 0, 0)
 material_override = SubResource("StandardMaterial3D_eg7pj")
+emitting = false
 amount = 1
 lifetime = 0.1
+one_shot = true
 fixed_fps = 60
 process_material = SubResource("ParticleProcessMaterial_wsocd")
 draw_pass_1 = ExtResource("3_bf26l")
 
 [node name="beam_flash" type="GPUParticles3D" parent="." unique_id=2052165120]
 transform = Transform3D(0.99956673, 0, 0.029435046, 0, 1, 0, -0.029435046, 0, 0.99956673, 0, 0, 0)
-emitting = false
-one_shot = true
 material_override = SubResource("StandardMaterial3D_0q35d")
+emitting = false
 amount = 1
 lifetime = 0.1
+one_shot = true
 fixed_fps = 60
 process_material = SubResource("ParticleProcessMaterial_wsocd")
 draw_pass_1 = SubResource("QuadMesh_oe5h4")
 
 [node name="sparks" type="GPUParticles3D" parent="." unique_id=584530683]
-emitting = false
-one_shot = true
 material_override = SubResource("StandardMaterial3D_s44q1")
+emitting = false
 amount = 20
 lifetime = 0.3
+one_shot = true
 explosiveness = 0.7
 randomness = 1.0
 process_material = SubResource("ParticleProcessMaterial_hraca")

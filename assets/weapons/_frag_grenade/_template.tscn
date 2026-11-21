@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://n0uoh3soorna"]
+
+[ext_resource type="PackedScene" uid="uid://dn3dj3508wmb4" path="res://assets/weapons/_frag_grenade/weapon_grenade.glb" id="1_b7a5w"]
+
+[sub_resource type="Animation" id="anim_draw"]
+resource_name = "draw"
+length = 0.3
+
+[sub_resource type="Animation" id="anim_fire"]
+resource_name = "fire"
+length = 0.1
+
+[sub_resource type="Animation" id="anim_reload"]
+resource_name = "reload"
+length = 1.5
+
+[sub_resource type="AnimationLibrary" id="clips"]
+_data = {
+&"draw": SubResource("anim_draw"),
+&"fire": SubResource("anim_fire"),
+&"reload": SubResource("anim_reload")
+}
+
+[node name="Gun" type="Node3D" unique_id=932354290]
+
+[node name="Muzzle" type="Marker3D" parent="." unique_id=503905535]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.21, 0.015, 0)
+visible = false
+
+[node name="FlashLight" type="OmniLight3D" parent="Muzzle" unique_id=1311411878]
+light_color = Color(1, 0.72, 0.35, 1)
+light_energy = 3.0
+omni_range = 2.5
+
+[node name="Sight" type="Marker3D" parent="." unique_id=1019426466]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.16, 0.045, 0)
+visible = false
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=457436633]
+libraries/ = SubResource("clips")
+
+[node name="weapon_grenade" parent="." unique_id=365450478 instance=ExtResource("1_b7a5w")]
