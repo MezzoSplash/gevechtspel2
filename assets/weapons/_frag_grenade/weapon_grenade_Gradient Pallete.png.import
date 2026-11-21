@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://chqdbby7x5kr6"
-path.s3tc="res://.godot/imported/weapon_grenade_Gradient Pallete.png-9c227ee4dd7ae934016cc6df2006a047.s3tc.ctex"
+path.s3tc="res://.godot/imported/weapon_grenade_Gradient Pallete.png-40fc522f4ac6b254ac5066ef2c575800.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -15,7 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/weapons/_frag_grenade/weapon_grenade_Gradient Pallete.png"
-dest_files=["res://.godot/imported/weapon_grenade_Gradient Pallete.png-9c227ee4dd7ae934016cc6df2006a047.s3tc.ctex"]
+dest_files=["res://.godot/imported/weapon_grenade_Gradient Pallete.png-40fc522f4ac6b254ac5066ef2c575800.s3tc.ctex"]
 
 [params]
 
