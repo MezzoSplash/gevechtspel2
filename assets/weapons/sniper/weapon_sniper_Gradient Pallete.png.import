@@ -2,17 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c2s86wjsek117"
-path.s3tc="res://.godot/imported/Muzzle cone flash tex.png-66142b3c7fda2dbf505655c5faeca0d1.s3tc.ctex"
+uid="uid://urrt1ohpgb5s"
+path.s3tc="res://.godot/imported/weapon_sniper_Gradient Pallete.png-2f0ccd4683c51cb2d146cfed0c72aeab.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "09ce4991aea43c9cbc1cd97fd8e45286"
+}
 
 [deps]
 
-source_file="res://assets/weapons/smg/Muzzle cone flash tex.png"
-dest_files=["res://.godot/imported/Muzzle cone flash tex.png-66142b3c7fda2dbf505655c5faeca0d1.s3tc.ctex"]
+source_file="res://assets/weapons/sniper/weapon_sniper_Gradient Pallete.png"
+dest_files=["res://.godot/imported/weapon_sniper_Gradient Pallete.png-2f0ccd4683c51cb2d146cfed0c72aeab.s3tc.ctex"]
 
 [params]
 

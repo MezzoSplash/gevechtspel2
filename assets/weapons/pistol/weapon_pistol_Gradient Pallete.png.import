@@ -2,17 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dhtv51a6003q4"
-path.s3tc="res://.godot/imported/transparant_feathered_sphere.png-aed3579fa63989a98e6b01786bbf9df3.s3tc.ctex"
+uid="uid://d3clamjwuj21"
+path.s3tc="res://.godot/imported/weapon_pistol_Gradient Pallete.png-8987b0d664c7c8ea91154c6b8e1c3682.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "09ce4991aea43c9cbc1cd97fd8e45286"
+}
 
 [deps]
 
-source_file="res://assets/weapons/smg/transparant_feathered_sphere.png"
-dest_files=["res://.godot/imported/transparant_feathered_sphere.png-aed3579fa63989a98e6b01786bbf9df3.s3tc.ctex"]
+source_file="res://assets/weapons/pistol/weapon_pistol_Gradient Pallete.png"
+dest_files=["res://.godot/imported/weapon_pistol_Gradient Pallete.png-8987b0d664c7c8ea91154c6b8e1c3682.s3tc.ctex"]
 
 [params]
 
