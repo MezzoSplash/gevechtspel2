@@ -329,6 +329,7 @@ static func killcam_pick(g: GameState) -> Dictionary:
 	if g.best_trick.is_empty():
 		return g.final_kill
 	var info := g.best_trick.duplicate()
+	info.erase("kbot") # authority-only; the replay payload on the wire stays exactly as before
 	info["fallback"] = g.final_kill.duplicate()
 	return info
 

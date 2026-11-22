@@ -93,13 +93,26 @@ func _ready() -> void:
 	Game._combos.erase(1)
 	Game._award_style(fake, no_combo)
 	_ok(int(Game.best_trick.get("bank", 0)) == 210, "a later bigger trick kill without combo does not take it back")
-	# #149: a kill on a real player beats a bigger one on a bot; a bot kill never replaces a player kill.
-	var on_bot := {"bank": 900, "pts": 900, "vbot": true}
-	var on_player := {"bank": 50, "pts": 50, "vbot": false}
-	_ok(Tricks.is_best(on_bot, true, 0, 10, false), "#149: small player kill beats a 900 combo on a bot")
-	_ok(not Tricks.is_best(on_player, true, 5000, 5000, true), "#149: huge bot kill does not beat a player kill")
-	_ok(Tricks.is_best(on_player, true, 60, 60, false), "#149: bigger player combo still wins among player kills")
-	_ok(Tricks.is_best({}, true, 0, 10, true), "#149: bot kill counts while nothing better exists (offline)")
+	# #149/#358: the combo payout decides first, whoever landed it; on an equal payout a human's kill
+	# outranks a bot's, and then a kill on a real player outranks one on a bot.
+	var big_bot := {"bank": 900, "pts": 900, "vbot": true, "kbot": true}
+	var human_300 := {"bank": 300, "pts": 300, "vbot": true, "kbot": false}
+	_ok(Tricks.is_best(human_300, true, 900, 900, true, true), "a genuinely bigger bot combo still wins (payout first)")
+	_ok(not Tricks.is_best(big_bot, true, 300, 300, true, false), "a smaller human combo does not take a bigger bot combo")
+	_ok(not Tricks.is_best({"bank": 300, "pts": 300, "vbot": true, "kbot": false}, true, 210, 210, false, true),
+		"#358: a bot's plain kill on the player does not take the player's 300 combo")
+	_ok(Tricks.is_best({"bank": 210, "pts": 210, "vbot": false, "kbot": true}, true, 210, 210, true, false),
+		"#149: same payout, the human's kill outranks the bot's")
+	_ok(Tricks.is_best({"bank": 210, "pts": 210, "vbot": true, "kbot": false}, true, 210, 210, false, false),
+		"#149: same payout, a kill on a real player outranks one on a bot")
+	_ok(Tricks.is_best({}, true, 0, 10, true, true), "a bot kill counts while nothing better exists (offline)")
+	# #358 end to end: the bot's trick kill on the player must leave the player's combo as the MVP.
+	var bot_kill := {"k": bots[0], "v": 1, "kn": "bot", "vn": "me", "kt": 0, "vt": 0, "w": "rifle", "hs": false, "tags": ""}
+	Game._combos.erase(bots[0])
+	Game._style_chain.erase(bots[0])
+	Game._award_style(bot_kill, no_combo)
+	_ok(int(Game.best_trick.get("bank", 0)) == 210 and int(Game.best_trick.get("k", 0)) == 1,
+		"#358: a bot's kill on the player does not displace the player's combo (best is peer %s)" % Game.best_trick.get("k"))
 	Game.best_trick = saved
 	await get_tree().create_timer(2.0).timeout
 	for l in landed:

@@ -49,6 +49,12 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #358 MVP killcam: the round's best trick is chosen by combo payout first, whoever landed it; on an
+  equal payout a human's kill outranks a bot's (`kbot`) and then a kill on a real player outranks one on
+  a bot (#149). A bot's stray frag on the player no longer takes the killcam from the player who landed
+  the biggest combo. `kbot` stays on the authority (`Tricks.is_best`, `ComboLedger.award_style`) and is
+  stripped in `MatchFlow.killcam_pick`, so the replay payload on the wire is unchanged. Check:
+  `tools/check_best_combo_cam` (the rule plus a bot kill on the player end to end). No protocol change.
 - #356 build next to protocol: the release version is `Game.build_version()` (`shared/game.gd`), read
   from project.godot `application/config/version` - the release PR bumps it together with
   `export_presets.cfg`, and `tools/check_version_source` fails when the three drift. The info query
