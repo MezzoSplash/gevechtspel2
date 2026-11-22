@@ -40,7 +40,7 @@ const _BACK_TO := {"solo": "home", "mp": "home", "settings": "home", "classes": 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	# Top-right corner, part of the menu only: hidden with it in game (HUD, pause, killcam).
-	version_label.text = version_text()
+	version_label.text = version_line()
 	version_label.visible = not version_label.text.is_empty()
 	$Center/Home/SoloButton.pressed.connect(func() -> void: show_screen("solo"))
 	$Center/Home/MpButton.pressed.connect(func() -> void: show_screen("mp"))
@@ -600,11 +600,18 @@ func show_screen(id: String) -> void:
 		_enter_screen.call_deferred()
 
 
-## "v0.3.7" from project.godot application/config/version: the one place the release bump sets
-## the game version (export presets use the same number), so the menu cannot show a stale one.
+## "v0.6.0": the build (project.godot application/config/version, bumped by the release PR).
 static func version_text() -> String:
-	var v := str(ProjectSettings.get_setting("application/config/version", "")).strip_edges()
+	var v := Game.build_version()
 	return "" if v.is_empty() else "v" + v
+
+
+## "v0.6.0 · protocol 0.5.20": what this binary is and what it speaks (#356). The build is the
+## release; the protocol only moves when an older peer can no longer play. Shown top-right.
+static func version_line() -> String:
+	var b := version_text()
+	var proto := "protocol " + Game.NET_VERSION
+	return proto if b.is_empty() else "%s · %s" % [b, proto]
 
 
 func set_status(t: String) -> void:
@@ -775,6 +782,7 @@ var _tab_buttons: Array[Button] = []
 var _server_box: VBoxContainer
 var _fixed_box: VBoxContainer
 var _server_rows := {} # address -> {status: Label}
+var _server_builds := {} # address -> the build that server reported in its info query ("" if none)
 var _fav_name: LineEdit
 
 
@@ -958,6 +966,7 @@ func refresh_server_list() -> void:
 			box.remove_child(c)
 			c.queue_free()
 	_server_rows.clear()
+	_server_builds.clear()
 	for e in Game.favorite_servers:
 		var label := e.get_slice("|", 0) if e.contains("|") else ""
 		var address := e.get_slice("|", 1) if e.contains("|") else e
@@ -1054,11 +1063,20 @@ func _on_server_info(address: String, info: Dictionary, ping_ms: int, lan: bool)
 	if not is_instance_valid(status):
 		return
 	var same := str(info.get("v", "")) == Game.NET_VERSION
+	var build := str(info.get("build", ""))
+	_server_builds[address] = build
 	status.text = "%s · Online · %d/%d players · %s %s · %d ms" % [address,
 		int(info.get("players", 0)), int(info.get("max", 10)),
 		str(info.get("map", "?")), str(info.get("mode", "")), ping_ms
 	]
+	if build != "":
+		status.text = "%s · build %s" % [status.text, build]
 	if not same:
-		status.text = "%s · %s" % [status.text, VersionNotice.row_text(Game.NET_VERSION, str(info.get("v", "?")))]
+		status.text = "%s · %s" % [status.text, VersionNotice.row_text(Game.NET_VERSION, str(info.get("v", "?")), build)]
 	status.tooltip_text = "%d bots" % int(info.get("bots", 0))
 	status.add_theme_color_override("font_color", _STATUS_OK if same else _STATUS_WARN)
+
+
+## The build a server reported in its info query ("" when we never heard it answer).
+func server_build(address: String) -> String:
+	return str(_server_builds.get(address, ""))

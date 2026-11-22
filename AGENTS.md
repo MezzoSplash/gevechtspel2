@@ -49,6 +49,13 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #356 build next to protocol: the release version is `Game.build_version()` (`shared/game.gd`), read
+  from project.godot `application/config/version` - the release PR bumps it together with
+  `export_presets.cfg`, and `tools/check_version_source` fails when the three drift. The info query
+  (`GVQ1`) sends `"build"` next to `"v"`; the menu shows "v0.6.0 · protocol 0.5.20" top-right and the
+  server's build in its list row. A join refused in the auth step now opens a dialog naming both
+  protocols (and both builds when the info query knew the server's) and why that blocks a join; only
+  `v` decides, so an older client keeps joining. Check: `tools/check_version_source`. No protocol change.
 - #317 slice 1 (bot_brain.gd split): the movement tricks are `BotTricks` (`scripts/bot_tricks.gd`: `tick`,
   `tick_wall_trick`, `try_start_wall_trick`, `aim_into_wall`, `end_wall_trick`), the frag `BotGrenade`
   (`try_throw`, `pitches`, `throw_pitched`, `arc_clear`) and Hard's cover reload `BotCover` (`seeks_cover`,
