@@ -154,7 +154,7 @@ func _on_auth_data(id: int, data: PackedByteArray) -> void:
 	if theirs == Game.NET_VERSION:
 		sm.complete_auth(id)
 		return
-	print("NET: version mismatch with peer %d: theirs %s, ours %s" % [id, theirs, Game.NET_VERSION])
+	print("NET: version mismatch with peer %d: theirs %s, ours %s (build %s)" % [id, theirs, Game.NET_VERSION, Game.build_version()])
 	if not multiplayer.is_server():
 		_version_mismatch = theirs
 	# Not right away: our own version packet must still reach them, so they can show the mismatch too.
@@ -169,10 +169,10 @@ func _on_peer_authentication_failed(id: int) -> void:
 	print("NET: authentication failed for peer %d" % id)
 	if multiplayer.is_server():
 		return
-	var why := "Kon niet joinen: geen versie-antwoord van de server (oudere build?)."
+	var why := "Kon niet joinen: de server gaf geen protocolversie terug (mogelijk een veel oudere build)."
 	var server_v := _version_mismatch
 	if server_v != "":
-		why = VersionNotice.message(Game.NET_VERSION, server_v).get_slice("\n", 0)
+		why = "Kan niet joinen: protocolversie %s tegen %s — zie het venster." % [Game.NET_VERSION, server_v]
 	_version_mismatch = ""
 	# Deferred: swapping multiplayer_peer inside a SceneMultiplayer signal crashes the engine.
 	call_deferred("_drop_to_menu", why)
@@ -180,10 +180,13 @@ func _on_peer_authentication_failed(id: int) -> void:
 		call_deferred("_show_version_dialog", server_v)
 
 
-## Menu pop-up for a refused join (both versions, a download button when we are the older one).
+## Menu pop-up for a refused join: both protocols, both builds when the info query knows them, and
+## the reason, with a download button when we are the older side.
 func _show_version_dialog(server_v: String) -> void:
-	if menu:
-		VersionNotice.show(menu, Game.NET_VERSION, server_v)
+	if menu == null:
+		return
+	var addr := "%s:%d" % [menu.host_ip(), menu.host_port()]
+	VersionNotice.show(menu, Game.NET_VERSION, server_v, Game.build_version(), menu.server_build(addr))
 
 
 func _drop_to_menu(status: String) -> void:

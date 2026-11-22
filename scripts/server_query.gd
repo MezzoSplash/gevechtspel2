@@ -69,7 +69,8 @@ static func info() -> Dictionary:
 			elif not (Game.is_dedicated and p.peer_id == 1):
 				humans += 1
 	return {
-		"v": Game.NET_VERSION,
+		"v": Game.NET_VERSION, # the protocol: a peer with another value cannot join
+		"build": Game.build_version(), # the release this server runs (#356); old clients ignore it
 		"map": Maps.display_name(Game.map_id),
 		"mode": Game.mode_name(),
 		"players": humans,

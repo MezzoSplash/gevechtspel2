@@ -139,6 +139,16 @@ const WEAPON_DEFS := {
 	&"shank": preload("res://data/weapons/shank.tres"),
 }
 
+
+## The release (build) version of this binary, next to the protocol: NET_VERSION only moves when an
+## older peer can no longer play, the build moves on every release (#356). One source:
+## project.godot `application/config/version`, which the release PR bumps together with
+## `export_presets.cfg`; `tools/check_version_source` fails when the three drift apart.
+## Empty when the setting is missing (a bare script run without a project).
+static func build_version() -> String:
+	var v := str(ProjectSettings.get_setting("application/config/version", "")).strip_edges()
+	return v.trim_prefix("v")
+
 var is_offline := true
 var is_dedicated := false
 var chat_open := false # T-chat: blocks move/look/fire until Enter/Esc
