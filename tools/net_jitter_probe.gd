@@ -48,20 +48,36 @@ func _watch() -> void:
 	while other == null:
 		await get_tree().create_timer(0.2).timeout
 		for p in get_tree().get_nodes_in_group("player"):
-			if p != _me and not p.is_bot:
+			# Same match as me: the menu's background match leaves pawns in another world, and those
+			# get teleported between spawns (#360/#361 debugging found them here).
+			if p != _me and not p.is_bot and _me != null and p.get_parent() == _me.get_parent():
 				other = p
 	var last := other.global_position
 	var last_ms := Time.get_ticks_msec()
 	var gaps: Array[int] = []
+	var steps: Array[float] = [] # #361: how far the pawn moved in one frame — a jump reads here
+	var teleports := 0
 	var start := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - start < PROBE_S * 1000.0:
 		await get_tree().physics_frame
-		if other.global_position.distance_to(last) > 0.001:
+		var d := other.global_position.distance_to(last)
+		if d > 10.0:
+			# A respawn or a join teleport: #361 draws those at once on purpose, so they are not a
+			# smoothness sample.
+			teleports += 1
+			last = other.global_position
+			last_ms = Time.get_ticks_msec()
+			continue
+		if d > 0.001:
 			gaps.append(Time.get_ticks_msec() - last_ms)
 			last = other.global_position
 			last_ms = Time.get_ticks_msec()
+		steps.append(d)
+	steps.sort()
 	gaps.sort()
 	var big := gaps.filter(func(g): return g > 250).size()
-	print("PROBE updates=%d p50=%d p99=%d max=%d frozen>250ms=%d" % [
-		gaps.size(), gaps[gaps.size() / 2], gaps[int(gaps.size() * 0.99)], gaps[-1], big])
+	print("PROBE updates=%d p50=%d p99=%d max=%d frozen>250ms=%d | step p50=%.3f p99=%.3f max=%.2f m (jumps>0.5m=%d, teleports=%d)" % [
+		gaps.size(), gaps[gaps.size() / 2], gaps[int(gaps.size() * 0.99)], gaps[-1], big,
+		steps[steps.size() / 2], steps[int(steps.size() * 0.99)], steps[-1],
+		steps.filter(func(s): return s > 0.5).size(), teleports])
 	get_tree().quit()

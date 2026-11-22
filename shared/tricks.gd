@@ -106,18 +106,25 @@ static func next_chain(style_chain: Dictionary, peer_id: int, now: float) -> int
 	return chain
 
 
-## Best trickshot rule: the biggest landed combo of the round; kills without a combo only count while
-## nobody has landed one yet. #149: a kill on a real player always beats a kill on a bot, so the MVP
-## killcam shows a bot kill only in a round without any player-on-player kill (e.g. offline vs bots).
-## `victim_is_bot`: the new kill's victim is a bot (negative peer id).
-static func is_best(best_trick: Dictionary, round_active: bool, bank: int, pts: int, victim_is_bot := false) -> bool:
+## Best trickshot rule: the biggest landed combo of the round wins, whoever landed it. Kills without a
+## combo only count while nobody has landed one yet. On an equal payout a human's kill outranks a bot's,
+## and then a kill on a real player outranks one on a bot (#149), so a bot's stray frag never takes the
+## MVP killcam from the player whose combo it was (#358).
+## `victim_is_bot` / `killer_is_bot`: that peer has a negative id.
+static func is_best(best_trick: Dictionary, round_active: bool, bank: int, pts: int,
+		victim_is_bot := false, killer_is_bot := false) -> bool:
 	if not round_active:
 		return false
-	var best_on_bot := bool(best_trick.get("vbot", true)) # empty best: any kill may take it
-	if victim_is_bot != best_on_bot and not best_trick.is_empty():
-		return not victim_is_bot # player kill takes it from a bot kill, never the other way round
+	if best_trick.is_empty():
+		return true
 	var best_bank := int(best_trick.get("bank", 0))
-	return bank > best_bank or (bank == 0 and best_bank == 0 and pts > int(best_trick.get("pts", 0)))
+	if bank != best_bank:
+		return bank > best_bank # the combo payout decides, not who landed it
+	if killer_is_bot != bool(best_trick.get("kbot", true)):
+		return not killer_is_bot # same payout: a human's kill takes it from a bot's, never the other way
+	if victim_is_bot != bool(best_trick.get("vbot", true)):
+		return not victim_is_bot # then a kill on a real player beats a kill on a bot
+	return bank == 0 and pts > int(best_trick.get("pts", 0))
 
 
 ## Every machine (sync_trick / the authority itself): the killer's style total, the replay kept for the
