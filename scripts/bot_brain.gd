@@ -346,138 +346,27 @@ func _set_bot_input() -> void:
 ## Slide into a fight, wallrun along a wall, dive at a target below. All three go through Movement, so a
 ## bot obeys exactly the same ranges, cooldowns and physics as the player.
 func _tick_tricks(delta: float) -> void:
-	_crouch_hold = maxf(_crouch_hold - delta, 0.0)
-	var on_floor := pawn.is_on_floor()
-	var foe := _target
-	var has_foe := foe != null and is_instance_valid(foe) and not foe.is_dead
-	_tick_wall_trick(delta, on_floor, has_foe)
-	var tricking := _trick != Trick.NONE # a dive or slide key would end the wallrun (crouch drops it)
-	# A slide to close the last stretch of a fight, on the floor, moving fast, off cooldown.
-	if tricking:
-		pass
-	elif on_floor and has_foe and state == State.FIGHT and not pawn._sliding and _crouch_hold <= 0.0 and pawn._slide_cd <= 0.0:
-		var dist := pawn.global_position.distance_to(foe.global_position)
-		var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.WALK_SPEED * 1.05
-		if fast and dist > style.slide_min_m and dist < style.slide_max_m:
-			_crouch_press = true
-			_crouch_hold = BOT_SLIDE_HOLD
-	# A dive when it is falling toward a target: closes the gap, and it lands into a roll.
-	elif not on_floor and has_foe and pawn._dive_cd <= 0.0 and pawn.velocity.y < -1.0:
-		if pawn.global_position.distance_to(foe.global_position) < BOT_DIVE_RANGE:
-			_crouch_press = true
-			_crouch_hold = maxf(_crouch_hold, 0.2)
-	_set_bot_input()
-	Movement.try_start_slide(pawn, on_floor, false)
-	Movement.try_air_dive(pawn, on_floor, false)
-	# Forward is the travel direction (the brain faces it), so "forward held" is what walls want.
-	Movement.tick_wallrun(pawn, delta, Vector2(0.0, -1.0), false)
-	if pawn._wallrunning:
-		var horiz := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
-		var along := horiz.normalized() if horiz.length_squared() > 0.01 else -pawn.transform.basis.z
-		var h := Movement.wallrun_horiz(pawn, horiz, along, delta)
-		pawn.velocity.x = h.x
-		pawn.velocity.z = h.z
-		# The wall replaces gravity, as in Player._physics_process: undo this tick's gravity, then sink slowly.
-		# Without it a bot "wallran" at full gravity and dropped off the face in about half a second.
-		var sink := lerpf(Player.WALLRUN_SINK_START, Player.WALLRUN_SINK_END, clampf(pawn._wallrun_t / Player.WALLRUN_TIME, 0.0, 1.0))
-		var vy := pawn.velocity.y - float(pawn.get_gravity().y) * delta
-		pawn.velocity.y = move_toward(vy, -sink, Player.WALLRUN_RISE_DAMP * delta) if vy > -sink else -sink
-	if pawn._sliding:
-		# Keep the slide on its own line at sprint speed; finish_slide decides when it is over.
-		var dir := pawn._slide_dir
-		var sp := maxf(Vector2(pawn.velocity.x, pawn.velocity.z).length(), Player.SPRINT_SPEED)
-		pawn.velocity.x = dir.x * sp
-		pawn.velocity.z = dir.z * sp
-	Movement.finish_slide(pawn)
-	# The same stance code the human runs: crouch follows the held key, and releases when the slide,
-	# the dive or the roll is over.
-	pawn._update_stance(delta, on_floor)
+	BotTricks.tick(self, delta)
 
 
 ## Wall trick, one step per tick. Runs before the slide/dive keys and Movement.tick_wallrun, which do the
 ## actual wallrun (the same code a human runs); this only decides to jump at a wall, and when to jump off.
 func _tick_wall_trick(delta: float, on_floor: bool, has_foe: bool) -> void:
-	_trick_cd = maxf(_trick_cd - delta, 0.0)
-	_trick_scan_t = maxf(_trick_scan_t - delta, 0.0)
-	match _trick:
-		Trick.NONE:
-			# #270: a wallrun route is exactly BotWall.MIN_LEN of face from its start, so the one scan
-			# every TRICK_SCAN mostly came too late (or before the bot had turned along it) and the
-			# cooldown of the last trick blocked the rest: tools/probe_bot_route measured one wallrun
-			# in fifteen routes taken. On the route the run is the plan, so it looks every tick.
-			if on_floor and _on_wall_route():
-				_try_start_wall_trick()
-			elif on_floor and _trick_cd <= 0.0 and _trick_scan_t <= 0.0:
-				_trick_scan_t = TRICK_SCAN
-				_try_start_wall_trick()
-		Trick.AIR:
-			_trick_t += delta
-			if pawn._wallrunning:
-				_trick = Trick.RUN
-				_trick_t = 0.0
-			elif pawn.is_dead or (on_floor and _trick_t > 0.15) or _trick_t > TRICK_AIR_MAX:
-				_end_wall_trick() # missed the wall: land and carry on
-			else:
-				_aim_into_wall() # the generic air steering would bend us back toward the path
-		Trick.RUN:
-			_trick_t += delta
-			if pawn.is_dead or not pawn._wallrunning:
-				_end_wall_trick()
-			elif _trick_t >= TRICK_JUMP_AT or (has_foe and _can_see(_target, true)):
-				# Off the wall, away and up; only when there is floor to land on (a roof edge is a fall death).
-				var n: Vector3 = _trick_plan.n
-				var along := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
-				var land := pawn.global_position + n * 4.5 + along.normalized() * 6.0
-				if BotWall.floor_below(pawn.get_world_3d().direct_space_state, land, [pawn.get_rid()]):
-					Movement.wall_jump(pawn)
-					_end_wall_trick()
-				elif _trick_t >= Player.WALLRUN_TIME:
-					_end_wall_trick() # no safe jump: ride it out, the run ends on its own
+	BotTricks.tick_wall_trick(self, delta, on_floor, has_foe)
 
 
 ## On the floor and sprinting along the path: a wall alongside the heading, and the dice, start a trick.
 func _try_start_wall_trick() -> void:
-	# A held crouch (the tail of a slide) would drop the wallrun the moment it starts.
-	if state == State.FIGHT or _unstick_left > 0.0 or pawn._sliding or pawn._diving or pawn._roll_t > 0.0 or pawn.is_dead:
-		return
-	if _crouch_hold > 0.0 or _crouch_press:
-		return
-	var chance := float(Game.bot_profile().trick)
-	if chance <= 0.0:
-		return
-	var heading := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
-	if heading.length() < TRICK_MIN_SPEED:
-		return
-	var space := pawn.get_world_3d().direct_space_state
-	var plan := BotWall.find(space, pawn.global_position, heading, [pawn.get_rid()])
-	if plan.is_empty():
-		return
-	# On a wallrun route the run is the plan, so no dice: the profile's chance only decides whether this
-	# difficulty wallruns at all (Easy is 0 and returned above).
-	if not _on_wall_route() and rng.randf() >= chance:
-		_trick_cd = TRICK_SKIP_CD # this bot's own roll series, seeded per slot (#289) # said no to this wall: do not roll again at the next scan
-		return
-	_trick_plan = plan
-	_trick = Trick.AIR
-	_trick_t = 0.0
-	var speed := maxf(heading.length(), TRICK_MIN_SPEED)
-	var dir := BotWall.entry_dir(plan)
-	pawn.velocity = Vector3(dir.x * speed, Player.JUMP_SPEED, dir.z * speed)
+	BotTricks.try_start_wall_trick(self)
 
 
 ## Keeps the horizontal velocity on the entry line (toward the wall) while the bot is in the air.
 func _aim_into_wall() -> void:
-	var dir := BotWall.entry_dir(_trick_plan)
-	var speed := maxf(Vector2(pawn.velocity.x, pawn.velocity.z).length(), TRICK_MIN_SPEED)
-	pawn.velocity.x = dir.x * speed
-	pawn.velocity.z = dir.z * speed
+	BotTricks.aim_into_wall(self)
 
 
 func _end_wall_trick() -> void:
-	_trick = Trick.NONE
-	_trick_t = 0.0
-	_trick_cd = TRICK_CD
-	_trick_plan = {}
+	BotTricks.end_wall_trick(self)
 
 
 ## Nearest enemy we can actually see; else the nearest one to hunt. Re-picked every RETARGET.
@@ -870,101 +759,32 @@ func _go_to_objective(goal: Vector3, delta: float) -> void:
 
 ## Hard reloads out of sight. Easy and Medium do not: the flag lives on the difficulty profile.
 func _seeks_cover() -> bool:
-	return bool(Game.bot_profile().get("cover", false))
+	return BotCover.seeks_cover(self)
 
 
 ## Empty or already reloading, and not close enough that a bash is the better use of the moment.
 func _should_cover_reload(enemy: Player) -> bool:
-	if not _seeks_cover() or pawn.weapon == null:
-		return false
-	var dist := pawn.global_position.distance_to(enemy.global_position)
-	if dist <= MELEE_R:
-		return false
-	var w := pawn.weapon
-	if w.ammo == 1 and dist < RELOAD_HOLD_R:
-		return false
-	return w.is_reloading() or w.ammo <= 0
+	return BotCover.should_reload(self, enemy)
 
 
 ## The last round, inside RELOAD_HOLD_R. Shooting it is what would start the reload.
 func _hold_last_round(dist: float) -> bool:
-	if not _seeks_cover() or pawn.weapon == null:
-		return false
-	return pawn.weapon.ammo == 1 and dist < RELOAD_HOLD_R
+	return BotCover.hold_last_round(self, dist)
 
 
 ## Sprint to the hide spot chosen when the reload started. No spot: back to the enemy, same sprint.
 func _tick_cover_reload(enemy: Player, delta: float) -> void:
-	var w := pawn.weapon
-	if w.ammo <= 0 and not w.is_reloading():
-		w.bot_try_fire()
-	if not _cover_live:
-		_cover_live = true
-		var spot := _pick_cover(enemy)
-		_cover_flee = is_inf(spot.x)
-		_cover_point = spot
-		if agent and not _cover_flee:
-			agent.target_position = spot
-	var away := pawn.global_position - enemy.global_position
-	away.y = 0.0
-	if away.length_squared() < 0.01:
-		away = -pawn.transform.basis.z
-		away.y = 0.0
-	away = away.normalized()
-	if _cover_flee:
-		_face_travel(away)
-		_steer_to(pawn.global_position + away * 6.0, Player.SPRINT_SPEED, delta, false)
-		return
-	_face_travel(_cover_point - pawn.global_position)
-	_steer_to(_cover_point, Player.SPRINT_SPEED, delta, true)
+	BotCover.tick_reload(self, enemy, delta)
 
 
 ## Nearest standable spot within COVER_R that the enemy's chest cannot see. The rays run once per
 ## reload, not per tick. A heading whose first step is a wall is skipped (`_side_open`). INF: flee.
 func _pick_cover(enemy: Player) -> Vector3:
-	var space := pawn.get_world_3d().direct_space_state
-	var origin := pawn.global_position
-	var from := enemy.global_position + Vector3.UP * 0.9
-	var best := Vector3(INF, INF, INF)
-	var best_d := COVER_R + 0.01
-	for i in COVER_SAMPLES:
-		var ang := TAU * float(i) / float(COVER_SAMPLES)
-		var dir := Vector3(cos(ang), 0.0, sin(ang))
-		# The step in front of the feet has to be open. The crate itself can sit further along.
-		if not _side_open(dir, STRAFE_KEEP):
-			continue
-		for reach in COVER_REACHES:
-			var spot := origin + dir * reach
-			if not _cover_floor(space, spot):
-				continue
-			var chest := spot + Vector3.UP * 0.9
-			if from.distance_squared_to(chest) < 0.25:
-				continue
-			var q := PhysicsRayQueryParameters3D.create(from, chest)
-			q.collision_mask = WORLD_MASK
-			q.exclude = [pawn.get_rid(), enemy.get_rid()]
-			var hit := space.intersect_ray(q)
-			if hit.is_empty() or not hit.has("position"):
-				continue
-			var hit_at := hit.position as Vector3
-			if hit_at.distance_to(from) > from.distance_to(chest) - 0.35:
-				continue
-			var d := origin.distance_to(spot)
-			if d < best_d:
-				best_d = d
-				best = spot
-	return best
+	return BotCover.pick(self, enemy)
 
 
 func _cover_floor(space: PhysicsDirectSpaceState3D, spot: Vector3) -> bool:
-	var foot := spot + Vector3.UP * 0.4
-	var q := PhysicsRayQueryParameters3D.create(foot, foot + Vector3.DOWN * STRAFE_FLOOR)
-	q.collision_mask = WORLD_MASK
-	var hit := space.intersect_ray(q)
-	if not hit.has("normal"):
-		return false
-	var slope := rad_to_deg(acos(clampf((hit.normal as Vector3).dot(Vector3.UP), -1.0, 1.0)))
-	return slope <= MAX_STEP_SLOPE + 4.0
+	return BotCover.floor_ok(self, space, spot)
 
 
 ## Visible and in range. Sidestep in the open; do not ask the navmesh for a 2 m shuffle.
@@ -1064,92 +884,23 @@ func _fight_shank(enemy: Player, delta: float) -> void:
 ## A pitch whose arc hits the world (a ceiling, a lip, a door head) is refused, and the cooldown
 ## stays: the bot can try again on the next check instead of bouncing the frag into its own feet.
 func _try_grenade(enemy: Player, dist: float, delta: float) -> bool:
-	_nade_check -= delta
-	if _nade_cd > 0.0 or pawn.grenades <= 0 or _nade_check > 0.0:
-		return false
-	_nade_check = NADE_CHECK
-	if dist < NADE_MIN or dist > NADE_MAX or randf() > style.nade_chance:
-		return false
-	var from := pawn.head.global_position
-	var to := enemy.global_position + Vector3(0.0, 0.4, 0.0)
-	var flat := Vector3(to.x - from.x, 0.0, to.z - from.z)
-	var d := flat.length()
-	if d < 0.5:
-		return false
-	var pitches := _grenade_pitches(from, to, d)
-	if pitches.is_empty():
-		return false
-	if _throw_pitched(from, flat, to, pitches[0]):
-		return true
-	# One higher arc. A low ceiling that eats the flat toss sometimes still has a lob over it.
-	for i in range(1, pitches.size()):
-		if pitches[i] > pitches[0]:
-			return _throw_pitched(from, flat, to, pitches[i])
-	return false
+	return BotGrenade.try_throw(self, enemy, dist, delta)
 
 
 ## Pitches that land within 2 m of the target, best error first. The +4 m/s is Grenade.initial_velocity.
 func _grenade_pitches(from: Vector3, to: Vector3, d: float) -> Array[float]:
-	var dy := to.y - from.y
-	var g := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
-	var scored: Array[Vector2] = []
-	for k in 25:
-		var pitch := lerpf(-0.35, 0.9, float(k) / 24.0)
-		var h := Grenade.THROW_SPEED * cos(pitch)
-		if h < 0.5:
-			continue
-		var t := d / h
-		if t > Grenade.FUSE + 0.15:
-			continue
-		var vy := Grenade.THROW_SPEED * sin(pitch) + 4.0
-		var err := absf(vy * t - 0.5 * g * t * t - dy)
-		if err <= 2.0:
-			scored.append(Vector2(err, pitch))
-	scored.sort()
-	var out: Array[float] = []
-	for s in scored:
-		out.append(s.y)
-	return out
+	return BotGrenade.pitches(self, from, to, d)
 
 
 ## Throw `pitch` if the arc is clear. False leaves the cooldown alone.
 func _throw_pitched(from: Vector3, flat: Vector3, to: Vector3, pitch: float) -> bool:
-	var dir := flat.normalized() * cos(pitch) + Vector3.UP * sin(pitch)
-	dir = (dir + Vector3(randf_range(-0.04, 0.04), 0.0, randf_range(-0.04, 0.04))).normalized()
-	var origin := from + dir * 0.6
-	if not _grenade_arc_clear(origin, Grenade.initial_velocity(dir), to):
-		return false
-	_nade_cd = randf_range(NADE_COOLDOWN_MIN, NADE_COOLDOWN_MAX) * float(Game.bot_profile().nade)
-	Game.throw_grenade(pawn, origin, dir)
-	return true
+	return BotGrenade.throw_pitched(self, from, flat, to, pitch)
 
 
 ## Eight rays along origin + v*t + ½gt², out to the target. Grenade.MASK, so a wall, a lip or an
 ## RC-XD blocks it. Pawns are excluded: the arc is aimed at one, and the fuse is a timer.
 func _grenade_arc_clear(origin: Vector3, vel: Vector3, target: Vector3) -> bool:
-	var hv := Vector2(vel.x, vel.z)
-	var to := Vector2(target.x - origin.x, target.z - origin.z)
-	if hv.length() < 0.5 or to.length() < 0.05:
-		return false
-	var flight := clampf(to.length() / hv.length(), 0.05, Grenade.FUSE)
-	var g := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
-	var space := pawn.get_world_3d().direct_space_state
-	var exclude: Array[RID] = []
-	for n in pawn.get_tree().get_nodes_in_group("player"):
-		var body := n as CollisionObject3D
-		if body:
-			exclude.append(body.get_rid())
-	var prev := origin
-	for i in NADE_ARC_STEPS:
-		var t := flight * float(i + 1) / float(NADE_ARC_STEPS)
-		var at := origin + vel * t + Vector3(0.0, -0.5 * g * t * t, 0.0)
-		var q := PhysicsRayQueryParameters3D.create(prev, at)
-		q.collision_mask = Grenade.MASK
-		q.exclude = exclude
-		if not space.intersect_ray(q).is_empty():
-			return false
-		prev = at
-	return true
+	return BotGrenade.arc_clear(self, origin, vel, target)
 
 
 ## Banked UAV: use it after a short beat. Banked RC-XD: send it when the target is far or hidden.
