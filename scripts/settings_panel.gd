@@ -42,6 +42,7 @@ var _xh_size: HSlider
 var _xh_size_val: Label
 var _minimap: CheckBox
 var _killfeed: CheckBox
+var _net: CheckBox # #364: network line under the perf block
 var _colorblind: OptionButton
 var _shake: CheckBox
 var _speed_fx: CheckBox
@@ -131,6 +132,7 @@ func refresh() -> void:
 	_xh_size_val.text = "%d%%" % roundi(Game.crosshair_size * 100.0)
 	_minimap.set_pressed_no_signal(Game.show_minimap)
 	_killfeed.set_pressed_no_signal(Game.show_killfeed)
+	_net.set_pressed_no_signal(Game.show_net)
 	_select_quiet(_colorblind, Game.colorblind)
 	_shake.set_pressed_no_signal(Game.reduce_shake)
 	_speed_fx.set_pressed_no_signal(Game.speed_fx)
@@ -306,6 +308,12 @@ func _build() -> void:
 	_perf.item_selected.connect(func(i: int) -> void:
 		if not _filling:
 			Game.set_perf_overlay(i)
+	)
+	_net = _check(_row(body, "Network stats"))
+	_net.tooltip_text = "RTT, packet loss and jitter under the perf overlay. Needs a network match: in singleplayer it reads offline."
+	_net.toggled.connect(func(on: bool) -> void:
+		if not _filling:
+			Game.set_show_net(on)
 	)
 
 	body = _pages[1] # Graphics: the renderer is a restart, so it sits with the rest of the video setup.
