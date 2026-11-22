@@ -31,6 +31,13 @@ declare -A SLOW=([check_bot_kit]=200 [check_new_guns]=200 [check_quay]=240 [chec
 in_list() { local x="$1"; shift; for y in "$@"; do [[ "$x" == "$y" ]] && return 0; done; return 1; }
 
 LOG_DIR="$(mktemp -d)"
+# The checks get their own user:// (settings.cfg, classes.cfg, ...). The menu saves every match choice
+# the moment it changes, so a local run used to overwrite the player's own menu settings, and a check
+# could pass or fail on what was saved there. Fresh per run, like CI. CHECK_KEEP_USER_DATA=1 skips it.
+if [[ -z "${CHECK_KEEP_USER_DATA:-}" ]]; then
+	export XDG_DATA_HOME="$(mktemp -d)"
+	trap 'rm -rf "$XDG_DATA_HOME"' EXIT
+fi
 declare -a RES
 fail=0
 run_one() { # name, args...  (a failing check is retried once; pass on retry = FLAKY)
