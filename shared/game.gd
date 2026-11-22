@@ -166,6 +166,10 @@ var best_trick: Dictionary = {} # match authority: this round's highest-scoring 
 var _lag_history: Dictionary = {} # server: LagComp samples per player instance id
 var _shot_rewind: Array = [] # server, while a client shot resolves: LagComp.offsets_for
 var _server_clock_offset := 0 # client: server ms minus local ms at the last sync_pings (LagComp.view_ms)
+## #361: how far behind the newest pose remote pawns are drawn (ms). PawnNet measures the gaps between
+## arriving poses and raises it on a lossy link; on a LAN it stays at PawnNet.DELAY_MIN_MS.
+var net_delay_ms := 55
+var _net_pose_peak_ms := 0.0 # client: decaying peak of the gap between pose arrivals, drives net_delay_ms
 var _shot_ctx: Dictionary = {} # match authority, while a shot resolves: {shooter, origin, scoped}
 var _style_chain: Dictionary = {} # peer_id -> [trick kills in a row, time of the last one]
 var _line_cd: Dictionary = {} # peer_id -> {strip name: seconds left}. Points only; the shove is local.

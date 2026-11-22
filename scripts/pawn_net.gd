@@ -9,7 +9,7 @@ extends RefCounted
 ## Client-side bot transform from Game.sync_bot_poses (Synchronizer is off for bots).
 ## `stance` (optional, newer servers): [crouch, move_fx], so remote bots crouch, dive and wall-run visibly.
 static func apply_network_pose(p: Player, pos: Vector3, yaw: float, pitch: float, stance: Array = []) -> void:
-	p.global_position = pos
+	push_remote_pose(p, pos) # #361: the drawn position comes from the buffer, the rest is immediate
 	p.rotation.y = yaw
 	p._yaw = yaw
 	p._pitch = pitch
@@ -65,17 +65,126 @@ static func enemy_in_sight(p: Player) -> bool:
 	return false
 
 
-## See net_pos. First pose, the server, or a jump past NET_SNAP_M (respawn) snaps.
+## --- #361: remote pose interpolation ---
+## Poses of remote humans ($Sync) and remote bots (sync_bot_poses) wait in a small buffer and are drawn
+## slightly behind the newest one, so a lost or late packet is covered by the next pose instead of the
+## pawn freezing and then jumping across the map. The delay follows the measured gap between arrivals:
+## on a LAN it stays at DELAY_MIN_MS (about what the old glide cost), on a lossy link it grows to
+## DELAY_MAX_MS. `Game.net_delay_ms` holds the value the whole machine uses, so LagComp stays honest.
+const DELAY_MIN_MS := 55
+const DELAY_MAX_MS := 150
+## A stall longer than this stops the pawn where it is instead of throwing it forward.
+const EXTRAP_MAX_MS := 150
+const BUFFER_MAX := 60 # ~2 s of poses at 30 Hz
+const GAP_DECAY := 0.98 # per arrival: the delay falls back within a second or two of a clean link
+
+
+## A pose arrived for `p` (client side). `at_ms` is its arrival time; negative means now (checks pass it).
+## A jump the server would refuse as a claim is a teleport (respawn, LOS snap, a correction), so that one
+## is drawn at once instead of sliding the pawn over the map.
+static func push_remote_pose(p: Player, pos: Vector3, at_ms: int = -1) -> void:
+	var t := Time.get_ticks_msec() if at_ms < 0 else at_ms
+	if p._pose_buf.is_empty():
+		p.position = pos
+	else:
+		var last: Array = p._pose_buf[-1]
+		_note_gap(t - int(last[0]))
+		var dt := maxf(float(t - int(last[0])) / 1000.0, p.NET_CLAIM_MIN_DT)
+		if not claim_reachable_delta(p, pos - (last[1] as Vector3), dt):
+			p._pose_buf.clear()
+			p.position = pos
+	p._pose_buf.append([t, pos])
+	while p._pose_buf.size() > BUFFER_MAX:
+		p._pose_buf.pop_front()
+
+
+## The interpolation delay this machine is using right now, in ms, from the gaps it has been seeing.
+static func _note_gap(gap_ms: int) -> void:
+	var peak := maxf(Game._net_pose_peak_ms * GAP_DECAY, float(gap_ms))
+	Game._net_pose_peak_ms = peak
+	Game.net_delay_ms = clampi(int(1.5 * peak), DELAY_MIN_MS, DELAY_MAX_MS)
+
+
+## Client: draw remote pawn `p` at the buffered pose `Game.net_delay_ms` behind the newest one (#361).
+## `at_ms` is the clock to render at; negative means now (checks pass their own timeline).
+static func tick_remote(p: Player, delta: float, at_ms: int = -1) -> void:
+	if p._pose_buf.is_empty():
+		return
+	var from_pos := p.position
+	var now := Time.get_ticks_msec() if at_ms < 0 else at_ms
+	var at := float(now - Game.net_delay_ms)
+	var newest: Array = p._pose_buf[-1]
+	var out := p.position
+	if at >= float(newest[0]):
+		# Nothing newer arrived: carry the last motion for a moment, then stand still.
+		var ext := minf(at - float(newest[0]), EXTRAP_MAX_MS) / 1000.0
+		out = (newest[1] as Vector3) + _pose_velocity(p) * ext
+	else:
+		# Drop the samples the render time has passed, keeping one behind it for the lerp.
+		while p._pose_buf.size() > 2 and float(p._pose_buf[1][0]) <= at:
+			p._pose_buf.pop_front()
+		var found := false
+		for i in range(p._pose_buf.size() - 1):
+			var s0: Array = p._pose_buf[i]
+			var s1: Array = p._pose_buf[i + 1]
+			if at >= float(s0[0]) and at <= float(s1[0]):
+				var span := maxf(float(s1[0]) - float(s0[0]), 0.001)
+				out = (s0[1] as Vector3).lerp(s1[1] as Vector3, (at - float(s0[0])) / span)
+				found = true
+				break
+		if not found:
+			# Behind every sample we still hold (a stall): take the oldest instead of guessing.
+			out = p._pose_buf[0][1]
+	p.position = out
+	# Jitter reorders poses, so a sample can sit behind the previous one. Limit how far the drawn pawn
+	# may move in one frame to the speed of the stream plus a margin: the path stays continuous instead
+	# of zig-zagging, and on a clean link nothing is limited.
+	var lim := (_pose_speed(p) + 3.0) * maxf(delta, 0.001)
+	if lim > 0.0 and out.distance_to(from_pos) > lim:
+		var dir := (out - from_pos).normalized()
+		if dir != Vector3.ZERO:
+			p.position = from_pos + dir * lim
+
+
+## Metres per second over the last two poses, capped at what the server accepts as movement.
+static func _pose_velocity(p: Player) -> Vector3:
+	if p._pose_buf.size() < 2:
+		return Vector3.ZERO
+	var a: Array = p._pose_buf[-2]
+	var b: Array = p._pose_buf[-1]
+	var dt := maxf(float(int(b[0]) - int(a[0])) / 1000.0, 0.001)
+	var v: Vector3 = ((b[1] as Vector3) - (a[1] as Vector3)) / dt
+	return v.limit_length(p.NET_CLAIM_H_CAP)
+
+
+## The stream's own speed over ~100 ms of samples. Steadier than two neighbouring poses, which jitter
+## reorders: the frame limiter must not read a reordered pair as a 100 m/s dash (#361).
+static func _pose_speed(p: Player) -> float:
+	if p._pose_buf.size() < 2:
+		return 0.0
+	var newest: Array = p._pose_buf[-1]
+	var oldest: Array = p._pose_buf[0]
+	for i in range(p._pose_buf.size() - 1, -1, -1):
+		oldest = p._pose_buf[i]
+		if int(newest[0]) - int(oldest[0]) >= 100:
+			break
+	var dt := maxf(float(int(newest[0]) - int(oldest[0])) / 1000.0, 0.05)
+	return (newest[1] as Vector3).distance_to(oldest[1] as Vector3) / dt
+
+
+## Could a pawn have moved `d` in `dt` seconds? Same speed caps as the server's claim check (#B1).
+static func claim_reachable_delta(p: Player, d: Vector3, dt: float) -> bool:
+	var h := Vector2(d.x, d.z).length()
+	return h <= p.NET_CLAIM_H_CAP * dt + p.NET_CLAIM_SLACK and absf(d.y) <= p.NET_CLAIM_V_CAP * dt + p.NET_CLAIM_SLACK
+
+
+## See net_pos. First pose, the server, or a jump past the travel budget snaps; the rest is buffered.
 ## On the server a claim is checked first: the client only gets to say where it is (#B1).
 static func receive_net_pos(p: Player, v: Vector3) -> void:
 	if p.multiplayer.is_server() and not p.is_bot:
 		p._accept_claim(v)
 		return
-	var smooth := p.is_inside_tree() and p._net_has and not p.multiplayer.is_server()
-	p._net_target = v
-	p._net_has = true
-	if not smooth or v.distance_to(p.position) > p.NET_SNAP_M:
-		p.position = v
+	push_remote_pose(p, v)
 
 
 ## #B1 server authority over position. Accept a claim only if the pawn could have reached it since the
@@ -98,9 +207,7 @@ static func accept_claim(p: Player, v: Vector3) -> void:
 
 ## Could a pawn have gone from where we have it to `v` in `dt` seconds?
 static func claim_reachable(p: Player, v: Vector3, dt: float) -> bool:
-	var d := v - p.position
-	var h := Vector2(d.x, d.z).length()
-	return h <= p.NET_CLAIM_H_CAP * dt + p.NET_CLAIM_SLACK and absf(d.y) <= p.NET_CLAIM_V_CAP * dt + p.NET_CLAIM_SLACK
+	return claim_reachable_delta(p, v - p.position, dt)
 
 
 ## LOS: the hands landed a bash and the body snaps to them. Both the server's copy and the owner's
@@ -110,21 +217,18 @@ static func apply_snap(p: Player, v: Vector3) -> void:
 	p.global_position = v
 	p._net_target = v
 	p._net_has = true
+	p._pose_buf.clear() # a cut, not a move to interpolate over
 	p._net_pos_ms = Time.get_ticks_msec()
 	p.velocity = Vector3.ZERO
 	if p._style != null:
 		p._style.forget_position() # a teleport, so it is never counted as a fall
 
 
-## Client-side glide of a remote human toward _net_target (frame-rate independent).
-## A local teleport of the pawn (e.g. a respawn RPC) re-bases the target instead of being pulled back.
+## Client-side pose of a remote human, drawn from the buffer (#361).
 static func smooth_remote(p: Player, delta: float) -> void:
-	if not p._net_has or p.multiplayer.is_server():
+	if p.multiplayer.is_server():
 		return
-	if p.position.distance_to(p._net_target) > p.NET_SNAP_M:
-		p._net_target = p.position
-		return
-	p.position = p._net_target + (p.position - p._net_target) * exp(-delta / p.NET_SMOOTH_S)
+	tick_remote(p, delta)
 
 
 static func apply_remote_visual(p: Player) -> void:

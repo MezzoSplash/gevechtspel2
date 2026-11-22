@@ -49,6 +49,17 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #361 remote pose interpolation: remote humans ($Sync) and remote bots (sync_bot_poses) both land in
+  `PawnNet`'s buffer (`push_remote_pose` / `tick_remote`) and are drawn `Game.net_delay_ms` behind the
+  newest pose, which measures the gaps between arrivals and sits at 55 ms on a clean link (what the old
+  glide cost) up to 150 ms on a lossy one. Lost or late poses no longer freeze a pawn; the buffer
+  extrapolates for at most `EXTRAP_MAX_MS` and a per-frame limiter keeps a reordered pose from
+  zig-zagging the path. A jump past the server's own travel budget (`claim_reachable_delta`) is a
+  respawn or an LOS snap and is still drawn at once. Bots now interpolate like humans instead of
+  snapping pose to pose. `LagComp.INTERP_MS` covers the delay and `LagComp.view_ms` subtracts it, so
+  shots are rewound to what the client drew. No protocol change. Check: `tools/check_net_interp`; the
+  end-to-end probe (`tools/net_jitter_probe` + `tools/netsim_proxy.py`) now reports per-frame steps and
+  ignores respawn teleports.
 - #358 MVP killcam: the round's best trick is chosen by combo payout first, whoever landed it; on an
   equal payout a human's kill outranks a bot's (`kbot`) and then a kill on a real player outranks one on
   a bot (#149). A bot's stray frag on the player no longer takes the killcam from the player who landed

@@ -299,11 +299,6 @@ var air_time := 0.0 # seconds with free space under the feet (the track's number
 ## dance helper made this go wrong).
 var _style: StyleTrack
 var _air_steer_locked := false # #152: no air steering from a wall jump until the floor or the next wallrun
-## One tick moving further than this is a teleport (respawn, admin moves, an LOS snap); snapshots move
-## less than a metre. Same idea as StyleTrack.TELEPORT_M, which guards the style track: this one guards
-## the network pose (`net_pos`), which runs on every machine, so it cannot lean on the authority-only
-## track. Keep the two values equal.
-const NET_SNAP_M := 3.0
 ## Server-side check on the position a client claims (#B1). A client owns its own pawn, so it also
 ## tells us where it is — and a modified client could say "I am across the map" and shoot from there.
 ## A claim is only accepted if the pawn could have got there since the last accepted one at the
@@ -313,11 +308,9 @@ const NET_CLAIM_V_CAP := 45.0 # m/s: free fall with a dive
 const NET_CLAIM_SLACK := 0.6 # m: a step up, a landing, one late snapshot
 const NET_CLAIM_MIN_DT := 0.05 # s: never judge against a window smaller than this
 const NET_CORRECTION_MS := 250 # ms between corrections: one is enough, we do not spam
-## Remote human pawns on a client glide toward the last received pose instead of snapping to it.
-## Time constant of that exponential smoothing; matches LagComp.INTERP_MS so lag compensation stays honest.
-const NET_SMOOTH_S := 0.05
-var _net_target := Vector3.ZERO # last pose received through $Sync (client side, remote humans only)
+var _net_target := Vector3.ZERO # last pose applied as a cut (snap, correction); the drawn pose is _pose_buf
 var _net_has := false # _net_target holds a real pose
+var _pose_buf: Array = [] # #361: [[arrival_ms, pos], ...] for remote humans and bots, drawn in PawnNet
 var _net_pos_ms := 0 # server: when we last accepted a position claim (#B1)
 var _corr_ms := 0 # server: when we last sent a correction (rate limit)
 
@@ -661,6 +654,7 @@ func _physics_process(delta: float) -> void:
 		_check_kill_y()
 	if is_bot:
 		if Game.is_networked() and not multiplayer.is_server():
+			_smooth_remote(delta) # #361: bots come from the same pose buffer as remote humans
 			_tick_remote_anim(delta)
 			_apply_remote_visual()
 			_tick_feet(delta)
@@ -739,8 +733,7 @@ func _enemy_in_sight() -> bool:
 	return PawnNet.enemy_in_sight(self)
 
 
-## See net_pos. First pose, the server, or a jump past NET_SNAP_M (respawn) snaps.
-## On the server a claim is checked first: the client only gets to say where it is (#B1).
+## Remote human pose from $Sync (`net_pos`), buffered and drawn a little behind the newest one (#361).
 func _receive_net_pos(v: Vector3) -> void:
 	PawnNet.receive_net_pos(self, v)
 
@@ -763,6 +756,7 @@ func apply_position_correction(v: Vector3) -> void:
 	position = v
 	_net_target = v
 	_net_has = true
+	_pose_buf.clear() # #361: the server's copy wins at once, no glide from our own buffer
 
 
 ## LOS: the hands landed a bash and the body snaps to them. Both the server's copy and the owner's

@@ -12,7 +12,9 @@ const HISTORY_MS := 1000
 ## Hard cap on how far back a shot may rewind, plus the snapshot interpolation allowance.
 ## 300 ms covers a real ~250 ms RTT. History is already ~1 s (#140).
 const MAX_REWIND_MS := 300
-const INTERP_MS := 50
+## Allowance for the client's own interpolation (#361: `Game.net_delay_ms`, at most PawnNet.DELAY_MAX_MS).
+## The client stamps a shot with the time of the world it was showing, which is that much older.
+const INTERP_MS := 150
 
 
 ## Server clock used for history and shot stamps (ms since the server started).
@@ -37,11 +39,12 @@ static func record(game: GameState) -> void:
 
 
 ## Client: the server time of the world this machine is showing now (0 until the first stamp).
-## Remote pawns arrive about one trip late, so the last server stamp plus local time since is close.
+## Remote pawns arrive about one trip late and are drawn `Game.net_delay_ms` behind the newest pose
+## (#361), so the estimate subtracts that interpolation delay as well.
 static func view_ms(game: GameState) -> int:
 	if game._server_clock_offset == 0:
 		return 0
-	return maxi(now_ms() + game._server_clock_offset, 1)
+	return maxi(now_ms() + game._server_clock_offset - game.net_delay_ms, 1)
 
 
 ## Client: remember the server stamp that came with sync_pings.
