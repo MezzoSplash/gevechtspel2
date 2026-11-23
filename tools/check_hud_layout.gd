@@ -58,6 +58,25 @@ func _check_size(sz: Vector2) -> void:
 	_ok(not _hit(rects, "Fps", "ChatLog"), "perf overlay clear of the chat log")
 	_ok(not _hit(rects, "Fps", "Bottom/Weapons"), "perf overlay clear of the weapon boxes")
 	_ok(not _hit(rects, "Fps", "KillFeed"), "perf overlay clear of the kill feed")
+	# #364: the network line shares that label, and it has to work with the perf overlay off — the
+	# switch decides whether the line exists, not the perf level. Checked at every size because the
+	# label grows a line instead of replacing one.
+	var was_net := Game.show_net
+	Game.perf_overlay = 0
+	Game.show_net = true
+	hud._apply_hud_settings()
+	for i in 2:
+		await get_tree().process_frame
+	var lab := hud.get_node("Fps") as Control
+	_ok(lab.visible, "net line shows the label with the perf overlay off")
+	var nr := lab.get_global_rect()
+	_ok(sz.x >= nr.end.x and sz.y >= nr.end.y, "net line inside the screen (%s)" % nr)
+	_ok(not nr.intersects((hud.get_node("Bottom/Weapons") as Control).get_global_rect()), "net line clear of the weapon boxes")
+	Game.show_net = was_net
+	Game.perf_overlay = 3
+	hud._apply_hud_settings()
+	for i in 2:
+		await get_tree().process_frame
 	# Bottom stack: the notice and RELOAD are rows of it now, not free-floating labels.
 	var rows := ["Bottom/Notice", "Bottom/Reloading", "Bottom/Speed", "Bottom/HpRow", "Bottom/Weapons"]
 	for i in rows.size():

@@ -93,7 +93,7 @@ func _ready() -> void:
 	Game.intermission_started.connect(show_intermission)
 	Game.killcam.finished.connect(_on_killcam_finished)
 	reload_label.visible = false
-	fps_label.visible = Game.show_fps
+	fps_label.visible = Game.perf_label_visible()
 	Game.hud_settings_changed.connect(_apply_hud_settings)
 	_apply_hud_settings()
 	death_layer.visible = false
@@ -129,15 +129,21 @@ func _apply_hud_settings() -> void:
 	if kill_feed:
 		kill_feed.visible = Game.show_killfeed
 	if fps_label:
-		fps_label.visible = Game.show_fps
+		fps_label.visible = Game.perf_label_visible()
 		fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	if overlay:
 		overlay.queue_redraw()
 
 
-## Perf overlay text: scripts/hud/perf_overlay.gd.
+## Perf overlay text: scripts/hud/perf_overlay.gd. With the network line on (#364) the perf block
+## keeps its own level and the net line is appended below it; with the perf overlay off the label
+## carries the net line alone.
 func _perf_text() -> String:
-	return _perf.text(get_viewport(), get_process_delta_time())
+	var block := _perf.text(get_viewport(), get_process_delta_time()) if Game.show_fps else ""
+	if not Game.show_net:
+		return block
+	var net := NetStats.text(Game, LagComp.INTERP_MS)
+	return net if block.is_empty() else block + "\n" + net
 
 
 ## The GPU time of the last frame (0 when the driver does not report it): PerfOverlay.gpu_ms.
@@ -631,8 +637,8 @@ func _process(delta: float) -> void:
 	if _standing_t <= 0.0:
 		_standing_t = 0.25
 		_refresh_standing()
-	fps_label.visible = Game.show_fps
-	if Game.show_fps:
+	fps_label.visible = Game.perf_label_visible()
+	if Game.perf_label_visible():
 		fps_label.text = _perf_text()
 	
 	var time_left: float = Game.get_round_time_left()

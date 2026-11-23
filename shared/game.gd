@@ -276,6 +276,22 @@ var perf_overlay := 3
 var show_fps: bool:
 	get:
 		return perf_overlay > 0
+## #364: the network line under the perf block (Settings > HUD > Network stats). Independent of
+## `perf_overlay`, so the numbers are readable with the fps overlay off; it just shares the label.
+var show_net := false
+
+
+## Whether the bottom-right debug label shows at all (the perf block, the network line, or both).
+func perf_label_visible() -> bool:
+	return show_fps or show_net
+
+
+func set_show_net(on: bool) -> void:
+	show_net = on
+	save_settings()
+	hud_settings_changed.emit()
+
+
 var music_vol := 1.0
 var ui_vol := 1.0
 var shadow_quality := 0 # SHADOWS_AUTO follows Graphics; then Off/Low/Medium/High

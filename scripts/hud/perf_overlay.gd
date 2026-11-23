@@ -9,7 +9,14 @@ var _gpu_measure := false
 
 
 ## The overlay's text for `vp` at the level in Game.perf_overlay (fps only, + frame time, or all).
-func text(vp: Viewport, delta: float) -> String:
+## `extra` is an optional line printed under the block (the network line, #364): the HUD decides
+## whether it is there, so the levels keep their meaning.
+func text(vp: Viewport, delta: float, extra: String = "") -> String:
+	var out := _block(vp, delta)
+	return out if extra.is_empty() else out + "\n" + extra
+
+
+func _block(vp: Viewport, delta: float) -> String:
 	var fps := Engine.get_frames_per_second()
 	if Game.perf_overlay <= 1:
 		return "%d fps" % fps

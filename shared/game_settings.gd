@@ -66,6 +66,7 @@ static func load_settings(g: GameState) -> void:
 		g.crosshair_size = clampf(float(cfg.get_value("hud", "crosshair_size", 1.0)), 0.5, 2.0)
 		g.show_minimap = bool(cfg.get_value("hud", "minimap", true))
 		g.show_killfeed = bool(cfg.get_value("hud", "killfeed", true))
+		g.show_net = bool(cfg.get_value("hud", "net_stats", false)) # #364
 		g.colorblind = clampi(int(cfg.get_value("access", "colorblind", 0)), 0, g.COLORBLIND_NAMES.size() - 1)
 		g.reduce_shake = bool(cfg.get_value("access", "reduce_shake", false))
 		g.speed_fx = bool(cfg.get_value("access", "speed_fx", true))
@@ -116,6 +117,7 @@ static func save_settings(g: GameState) -> void:
 	cfg.set_value("video", "render_scale", g.render_scale)
 	cfg.set_value("video", "msaa", g.msaa)
 	cfg.set_value("hud", "perf_overlay", g.perf_overlay)
+	cfg.set_value("hud", "net_stats", g.show_net)
 	cfg.set_value("video", "renderer", g.renderer_choice)
 	cfg.set_value("video", "quality", g.gfx_quality)
 	cfg.set_value("video", "view_sway", g.view_sway)
