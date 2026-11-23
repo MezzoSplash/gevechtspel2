@@ -310,18 +310,40 @@ const NET_CLAIM_MIN_DT := 0.05 # s: never judge against a window smaller than th
 const NET_CORRECTION_MS := 250 # ms between corrections: one is enough, we do not spam
 var _net_target := Vector3.ZERO # last pose applied as a cut (snap, correction); the drawn pose is _pose_buf
 var _net_has := false # _net_target holds a real pose
-var _pose_buf: Array = [] # #361: [[arrival_ms, pos], ...] for remote humans and bots, drawn in PawnNet
+var _pose_buf: Array = [] # #361: [[send_time_local_ms, pos], ...] for remote humans and bots, drawn in PawnNet
+var _pose_off_ms := 0 # #365: this sender's clock minus ours, the least delayed pose of the window
+var _pose_off_set_ms := 0 # when that window started
+var _pose_off_last := 0 # the last (arrival - sent); its spread tells if pose and stamp travel together
+var _pose_last_arrival_ms := 0 # when the last pose landed, for the arrival gap that sizes the buffer
+var _pose_rx_pos := Vector3.ZERO # last net_pos a client received, waiting for its stamp
+var _pose_rx_sent := 0 # last net_sent_ms received
+var _pose_rx_dirty := false # a packet landed: push it on the next tick, once both halves are in
+var _net_sent := 0 # owner side: our clock at the last movement tick, sent with net_pos
 var _net_pos_ms := 0 # server: when we last accepted a position claim (#B1)
 var _corr_ms := 0 # server: when we last sent a correction (rate limit)
 
 ## Replicated stand-in for `position` ($Sync, see _enter_tree). The owner reads its real position;
-## a receiver stores it as a target (_smooth_remote) so lost or jittery snapshots do not stutter.
+## a receiver buffers it (#361/#365) so lost or jittery snapshots do not stutter.
 ## The server applies it raw: hit tests and the lag-comp history must use the true pose.
 var net_pos: Vector3:
 	get:
 		return position
 	set(v):
 		_receive_net_pos(v)
+
+
+## #365: the sender's own clock when this pose was made, replicated ALWAYS next to `net_pos` so both
+## ride in one packet. Without it a client can only stamp poses on arrival, and a burst then looks like
+## four poses a couple of ms apart instead of the 130 ms of movement they describe.
+var net_sent_ms: int:
+	get:
+		return _net_sent
+	set(v):
+		_net_sent = v
+		if multiplayer.is_server() or is_local():
+			return
+		_pose_rx_sent = v
+		_pose_rx_dirty = true
 
 
 ## Bots are never "local" (no camera/input), even in offline 5v5.
@@ -664,11 +686,14 @@ func _physics_process(delta: float) -> void:
 		_tick_feet(delta)
 		return
 	if not is_local():
+		_flush_remote_pose()
 		_smooth_remote(delta)
 		_tick_remote_anim(delta)
 		_apply_remote_visual()
 		_tick_feet(delta)
 		return
+	# The owner stamps its own clock with each pose, so every receiver has the send time (#365).
+	_net_sent = Time.get_ticks_msec()
 	# The local human: one movement tick in phases (scripts/move_tick.gd).
 	MoveTick.run(self, delta)
 
@@ -699,8 +724,9 @@ func _tick_feet(delta: float) -> void:
 
 ## Client-side bot transform from Game.sync_bot_poses (Synchronizer is off for bots).
 ## `stance` (optional, newer servers): [crouch, move_fx], so remote bots crouch, dive and wall-run visibly.
-func apply_network_pose(pos: Vector3, yaw: float, pitch: float, stance: Array = []) -> void:
-	PawnNet.apply_network_pose(self, pos, yaw, pitch, stance)
+## `sent_ms` (#365): the server clock when the pose was made; 0 from an older server.
+func apply_network_pose(pos: Vector3, yaw: float, pitch: float, stance: Array = [], sent_ms: int = 0) -> void:
+	PawnNet.apply_network_pose(self, pos, yaw, pitch, stance, sent_ms)
 
 
 ## Where bots aim: chest height of the current stance (crouch is 1.0 m tall, not 1.8).
@@ -733,9 +759,23 @@ func _enemy_in_sight() -> bool:
 	return PawnNet.enemy_in_sight(self)
 
 
-## Remote human pose from $Sync (`net_pos`), buffered and drawn a little behind the newest one (#361).
+## Remote human pose from $Sync (`net_pos`) plus its sender stamp (`net_sent_ms`): both arrive in one
+## replication packet, so the push waits one tick until both halves are in (#365). On the server this is
+## the #B1 claim check, not a buffered pose.
 func _receive_net_pos(v: Vector3) -> void:
-	PawnNet.receive_net_pos(self, v)
+	if multiplayer.is_server() and not is_bot:
+		PawnNet.receive_net_pos(self, v)
+		return
+	_pose_rx_pos = v
+	_pose_rx_dirty = true
+
+
+## A received human pose, pushed once with the stamp that came with it.
+func _flush_remote_pose() -> void:
+	if not _pose_rx_dirty:
+		return
+	_pose_rx_dirty = false
+	PawnNet.push_remote_pose(self, _pose_rx_pos, _pose_rx_sent)
 
 
 ## #B1 server authority over position. Accept a claim only if the pawn could have reached it since the

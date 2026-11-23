@@ -370,28 +370,33 @@ static func apply_regen(g: GameState, batch: Array) -> void:
 
 
 ## Listen server: bots have MultiplayerSynchronizer off, so their poses go out from here each tick.
+## #365: every pose carries the server clock, so a client interpolates on the sender's timeline instead
+## of on arrival times (a burst then no longer reads as four poses a few ms apart).
 static func push_bot_poses(g: GameState) -> void:
 	if g.multiplayer.get_peers().is_empty():
 		return
+	var sent := LagComp.now_ms()
 	var poses: Array = []
 	for n in g.get_tree().get_nodes_in_group("player"):
 		var p := n as Player
 		if p == null or not p.is_bot:
 			continue
-		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx])
+		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx, sent])
 	if poses.is_empty():
 		return
 	g.sync_bot_poses.rpc(poses)
 
 
-## Client (sync_bot_poses): [peer_id, pos, yaw, pitch, crouch, move_fx] per bot.
+## Client (sync_bot_poses): [peer_id, pos, yaw, pitch, crouch, move_fx, sent] per bot.
+## A 0.5.20 server sends six entries and no stamp; the buffer then falls back to arrival times.
 static func apply_bot_poses(g: GameState, poses: Array) -> void:
 	for entry in poses:
 		if typeof(entry) != TYPE_ARRAY or entry.size() < 4:
 			continue
 		var p := g.player_for_peer(int(entry[0]))
 		if p and p.is_bot:
-			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), entry.slice(4, 6))
+			var sent := int(entry[6]) if entry.size() > 6 else 0
+			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), entry.slice(4, 6), sent)
 
 
 ## Client (sync_roster): remote pawns the server no longer has are removed.

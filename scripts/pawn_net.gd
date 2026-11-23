@@ -8,8 +8,9 @@ extends RefCounted
 
 ## Client-side bot transform from Game.sync_bot_poses (Synchronizer is off for bots).
 ## `stance` (optional, newer servers): [crouch, move_fx], so remote bots crouch, dive and wall-run visibly.
-static func apply_network_pose(p: Player, pos: Vector3, yaw: float, pitch: float, stance: Array = []) -> void:
-	push_remote_pose(p, pos) # #361: the drawn position comes from the buffer, the rest is immediate
+## `sent_ms` (#365): the server clock when the pose was made; 0 from an older server.
+static func apply_network_pose(p: Player, pos: Vector3, yaw: float, pitch: float, stance: Array = [], sent_ms: int = 0) -> void:
+	push_remote_pose(p, pos, sent_ms) # the drawn position comes from the buffer, the rest is immediate
 	p.rotation.y = yaw
 	p._yaw = yaw
 	p._pitch = pitch
@@ -65,85 +66,133 @@ static func enemy_in_sight(p: Player) -> bool:
 	return false
 
 
-## --- #361: remote pose interpolation ---
-## Poses of remote humans ($Sync) and remote bots (sync_bot_poses) wait in a small buffer and are drawn
-## slightly behind the newest one, so a lost or late packet is covered by the next pose instead of the
-## pawn freezing and then jumping across the map. The delay follows the measured gap between arrivals:
-## on a LAN it stays at DELAY_MIN_MS (about what the old glide cost), on a lossy link it grows to
-## DELAY_MAX_MS. `Game.net_delay_ms` holds the value the whole machine uses, so LagComp stays honest.
+## --- #361/#365: remote pose interpolation on the sender's clock ---
+## Every pose carries the time its sender stamped it with (`sent`), so order and spacing come from the
+## sender, not from the network. Before this the client stamped poses on arrival, and a burst of four
+## poses covering 130 ms got four arrival stamps a few ms apart: the pawn raced through them, stopped,
+## and then extrapolated (also upwards, hence the hovering). The client maps the sender's clock onto
+## its own with the smallest (arrival - sent) it has seen in the last OFFSET_WINDOW_MS, and draws
+## `Game.net_delay_ms` behind the newest pose. That delay rises at most DELAY_UP_MS_S and falls at most
+## DELAY_DOWN_MS_S, so the render time never jumps in a frame.
 const DELAY_MIN_MS := 55
 const DELAY_MAX_MS := 150
-## A stall longer than this stops the pawn where it is instead of throwing it forward.
-const EXTRAP_MAX_MS := 150
-const BUFFER_MAX := 60 # ~2 s of poses at 30 Hz
-const GAP_DECAY := 0.98 # per arrival: the delay falls back within a second or two of a clean link
+const DELAY_UP_MS_S := 600.0 # per second: covers a burst within ~0.2 s, ~5 ms per frame
+const DELAY_DOWN_MS_S := 10.0
+## A stall longer than this carries the last horizontal motion, never vertically (#365).
+const EXTRAP_MAX_MS := 80
+const BUFFER_MAX := 90
+const OFFSET_WINDOW_MS := 5000 # clock offset = the smallest delay seen in this window
+const STALE_KEEP_MS := 300 # a pose this far behind the newest is a late duplicate: dropped
+const GAP_DECAY := 0.98 # per pose: the delay target falls back within a second or two of a clean link
 
 
-## A pose arrived for `p` (client side). `at_ms` is its arrival time; negative means now (checks pass it).
-## A jump the server would refuse as a claim is a teleport (respawn, LOS snap, a correction), so that one
-## is drawn at once instead of sliding the pawn over the map.
-static func push_remote_pose(p: Player, pos: Vector3, at_ms: int = -1) -> void:
-	var t := Time.get_ticks_msec() if at_ms < 0 else at_ms
-	if p._pose_buf.is_empty():
-		p.position = pos
-	else:
-		var last: Array = p._pose_buf[-1]
-		_note_gap(t - int(last[0]))
-		var dt := maxf(float(t - int(last[0])) / 1000.0, p.NET_CLAIM_MIN_DT)
-		if not claim_reachable_delta(p, pos - (last[1] as Vector3), dt):
+## A pose arrived for `p` (client side). `sent_ms` is the sender's own stamp (0: none, older peer or an
+## old server, then the arrival time is used). `at_ms` is when it arrived; negative means now, checks
+## pass their own timeline. A jump the server would refuse as a claim is a teleport (respawn, LOS snap,
+## a correction) and is drawn at once instead of sliding the pawn over the map.
+static func push_remote_pose(p: Player, pos: Vector3, sent_ms: int = 0, at_ms: int = -1) -> void:
+	var arrival := Time.get_ticks_msec() if at_ms < 0 else at_ms
+	if sent_ms <= 0:
+		sent_ms = arrival
+	_note_offset(p, arrival - sent_ms, arrival)
+	_note_gap(p, arrival)
+	var t := sent_ms + p._pose_off_ms
+	if not p._pose_buf.is_empty():
+		var newest: Array = p._pose_buf[-1]
+		if t < int(newest[0]) - STALE_KEEP_MS:
+			return # far too late: drawing it would drag the pawn backwards
+		var dt := maxf(float(t - int(newest[0])) / 1000.0, p.NET_CLAIM_MIN_DT)
+		if not claim_reachable_delta(p, pos - (newest[1] as Vector3), dt):
 			p._pose_buf.clear()
 			p.position = pos
-	p._pose_buf.append([t, pos])
+	_insert_pose(p, t, pos)
+
+
+## Sorted on the sender's time, so a pose that a burst delivered out of order still lands in the right
+## slot instead of being glued to the end of the buffer.
+static func _insert_pose(p: Player, t: int, pos: Vector3) -> void:
+	var i := p._pose_buf.size()
+	while i > 0 and int(p._pose_buf[i - 1][0]) > t:
+		i -= 1
+	p._pose_buf.insert(i, [t, pos])
 	while p._pose_buf.size() > BUFFER_MAX:
 		p._pose_buf.pop_front()
 
 
-## The interpolation delay this machine is using right now, in ms, from the gaps it has been seeing.
-static func _note_gap(gap_ms: int) -> void:
-	var peak := maxf(Game._net_pose_peak_ms * GAP_DECAY, float(gap_ms))
-	Game._net_pose_peak_ms = peak
-	Game.net_delay_ms = clampi(int(1.5 * peak), DELAY_MIN_MS, DELAY_MAX_MS)
+## The sender's clock onto ours: the least delayed pose of the window is the closest to a constant
+## offset. A window instead of an all-time minimum lets it follow drift and a reconnect.
+static func _note_offset(p: Player, diff_ms: int, arrival: int) -> void:
+	p._pose_off_last = diff_ms
+	if p._pose_off_ms == 0 or arrival - p._pose_off_set_ms > OFFSET_WINDOW_MS or diff_ms < p._pose_off_ms:
+		p._pose_off_ms = diff_ms
+		p._pose_off_set_ms = arrival
 
 
-## Client: draw remote pawn `p` at the buffered pose `Game.net_delay_ms` behind the newest one (#361).
+## The delay has to cover how bunched the arrivals are, not how regular the sender is: with poses going
+## out at 30 Hz but landing four at a time every 133 ms, only the arrival gap says how much buffer is
+## needed. The stamps still decide the order and the spacing.
+static func _note_gap(p: Player, arrival: int) -> void:
+	if p._pose_last_arrival_ms > 0 and arrival > p._pose_last_arrival_ms:
+		Game._net_pose_peak_ms = maxf(Game._net_pose_peak_ms * GAP_DECAY, float(arrival - p._pose_last_arrival_ms))
+	if arrival > p._pose_last_arrival_ms:
+		p._pose_last_arrival_ms = arrival
+
+
+## The machine-wide delay, stepped once per frame (many pawns tick): up quickly, down slowly (#365).
+## `now` is the clock being rendered at, so a check can drive it with its own timeline.
+static func _step_delay(now: int, delta: float) -> void:
+	if now == Game._net_delay_step_ms:
+		return
+	Game._net_delay_step_ms = now
+	var target := clampf(1.5 * Game._net_pose_peak_ms, float(DELAY_MIN_MS), float(DELAY_MAX_MS))
+	var f := Game._net_delay_f
+	f = move_toward(f, target, (DELAY_UP_MS_S if target > f else DELAY_DOWN_MS_S) * maxf(delta, 0.001))
+	Game._net_delay_f = f
+	Game.net_delay_ms = int(f)
+
+
+## Client: draw remote pawn `p` at the pose `Game.net_delay_ms` behind the newest one.
 ## `at_ms` is the clock to render at; negative means now (checks pass their own timeline).
 static func tick_remote(p: Player, delta: float, at_ms: int = -1) -> void:
 	if p._pose_buf.is_empty():
 		return
-	var from_pos := p.position
 	var now := Time.get_ticks_msec() if at_ms < 0 else at_ms
+	_step_delay(now, delta)
 	var at := float(now - Game.net_delay_ms)
 	var newest: Array = p._pose_buf[-1]
-	var out := p.position
-	if at >= float(newest[0]):
-		# Nothing newer arrived: carry the last motion for a moment, then stand still.
+	if at > float(newest[0]):
+		# Nothing newer has arrived: carry the last horizontal motion briefly. Never vertically, so a
+		# jump ends on the last known height instead of hanging above its apex (#365).
 		var ext := minf(at - float(newest[0]), EXTRAP_MAX_MS) / 1000.0
-		out = (newest[1] as Vector3) + _pose_velocity(p) * ext
-	else:
-		# Drop the samples the render time has passed, keeping one behind it for the lerp.
-		while p._pose_buf.size() > 2 and float(p._pose_buf[1][0]) <= at:
-			p._pose_buf.pop_front()
-		var found := false
-		for i in range(p._pose_buf.size() - 1):
-			var s0: Array = p._pose_buf[i]
-			var s1: Array = p._pose_buf[i + 1]
-			if at >= float(s0[0]) and at <= float(s1[0]):
-				var span := maxf(float(s1[0]) - float(s0[0]), 0.001)
-				out = (s0[1] as Vector3).lerp(s1[1] as Vector3, (at - float(s0[0])) / span)
-				found = true
-				break
-		if not found:
-			# Behind every sample we still hold (a stall): take the oldest instead of guessing.
-			out = p._pose_buf[0][1]
-	p.position = out
-	# Jitter reorders poses, so a sample can sit behind the previous one. Limit how far the drawn pawn
-	# may move in one frame to the speed of the stream plus a margin: the path stays continuous instead
-	# of zig-zagging, and on a clean link nothing is limited.
+		var vel := _pose_velocity(p)
+		var d: Vector3 = newest[1]
+		_draw(p, Vector3(d.x + vel.x * ext, d.y, d.z + vel.z * ext), delta)
+		return
+	var a: Array = p._pose_buf[0]
+	var b: Array = p._pose_buf[0]
+	for i in range(p._pose_buf.size() - 1, -1, -1):
+		if float(p._pose_buf[i][0]) <= at:
+			a = p._pose_buf[i]
+			b = p._pose_buf[mini(i + 1, p._pose_buf.size() - 1)]
+			break
+	var out: Vector3 = a[1]
+	if float(b[0]) > float(a[0]) and float(b[0]) > at:
+		out = (a[1] as Vector3).lerp(b[1] as Vector3, (at - float(a[0])) / float(int(b[0]) - int(a[0])))
+	_draw(p, out, delta)
+	# Drop what the render time has left behind, keeping a couple of samples for the lerp.
+	while p._pose_buf.size() > 3 and float(p._pose_buf[1][0]) <= at:
+		p._pose_buf.pop_front()
+
+
+## Put the drawn pawn down, limiting how far it may move in one frame to the stream's own speed plus a
+## margin: a sample that a burst left slightly out of order cannot zig-zag the path, and on a clean link
+## nothing is limited.
+static func _draw(p: Player, out: Vector3, delta: float) -> void:
+	var from := p.position
 	var lim := (_pose_speed(p) + 3.0) * maxf(delta, 0.001)
-	if lim > 0.0 and out.distance_to(from_pos) > lim:
-		var dir := (out - from_pos).normalized()
-		if dir != Vector3.ZERO:
-			p.position = from_pos + dir * lim
+	if out.distance_to(from) > lim and lim > 0.0:
+		out = from + (out - from).normalized() * lim
+	p.position = out
 
 
 ## Metres per second over the last two poses, capped at what the server accepts as movement.
@@ -157,8 +206,8 @@ static func _pose_velocity(p: Player) -> Vector3:
 	return v.limit_length(p.NET_CLAIM_H_CAP)
 
 
-## The stream's own speed over ~100 ms of samples. Steadier than two neighbouring poses, which jitter
-## reorders: the frame limiter must not read a reordered pair as a 100 m/s dash (#361).
+## The stream's own speed over ~100 ms of samples, from the sender's clock (steady, unlike an arrival
+## timeline during a burst).
 static func _pose_speed(p: Player) -> float:
 	if p._pose_buf.size() < 2:
 		return 0.0
@@ -180,11 +229,11 @@ static func claim_reachable_delta(p: Player, d: Vector3, dt: float) -> bool:
 
 ## See net_pos. First pose, the server, or a jump past the travel budget snaps; the rest is buffered.
 ## On the server a claim is checked first: the client only gets to say where it is (#B1).
-static func receive_net_pos(p: Player, v: Vector3) -> void:
+static func receive_net_pos(p: Player, v: Vector3, sent_ms: int = 0) -> void:
 	if p.multiplayer.is_server() and not p.is_bot:
 		p._accept_claim(v)
 		return
-	push_remote_pose(p, v)
+	push_remote_pose(p, v, sent_ms)
 
 
 ## #B1 server authority over position. Accept a claim only if the pawn could have reached it since the
