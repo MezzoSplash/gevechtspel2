@@ -19,8 +19,15 @@ const WEAPON_ID := &"melee"
 ## Shank (#145). Front is the bash (two hits). The rear arc is one hit. A side is a front.
 const SHANK_ID := &"shank"
 const SHANK_RANGE := 2.2
-const SHANK_CONE_DEG := 28.0
-const SHANK_CLOSE_CONE_DEG := 50.0
+## #373: the same cones as the bash. A stab is a short melee hit, not a precision tool, and with 28 deg a
+## sprinting stab missed everything the player saw in front of them.
+const SHANK_CONE_DEG := 40.0
+const SHANK_CLOSE_CONE_DEG := 75.0
+## The target may sit this far off the look direction when the lunge is planned: the step is aimed at the
+## body, not at the crosshair.
+const SHANK_PICK_CONE_DEG := 45.0
+## The lunge stops this far in front of the target's body, so the stab lands on it instead of past it.
+const LUNGE_STOP := 0.3
 const SHANK_SLACK := 0.25 # less than the bash: the lunge already reaches
 const FRONT_DAMAGE := 50.0
 const BACK_DAMAGE := 100.0
@@ -78,7 +85,7 @@ static func _flat(dir: Vector3) -> Vector3:
 ## when they are off the ground, or when they already move faster than the lunge: the lunge sets the
 ## horizontal velocity, so a stab mid-surf, mid-grapple or mid-carry would brake the run and bend its
 ## line, and in the air it would be a free air-dash. Those stabs keep plain SHANK_RANGE reach.
-func lunge_distance(p: Player, look_dir: Vector3) -> float:
+static func lunge_distance(p: Player, look_dir: Vector3) -> float:
 	if p == null or not p.at_sprint():
 		return 0.0
 	if p.flat_speed() >= LUNGE_M / LUNGE_TIME:
@@ -102,6 +109,59 @@ func lunge_distance(p: Player, look_dir: Vector3) -> float:
 	return maxf(from.distance_to(hit.position) - 0.35, 0.0)
 
 
+## #373: the enemy a stab is aimed at. Chosen before the lunge, in a wider cone than the hit itself, with
+## no wall in between, so the step can stop right in front of that body instead of running past it.
+static func shank_target(p: Player, look_dir: Vector3) -> Player:
+	var dir := _flat(look_dir)
+	if p == null or dir == Vector3.ZERO:
+		return null
+	var eye := p.global_position + Vector3(0.0, 1.4, 0.0)
+	var space := p.get_world_3d().direct_space_state
+	var best: Player = null
+	var best_d := INF
+	for n in p.get_tree().get_nodes_in_group("player"):
+		var v := n as Player
+		if v == null or v == p or v.is_dead or v.is_queued_for_deletion():
+			continue
+		if not Game.is_enemy(v, p):
+			continue
+		var to := _flat(v.global_position - p.global_position)
+		var d := to.length()
+		if d < 0.05 or d > LUNGE_M + SHANK_RANGE or d >= best_d:
+			continue
+		if rad_to_deg(dir.angle_to(to)) > SHANK_PICK_CONE_DEG:
+			continue
+		if space != null:
+			var q := PhysicsRayQueryParameters3D.create(eye, v.global_position + Vector3(0, 1.0, 0))
+			q.collision_mask = WORLD_MASK
+			q.exclude = [p.get_rid()]
+			if not space.intersect_ray(q).is_empty():
+				continue
+		best = v
+		best_d = d
+	return best
+
+
+## Where the step goes: straight at the target, stopping just in front of its body, and never through a
+## wall and never further than LUNGE_M. Without a target it is the plain step along the look direction.
+## Returns [direction, distance]; the direction is flat.
+static func shank_step(p: Player, look_dir: Vector3, target: Player) -> Array:
+	var dir := _flat(look_dir)
+	if dir == Vector3.ZERO:
+		return [dir, 0.0]
+	if target != null and is_instance_valid(target) and not target.is_dead:
+		var to := _flat(target.global_position - p.global_position)
+		if to != Vector3.ZERO:
+			dir = to
+	var room := lunge_distance(p, dir) # 0 when not sprinting on the ground: no step, no reach stretch
+	if room <= 0.0:
+		return [dir, 0.0]
+	if target != null and is_instance_valid(target):
+		var gap := maxf(p.global_position.distance_to(target.global_position) - BODY_R - LUNGE_STOP, 0.0)
+		room = minf(room, minf(gap, LUNGE_M))
+	return [dir, room]
+
+
 ## Local human or a bot on the authority. Returns false when the swing is not ready.
 func swing(p: Player) -> bool:
 	return _swing(p, false)
@@ -121,20 +181,28 @@ func _swing(p: Player, shank: bool) -> bool:
 	var origin := p.camera.global_position
 	var dir := -p.camera.global_transform.basis.z
 	var lunge := 0.0
+	var aim := dir
 	if shank:
-		lunge = lunge_distance(p, dir)
-		# The body moves on the machine that simulates it. A remote human's server copy does not.
+		# #373: pick the body first, then step to it. The step used to run the full 2.5 m past anything
+		# closer than that, so the stab started behind the target and missed.
+		var plan := shank_step(p, dir, shank_target(p, dir))
+		aim = plan[0]
+		lunge = float(plan[1])
 		if lunge > 0.05 and (p.is_local() or p.is_bot):
-			p.start_lunge(dir, lunge)
+			p.start_lunge(aim, lunge)
 	if Game.is_networked() and not multiplayer.is_server():
 		request_melee.rpc_id(1, origin, dir)
 		return true
-	var eye := origin
 	var reach := RANGE
+	var path_end := Vector3.INF
 	if shank:
-		eye = origin + _flat(dir) * lunge
+		# #373 review: the step runs from the eye where the stab starts to where the lunge ends. Passing the
+		# end as both ends made the "whole path" a point, so a body that moved off the planned spot (a
+		# server copy that is newer than what the client aimed at) was judged from the end only.
+		path_end = origin + _flat(aim) * lunge
 		reach = SHANK_RANGE
-	var res := resolve(p, eye, dir, reach, DAMAGE, shank)
+		dir = aim
+	var res := resolve(p, origin, dir, reach, DAMAGE, shank, path_end)
 	_report(p, res)
 	return true
 
@@ -168,12 +236,17 @@ func request_melee(origin: Vector3, look_dir: Vector3) -> void:
 	var shank := p.weapon.def != null and p.weapon.def.melee
 	# Reach is measured from our copy of the eye, so the 4 m origin tolerance cannot stretch it.
 	var eye := p.camera.global_position
+	var start := eye
 	var reach := RANGE + SERVER_SLACK
+	var aim := look_dir
 	if shank:
-		var lunge := lunge_distance(p, look_dir)
-		eye = eye + _flat(look_dir) * lunge
+		# #373: the same target and the same step as the client, from our own copy of the pawns, so the
+		# server does not judge a stab at a body the step already went past.
+		var plan := shank_step(p, look_dir, shank_target(p, look_dir))
+		aim = plan[0]
+		eye = eye + _flat(aim) * float(plan[1])
 		reach = SHANK_RANGE + SHANK_SLACK
-	var res := resolve(p, eye, look_dir, reach, DAMAGE, shank)
+	var res := resolve(p, start, aim, reach, DAMAGE, shank, eye if shank else Vector3.INF)
 	if not Game.is_dedicated:
 		p.weapon.play_melee()
 		if res.hit:
@@ -211,11 +284,15 @@ func _take_cooldown(peer: int) -> bool:
 ## `damage` is normally DAMAGE; the LOS hands pass a lethal number, which is that streak's payoff.
 ## `shank` picks 100 or 50 from where the eye sits relative to the victim's back, and tags the kill
 ## as "shank" so Gun Game still demotes.
-func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float, damage: float = DAMAGE, shank: bool = false) -> Dictionary:
+## `path_end` (#373): where the stab's eye is after a lunge. The hit is tested against the whole step from
+## the eye to that point, so a body the lunge passes through is still a hit; without it the test is the
+## single point it always was.
+func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float, damage: float = DAMAGE, shank: bool = false, path_end: Vector3 = Vector3.INF) -> Dictionary:
 	var out := {"hit": false, "killed": false}
 	if not Game._is_match_authority() or look_dir.length_squared() < 0.0001:
 		return out
 	var dir := look_dir.normalized()
+	var end := origin if path_end == Vector3.INF else path_end
 	var space := attacker.get_world_3d().direct_space_state
 	var best: Player = null
 	var best_d := INF
@@ -229,15 +306,20 @@ func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float,
 		if not Game.is_enemy(v, attacker):
 			continue
 		var feet := v.global_position + Vector3(0, 0.25, 0)
-		var pt := Geometry3D.get_closest_point_to_segment(origin, feet, v.head_point())
-		var to := pt - origin
+		var pair := Geometry3D.get_closest_points_between_segments(origin, end, feet, v.head_point())
+		var near: Vector3 = pair[0]
+		var pt: Vector3 = pair[1]
+		var to := pt - near
 		var d := to.length() - BODY_R
 		if d > reach or d >= best_d:
 			continue
 		var cone := cone_near if to.length() < CLOSE else cone_far
-		if to.length() > 0.05 and rad_to_deg(dir.angle_to(to)) > cone:
+		# #373 review: a step that runs through the body (closer than its radius) hits whatever the angle;
+		# the line from the path to the body's axis is then near vertical and failed the cone. Bash unchanged.
+		var inside := BODY_R if shank and end != origin else 0.05
+		if to.length() > inside and rad_to_deg(dir.angle_to(to)) > cone:
 			continue
-		var query := PhysicsRayQueryParameters3D.create(origin, pt)
+		var query := PhysicsRayQueryParameters3D.create(near, pt)
 		query.collision_mask = WORLD_MASK
 		if not space.intersect_ray(query).is_empty():
 			continue
@@ -253,7 +335,7 @@ func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float,
 	var weapon_id := WEAPON_ID
 	if shank:
 		weapon_id = SHANK_ID
-		hit_damage = shank_damage_for(-best.global_transform.basis.z, origin - best.global_position)
+		hit_damage = shank_damage_for(-best.global_transform.basis.z, end - best.global_position)
 	Game.begin_melee_ctx(attacker, origin) # SURF / DROP KILL use the swing. During LOS that origin is the hands, not the eye.
 	var r := best.apply_hit(best_pt, -dir, hit_damage, false, killer_id, weapon_id, 1.0, attacker.global_position)
 	Game.end_melee_ctx()
