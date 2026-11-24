@@ -23,6 +23,7 @@ fire_sound = ExtResource("2_fire")
 pellet_count = 1
 ads_mode = 1
 ads_fov = 72.0
+ads_spread_mult = 0.6
 ads_time = 0.2
 automatic = false
 falloff_start_m = 14.0
