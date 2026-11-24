@@ -750,4 +750,4 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.41797668, 0.05710098, 0)
 transform = Transform3D(-8.742278e-09, 0, 0.2, 0, 0.2, 0, -0.2, 0, -8.742278e-09, 0, 0, 0)
 
 [node name="Sight" type="Marker3D" parent="." unique_id=440911548]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.16, 0.045, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.31237438, 0.11604747, 0)
