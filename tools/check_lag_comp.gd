@@ -3,7 +3,9 @@ extends Node
 ##   godot --headless res://tools/check_lag_comp.tscn
 ## Shooter and target float high above the map (nothing else in the ray), the target slides along x
 ## while LagComp records it each physics tick, then one ray aims at its position 150 ms ago.
-## Also proves rewind_ms_for clamps a far-past stamp to MAX_REWIND_MS + INTERP_MS.
+## Also proves rewind_ms_for clamps a far-past stamp to MAX_REWIND_MS + INTERP_MS, and that a shot
+## stamped with the world the client drew (delayed by the interpolation buffer, #365) still rewinds far
+## enough for a low-ping shooter to hit what he saw.
 const BACK_MS := 150
 var target: Player
 const SPEED := 10.0 # m/s: 1.5 m in BACK_MS, well clear of the capsule
@@ -63,7 +65,22 @@ func _ready() -> void:
 	var miss := _shoot(me, origin, dir, def, 0)
 	var hit := _shoot(me, origin, dir, def, BACK_MS)
 	print("without rewind hit=%s, with rewind hit=%s" % [miss, hit])
-	_done(not miss and hit, "")
+	# #365: while remote poses are drawn behind the wall clock, the client stamps its shot with the older
+	# world it was looking at. The server has to rewind that far, or a low-ping shooter never hits.
+	Game.net_delay_ms = PawnNet.DELAY_MAX_MS
+	var view := LagComp.now_ms() - Game.net_delay_ms
+	Game.pings[2] = 40 # low ping: without the interpolation allowance the cap would be far too small
+	var back := LagComp.rewind_ms_for(Game, 2, view)
+	if back < Game.net_delay_ms - 20:
+		_done(false, "active delay not covered: rewind %d ms for a %d ms delay" % [back, Game.net_delay_ms])
+		return
+	var drawn: Variant = LagComp.transform_at(Game, target, back)
+	var aim_drawn := (drawn as Transform3D).origin + Vector3(0, 1.0, 0)
+	var hit_drawn := _shoot(me, origin, (aim_drawn - origin).normalized(), def, back)
+	Game.pings.erase(2)
+	Game.net_delay_ms = PawnNet.DELAY_MIN_MS
+	print("active delay %d ms: rewind %d ms, hit at the drawn pose=%s" % [PawnNet.DELAY_MAX_MS, back, hit_drawn])
+	_done(not miss and hit and hit_drawn, "" if hit_drawn else "shot at the drawn pose missed")
 
 
 func _shoot(me: Player, origin: Vector3, dir: Vector3, def: WeaponDef, back: int) -> bool:

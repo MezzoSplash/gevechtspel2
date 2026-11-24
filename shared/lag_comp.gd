@@ -39,8 +39,10 @@ static func record(game: GameState) -> void:
 
 
 ## Client: the server time of the world this machine is showing now (0 until the first stamp).
-## Remote pawns arrive about one trip late and are drawn `Game.net_delay_ms` behind the newest pose
-## (#361), so the estimate subtracts that interpolation delay as well.
+## Remote poses carry their sender's clock (#365) and are drawn `Game.net_delay_ms` behind the newest,
+## so the estimate subtracts that delay. A bot's stamp is server time already; a human's is its own clock
+## mapped onto ours by PawnNet's per-pawn offset, which lands on the same instant within the error of
+## `_server_clock_offset` (from sync_pings). That error is what INTERP_MS below covers.
 static func view_ms(game: GameState) -> int:
 	if game._server_clock_offset == 0:
 		return 0

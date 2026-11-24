@@ -49,6 +49,25 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 
 ## Recent work
 
+- #365 sender time on every pose: a remote pose now carries the time its sender stamped it with, so the
+  buffer (see #361 below) orders and spaces poses by the sender's clock instead of by when they arrived.
+  Bots: a seventh entry in `sync_bot_poses` (`LagComp.now_ms()`). Humans: the ALWAYS-replicated
+  `net_sent_ms` next to `net_pos` in `$Sync`; the stamp's setter pushes the pair at once (the
+  synchronizer sets net_pos first), because waiting for the next tick kept only the last pose of a
+  burst. The client maps the sender's clock onto its own with the *average* `arrival - sent` of ~2 s of
+  poses (`OFFSET_AVG_POSES`; the fastest pose ever seen put most poses 200+ ms late on a jittery link
+  and froze the pawn), inserts a late pose on its own time, and drops one older than newest -
+  `STALE_KEEP_MS`. The delay that sizes the buffer follows how late a pose is against its own stamp
+  plus the stamp gap before it (`_note_late`; arrival gaps only without stamps), rises at
+  `DELAY_UP_MS_S` and falls at `DELAY_DOWN_MS_S`, so the render time moves a few ms
+  per frame. Extrapolation is horizontal only (`EXTRAP_MAX_MS` 80) so a jump ends on the last known
+  height instead of hanging above its apex, and the stale branch holds still instead of drawing an old
+  sample. The first pose of a stream (a join, after a cut) is drawn where it is, not slid over from the
+  node's old spot; an unstamped `sync_pawns` roster copy never enters a stamped stream. `NET_VERSION` 0.5.21: a 0.5.20 peer neither sends nor reads the stamp. Checks:
+  `tools/check_net_interp` (drawn vs. the sender's real position, bursts, a jump that must reach its
+  apex, 15 s across offset drift, a 400 ms hole, out-of-order, a four-packet human burst in one frame,
+  the unstamped roster copy, the first pose, no stamp from an old server)
+  and `tools/check_lag_comp` (a shot stamped with the delayed world still rewinds far enough).
 - #361 remote pose interpolation: remote humans ($Sync) and remote bots (sync_bot_poses) both land in
   `PawnNet`'s buffer (`push_remote_pose` / `tick_remote`) and are drawn `Game.net_delay_ms` behind the
   newest pose, which measures the gaps between arrivals and sits at 55 ms on a clean link (what the old
