@@ -269,6 +269,25 @@ func _ready() -> void:
 	_p._flush_remote_pose()
 	_ok(_p._pose_buf.size() == 4, "a burst of four human packets in one frame keeps all four poses (%d)" % _p._pose_buf.size())
 
+	# sync_bot_poses end to end (#371 review): an entry built like the server builds it keeps its stamp at
+	# the index the client reads. A slide flag in the stamp's slot made every later pose look unstamped,
+	# and those were dropped next to the stamped stream: the bot froze on every client after one slide.
+	PawnNet.reset_stream(_p)
+	Game._net_pose_stamped = false
+	var sent0 := Time.get_ticks_msec() - 120
+	_p._sliding = true
+	var e1 := MatchFlow.bot_pose_entry(_p, sent0)
+	_p._sliding = false
+	var e2 := MatchFlow.bot_pose_entry(_p, sent0 + 33)
+	e2[1] = (e1[1] as Vector3) + Vector3(0.3, 0, 0)
+	MatchFlow.apply_bot_poses(Game, [e1])
+	var slid := _p._sliding
+	MatchFlow.apply_bot_poses(Game, [e2])
+	var lag := _p._pose_off_last
+	_ok(_p._pose_stamped and lag >= 50 and lag < 2000, "a bot pose keeps its sender stamp through sync_bot_poses (arrival - sent = %d ms)" % lag)
+	_ok(_p._pose_buf.size() == 2, "a pose after a slide is not dropped (%d in the buffer)" % _p._pose_buf.size())
+	_ok(slid and not _p._sliding, "the slide flag arrives as the slide (%s, then %s)" % [slid, _p._sliding])
+
 	# Lag compensation must know about the interpolation delay, or shots land behind the target.
 	_ok(LagComp.INTERP_MS >= PawnNet.DELAY_MAX_MS, "LagComp allows the full interpolation delay (%d ms)" % LagComp.INTERP_MS)
 	Game._server_clock_offset = 5000

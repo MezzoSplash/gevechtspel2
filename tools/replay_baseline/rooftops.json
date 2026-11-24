@@ -1,11 +1,12 @@
 {
   "bots": 6,
   "deaths": {
-    "lmg": 5,
-    "melee": 5,
-    "rcxd": 1,
-    "revolver": 1,
-    "shotgun": 2
+    "grenade": 1,
+    "melee": 1,
+    "pistol": 2,
+    "revolver": 3,
+    "slug": 1,
+    "sniper": 3
   },
   "hashes": [
     {
@@ -13,57 +14,64 @@
       "t": 5
     },
     {
-      "hash": 2808846150,
+      "hash": 3210010128,
       "t": 10
     },
     {
-      "hash": 303612460,
+      "hash": 2191582165,
       "t": 15
     },
     {
-      "hash": 3473719687,
+      "hash": 3659193322,
       "t": 20
     },
     {
-      "hash": 948801647,
+      "hash": 4170144903,
       "t": 25
     },
     {
-      "hash": 1910653011,
+      "hash": 3114620108,
       "t": 30
     },
     {
-      "hash": 3327820491,
+      "hash": 952571684,
       "t": 35
     },
     {
-      "hash": 301858453,
+      "hash": 2153571820,
       "t": 40
     },
     {
-      "hash": 2480314597,
+      "hash": 3995556401,
       "t": 45
     }
   ],
   "kills": {
-    "lmg": 5,
-    "melee": 5,
-    "rcxd": 1,
-    "revolver": 1,
-    "shotgun": 2
+    "grenade": 1,
+    "melee": 1,
+    "pistol": 2,
+    "revolver": 3,
+    "slug": 1,
+    "sniper": 3
   },
   "map": "rooftops",
   "mode": "Team Deathmatch",
   "moves": {
     "dive": 0,
     "roll": 0,
-    "slide": 8,
+    "slide": 12,
     "wallrun": 0
   },
   "seed": 1234,
+  "stance_pct": {
+    "dive": 1.2,
+    "plain": 0.4,
+    "roll": 1.4,
+    "slide": 2.6
+  },
   "teams": [
-    11,
-    3
+    6,
+    5
   ],
   "ticks": 2700
 }

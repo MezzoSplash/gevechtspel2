@@ -33,6 +33,13 @@ static func tick(b: BotBrain, delta: float) -> void:
 	b._set_bot_input()
 	Movement.try_start_slide(b.pawn, on_floor, false)
 	Movement.try_air_dive(b.pawn, on_floor, false)
+	# #371: the crouch hold is for a trick that is actually running. A press that never became a slide or a
+	# dive (the speed just under the threshold, a slide on cooldown, a foe that moved out of range) used to
+	# keep the bot crouched for BOT_SLIDE_HOLD, and the fight slide then fired again the moment it ran out:
+	# measured as 13% (Quay) to 34% (Townhouses) of the time crouched without sliding. While a slide runs the
+	# key is held, because finish_slide ends a slide on release.
+	if not b.pawn._sliding and not b.pawn._diving and b.pawn._roll_t <= 0.0:
+		b._crouch_hold = 0.0
 	# Forward is the travel direction (the brain faces it), so "forward held" is what walls want.
 	Movement.tick_wallrun(b.pawn, delta, Vector2(0.0, -1.0), false)
 	if b.pawn._wallrunning:
@@ -53,6 +60,11 @@ static func tick(b: BotBrain, delta: float) -> void:
 		b.pawn.velocity.x = dir.x * sp
 		b.pawn.velocity.z = dir.z * sp
 	Movement.finish_slide(b.pawn)
+	# #371: the dive has to be closed, exactly as MoveTick does for a human. Without this the landing never
+	# ran for a bot, so _diving stayed true from its first dive until it respawned, and update_stance kept
+	# crouch = 1 for a bot with no key, no slide and no ceiling: one bot per match crawling at full speed.
+	# It also never got its _dive_cd, _dive_used or landing roll, so it could not dive again.
+	Movement.tick_dive_roll(b.pawn, delta)
 	# The same stance code the human runs: crouch follows the held key, and releases when the slide,
 	# the dive or the roll is over.
 	b.pawn._update_stance(delta, on_floor)

@@ -2,10 +2,11 @@
   "bots": 6,
   "deaths": {
     "melee": 1,
-    "revolver": 1,
+    "pistol": 1,
+    "rifle": 1,
     "shotgun": 5,
     "slug": 1,
-    "smg": 1
+    "sniper": 2
   },
   "hashes": [
     {
@@ -13,57 +14,64 @@
       "t": 5
     },
     {
-      "hash": 1096456337,
+      "hash": 582946241,
       "t": 10
     },
     {
-      "hash": 3621014261,
+      "hash": 3917366248,
       "t": 15
     },
     {
-      "hash": 1597483579,
+      "hash": 3069598349,
       "t": 20
     },
     {
-      "hash": 3686914489,
+      "hash": 3812173515,
       "t": 25
     },
     {
-      "hash": 1067591967,
+      "hash": 3234444927,
       "t": 30
     },
     {
-      "hash": 3290562543,
+      "hash": 748071667,
       "t": 35
     },
     {
-      "hash": 128278673,
+      "hash": 3874814867,
       "t": 40
     },
     {
-      "hash": 1160291816,
+      "hash": 2577992746,
       "t": 45
     }
   ],
   "kills": {
     "melee": 1,
-    "revolver": 1,
+    "pistol": 1,
+    "rifle": 1,
     "shotgun": 5,
     "slug": 1,
-    "smg": 1
+    "sniper": 2
   },
   "map": "townhouses",
   "mode": "Team Deathmatch",
   "moves": {
     "dive": 0,
     "roll": 0,
-    "slide": 9,
+    "slide": 10,
     "wallrun": 0
   },
   "seed": 1234,
+  "stance_pct": {
+    "dive": 1.7,
+    "plain": 0.3,
+    "roll": 1.5,
+    "slide": 2.0
+  },
   "teams": [
-    3,
-    6
+    4,
+    7
   ],
   "ticks": 2700
 }
