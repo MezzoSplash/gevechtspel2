@@ -382,7 +382,7 @@ static func push_bot_poses(g: GameState) -> void:
 		var p := n as Player
 		if p == null or not p.is_bot:
 			continue
-		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx, 1.0 if p._sliding else 0.0, sent])
+		poses.append(bot_pose_entry(p, sent))
 		# #371 trace: GS2_POSE_TRACE=1 prints every pose the server sends, so a client trace can be paired
 		# with it by peer id. Off by default; no effect on the wire.
 		if _pose_trace:
@@ -395,7 +395,14 @@ static func push_bot_poses(g: GameState) -> void:
 	g.sync_bot_poses.rpc(poses)
 
 
-## Client (sync_bot_poses): [peer_id, pos, yaw, pitch, crouch, move_fx, sent] per bot.
+## One bot's entry in sync_bot_poses. The stamp stays at index 6 where 0.5.21 put it (#365) and the
+## slide (#371) goes after it: apply_bot_poses reads them by index, and check_net_interp builds its
+## poses with this same function, so the two sides cannot drift apart again.
+static func bot_pose_entry(p: Player, sent: int) -> Array:
+	return [p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx, sent, 1.0 if p._sliding else 0.0]
+
+
+## Client (sync_bot_poses): [peer_id, pos, yaw, pitch, crouch, move_fx, sent, sliding] per bot.
 ## A 0.5.20 server sends six entries and no stamp; the buffer then falls back to arrival times.
 static func apply_bot_poses(g: GameState, poses: Array) -> void:
 	if OS.has_environment("GS2_POSE_TRACE"):
@@ -414,7 +421,8 @@ static func apply_bot_poses(g: GameState, poses: Array) -> void:
 		var p := g.player_for_peer(int(entry[0]))
 		if p and p.is_bot:
 			var sent := int(entry[6]) if entry.size() > 6 else 0
-			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), entry.slice(4, 7), sent)
+			var stance: Array = [entry[4], entry[5], entry[7] if entry.size() > 7 else 0.0] if entry.size() > 5 else []
+			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), stance, sent)
 
 
 ## Client (sync_roster): remote pawns the server no longer has are removed.

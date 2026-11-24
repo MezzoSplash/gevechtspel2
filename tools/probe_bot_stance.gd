@@ -179,8 +179,13 @@ func _client(args: Array) -> void:
 ## One tick of every bot that is alive and in the world. `crouch` is the stance the pawn shows, so this
 ## works the same on the server and on a client copy filled by sync_bot_poses.
 func _sample() -> void:
+	var me := Game.player_for_peer(multiplayer.get_unique_id())
 	for p in Game.players():
 		if not p.is_bot or p.is_dead:
+			continue
+		# Only the match this machine plays in: the menu's background match keeps its own bots in another
+		# world (net_jitter_probe found the same), and those say nothing about the server's bots.
+		if me != null and p.get_parent() != me.get_parent():
 			continue
 		# A bot copy on a client never learns that its bot died (health stays 0 there), so a bot that died
 		# mid-slide keeps crouch = 1.0 forever and would count as crawling while standing still. The complaint
@@ -189,8 +194,10 @@ func _sample() -> void:
 		var speed := 0.0 if last == null else Vector2(p.global_position.x - (last as Vector3).x, p.global_position.z - (last as Vector3).z).length() / maxf(get_physics_process_delta_time(), 0.001)
 		_last_pos[p.peer_id] = p.global_position
 		var low := p.crouch > 0.5 and speed > 1.0
-		var row: Array = _per_bot.get(p.peer_id, [0, 0])
+		var row: Array = _per_bot.get(p.peer_id, [0, 0, 0])
 		row[1] += 1
+		if speed > 1.0:
+			row[2] += 1 # #371 review: a bot frozen on a client never counts as low, so moving is reported too
 		_samples += 1 # every bot tick: the denominator for the percentages
 		if not low:
 			_per_bot[p.peer_id] = row
@@ -238,5 +245,17 @@ func _report(where: String) -> void:
 			hist += "%d " % int((tr["buckets"] as Dictionary).get(b, 0))
 		print("  bot %d: n=%d plain=%d dead=%s hist[0..1]=%s" % [int(id), int(tr["n"]), int(tr["plain"]), str(tr["dead"]), hist])
 	var ok := _pct(_plain) < LIMIT * 100.0 and _samples > 100
-	print("BOT STANCE CHECK %s" % ("OK" if ok else "FAIL (plain crouch above %.0f%%)" % (LIMIT * 100.0)))
+	# Moving share per bot: a bot that stands still on a client while the server moves it (a dropped pose
+	# stream) shows 0% crouch and would pass the stance check without this line.
+	var frozen := 0
+	for id in _per_bot:
+		var r: Array = _per_bot[id]
+		var mv := 100.0 * float(r[2]) / maxf(float(r[1]), 1.0)
+		print("  bot %d moving %.0f%% of %d ticks" % [int(id), mv, int(r[1])])
+		if int(r[1]) > 300 and mv < 10.0:
+			frozen += 1
+	if frozen > 0:
+		ok = false
+		print("  %d bot(s) barely move: a frozen pose stream?" % frozen)
+	print("BOT STANCE CHECK %s" % ("OK" if ok else "FAIL (plain crouch above %.0f%%, or frozen bots)" % (LIMIT * 100.0)))
 	get_tree().quit(0 if ok else 1)
