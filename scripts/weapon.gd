@@ -81,6 +81,7 @@ var slots: Array[WeaponDef] = []
 var _view_models: Dictionary = {} # StringName → Node3D
 var _ads := false
 var _ads_drop := -0.092 # WeaponRoot y while aiming (iron sights), set per gun in _apply_view_for_def
+var _ads_sight: Variant = null # the sight point in gun space from the kit (#362), null when it has none
 ## Held-trigger counter for automatic guns: +1 on every new press (humans) or new burst (bots).
 ## Only for the SPRAY TRANSFER trick; the server also ends a burst after Style.BURST_GAP.
 var burst_seq := 0
@@ -94,6 +95,7 @@ const MELEE_ANIM := 0.36 # seconds: thrust out, hold, pull back
 const MELEE_SWING := preload("res://assets/sounds/melee_swing.wav")
 const MELEE_HIT := preload("res://assets/sounds/melee_hit.wav")
 const ADS_SIGHT_GAP := 0.004 # front sight tip this far under the eye line while aiming
+const ADS_SIGHT_Z := 0.34 # m in front of the eye where the sight sits while aiming
 ## Game.view_sway index: 0 off, 1 half, 2 full. Kept as a const so _tick_sway allocates nothing.
 const VIEW_SWAY_K: Array[float] = [0.0, 0.4, 1.0]
 const THROW_ANIM := 0.34 # knife in hand: wind up, release, gun comes back
@@ -404,18 +406,18 @@ func _update_ads() -> void:
 	var want := (
 		_is_local()
 		and def != null
-		and def.ads_fov > 0.0
+		and def.has_ads()
 		and _throw_left <= 0.0
 		and _owner_alive()
 		and not trigger_locked()
 		and not _owner_sliding()
-		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		and _aim_input_allowed()
 		and Input.is_action_pressed("zoom")
 	)
 	_ads = want
 	if camera:
 		camera.ads_fov = def.ads_fov if _ads else 0.0
-	var scope := _ads and def != null and def.ads_hides_model
+	var scope := _ads and def != null and def.is_scope()
 	var hud := _hud_node()
 	# Bots share this function and must not write the local HUD.
 	if hud and _is_local():
@@ -427,19 +429,28 @@ func _update_ads() -> void:
 		n.visible = (not scope) and _throw_left <= 0.0 and def != null and id == def.id
 
 
+## There is no mouse to capture in a headless run (the checks aim with the zoom action alone).
+func _aim_input_allowed() -> bool:
+	return Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"
+
+
 ## Mouse sensitivity factor while aiming: the sniper scope uses the player's ADS setting,
 ## iron sights just follow the zoom (72/90) so the feel stays the same.
 func ads_sens_mult() -> float:
 	if def == null or not _ads:
 		return 1.0
-	if def.ads_hides_model:
+	if def.is_scope():
 		return Game.ads_sens
 	return clampf(def.ads_fov / 90.0, 0.2, 1.0)
 
 
 func _ads_pose() -> Vector3:
-	# Guns with a modelled front sight put its tip just under the eye line; the rest keep the tuned drop.
-	return Vector3(0.0, _ads_drop, _view_rest.z - 0.02)
+	# #362: put the sight itself on the eye line instead of nudging the whole gun by its height. The gun
+	# moves so the sight point lands in front of the eye, a few millimetres under the crosshair.
+	if _ads_sight == null:
+		return Vector3(0.0, _ads_drop, _view_rest.z - 0.02)
+	var o: Vector3 = _ads_sight
+	return Vector3(-o.x, -o.y - ADS_SIGHT_GAP, -ADS_SIGHT_Z - o.z)
 
 
 func _cycle_weapon() -> void:
@@ -755,6 +766,8 @@ func _apply_view_for_def() -> void:
 	muzzle.position = fit.muzzle
 	_view_rest = position
 	_ads_drop = -float(fit.sight_y) - ADS_SIGHT_GAP if fit.has("sight_y") else -0.092
+	# The sight point in the gun's own space (#362), used by _ads_pose to put it on the eye line.
+	_ads_sight = Vector3(fit.sight) if fit.has("sight") else null
 
 
 static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dictionary:

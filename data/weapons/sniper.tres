@@ -21,11 +21,13 @@ reload_style = &"bolt"
 tracer_width = 0.018
 fire_sound = ExtResource("2_fire")
 pellet_count = 1
+ads_mode = 2
+ads_fov = 38.0
+ads_time = 0.25
 automatic = false
 falloff_start_m = 40.0
 falloff_end_m = 100.0
 falloff_min_mult = 0.8
-ads_fov = 38.0
 ads_hides_model = true
 
 ## Per-gun feel numbers (moved out of weapon.gd and bot_brain.gd).
