@@ -311,8 +311,12 @@ const NET_CORRECTION_MS := 250 # ms between corrections: one is enough, we do no
 var _net_target := Vector3.ZERO # last pose applied as a cut (snap, correction); the drawn pose is _pose_buf
 var _net_has := false # _net_target holds a real pose
 var _pose_buf: Array = [] # #361: [[send_time_local_ms, pos], ...] for remote humans and bots, drawn in PawnNet
-var _pose_off_ms := 0 # #365: this sender's clock minus ours, the least delayed pose of the window
-var _pose_off_set_ms := 0 # when that window started
+var _pose_off_ms := 0 # #365: this sender's clock minus ours, as applied to the stamps (PawnNet._note_offset)
+var _pose_off_has := false # an offset has been measured for this sender
+var _pose_off_f := 0.0 # the running average behind _pose_off_ms
+var _pose_off_n := 0 # poses averaged so far (a plain mean until OFFSET_AVG_POSES)
+var _pose_prev_sent := 0 # the newest sender stamp so far, for the stamp gap that sizes the buffer
+var _pose_stamped := false # this pawn's poses carry a sender stamp, so an unstamped one is a side copy
 var _pose_off_last := 0 # the last (arrival - sent); its spread tells if pose and stamp travel together
 var _pose_last_arrival_ms := 0 # when the last pose landed, for the arrival gap that sizes the buffer
 var _pose_rx_pos := Vector3.ZERO # last net_pos a client received, waiting for its stamp
@@ -342,8 +346,7 @@ var net_sent_ms: int:
 		_net_sent = v
 		if multiplayer.is_server() or is_local():
 			return
-		_pose_rx_sent = v
-		_pose_rx_dirty = true
+		_on_pose_stamp(v)
 
 
 ## Bots are never "local" (no camera/input), even in offline 5v5.
@@ -770,7 +773,18 @@ func _receive_net_pos(v: Vector3) -> void:
 	_pose_rx_dirty = true
 
 
-## A received human pose, pushed once with the stamp that came with it.
+## The stamp of a received human pose. The synchronizer sets its ALWAYS properties in config order, so
+## net_pos (0) is already in when net_sent_ms (8) lands: push the pair now. Waiting for the next physics
+## tick lost every pose but the last when a burst delivered several packets in one frame (#365).
+func _on_pose_stamp(v: int) -> void:
+	_pose_rx_sent = v
+	if not _pose_rx_dirty:
+		return
+	_pose_rx_dirty = false
+	PawnNet.push_remote_pose(self, _pose_rx_pos, v)
+
+
+## Fallback: a pose whose stamp did not come with it (should not happen), pushed on the next tick.
 func _flush_remote_pose() -> void:
 	if not _pose_rx_dirty:
 		return

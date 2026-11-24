@@ -172,6 +172,7 @@ var _server_clock_offset := 0 # client: server ms minus local ms at the last syn
 var net_delay_ms := 55
 var _net_delay_f := 55.0 # float accumulator behind net_delay_ms (the ramp needs sub-ms steps)
 var _net_delay_step_ms := 0 # last frame the ramp moved, so many pawns do not multiply the rate
+var _net_pose_stamped := false # client: poses carry sender stamps, so the peak is lateness, not arrival gaps (#365)
 var _net_pose_peak_ms := 0.0 # client: decaying peak of the gap between pose stamps, drives net_delay_ms
 var _shot_ctx: Dictionary = {} # match authority, while a shot resolves: {shooter, origin, scoped}
 var _style_chain: Dictionary = {} # peer_id -> [trick kills in a row, time of the last one]
