@@ -77,9 +77,15 @@ static func fit_model(model: Node3D, id: StringName, rest_pos: Vector3) -> Dicti
 	var marker := model.find_child("Sight", true, false) as Node3D
 	var sight := model.find_child("Front_Sight*", true, false) as MeshInstance3D
 	if marker and not (marker is GeometryInstance3D):
-		fit["sight_y"] = origin_in_parent(model, marker).y
+		# #362: the whole point, not only its height: the gun has to line its sight up with the eye, and a
+		# sight that sits off the barrel axis (the pistol, the SMG) was pulled to the middle by its y alone.
+		var at := origin_in_parent(model, marker)
+		fit["sight"] = at
+		fit["sight_y"] = at.y
 	elif sight and sight.mesh:
-		fit["sight_y"] = (xform_in_parent(model, sight) * sight.mesh.get_aabb()).end.y
+		var top := xform_in_parent(model, sight) * sight.mesh.get_aabb()
+		fit["sight"] = Vector3(top.get_center().x, top.end.y, top.get_center().z)
+		fit["sight_y"] = top.end.y
 	return fit
 
 

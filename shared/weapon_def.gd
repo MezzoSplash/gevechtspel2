@@ -37,7 +37,12 @@ extends Resource
 @export var melee: bool = false
 ## How much of the walk/sprint/slide spread penalty applies (1 = all of it; the SMG is built to run and gun).
 @export var move_spread_scale: float = 1.0
-## Aim down sights on RMB: FOV while aiming (0 = this gun has no ADS) and the spread multiplier while aiming.
+## What RMB does with this gun (#362). Picked per weapon in the .tres instead of left to a default: a gun
+## without ADS states NONE in its own file, so a forgotten field can no longer pass as "no ADS".
+enum AdsMode { NONE, SIGHTS, SCOPE }
+## Default is SIGHTS, so a gun that should not aim has to say NONE and that lands in its .tres.
+@export var ads_mode: AdsMode = AdsMode.SIGHTS
+## Aim down sights on RMB: FOV while aiming and the spread multiplier while aiming.
 @export var ads_fov: float = 0.0
 @export var ads_spread_mult: float = 1.0
 ## Sniper scope: the viewmodel hides while aiming (iron sights keep it).
@@ -85,9 +90,19 @@ func damage_at_distance(dist: float) -> float:
 
 
 ## Spread multiplier from the player's movement penalty (1 = still) and ADS, for this gun.
+## Does RMB do anything with this gun (#362)?
+func has_ads() -> bool:
+	return ads_mode != AdsMode.NONE and ads_fov > 0.0
+
+
+## A scope hides the viewmodel and uses the player's own ADS sensitivity.
+func is_scope() -> bool:
+	return ads_mode == AdsMode.SCOPE
+
+
 func spread_mult_for(move_mult: float, ads: bool) -> float:
 	var m := 1.0 + (move_mult - 1.0) * move_spread_scale
-	if ads and ads_fov > 0.0:
+	if ads and has_ads():
 		m *= ads_spread_mult
 	return m
 

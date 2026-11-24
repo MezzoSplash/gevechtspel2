@@ -27,8 +27,10 @@ falloff_end_m = 26.0
 falloff_min_mult = 0.35
 move_speed_mult = 1.08
 move_spread_scale = 0.45
-ads_fov = 72.0
 ads_spread_mult = 0.6
+ads_mode = 1
+ads_fov = 72.0
+ads_time = 0.09
 
 ## Per-gun feel numbers (moved out of weapon.gd and bot_brain.gd).
 view_kick_z = 0.055

@@ -48,23 +48,32 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	var at := args.find("--shot")
 	if at >= 0 and at + 1 < args.size():
-		await _shoot_all(args[at + 1])
+		await _shoot_all(args[at + 1], args.has("--ads"))
 
 
-## Every gun: draw it, fire one round mid-flash, save a picture.
-func _shoot_all(dir: String) -> void:
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+## Every gun: draw it, fire one round mid-flash, save a picture. With --ads the gun is aimed down sights
+## through the normal path (the zoom key held, mouse captured), which is how #362 is judged by eye.
+func _shoot_all(dir: String, ads: bool = false) -> void:
+	if ads:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		Input.action_press("zoom")
+	else:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	for i in Weapon.LOADOUT.size():
 		var def := Weapon.LOADOUT[i] as WeaponDef
 		me.weapon._equip(i)
 		_refresh()
-		await get_tree().create_timer(0.4).timeout
+		await get_tree().create_timer(maxf(def.ads_time, 0.0) + 0.45).timeout
 		if not def.melee:
 			me.weapon._cooldown = 0.0
 			me.weapon._fire()
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
-		get_viewport().get_texture().get_image().save_png("%s/lab-%s.png" % [dir, def.id])
+		var suffix := "-ads" if ads else ""
+		get_viewport().get_texture().get_image().save_png("%s/lab-%s%s.png" % [dir, def.id, suffix])
+		print("  %s ads=%s fov=%.0f" % [def.id, str(me.weapon._ads), me.camera.fov])
+	if ads:
+		Input.action_release("zoom")
 	print("WEAPON LAB: shots in %s" % dir)
 	get_tree().quit(0)
 
