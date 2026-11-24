@@ -193,15 +193,16 @@ func _swing(p: Player, shank: bool) -> bool:
 	if Game.is_networked() and not multiplayer.is_server():
 		request_melee.rpc_id(1, origin, dir)
 		return true
-	var eye := origin
 	var reach := RANGE
-	var path_end := origin
+	var path_end := Vector3.INF
 	if shank:
-		eye = origin + _flat(aim) * lunge
-		path_end = eye
+		# #373 review: the step runs from the eye where the stab starts to where the lunge ends. Passing the
+		# end as both ends made the "whole path" a point, so a body that moved off the planned spot (a
+		# server copy that is newer than what the client aimed at) was judged from the end only.
+		path_end = origin + _flat(aim) * lunge
 		reach = SHANK_RANGE
 		dir = aim
-	var res := resolve(p, eye, dir, reach, DAMAGE, shank, path_end)
+	var res := resolve(p, origin, dir, reach, DAMAGE, shank, path_end)
 	_report(p, res)
 	return true
 
@@ -235,6 +236,7 @@ func request_melee(origin: Vector3, look_dir: Vector3) -> void:
 	var shank := p.weapon.def != null and p.weapon.def.melee
 	# Reach is measured from our copy of the eye, so the 4 m origin tolerance cannot stretch it.
 	var eye := p.camera.global_position
+	var start := eye
 	var reach := RANGE + SERVER_SLACK
 	var aim := look_dir
 	if shank:
@@ -244,7 +246,7 @@ func request_melee(origin: Vector3, look_dir: Vector3) -> void:
 		aim = plan[0]
 		eye = eye + _flat(aim) * float(plan[1])
 		reach = SHANK_RANGE + SHANK_SLACK
-	var res := resolve(p, eye, aim, reach, DAMAGE, shank, eye)
+	var res := resolve(p, start, aim, reach, DAMAGE, shank, eye if shank else Vector3.INF)
 	if not Game.is_dedicated:
 		p.weapon.play_melee()
 		if res.hit:
@@ -312,7 +314,10 @@ func resolve(attacker: Player, origin: Vector3, look_dir: Vector3, reach: float,
 		if d > reach or d >= best_d:
 			continue
 		var cone := cone_near if to.length() < CLOSE else cone_far
-		if to.length() > 0.05 and rad_to_deg(dir.angle_to(to)) > cone:
+		# #373 review: a step that runs through the body (closer than its radius) hits whatever the angle;
+		# the line from the path to the body's axis is then near vertical and failed the cone. Bash unchanged.
+		var inside := BODY_R if shank and end != origin else 0.05
+		if to.length() > inside and rad_to_deg(dir.angle_to(to)) > cone:
 			continue
 		var query := PhysicsRayQueryParameters3D.create(near, pt)
 		query.collision_mask = WORLD_MASK
