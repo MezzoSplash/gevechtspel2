@@ -375,6 +375,7 @@ static func apply_regen(g: GameState, batch: Array) -> void:
 static func push_bot_poses(g: GameState) -> void:
 	if g.multiplayer.get_peers().is_empty():
 		return
+	var _pose_trace := OS.has_environment("GS2_POSE_TRACE")
 	var sent := LagComp.now_ms()
 	var poses: Array = []
 	for n in g.get_tree().get_nodes_in_group("player"):
@@ -382,6 +383,13 @@ static func push_bot_poses(g: GameState) -> void:
 		if p == null or not p.is_bot:
 			continue
 		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx, sent])
+		# #371 trace: GS2_POSE_TRACE=1 prints every pose the server sends, so a client trace can be paired
+		# with it by peer id. Off by default; no effect on the wire.
+		if _pose_trace:
+			print("POSE srv %d %d crouch=%.3f fx=%d dead=%s slide=%s key=%s ceil=%s pos=%.2f,%.2f,%.2f" % [
+				int(Time.get_unix_time_from_system() * 1000.0), p.peer_id, p.crouch, p.move_fx,
+				str(p.is_dead), str(p._sliding), str(p._in_crouch), str(p._ceiling_blocked()),
+				p.global_position.x, p.global_position.y, p.global_position.z])
 	if poses.is_empty():
 		return
 	g.sync_bot_poses.rpc(poses)
@@ -390,6 +398,16 @@ static func push_bot_poses(g: GameState) -> void:
 ## Client (sync_bot_poses): [peer_id, pos, yaw, pitch, crouch, move_fx, sent] per bot.
 ## A 0.5.20 server sends six entries and no stamp; the buffer then falls back to arrival times.
 static func apply_bot_poses(g: GameState, poses: Array) -> void:
+	if OS.has_environment("GS2_POSE_TRACE"):
+		var now := int(Time.get_unix_time_from_system() * 1000.0)
+		for entry in poses:
+			if typeof(entry) != TYPE_ARRAY or entry.size() < 6:
+				continue
+			var pa := g.player_for_peer(int(entry[0]))
+			print("POSE cli %d %d crouch=%.3f fx=%d dead=%s sent=%d pos=%.2f,%.2f,%.2f" % [
+				now, int(entry[0]), float(entry[4]), int(entry[5]), str(pa.is_dead if pa else true),
+				int(entry[6]) if entry.size() > 6 else 0,
+				(entry[1] as Vector3).x, (entry[1] as Vector3).y, (entry[1] as Vector3).z])
 	for entry in poses:
 		if typeof(entry) != TYPE_ARRAY or entry.size() < 4:
 			continue
