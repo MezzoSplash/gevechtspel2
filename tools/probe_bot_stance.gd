@@ -1,9 +1,13 @@
 extends Node
-## #371: how much of the time bots walk around crouched. Samples every physics tick of a bot match and
+## #371: how much of the time bots walk around crouched. Manual probe, not a check (run_checks skips
+## probe_*): the same metric is deterministic inside tools/replay_match (stance_pct in the baseline), and
+## this one is the client/server comparison — with --client it joins a dedicated server and measures what
+## a player actually sees. Its per-run numbers swing (the match start differs), so treat it as a probe.
+## Samples every physics tick of a bot match and
 ## splits it per bot: sliding, diving, rolling, and "plain" (crouch > 0.5 without any of those — the
 ## crawl Gianni saw). Prints one line per map plus a total, and fails when plain crouch is 5% or more.
-##   godot --headless --fixed-fps 60 res://tools/check_bot_stance.tscn -- [map|all] [ticks]
-##   godot --headless --fixed-fps 60 res://tools/check_bot_stance.tscn -- --client [port]
+##   godot --headless --fixed-fps 60 res://tools/probe_bot_stance.tscn -- [map|all] [ticks]
+##   godot --headless --fixed-fps 60 res://tools/probe_bot_stance.tscn -- --client [port]
 ## The client mode joins a dedicated server and samples the remote bots' synced crouch, which is what a
 ## player actually sees; the server's own loop is the same without --client.
 ## Run it with a clean user:// like tools/replay_match.sh (XDG_DATA_HOME), or saved menu choices count.
