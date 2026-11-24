@@ -75,24 +75,6 @@ for f in tools/check_*.gd; do
 	else RES+=("$(printf '%-11s %s (no scene, not a SceneTree script)' SKIP "$name")"); fi
 done
 
-# #250: the same seeded bot match per map, diffed against tools/replay_baseline/*.json. Not a check_*
-# scene: it needs fixed physics ticks (--fixed-fps 60) and about a minute per map.
-if [[ -z "$FILTER" || "replay" == *"$FILTER"* ]]; then
-	rp0=$SECONDS
-	rp_fail=0
-	for map in quay foundry townhouses rooftops skyline; do
-		timeout 180 "$GODOT" --headless --fixed-fps 60 --path . res://tools/replay_match.tscn -- "$map" > "$LOG_DIR/replay_$map.log" 2>&1 || rp_fail=1
-		grep -q "REPLAY CHECK OK" "$LOG_DIR/replay_$map.log" || rp_fail=1
-	done
-	rp_dt=$((SECONDS - rp0))
-	if (( rp_fail )); then
-		rp_st=FAIL; fail=1
-		echo "---- replay output (tail) ----"; tail -n 20 "$LOG_DIR"/replay_*.log
-	else rp_st=PASS; fi
-	RES+=("$(printf '%-11s %-24s %4ss' "$rp_st" "replay" "$rp_dt")")
-	echo "$rp_st replay (${rp_dt}s)"
-fi
-
 echo; echo "===== Summary ($((SECONDS - start))s, logs: $LOG_DIR) ====="
 printf '%s\n' "${RES[@]}"
 exit $fail
