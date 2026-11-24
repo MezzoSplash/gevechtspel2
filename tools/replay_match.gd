@@ -24,6 +24,7 @@ var _kills: Dictionary = {} # weapon -> count
 var _deaths: Dictionary = {} # weapon -> count
 var _moves: Dictionary = {"dive": 0, "wallrun": 0, "roll": 0, "slide": 0}
 var _hashes: Array = [] # [{t, hash}]
+var _stance := {"ticks": 0, "slide": 0, "dive": 0, "roll": 0, "plain": 0} # #371
 
 
 func _box(pos: Vector3, size: Vector3) -> void:
@@ -114,10 +115,34 @@ func _ready() -> void:
 			_was_sliding[p.peer_id] = sliding
 		if (t + 1) % HASH_EVERY == 0:
 			_hashes.append({"t": (t + 1) / 60, "hash": _position_hash()})
+		_stance_tick()
 	var summary := _summary(map_id, seed_v, ticks)
 	Game.kill_feed.disconnect(_on_kill)
 	var code := _compare(map_id, summary, update)
 	get_tree().quit(code)
+
+
+## #371: how the bots stand, counted on the same deterministic run as the rest of the summary.
+func _stance_tick() -> void:
+	for p in Game.players():
+		if not p.is_bot or p.is_dead:
+			continue
+		_stance["ticks"] = int(_stance["ticks"]) + 1
+		if p.crouch <= 0.5:
+			continue
+		if p._sliding:
+			_stance["slide"] = int(_stance["slide"]) + 1
+		elif p._diving:
+			_stance["dive"] = int(_stance["dive"]) + 1
+		elif p._roll_t > 0.0:
+			_stance["roll"] = int(_stance["roll"]) + 1
+		else:
+			_stance["plain"] = int(_stance["plain"]) + 1
+
+
+func _stance_pct(key: String) -> float:
+	var n := int(_stance["ticks"])
+	return 0.0 if n == 0 else round(1000.0 * float(_stance[key]) / float(n)) / 10.0
 
 
 func _on_kill(_kn: String, _vn: String, weapon_id: StringName, _kt: int, _vt: int, _tricks: String) -> void:
@@ -161,6 +186,8 @@ func _summary(map_id: StringName, seed_v: int, ticks: int) -> Dictionary:
 		"kills": _sorted(_kills),
 		"deaths": _sorted(_deaths),
 		"moves": _sorted(_moves),
+		"stance_pct": {"slide": _stance_pct("slide"), "dive": _stance_pct("dive"),
+			"roll": _stance_pct("roll"), "plain": _stance_pct("plain")},
 		"hashes": _hashes,
 	}
 
@@ -234,6 +261,11 @@ func _compare(map_id: StringName, now: Dictionary, update: bool) -> int:
 		if int(oh[i].get("hash", 0)) != int(nh[i].get("hash", 0)):
 			changed += 1
 	print("  posities: %d/%d hashes anders (alleen ter info)" % [changed, nh.size()])
+	var os_: Dictionary = old.get("stance_pct", {})
+	var ns: Dictionary = now.get("stance_pct", {})
+	print("  stance: plain %.1f%% -> %.1f%% | slide %.1f%% -> %.1f%%" % [
+		float(os_.get("plain", 0.0)), float(ns.get("plain", 0.0)),
+		float(os_.get("slide", 0.0)), float(ns.get("slide", 0.0))])
 	if fails > 0:
 		print("REPLAY CHECK FAIL (%d diffs buiten tolerantie)" % fails)
 		return 1

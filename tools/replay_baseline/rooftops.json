@@ -61,6 +61,12 @@
     "wallrun": 0
   },
   "seed": 1234,
+  "stance_pct": {
+    "dive": 5.7,
+    "plain": 0.1,
+    "roll": 0.0,
+    "slide": 1.8
+  },
   "teams": [
     11,
     3

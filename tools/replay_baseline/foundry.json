@@ -1,11 +1,12 @@
 {
   "bots": 6,
   "deaths": {
-    "grenade": 1,
-    "melee": 1,
+    "grenade": 2,
+    "lmg": 1,
+    "melee": 2,
     "rifle": 2,
-    "shotgun": 3,
-    "slug": 1,
+    "shotgun": 2,
+    "slug": 2,
     "smg": 1
   },
   "hashes": [
@@ -26,32 +27,33 @@
       "t": 20
     },
     {
-      "hash": 4258117092,
+      "hash": 49369306,
       "t": 25
     },
     {
-      "hash": 1905486545,
+      "hash": 3727309097,
       "t": 30
     },
     {
-      "hash": 4103097939,
+      "hash": 1444547298,
       "t": 35
     },
     {
-      "hash": 1621535232,
+      "hash": 4211071870,
       "t": 40
     },
     {
-      "hash": 1718144301,
+      "hash": 3514900006,
       "t": 45
     }
   ],
   "kills": {
-    "grenade": 1,
-    "melee": 1,
+    "grenade": 2,
+    "lmg": 1,
+    "melee": 2,
     "rifle": 2,
-    "shotgun": 3,
-    "slug": 1,
+    "shotgun": 2,
+    "slug": 2,
     "smg": 1
   },
   "map": "foundry",
@@ -59,13 +61,19 @@
   "moves": {
     "dive": 0,
     "roll": 0,
-    "slide": 7,
+    "slide": 10,
     "wallrun": 0
   },
   "seed": 1234,
+  "stance_pct": {
+    "dive": 21.8,
+    "plain": 0.2,
+    "roll": 0.0,
+    "slide": 2.1
+  },
   "teams": [
-    4,
-    5
+    6,
+    6
   ],
   "ticks": 2700
 }
