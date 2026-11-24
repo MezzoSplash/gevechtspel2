@@ -13,7 +13,7 @@ static func try_throw(b: BotBrain, enemy: Player, dist: float, delta: float) -> 
 	if b._nade_cd > 0.0 or b.pawn.grenades <= 0 or b._nade_check > 0.0:
 		return false
 	b._nade_check = BotBrain.NADE_CHECK
-	if dist < BotBrain.NADE_MIN or dist > BotBrain.NADE_MAX or randf() > b.style.nade_chance:
+	if dist < BotBrain.NADE_MIN or dist > BotBrain.NADE_MAX or Game.rng().randf() > b.style.nade_chance: # #250: the seeded match stream
 		return false
 	var from := b.pawn.head.global_position
 	var to := enemy.global_position + Vector3(0.0, 0.4, 0.0)
@@ -60,11 +60,11 @@ static func pitches(b: BotBrain, from: Vector3, to: Vector3, d: float) -> Array[
 ## Throw `pitch` if the arc is clear. False leaves the cooldown alone.
 static func throw_pitched(b: BotBrain, from: Vector3, flat: Vector3, to: Vector3, pitch: float) -> bool:
 	var dir := flat.normalized() * cos(pitch) + Vector3.UP * sin(pitch)
-	dir = (dir + Vector3(randf_range(-0.04, 0.04), 0.0, randf_range(-0.04, 0.04))).normalized()
+	dir = (dir + Vector3(Game.rng().randf_range(-0.04, 0.04), 0.0, Game.rng().randf_range(-0.04, 0.04))).normalized()
 	var origin := from + dir * 0.6
 	if not b._grenade_arc_clear(origin, Grenade.initial_velocity(dir), to):
 		return false
-	b._nade_cd = randf_range(BotBrain.NADE_COOLDOWN_MIN, BotBrain.NADE_COOLDOWN_MAX) * float(Game.bot_profile().nade)
+	b._nade_cd = Game.rng().randf_range(BotBrain.NADE_COOLDOWN_MIN, BotBrain.NADE_COOLDOWN_MAX) * float(Game.bot_profile().nade)
 	Game.throw_grenade(b.pawn, origin, dir)
 	return true
 

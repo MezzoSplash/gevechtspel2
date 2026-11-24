@@ -142,7 +142,7 @@ static func resolve_shot_rays(game: GameState, shooter: Player, origin: Vector3,
 	var best := {"killed": false, "headshot": false, "hit": false, "end": origin + look_dir * def.range_m}
 	var space := shooter.get_world_3d().direct_space_state
 	var rng := RandomNumberGenerator.new()
-	rng.seed = shot_seed if shot_seed != 0 else randi()
+	rng.seed = shot_seed if shot_seed != 0 else game.rng().randi() # #250: the seeded match stream
 	var exclude := shot_exclude(game, shooter)
 	for i in def.pellet_count:
 		var dir := spread_dir(game, look_dir, spread, rng)
@@ -418,7 +418,7 @@ static func reroll_bot_gun(game: GameState, p: Player) -> void:
 	var n := Weapon.LOADOUT.size()
 	if n < 2:
 		return
-	var i := randi_range(0, n - 2)
+	var i := game.rng().randi_range(0, n - 2) # #250: the seeded match stream
 	if i >= p.loadout_index:
 		i += 1 # never the same gun twice in a row
 	p.loadout_index = i
