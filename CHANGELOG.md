@@ -2,6 +2,18 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.6.1** — Netcode die hoge ping verdraagt, en drie dingen die niet deden wat ze moesten.
+
+Met een hoge ping of packet loss zweven en schuiven andere spelers niet meer. Elke pose komt met de zendtijd van de afzender binnen en wordt over een buffer geïnterpoleerd, dus een schokkerige verbinding geeft geen pawns meer die vooruit razen, stil blijven staan of de lucht in hangen. Er zit een klein netwerkpaneel in de HUD (ping, packet loss, buffer) dat je met een schakelaar aanzet.
+
+Bots kruipen niet meer de hele wedstrijd over de kaart. Een duik werd nooit afgesloten, dus een bot die één keer dook bleef gecrouched lopen tot hij doodging. Ze duiken en rollen nu weer en lopen gewoon rechtop.
+
+De shank raakt weer. De lunge liep altijd de volle 2,5 m, ook als de tegenstander vlak voor je stond, en de treffer werd vanaf het eind van die stap bepaald: je stak dus voorbij alles wat dichterbij stond. De steek kiest nu eerst een doel, de stap stopt vlak ervoor, de treffer telt langs het hele pad en de kegel is even ruim als die van de bash (40° in plaats van 28°). Sprintend raak je van dichtbij tot ongeveer 4,5 m.
+
+Intern: de killcam is opgesplitst in kleinere stukken (#317, #368), er is een vaste replay-testrun per kaart (#250, #369), de MVP-killcam gaat naar de grootste combo (#358) en de bouwversie staat naast het protocol in het menu en de serverlijst (#356).
+
+**Niet compatibel met v0.6.0** (NET_VERSION 0.5.21): poses dragen nu de zendtijd van de afzender en de pose van een bot bevat ook zijn slide, dus een 0.6.0-speler wordt geweigerd. Werk server en clients samen bij.
+
 **v0.6.0** — The guns have real models now.
 
 The knife, rifle, LMG, pistol, revolver, shotgun, slug and sniper are proper models with their own fire animation and their own muzzle flash, instead of the low-poly placeholders. Tracers leave from the muzzle of each model, and the flash shows in the killcam too. The SMG already had its model.

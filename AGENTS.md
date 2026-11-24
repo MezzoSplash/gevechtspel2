@@ -89,7 +89,7 @@ Polish what is there before adding more. New modes, maps or guns only when they 
 - #356 build next to protocol: the release version is `Game.build_version()` (`shared/game.gd`), read
   from project.godot `application/config/version` - the release PR bumps it together with
   `export_presets.cfg`, and `tools/check_version_source` fails when the three drift. The info query
-  (`GVQ1`) sends `"build"` next to `"v"`; the menu shows "v0.6.0 · protocol 0.5.20" top-right and the
+  (`GVQ1`) sends `"build"` next to `"v"`; the menu shows "v0.6.1 · protocol 0.5.21" top-right and the
   server's build in its list row. A join refused in the auth step now opens a dialog naming both
   protocols (and both builds when the info query knew the server's) and why that blocks a join; only
   `v` decides, so an older client keeps joining. Check: `tools/check_version_source`. No protocol change.
@@ -399,6 +399,12 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
+- v0.6.1 (released): poses carry the sender's clock and interpolate over a jitter buffer (#361, #363, #365,
+  #367), a bot's dive is closed again and its pose carries the slide (#371, #372), the shank picks its target
+  before the lunge and hits along the whole step (#373, #374), the MVP killcam goes to the biggest combo
+  (#358), plus the net stats HUD (#366), the killcam split (#317, #368) and the replay run (#250, #369).
+  `NET_VERSION` 0.5.21 - the pose stamp and the slide in a bot's pose are new on the wire, so a 0.6.0 peer is
+  refused.
 - v0.6.0 (released): weapon kits and real gun models with fire clips and muzzle VFX (#344, #347, #348),
   the crystal frag (#342), the G2 boot splash and icon (#346), muzzle flashes that survive the export (#350), position corrections that arrive (#338) and
   the hud/game/player splits (#315, #316 slices 1-7). `NET_VERSION` stays 0.5.20 - nothing new on the wire.
