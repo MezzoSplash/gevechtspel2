@@ -44,6 +44,10 @@ func _box(pos: Vector3, size: Vector3) -> void:
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
+	var host := args.has("--host")
+	if host:
+		await _host(args)
+		return
 	var client := args.has("--client")
 	if client:
 		await _client(args)
@@ -91,6 +95,60 @@ func _ready() -> void:
 		await get_tree().physics_frame
 		_sample()
 	_report(String(map_id))
+
+
+## Listen server: the same match Gianni plays when he hosts. Prints one trace line per bot per second, so a
+## client trace of the same match can be laid next to it per peer id (#371).
+func _host(args: Array) -> void:
+	var port := int(args[args.find("--host") + 1]) if args.find("--host") + 1 < args.size() else 7799
+	seed(1)
+	NavigationServer3D.map_set_use_async_iterations(get_viewport().world_3d.navigation_map, false)
+	get_tree().node_added.connect(func(n: Node) -> void:
+		if n is NavigationRegion3D:
+			NavigationServer3D.region_set_use_async_iterations((n as NavigationRegion3D).get_rid(), false))
+	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	get_tree().root.add_child.call_deferred(main)
+	await get_tree().create_timer(1.0).timeout
+	var menu = main.get_node("CanvasLayer/Menu")
+	menu.set_match_choice(&"quay", Game.MODE_TDM)
+	menu.set_host_port(port)
+	Game.last_bots = BOTS
+	Game.bot_count = BOTS
+	for b in menu._bot_boxes:
+		b.value = BOTS
+	for b in menu._ally_boxes:
+		b.value = BOTS / 2
+	for b in menu._enemy_boxes:
+		b.value = BOTS / 2
+	for o in menu._skill_opts:
+		o.selected = BotProfiles.HARD
+	Game.last_bot_difficulty = BotProfiles.HARD
+	menu.host_pressed.emit()
+	var me: Player = null
+	for i in 300:
+		await get_tree().create_timer(0.1).timeout
+		me = Game.player_for_peer(multiplayer.get_unique_id())
+		if me and not Game.play_locked():
+			break
+	if main.class_select != null and main.class_select.is_open():
+		main.class_select.close_silently()
+	Game.pause_open = false
+	_trace_loop("srv", 45)
+
+
+## One line per second per bot: what the authority has, or what a client received.
+func _trace_loop(tag: String, seconds: int) -> void:
+	for sec in seconds:
+		await get_tree().create_timer(1.0).timeout
+		var last: Dictionary = _last_pos
+		for p in Game.players():
+			if not p.is_bot:
+				continue
+			var prev: Variant = last.get(p.peer_id)
+			var spd := 0.0 if prev == null else Vector2(p.global_position.x - (prev as Vector3).x, p.global_position.z - (prev as Vector3).z).length()
+			last[p.peer_id] = p.global_position
+			print("T%d %s %d crouch=%.2f fx=%d dead=%s spd=%.1f" % [sec, tag, p.peer_id, p.crouch, p.move_fx, str(p.is_dead), spd])
+	_report(tag)
 
 
 func _client(args: Array) -> void:
