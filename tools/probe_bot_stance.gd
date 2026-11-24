@@ -26,6 +26,8 @@ var _per_bot: Dictionary = {} # peer -> [plain, total]
 var _plain_want := 0 # crouched because the bot holds the key
 var _plain_stuck := 0 # crouched without the key: the stance does not come back up
 var _plain_ceil := 0 # of those: a ceiling keeps it crouched
+var _last_pos: Dictionary = {} # peer -> last sampled position: the client copy does not carry velocity
+var _trace: Dictionary = {} # peer -> {n, plain, buckets, stamps, sent_last, dead}
 
 
 func _box(pos: Vector3, size: Vector3) -> void:
@@ -122,7 +124,13 @@ func _sample() -> void:
 	for p in Game.players():
 		if not p.is_bot or p.is_dead:
 			continue
-		var low := p.crouch > 0.5
+		# A bot copy on a client never learns that its bot died (health stays 0 there), so a bot that died
+		# mid-slide keeps crouch = 1.0 forever and would count as crawling while standing still. The complaint
+		# is a bot that walks crouched, so only ticks with real movement count.
+		var last: Variant = _last_pos.get(p.peer_id)
+		var speed := 0.0 if last == null else Vector2(p.global_position.x - (last as Vector3).x, p.global_position.z - (last as Vector3).z).length() / maxf(get_physics_process_delta_time(), 0.001)
+		_last_pos[p.peer_id] = p.global_position
+		var low := p.crouch > 0.5 and speed > 1.0
 		var row: Array = _per_bot.get(p.peer_id, [0, 0])
 		row[1] += 1
 		_samples += 1 # every bot tick: the denominator for the percentages
@@ -165,6 +173,12 @@ func _report(where: String) -> void:
 	print("STANCE %s: %d samples | slide %.1f%% dive %.1f%% roll %.1f%% plain %.1f%% (worst bot %d: %.1f%%) | plain by key %.1f%% by stuck %.1f%% (ceiling %.1f%%)" % [
 		where, _samples, _pct(_slide), _pct(_dive), _pct(_roll), _pct(_plain), worst_bot, worst * 100.0,
 		_pct(_plain_want), _pct(_plain_stuck), _pct(_plain_ceil)])
+	for id in _trace:
+		var tr: Dictionary = _trace[id]
+		var hist := ""
+		for b in range(10):
+			hist += "%d " % int((tr["buckets"] as Dictionary).get(b, 0))
+		print("  bot %d: n=%d plain=%d dead=%s hist[0..1]=%s" % [int(id), int(tr["n"]), int(tr["plain"]), str(tr["dead"]), hist])
 	var ok := _pct(_plain) < LIMIT * 100.0 and _samples > 100
 	print("BOT STANCE CHECK %s" % ("OK" if ok else "FAIL (plain crouch above %.0f%%)" % (LIMIT * 100.0)))
 	get_tree().quit(0 if ok else 1)
