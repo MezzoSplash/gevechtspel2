@@ -1,5 +1,6 @@
 extends Node
 ## #250 step 1: play the same seeded bot match per map and diff it against a baseline.
+##   tools/replay_match.sh [map] [--update-baseline] [seed] [ticks]   (fresh user://, fixed 60 fps; see there)
 ##   godot --headless --fixed-fps 60 res://tools/replay_match.tscn -- [map] [--update-baseline] [seed] [ticks]
 ## Defaults: quay, seed 1234, 2700 ticks (45 s at 60 Hz), TDM with 6 Hard bots.
 ## Deterministic run to run at --fixed-fps 60: the match RNG is seeded (Game.set_rng_seed), each
