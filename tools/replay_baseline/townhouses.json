@@ -1,0 +1,69 @@
+{
+  "bots": 6,
+  "deaths": {
+    "melee": 2,
+    "shotgun": 3,
+    "slug": 1,
+    "smg": 1,
+    "sniper": 3
+  },
+  "hashes": [
+    {
+      "hash": 2407661816,
+      "t": 5
+    },
+    {
+      "hash": 1461741663,
+      "t": 10
+    },
+    {
+      "hash": 2572369317,
+      "t": 15
+    },
+    {
+      "hash": 1433046140,
+      "t": 20
+    },
+    {
+      "hash": 3622340296,
+      "t": 25
+    },
+    {
+      "hash": 2119731337,
+      "t": 30
+    },
+    {
+      "hash": 1683226088,
+      "t": 35
+    },
+    {
+      "hash": 1103103844,
+      "t": 40
+    },
+    {
+      "hash": 2951987075,
+      "t": 45
+    }
+  ],
+  "kills": {
+    "melee": 2,
+    "shotgun": 3,
+    "slug": 1,
+    "smg": 1,
+    "sniper": 3
+  },
+  "map": "townhouses",
+  "mode": "Team Deathmatch",
+  "moves": {
+    "dive": 0,
+    "roll": 0,
+    "slide": 10,
+    "wallrun": 0
+  },
+  "seed": 1234,
+  "teams": [
+    2,
+    8
+  ],
+  "ticks": 2700
+}

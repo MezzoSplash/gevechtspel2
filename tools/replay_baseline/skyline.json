@@ -1,0 +1,75 @@
+{
+  "bots": 6,
+  "deaths": {
+    "fall": 2,
+    "grenade": 1,
+    "lmg": 4,
+    "melee": 1,
+    "pistol": 1,
+    "rifle": 1,
+    "shotgun": 2,
+    "sniper": 1
+  },
+  "hashes": [
+    {
+      "hash": 4111856122,
+      "t": 5
+    },
+    {
+      "hash": 3425487240,
+      "t": 10
+    },
+    {
+      "hash": 3913079099,
+      "t": 15
+    },
+    {
+      "hash": 2348327214,
+      "t": 20
+    },
+    {
+      "hash": 3281467123,
+      "t": 25
+    },
+    {
+      "hash": 316110998,
+      "t": 30
+    },
+    {
+      "hash": 4076547894,
+      "t": 35
+    },
+    {
+      "hash": 2211840280,
+      "t": 40
+    },
+    {
+      "hash": 1914309129,
+      "t": 45
+    }
+  ],
+  "kills": {
+    "fall": 2,
+    "grenade": 1,
+    "lmg": 4,
+    "melee": 1,
+    "pistol": 1,
+    "rifle": 1,
+    "shotgun": 2,
+    "sniper": 1
+  },
+  "map": "skyline",
+  "mode": "Team Deathmatch",
+  "moves": {
+    "dive": 0,
+    "roll": 0,
+    "slide": 8,
+    "wallrun": 0
+  },
+  "seed": 1234,
+  "teams": [
+    9,
+    2
+  ],
+  "ticks": 2700
+}
