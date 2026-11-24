@@ -77,11 +77,12 @@ func _delivery(poses: Array, latency: int, jitter: int, burst: int, loss_every: 
 
 
 ## Draw `delivery` at 120 Hz from `t0` to `t1` and report what a player would have seen.
-func _sim(delivery: Array, t0: int, t1: int) -> Dictionary:
-	_p._pose_buf.clear()
-	_p._pose_off_ms = 0
-	_p._pose_off_set_ms = 0
-	_p._pose_last_arrival_ms = 0
+## `truth` is the sender's timeline (the poses before loss): the drawn pawn is compared with where the
+## sender really was at the instant being drawn, so a pawn that trails or hovers cannot pass.
+func _sim(delivery: Array, t0: int, t1: int, truth: Array = []) -> Dictionary:
+	PawnNet.reset_stream(_p)
+	Game._net_pose_stamped = false
+	_p.position = Vector3(500, 50, 500) # far away: the first pose has to put the pawn down, not slide it
 	Game._net_pose_peak_ms = 0.0
 	Game._net_delay_f = PawnNet.DELAY_MIN_MS
 	Game.net_delay_ms = PawnNet.DELAY_MIN_MS
@@ -96,6 +97,9 @@ func _sim(delivery: Array, t0: int, t1: int) -> Dictionary:
 	var last := Vector3.ZERO
 	var frames := 0
 	var samples: Array = [] # [ms, y] of the drawn pawn
+	var max_err := 0.0 # metres between the drawn pawn and the sender at the drawn instant, once settled
+	var settle_err := 0.0 # the same in the first 2 s, while the clock offset walks to its value
+	var settle_back := 0.0 # a step backwards in those first 2 s (the buffer is still filling)
 	for f in int((t1 - t0) / FRAME_MS):
 		var now := int(t0 + f * FRAME_MS)
 		while i < delivery.size() and int(delivery[i][0]) <= now:
@@ -107,21 +111,43 @@ func _sim(delivery: Array, t0: int, t1: int) -> Dictionary:
 		if at_prev >= 0.0:
 			max_at_change = maxf(max_at_change, absf(at - at_prev))
 		at_prev = at
-		frames += 1
+		if i > 0:
+			frames += 1 # counted from the first pose that landed
 		if frames < 30: # the buffer has to fill first, as after a join
 			last = _p.position
 			continue
 		max_step = maxf(max_step, _p.position.distance_to(last))
 		if _p.position.distance_to(last) < 0.001:
 			freezes += 1
-		back_step = maxf(back_step, last.x - _p.position.x)
+		if frames > 240:
+			back_step = maxf(back_step, last.x - _p.position.x)
+		else:
+			settle_back = maxf(settle_back, last.x - _p.position.x)
 		max_y = maxf(max_y, _p.position.y)
 		samples.append([now, _p.position.y])
+		if not truth.is_empty():
+			var sent_at := at - float(_p._pose_off_ms)
+			if sent_at >= float(truth[0][0]) and sent_at <= float(truth[-1][0]):
+				var e := _p.position.distance_to(_truth(truth, sent_at))
+				if frames > 240: # 2 s after the first pose: the clock offset has settled
+					max_err = maxf(max_err, e)
+				else:
+					settle_err = maxf(settle_err, e)
 		last = _p.position
 	return {
 		"max_step": max_step, "freezes": freezes, "max_y": max_y, "max_at_change": max_at_change,
-		"back_step": back_step, "delay": Game.net_delay_ms, "samples": samples,
+		"back_step": back_step, "delay": Game.net_delay_ms, "samples": samples, "max_err": max_err, "settle_err": settle_err, "settle_back": settle_back,
 	}
+
+
+## Where the sender was at its own time `t`, between its poses.
+func _truth(poses: Array, t: float) -> Vector3:
+	for i in range(poses.size() - 1):
+		var a: Array = poses[i]
+		var b: Array = poses[i + 1]
+		if t >= float(a[0]) and t <= float(b[0]):
+			return (a[1] as Vector3).lerp(b[1] as Vector3, (t - float(a[0])) / maxf(float(b[0]) - float(a[0]), 0.001))
+	return poses[-1][1]
 
 
 func _ready() -> void:
@@ -130,28 +156,44 @@ func _ready() -> void:
 	var t0 := 2000000
 
 	# A clean 30 Hz link: about what the old glide cost, no steps of note, no freezes.
-	var clean := _sim(_delivery(_poses(120, 12.0, false, t0), 40, 2, 1, 0), t0, t0 + 3600)
+	var clean_poses := _poses(120, 12.0, false, t0)
+	var clean := _sim(_delivery(clean_poses, 40, 2, 1, 0), t0, t0 + 3600, clean_poses)
+	_ok(float(clean.max_err) < 0.05, "clean: drawn where the sender was (%.3f m off at most)" % clean.max_err)
 	_ok(float(clean.max_step) < 0.35, "clean: biggest step %.2f m at 12 m/s over 120 Hz frames" % clean.max_step)
 	_ok(int(clean.freezes) == 0, "clean: the pawn never stands still (%d frames)" % clean.freezes)
 	_ok(int(clean.delay) == PawnNet.DELAY_MIN_MS, "clean: the delay stays at the floor (%d ms)" % clean.delay)
 	_ok(float(clean.max_at_change) < 12.0, "clean: the render time moves %.1f ms per frame at most" % clean.max_at_change)
 
 	# 150 ms latency, +-40 ms jitter, 5% loss, four poses landing at once: the burst that broke #361.
-	var burst := _sim(_delivery(_poses(150, 12.0, false, t0), 150, 40, 4, 20), t0, t0 + 4000)
+	var burst_poses := _poses(150, 12.0, false, t0)
+	var burst := _sim(_delivery(burst_poses, 150, 40, 4, 20), t0, t0 + 4000, burst_poses)
+	_ok(float(burst.max_err) < 0.25, "burst+loss: drawn where the sender was (%.2f m off at most)" % burst.max_err)
+	_ok(float(burst.settle_err) < 0.5, "burst+loss: first 2 s, while the clock settles (%.2f m off at most)" % burst.settle_err)
 	_ok(float(burst.max_step) < 0.9, "burst+loss: biggest step %.2f m" % burst.max_step)
 	_ok(int(burst.freezes) <= 2, "burst+loss: at most a frame or two without movement (%d)" % burst.freezes)
-	_ok(float(burst.back_step) < 0.35, "burst+loss: no backwards jump (%.2f m)" % burst.back_step)
+	_ok(float(burst.back_step) < 0.01, "burst+loss: no step backwards once settled (%.3f m)" % burst.back_step)
+	_ok(float(burst.settle_back) < 0.15, "burst+loss: first 2 s, at most a small step back (%.3f m)" % burst.settle_back)
 	_ok(int(burst.delay) > PawnNet.DELAY_MIN_MS + 20, "burst+loss: the delay grew to %d ms" % burst.delay)
 	_ok(float(burst.max_at_change) < 12.0, "burst+loss: the render time moves %.1f ms per frame at most" % burst.max_at_change)
 
 	# A jump: the drawn pawn may not hang above the apex or stay in the air after the sender landed.
-	var jump := _sim(_delivery(_poses(150, 6.0, true, t0), 150, 40, 4, 20), t0, t0 + 4000)
+	var jump_poses := _poses(150, 6.0, true, t0)
+	var jump := _sim(_delivery(jump_poses, 150, 40, 4, 20), t0, t0 + 4000, jump_poses)
 	_ok(float(jump.max_y) <= 1.12, "jump: never above the 1.00 m apex (%.2f m)" % jump.max_y)
+	_ok(float(jump.max_y) >= 0.85, "jump: the jump is visible, not flattened (%.2f m high)" % jump.max_y)
+	_ok(float(jump.max_err) < 0.25, "jump: drawn where the sender was (%.2f m off at most)" % jump.max_err)
 	var too_high := 0
 	for s in jump.samples:
 		if int(s[0]) >= t0 + 2300 and float(s[1]) > 0.12:
 			too_high += 1
 	_ok(too_high <= 2, "jump: back on the floor within ~300 ms of landing (%d frames too high)" % too_high)
+
+	# Fifteen seconds of burst+loss: the clock offset crosses several windows and may not hitch the pawn.
+	var long_poses := _poses(450, 8.0, false, t0)
+	var long := _sim(_delivery(long_poses, 150, 40, 4, 20), t0, t0 + 15500, long_poses)
+	_ok(float(long.max_err) < 0.25, "15 s burst+loss: drawn where the sender was (%.2f m off at most)" % long.max_err)
+	_ok(float(long.back_step) < 0.01, "15 s burst+loss: never a step backwards once settled (%.3f m)" % long.back_step)
+	_ok(float(long.settle_back) < 0.15, "15 s burst+loss: first 2 s, at most a small step back (%.3f m)" % long.settle_back)
 
 	# A 400 ms hole in the stream: no throw, and no backwards jump when the next pose lands.
 	var holed := _poses(150, 8.0, false, t0)
@@ -165,10 +207,8 @@ func _ready() -> void:
 	_ok(float(gap.back_step) < 0.4, "400 ms hole: no backwards jump (%.2f m)" % gap.back_step)
 
 	# A pose that a burst delivered out of order still lands in the right slot.
-	_p._pose_buf.clear()
-	_p._pose_off_ms = 0
-	_p._pose_off_set_ms = 0
-	_p._pose_last_arrival_ms = 0
+	PawnNet.reset_stream(_p)
+	Game._net_pose_stamped = false
 	Game._net_delay_f = PawnNet.DELAY_MIN_MS
 	Game.net_delay_ms = PawnNet.DELAY_MIN_MS
 	PawnNet.push_remote_pose(_p, Vector3(0, 0, 0), t0, t0 + 200)
@@ -189,10 +229,8 @@ func _ready() -> void:
 	_ok(_p.position.distance_to(Vector3(60, 0, 0)) < 0.01, "a teleport is drawn at once (%.2f m off)" % _p.position.distance_to(Vector3(60, 0, 0)))
 
 	# An older server sends no stamp: the buffer falls back to arrival times and still works.
-	_p._pose_buf.clear()
-	_p._pose_off_ms = 0
-	_p._pose_off_set_ms = 0
-	_p._pose_last_arrival_ms = 0
+	PawnNet.reset_stream(_p)
+	Game._net_pose_stamped = false
 	var moved := 0
 	var prev := _p.position
 	for i in 40:
@@ -202,6 +240,34 @@ func _ready() -> void:
 			moved += 1
 		prev = _p.position
 	_ok(moved > 10, "no stamp from an old server: still moves (%d frames)" % moved)
+
+	# The first pose puts the pawn down where it is (a join), it is not slid over from the old spot.
+	PawnNet.reset_stream(_p)
+	Game._net_pose_stamped = false
+	_p.position = Vector3(300, 20, 300)
+	PawnNet.push_remote_pose(_p, Vector3(1, 0, 2), t0, t0 + 100)
+	PawnNet.tick_remote(_p, 1.0 / 120.0, t0 + 100)
+	_ok(_p.position.distance_to(Vector3(1, 0, 2)) < 0.01, "the first pose is drawn at once (%.2f m off)" % _p.position.distance_to(Vector3(1, 0, 2)))
+
+	# sync_pawns sends an unstamped roster copy on a join: it may not disturb a stamped stream.
+	PawnNet.reset_stream(_p)
+	Game._net_pose_stamped = false
+	for i in 10:
+		PawnNet.push_remote_pose(_p, Vector3(float(i) * 0.3, 0, 0), t0 + i * 33, 9000000 + i * 33)
+	var off_before := _p._pose_off_ms
+	var n_before := _p._pose_buf.size()
+	PawnNet.push_remote_pose(_p, Vector3(2.0, 0, 0), 0, 9000000 + 340)
+	_ok(_p._pose_off_ms == off_before and _p._pose_buf.size() == n_before, "an unstamped roster pose leaves a stamped stream alone (offset %d -> %d)" % [off_before, _p._pose_off_ms])
+
+	# The human path: four $Sync packets landing in one frame (net_pos, then its stamp) are four poses.
+	PawnNet.reset_stream(_p)
+	Game._net_pose_stamped = false
+	_p._pose_rx_dirty = false
+	for i in 4:
+		_p._receive_net_pos(Vector3(float(i) * 0.4, 0, 0))
+		_p._on_pose_stamp(t0 + i * 33)
+	_p._flush_remote_pose()
+	_ok(_p._pose_buf.size() == 4, "a burst of four human packets in one frame keeps all four poses (%d)" % _p._pose_buf.size())
 
 	# Lag compensation must know about the interpolation delay, or shots land behind the target.
 	_ok(LagComp.INTERP_MS >= PawnNet.DELAY_MAX_MS, "LagComp allows the full interpolation delay (%d ms)" % LagComp.INTERP_MS)
