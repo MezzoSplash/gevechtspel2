@@ -1,0 +1,71 @@
+{
+  "bots": 6,
+  "deaths": {
+    "grenade": 1,
+    "lmg": 1,
+    "melee": 1,
+    "pistol": 3,
+    "shotgun": 6,
+    "smg": 1
+  },
+  "hashes": [
+    {
+      "hash": 1661204277,
+      "t": 5
+    },
+    {
+      "hash": 2564630858,
+      "t": 10
+    },
+    {
+      "hash": 866136618,
+      "t": 15
+    },
+    {
+      "hash": 4088558520,
+      "t": 20
+    },
+    {
+      "hash": 3763454707,
+      "t": 25
+    },
+    {
+      "hash": 3389650982,
+      "t": 30
+    },
+    {
+      "hash": 1844227503,
+      "t": 35
+    },
+    {
+      "hash": 3880462752,
+      "t": 40
+    },
+    {
+      "hash": 3708534612,
+      "t": 45
+    }
+  ],
+  "kills": {
+    "grenade": 1,
+    "lmg": 1,
+    "melee": 1,
+    "pistol": 3,
+    "shotgun": 6,
+    "smg": 1
+  },
+  "map": "quay",
+  "mode": "Team Deathmatch",
+  "moves": {
+    "dive": 0,
+    "roll": 0,
+    "slide": 10,
+    "wallrun": 0
+  },
+  "seed": 1234,
+  "teams": [
+    5,
+    8
+  ],
+  "ticks": 2700
+}

@@ -899,7 +899,7 @@ func _fire() -> void:
 	if shooter and shooter.is_bot:
 		spread_mult *= def.bot_spread_mult
 	# One seed for the tracers here and the hit rays on the server, so they line up.
-	var shot_seed := randi() | 1
+	var shot_seed := Game.rng().randi() | 1 # #250: the seeded match stream
 	var tracer_to := _simulate_pellets_fx(origin, look_dir, spread_mult, shot_seed)
 	if Game.is_networked() and multiplayer.is_server() and shooter:
 		Game.broadcast_shot_fx(muzzle.global_position, tracer_to, shooter.peer_id)

@@ -1,0 +1,71 @@
+{
+  "bots": 6,
+  "deaths": {
+    "grenade": 1,
+    "melee": 1,
+    "rifle": 2,
+    "shotgun": 3,
+    "slug": 1,
+    "smg": 1
+  },
+  "hashes": [
+    {
+      "hash": 3101087929,
+      "t": 5
+    },
+    {
+      "hash": 3582091018,
+      "t": 10
+    },
+    {
+      "hash": 1335873215,
+      "t": 15
+    },
+    {
+      "hash": 2292748070,
+      "t": 20
+    },
+    {
+      "hash": 4258117092,
+      "t": 25
+    },
+    {
+      "hash": 1905486545,
+      "t": 30
+    },
+    {
+      "hash": 4103097939,
+      "t": 35
+    },
+    {
+      "hash": 1621535232,
+      "t": 40
+    },
+    {
+      "hash": 1718144301,
+      "t": 45
+    }
+  ],
+  "kills": {
+    "grenade": 1,
+    "melee": 1,
+    "rifle": 2,
+    "shotgun": 3,
+    "slug": 1,
+    "smg": 1
+  },
+  "map": "foundry",
+  "mode": "Team Deathmatch",
+  "moves": {
+    "dive": 0,
+    "roll": 0,
+    "slide": 7,
+    "wallrun": 0
+  },
+  "seed": 1234,
+  "teams": [
+    4,
+    5
+  ],
+  "ticks": 2700
+}

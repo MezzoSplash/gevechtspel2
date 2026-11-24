@@ -140,6 +140,28 @@ const WEAPON_DEFS := {
 }
 
 
+## #250: one seeded generator for a replay. `rng_seed` 0 = normal play (randomised); the replay tool sets
+## a seed, then the same match can be played again and diffed against a baseline in tools/replay_baseline.
+## It lives on Game so gameplay code has one place to ask, instead of a fresh RandomNumberGenerator per
+## call. Visual-only randomness (screen effects, tape noise) may keep its own generator: it never reaches
+## the simulation, so it cannot break a replay.
+var rng_seed := 0
+var _match_rng := RandomNumberGenerator.new()
+
+
+## The match-wide generator. Unseeded play gets a randomised one, so nothing changes for players.
+func rng() -> RandomNumberGenerator:
+	return _match_rng
+
+
+func set_rng_seed(s: int) -> void:
+	rng_seed = s
+	if s != 0:
+		_match_rng.seed = s
+	else:
+		_match_rng.randomize()
+
+
 ## The release (build) version of this binary, next to the protocol: NET_VERSION only moves when an
 ## older peer can no longer play, the build moves on every release (#356). One source:
 ## project.godot `application/config/version`, which the release PR bumps together with
