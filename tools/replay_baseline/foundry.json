@@ -1,13 +1,13 @@
 {
   "bots": 6,
   "deaths": {
-    "grenade": 2,
-    "lmg": 1,
-    "melee": 2,
-    "rifle": 2,
+    "grenade": 1,
+    "melee": 1,
+    "pistol": 3,
     "shotgun": 2,
     "slug": 2,
-    "smg": 1
+    "smg": 1,
+    "sniper": 1
   },
   "hashes": [
     {
@@ -23,57 +23,57 @@
       "t": 15
     },
     {
-      "hash": 2292748070,
+      "hash": 1014958179,
       "t": 20
     },
     {
-      "hash": 49369306,
+      "hash": 1587377114,
       "t": 25
     },
     {
-      "hash": 3727309097,
+      "hash": 1016193929,
       "t": 30
     },
     {
-      "hash": 1444547298,
+      "hash": 458430862,
       "t": 35
     },
     {
-      "hash": 4211071870,
+      "hash": 2433669984,
       "t": 40
     },
     {
-      "hash": 3514900006,
+      "hash": 3006100872,
       "t": 45
     }
   ],
   "kills": {
-    "grenade": 2,
-    "lmg": 1,
-    "melee": 2,
-    "rifle": 2,
+    "grenade": 1,
+    "melee": 1,
+    "pistol": 3,
     "shotgun": 2,
     "slug": 2,
-    "smg": 1
+    "smg": 1,
+    "sniper": 1
   },
   "map": "foundry",
   "mode": "Team Deathmatch",
   "moves": {
     "dive": 0,
     "roll": 0,
-    "slide": 10,
+    "slide": 5,
     "wallrun": 0
   },
   "seed": 1234,
   "stance_pct": {
-    "dive": 21.8,
+    "dive": 1.2,
     "plain": 0.2,
-    "roll": 0.0,
-    "slide": 2.1
+    "roll": 1.5,
+    "slide": 1.1
   },
   "teams": [
-    6,
-    6
+    4,
+    7
   ],
   "ticks": 2700
 }

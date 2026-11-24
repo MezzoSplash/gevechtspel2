@@ -60,6 +60,11 @@ static func tick(b: BotBrain, delta: float) -> void:
 		b.pawn.velocity.x = dir.x * sp
 		b.pawn.velocity.z = dir.z * sp
 	Movement.finish_slide(b.pawn)
+	# #371: the dive has to be closed, exactly as MoveTick does for a human. Without this the landing never
+	# ran for a bot, so _diving stayed true from its first dive until it respawned, and update_stance kept
+	# crouch = 1 for a bot with no key, no slide and no ceiling: one bot per match crawling at full speed.
+	# It also never got its _dive_cd, _dive_used or landing roll, so it could not dive again.
+	Movement.tick_dive_roll(b.pawn, delta)
 	# The same stance code the human runs: crouch follows the held key, and releases when the slide,
 	# the dive or the roll is over.
 	b.pawn._update_stance(delta, on_floor)

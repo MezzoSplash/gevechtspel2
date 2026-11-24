@@ -382,13 +382,13 @@ static func push_bot_poses(g: GameState) -> void:
 		var p := n as Player
 		if p == null or not p.is_bot:
 			continue
-		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx, sent])
+		poses.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, p.move_fx, 1.0 if p._sliding else 0.0, sent])
 		# #371 trace: GS2_POSE_TRACE=1 prints every pose the server sends, so a client trace can be paired
 		# with it by peer id. Off by default; no effect on the wire.
 		if _pose_trace:
-			print("POSE srv %d %d crouch=%.3f fx=%d dead=%s slide=%s key=%s ceil=%s pos=%.2f,%.2f,%.2f" % [
+			print("POSE srv %d %d crouch=%.3f fx=%d dead=%s slide=%s dive=%s key=%s ceil=%s pos=%.2f,%.2f,%.2f" % [
 				int(Time.get_unix_time_from_system() * 1000.0), p.peer_id, p.crouch, p.move_fx,
-				str(p.is_dead), str(p._sliding), str(p._in_crouch), str(p._ceiling_blocked()),
+				str(p.is_dead), str(p._sliding), str(p._diving), str(p._in_crouch), str(p._ceiling_blocked()),
 				p.global_position.x, p.global_position.y, p.global_position.z])
 	if poses.is_empty():
 		return
@@ -414,7 +414,7 @@ static func apply_bot_poses(g: GameState, poses: Array) -> void:
 		var p := g.player_for_peer(int(entry[0]))
 		if p and p.is_bot:
 			var sent := int(entry[6]) if entry.size() > 6 else 0
-			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), entry.slice(4, 6), sent)
+			p.apply_network_pose(entry[1], float(entry[2]), float(entry[3]), entry.slice(4, 7), sent)
 
 
 ## Client (sync_roster): remote pawns the server no longer has are removed.

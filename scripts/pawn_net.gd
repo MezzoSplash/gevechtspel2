@@ -19,6 +19,10 @@ static func apply_network_pose(p: Player, pos: Vector3, yaw: float, pitch: float
 	p.velocity = Vector3.ZERO
 	if stance.size() >= 2:
 		p.crouch = clampf(float(stance[0]), 0.0, 1.0)
+		# #371: the slide is a stance of its own and was invisible to everyone else (the sync carried only
+		# crouch and move_fx), so a sliding bot and a crawling bot looked the same on another screen.
+		if stance.size() >= 3:
+			p._sliding = float(stance[2]) > 0.5
 		var was := p.move_fx
 		p.move_fx = int(stance[1])
 		p._apply_stance()
