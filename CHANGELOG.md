@@ -2,6 +2,12 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.6.2** — Richten werkt nu bij elk wapen dat ervoor gemaakt is.
+
+Rifle, pistool, revolver en slug hebben ADS: rechtermuisknop zoomt in op het ijzeren vizier en maakt het schot nauwkeuriger (rifle 0,35° → 0,21°, pistool 0,55° → 0,36°, revolver 0,25° → 0,18°, slug 0,30° → 0,18°). Het vizier staat bij elk wapen recht onder het richtkruis in plaats van ernaast of eronder, en de sniper-scope staat weer in het midden. De SMG kijkt door zijn vizier in plaats van tegen de achterkant van zijn eigen kolf. Shotgun en shank hebben bewust geen ADS.
+
+**Compatibel met v0.6.1** (NET_VERSION 0.5.21): er is niets aan het netwerk veranderd. Richt je met 0.6.2 op een 0.6.1-host, dan rekent die host je spreiding nog op de oude manier.
+
 **v0.6.1** — Netcode die hoge ping verdraagt, en drie dingen die niet deden wat ze moesten.
 
 Met een hoge ping of packet loss zweven en schuiven andere spelers niet meer. Elke pose komt met de zendtijd van de afzender binnen en wordt over een buffer geïnterpoleerd, dus een schokkerige verbinding geeft geen pawns meer die vooruit razen, stil blijven staan of de lucht in hangen. Er zit een klein netwerkpaneel in de HUD (ping, packet loss, buffer) dat je met een schakelaar aanzet.
