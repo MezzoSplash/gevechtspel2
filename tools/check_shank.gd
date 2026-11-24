@@ -56,7 +56,7 @@ func _numbers() -> void:
 	_ok(is_equal_approx(Melee.LUNGE_M, 2.5) and is_equal_approx(Melee.LUNGE_TIME, 0.16), "lunge is 2.5 m over 0.16 s")
 	var lunge_speed := Melee.LUNGE_M / Melee.LUNGE_TIME
 	_ok(lunge_speed < 18.0 * 1.4, "lunge speed %.1f m/s stays under the position-claim cap" % lunge_speed)
-	_ok(Melee.SHANK_CONE_DEG < Melee.CONE_DEG and Melee.SHANK_CONE_DEG <= 28.0, "the shank cone is tighter than the bash")
+	_ok(is_equal_approx(Melee.SHANK_CONE_DEG, Melee.CONE_DEG) and is_equal_approx(Melee.SHANK_CLOSE_CONE_DEG, Melee.CLOSE_CONE_DEG), "the shank cone matches the bash (#373)")
 	_ok(is_equal_approx(Melee.DAMAGE, 50.0) and is_equal_approx(Melee.CONE_DEG, 40.0) and is_equal_approx(Melee.COOLDOWN, 0.8), "the bash is still 50 / 40 deg / 0.8 s")
 	_ok(Melee.SHANK_SLACK < Melee.SERVER_SLACK, "shank server slack is tighter than the bash")
 	_ok(Melee.BACK_DOT <= -0.34 and Melee.BACK_DOT > -0.5, "the rear wedge stays about 110 deg off the nose")
