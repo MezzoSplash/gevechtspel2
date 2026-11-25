@@ -25,6 +25,11 @@ var _deaths: Dictionary = {} # weapon -> count
 var _moves: Dictionary = {"dive": 0, "wallrun": 0, "roll": 0, "slide": 0}
 var _hashes: Array = [] # [{t, hash}]
 var _stance := {"ticks": 0, "slide": 0, "dive": 0, "roll": 0, "plain": 0} # #371
+## #382: a bot that sees an enemy within reach and does nothing. Per bot the longest run of ticks in that
+## state, with the style and the behaviour state it was in; the summary keeps it so a run can be compared.
+const IDLE_RANGE := 30.0
+const IDLE_ACT_TICKS := 60 # 1 s: a shot, grenade, stab or slide this recent still counts as acting
+var _idle: Dictionary = {} # peer -> {max, state, style, streak, last_act, ammo, nades, melee}
 
 
 func _box(pos: Vector3, size: Vector3) -> void:
@@ -116,6 +121,7 @@ func _ready() -> void:
 		if (t + 1) % HASH_EVERY == 0:
 			_hashes.append({"t": (t + 1) / 60, "hash": _position_hash()})
 		_stance_tick()
+		_idle_tick(t)
 	var summary := _summary(map_id, seed_v, ticks)
 	Game.kill_feed.disconnect(_on_kill)
 	var code := _compare(map_id, summary, update)
@@ -140,9 +146,86 @@ func _stance_tick() -> void:
 			_stance["plain"] = int(_stance["plain"]) + 1
 
 
+## #382: longest idle run per bot, in seconds, with its style and state; and the worst per style.
+## Own line-of-sight ray, not the brain's: calling _can_see(..., true) from a probe writes the bot's LOS
+## cache and would change the match it is measuring (#382).
+func _sees(p: Player, foe: Player) -> bool:
+	var space := p.get_world_3d().direct_space_state
+	var from := p.head.global_position
+	for to in [(foe as Player).aim_point(), (foe as Player).head_point()]:
+		var q := PhysicsRayQueryParameters3D.create(from, to)
+		q.collision_mask = 1 | 2 # the brain's SHOT_MASK: world and pawns
+		q.exclude = [p.get_rid()]
+		var hit := space.intersect_ray(q)
+		if hit.is_empty() or hit.get("collider") == foe:
+			return true
+	return false
+
+
+func _idle_summary() -> Dictionary:
+	var out := {"bots": {}, "styles": {}}
+	for id in _idle:
+		var rec: Dictionary = _idle[id]
+		var secs: float = round(10.0 * float(rec["max"]) / 60.0) / 10.0
+		out["bots"][str(id)] = {"max_s": secs, "style": rec["style"], "state": rec["state"],
+			"spd": round(10.0 * float(rec.get("spd", 0.0))) / 10.0, "dist": round(float(rec.get("dist", 0.0))),
+			"ammo": int(rec.get("ammo", 0)), "rc": bool(rec.get("rc", false))}
+		var st: String = String(rec["style"])
+		out["styles"][st] = maxf(float(out["styles"].get(st, 0.0)), secs)
+	return out
+
+
 func _stance_pct(key: String) -> float:
 	var n := int(_stance["ticks"])
 	return 0.0 if n == 0 else round(1000.0 * float(_stance[key]) / float(n)) / 10.0
+
+
+## #382: every tick, per bot: does it see an enemy within reach, and has it done anything in the last
+## second? A run of such ticks is a bot standing around while it has business with you. Walking in a ring
+## counts as doing nothing: only shots, grenades, stabs and slides reset the clock.
+func _idle_tick(t: int) -> void:
+	for p in Game.players():
+		if not p.is_bot or p._bot_brain == null or p.is_dead:
+			continue
+		var b = p._bot_brain
+		var rec: Dictionary = _idle.get(p.peer_id, {"max": 0, "state": "", "style": "", "streak": 0,
+			"last_act": -100000, "ammo": 0, "nades": 0, "melee": 0.0})
+		var ammo: int = p.weapon.ammo if p.weapon != null else 0
+		var nades: int = p.grenades
+		var melee: float = p.weapon._melee_cd if p.weapon != null else 0.0
+		var acted := ammo < int(rec["ammo"]) or nades < int(rec["nades"]) or melee > float(rec["melee"]) + 0.01 or p._sliding
+		rec["ammo"] = ammo
+		rec["nades"] = nades
+		rec["melee"] = melee
+		if acted:
+			rec["last_act"] = t
+		# The brain's own sight test on its current target, freshly: _seen_target is only ever set, never
+		# cleared, so reading that field counts phantom enemies behind walls (#382).
+		var seen := false
+		var foe = b._target
+		if foe != null and is_instance_valid(foe) and not (foe as Player).is_dead:
+			seen = p.global_position.distance_to((foe as Player).global_position) <= IDLE_RANGE and _sees(p, foe)
+		# Travelling counts as acting too (#382): a bot that really changes position is not idling, a bot
+		# that circles in place is. The anchor is the spot where the streak started.
+		if int(rec["streak"]) == 0 or rec.get("anchor") == null:
+			rec["anchor"] = p.global_position
+		elif p.global_position.distance_to(rec["anchor"] as Vector3) > 3.0:
+			rec["last_act"] = t
+			rec["anchor"] = p.global_position
+		var recent := t - int(rec["last_act"]) <= IDLE_ACT_TICKS
+		if seen and not recent:
+			rec["streak"] = int(rec["streak"]) + 1
+			rec["state"] = String(Player.Brain.State.keys()[b.state]) if b.state < Player.Brain.State.size() else "?"
+			rec["style"] = String(b.style.id) if b.style != null else "?"
+			if int(rec["streak"]) > int(rec["max"]):
+				rec["max"] = rec["streak"]
+				rec["spd"] = sqrt(p.velocity.x * p.velocity.x + p.velocity.z * p.velocity.z)
+				rec["dist"] = p.global_position.distance_to((foe as Player).global_position) if foe != null else 0.0
+				rec["ammo"] = ammo
+				rec["rc"] = p.rc_view if "rc_view" in p else false
+		else:
+			rec["streak"] = 0
+		_idle[p.peer_id] = rec
 
 
 func _on_kill(_kn: String, _vn: String, weapon_id: StringName, _kt: int, _vt: int, _tricks: String) -> void:
@@ -188,6 +271,7 @@ func _summary(map_id: StringName, seed_v: int, ticks: int) -> Dictionary:
 		"moves": _sorted(_moves),
 		"stance_pct": {"slide": _stance_pct("slide"), "dive": _stance_pct("dive"),
 			"roll": _stance_pct("roll"), "plain": _stance_pct("plain")},
+		"idle": _idle_summary(),
 		"hashes": _hashes,
 	}
 
@@ -199,6 +283,17 @@ func _sorted(d: Dictionary) -> Dictionary:
 	for k in keys:
 		out[k] = d[k]
 	return out
+
+
+func _print_idle(now: Dictionary) -> void:
+	var idle: Dictionary = now.get("idle", {})
+	for id in idle.get("bots", {}):
+		var row: Dictionary = idle["bots"][id]
+		print("  idle bot %s: %.1f s (%s / %s, spd %.1f, dist %.0f m, ammo %d%s)" % [str(id), float(row["max_s"]),
+			str(row["style"]), str(row["state"]), float(row.get("spd", 0.0)), float(row.get("dist", 0.0)),
+			int(row.get("ammo", 0)), ", RC" if bool(row.get("rc", false)) else ""])
+	for st in idle.get("styles", {}):
+		print("  idle style %s: %.1f s" % [str(st), float(idle["styles"][st])])
 
 
 func _baseline_path(map_id: StringName) -> String:
@@ -225,6 +320,7 @@ func _compare(map_id: StringName, now: Dictionary, update: bool) -> int:
 		f.store_string(JSON.stringify(now, "  "))
 		f.close()
 		print("REPLAY %s: baseline geschreven -> %s" % [map_id, path])
+		_print_idle(now)
 		print("REPLAY CHECK OK")
 		return 0
 	var old: Dictionary = _read(path)
@@ -266,6 +362,7 @@ func _compare(map_id: StringName, now: Dictionary, update: bool) -> int:
 	print("  stance: plain %.1f%% -> %.1f%% | slide %.1f%% -> %.1f%%" % [
 		float(os_.get("plain", 0.0)), float(ns.get("plain", 0.0)),
 		float(os_.get("slide", 0.0)), float(ns.get("slide", 0.0))])
+	_print_idle(now)
 	if fails > 0:
 		print("REPLAY CHECK FAIL (%d diffs buiten tolerantie)" % fails)
 		return 1

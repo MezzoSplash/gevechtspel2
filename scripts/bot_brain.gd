@@ -124,6 +124,7 @@ var _hint_pressed := false
 var rng := RandomNumberGenerator.new()
 ## How long this character has wanted to shoot but did not have the angle yet (#267 slice 2).
 var _flank_wait := 0.0
+var _flank_lost := 0.0 # s without sight, so a corner does not wipe the flanker's patience (#382)
 var _flank_base := 0.0 # peer slot on the ring; restored when the target changes
 var _flank_angle := 0.0 # radians around the enemy; hunt aims here before closing
 var _flank_flipped := false # first stuck tries the other side before a direct chase
@@ -970,6 +971,10 @@ func _drive_rc(delta: float) -> bool:
 ## Does this character get to open fire on `enemy` from where it stands? Only the flanker asks
 ## (#267 slice 2): no attack from straight ahead, a free shot from the side or the back, and a
 ## patience timer so it never circles forever in front of someone who keeps facing it.
+## A flanker keeps its patience through a short loss of sight (#382).
+const FLANK_SIGHT_GRACE := 0.8
+
+
 func _flank_aim_ok(enemy: Player, delta: float) -> bool:
 	var to := pawn.global_position - enemy.global_position
 	to.y = 0.0
