@@ -394,6 +394,44 @@ func _los2(p: Player, bot: Player) -> void:
 		_ok(bot.is_dead and LosHands.for_owner(1) == null and not Game.los_view,
 			"the third kill ends the chain (target alive: %s)" % str(bot.hp > 0.0))
 
+	# #384: the marks count from the hands, not from the body left behind on the ground.
+	hands = _fresh(p)
+	if hands != null:
+		hands.global_position = Vector3(0.0, 1.35, -20.0)
+		_revive(bot)
+		bot.global_position = Vector3(0.0, 0.05, -23.0)
+		await get_tree().physics_frame
+		_ok(LosOutline.origin_for(p).distance_to(hands.global_position) < 0.2,
+			"the marks are measured from the hands, not from the body")
+		var ahead: Array = LosOutline.targets(LosOutline.origin_for(p), p, LosOutline.RANGE)
+		_ok(ahead.size() == 1 and float(ahead[0]["d"]) <= LosOutline.BASH_PICK_M,
+			"3 m from the hands is bash range while the body is 20 m back (d %.1f)" % (
+				float(ahead[0]["d"]) if ahead.size() == 1 else -1.0))
+		LosHands.abort_for(1)
+		await get_tree().physics_frame
+
+		# #384: a target three metres below the hands used to be "0.5 m away" on the flat measure and
+		# the lunge went straight over it. Aimed at the chest in 3D, it lands.
+		hands = _fresh(p)
+		_ok(hands != null, "LOS again for the vertical bash")
+		if hands != null:
+			p.global_position = Vector3(0, 0.05, 0)
+			hands.global_position = Vector3(0.0, 4.2, -1.6)
+			hands.velocity = Vector3.ZERO
+			hands._yaw = 0.0
+			hands._pitch = deg_to_rad(-60.0)
+			hands._pose_cam()
+			_revive(bot)
+			bot.global_position = Vector3(0.0, 0.05, -2.2)
+			await get_tree().physics_frame
+			hands._swing_cd = 0.0
+			p.weapon._melee_cd = 0.0
+			var was := hands.kills
+			hands._request_swing()
+			_ok(bot.is_dead and hands.kills == was + 1, "the bash reaches a target 3 m below the hands")
+			LosHands.abort_for(1)
+			await get_tree().physics_frame
+
 	# The outline: enemies within 30 m are marked, further away are not.
 	_revive(bot)
 	bot.global_position = Vector3(0, 0.05, -10.0)

@@ -16,7 +16,7 @@ const SRC := "res://shared/game.gd"
 const GAMEPLAY: Array[String] = [
 	"request_weapon_fire", "request_weapon_switch", "request_grenade", "request_knife",
 	"notify_hit", "broadcast_hurt", "sync_knockback", "correct_position", "sync_weapon", "sync_regen",
-	"sync_los_spawn", "sync_los_pose", "sync_los_end", "los_input", "los_melee", "los_recall",
+	"sync_los_spawn", "sync_los_pose", "sync_los_end", "sync_los_chain", "los_input", "los_melee", "los_recall",
 	"request_streak", "rc_drive", "rc_detonate", "sync_rc_kick", "sync_rc_spawn", "sync_rc_pose",
 	"sync_rc_end", "sync_rc_hp", "sync_grenade_spawn", "sync_grenade_pose", "sync_grenade_boom",
 	"sync_knife_spawn", "request_reload",

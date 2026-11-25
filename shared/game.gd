@@ -180,6 +180,9 @@ var round_frozen := false # look OK, no walk/shoot; bots idle
 var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
 var rc_view := false # this machine is looking out of an RC-XD; the pawn stays put and cannot shoot
 var los_view := false # this machine is looking through LOS hands; the body keeps its line and cannot shoot
+## Test only (--test-los, #384): the server hands every human the LOS charge at spawn. It exists so a
+## two-process check can reach the chain without grinding seven kills; the menu never sets it.
+var test_los := false
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
 var flags: Array = [] # #160 CTF: [blue, orange] Objective dicts (authority decides, all mirror)
 var ctf_caps: Array = [0, 0] # #160 CTF: captures per team this round
@@ -1068,7 +1071,12 @@ func request_use_streak(slot: int) -> void:
 @rpc("any_peer", "call_remote", "reliable", 1)
 func request_streak(slot: int) -> void:
 	if multiplayer.is_server():
-		try_activate_streak(Lobby.sender(self), slot)
+		var peer := Lobby.sender(self)
+		# Test only (--test-los, #384): the charge is granted right here, because a round start
+		# clears whatever a spawn-time grant put down.
+		if test_los and peer > 0:
+			streak_charges[peer] = int(streak_charges.get(peer, 0)) | CHARGE_LOS
+		try_activate_streak(peer, slot)
 
 
 ## #387: a client sends its killstreak pick; the server validates it and echoes what it accepted.
@@ -1165,6 +1173,17 @@ func sync_los_end(peer: int, snap_to: Vector3 = Vector3.INF) -> void:
 	if multiplayer.is_server():
 		return
 	LosHands.abort_for(peer, snap_to)
+
+
+## Server → everyone. #384: a chain kill is a shared fact, not a server detail. Without it a joined
+## client counted its own 8 s down and closed the view while the server kept going, its body never
+## visibly moved, and "Ketting 2/3" only existed on the host. Reliable: losing one would desync the
+## two clocks for the rest of the streak.
+@rpc("authority", "call_remote", "reliable", 1)
+func sync_los_chain(peer: int, kills_in: int, time_in: float, snap_to: Vector3 = Vector3.INF) -> void:
+	if multiplayer.is_server():
+		return
+	LosHands.apply_chain(peer, kills_in, time_in, snap_to)
 
 
 ## Owner → server, every physics tick. Wish is world space and follows the look, including up.

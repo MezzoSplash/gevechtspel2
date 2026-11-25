@@ -66,6 +66,9 @@ func _ready() -> void:
 	if int(args.bot_difficulty) >= 0:
 		Game.last_bot_difficulty = int(args.bot_difficulty)
 	Game.bot_difficulty = Game.last_bot_difficulty
+	# Test only (#384): a dedicated server can hand every human the LOS charge at spawn, so a
+	# two-process check can exercise the chain without grinding seven kills first.
+	Game.test_los = bool(args.get("test_los", false))
 	print("bots: %d, difficulty %s" % [Game.bot_count, Game.BOT_DIFFICULTY_IDS[Game.bot_difficulty]])
 	_load_map(Game.map_id, false)
 	if has_node("MenuCamera"):

@@ -219,6 +219,29 @@ static func server_input(peer: int, wish: Vector3, yaw: float, pitch: float, fla
 		hands._dash()
 
 
+## #384: the server's verdict on a chain kill reaches every machine — the count, the time left after
+## the +3 s, the pause, and where the body lands. The driver also hears it and gets the popup; the
+## server itself calls this through the RPC only, so a client never invents a kill of its own.
+static func apply_chain(peer: int, kills_in: int, time_in: float, snap_to: Vector3 = Vector3.INF) -> void:
+	var hands := for_owner(peer)
+	if hands == null:
+		return
+	hands.kills = kills_in
+	# The client has been counting down while the RPC travelled; never rewind him.
+	hands.time_left = maxf(hands.time_left, time_in)
+	hands._pause = SNAP_PAUSE
+	var p := Game.player_for_peer(peer)
+	if p == null:
+		return
+	if snap_to.is_finite():
+		p.apply_snap(snap_to)
+	if p.is_local():
+		p.play_los_sfx(0.7)
+		var hud := Game.get_tree().get_first_node_in_group("hud") as Hud
+		if hud and kills_in < MAX_KILLS:
+			hud.show_los("Ketting %d/%d." % [kills_in, MAX_KILLS], p.team_id)
+
+
 static func apply_pose(peer: int, pos: Vector3, vel: Vector3, yaw: float, pitch: float) -> void:
 	var hands := for_owner(peer)
 	if hands == null or hands._drives_here():
@@ -268,12 +291,17 @@ func _physics_process(delta: float) -> void:
 	# #384: the timer rests while the body clicks into place after a chain kill.
 	if _pause > 0.0:
 		_pause = maxf(_pause - delta, 0.0)
-	else:
+	elif time_left > 0.0 or _owns_window():
 		time_left -= delta
 	var p := Game.player_for_peer(owner_peer)
-	if time_left <= 0.0 or p == null or p.is_dead:
+	if p == null or p.is_dead:
 		_end(true)
 		return
+	if time_left <= 0.0 and _owns_window():
+		_end(true)
+		return
+	# A joined client keeps the hands until the server says the window is over: its own clock is a
+	# round trip behind the one that decides, and closing early cost it the last chain kill.
 	if _drives_here():
 		_read_stick()
 		if Input.is_action_just_pressed("melee") or Input.is_action_just_pressed("fire"):
@@ -345,6 +373,12 @@ func _input(event: InputEvent) -> void:
 
 
 ## The machine that owns the body also flies the hands. Everyone else takes the pose.
+## #384: only the match authority may close the window on its own clock. Offline and the host are
+## the authority; a joined client waits for sync_los_end.
+func _owns_window() -> bool:
+	return Game._is_match_authority()
+
+
 func _drives_here() -> bool:
 	var p := Game.player_for_peer(owner_peer)
 	return p != null and p.is_local()
@@ -433,10 +467,12 @@ func _resolve_swing(dir: Vector3) -> void:
 	var aim := dir
 	var step := 0.0
 	if target != null:
-		var to := Vector3(target.global_position.x - start.x, 0.0, target.global_position.z - start.z)
+		# #384: aim at the chest in 3D. A flat aim sent the lunge straight over anyone the hands were
+		# flying above; the path now ends on the body wherever it is.
+		var to := (target.global_position + Vector3(0.0, 1.0, 0.0)) - start
 		if to.length_squared() > 0.0001:
 			aim = to.normalized()
-		step = minf(start.distance_to(target.global_position), LUNGE_M) / float(LUNGE_STEPS)
+		step = minf(to.length(), LUNGE_M) / float(LUNGE_STEPS)
 	# Measure the snap now: Style scores it inside resolve, and the body moves right after.
 	snap_m = start.distance_to(p.global_position)
 	var res := {}
@@ -470,6 +506,10 @@ func _chain(p: Player) -> void:
 	var landing := _landing()
 	if landing.is_finite():
 		p.apply_snap(landing)
+	# #384: every machine learns the new count, the new time and the landing, not just this one.
+	# Without it a joined client kept its own 8 s count, never moved its body and showed no popup.
+	if Game.is_networked() and multiplayer.is_server():
+		Game.sync_los_chain.rpc(owner_peer, kills, time_left, landing)
 	if p.is_local():
 		p.play_los_sfx(0.7)
 		var hud := Game.get_tree().get_first_node_in_group("hud") as Hud

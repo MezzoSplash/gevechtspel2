@@ -51,12 +51,21 @@ static func targets(origin: Vector3, me: Player, range_m: float) -> Array:
 	return out
 
 
+## #384: the marks count from the hands, not from the body left behind. With the body 20 m back the
+## whole 30 m ring was measured from the wrong place and nothing in front of the hands showed.
+static func origin_for(me: Player) -> Vector3:
+	if me == null:
+		return Vector3.ZERO
+	var hands := LosHands.for_owner(me.peer_id if me.peer_id > 0 else me._owner_peer())
+	return hands.global_position if hands else me.global_position
+
+
 func _draw_marks() -> void:
 	var me := Game.player_for_peer(Game.multiplayer.get_unique_id())
 	var cam := get_viewport().get_camera_3d()
 	if me == null or cam == null:
 		return
-	var origin := me.global_position
+	var origin := origin_for(me)
 	for t in targets(origin, me, RANGE):
 		var v := t["p"] as Player
 		var point := v.global_position + Vector3.UP * 1.0

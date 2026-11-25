@@ -128,8 +128,13 @@ static func pick_target(origin: Vector3, look_dir: Vector3, me: Player, max_m: f
 		if not Game.is_enemy(v, me):
 			continue
 		var to := _flat(v.global_position - origin)
-		var d := to.length()
-		if d < 0.05 or d > max_m or d >= best_d:
+		if to.length_squared() < 0.0025:
+			continue
+		# #384: the reach is the real 3D distance to the body, not the horizontal gap: hands flying
+		# three metres above a target used to read as "0.5 m away" and then lunge straight over it.
+		# The cone stays horizontal, so the shank on the ground behaves exactly as before.
+		var d := origin.distance_to(v.global_position + Vector3(0.0, 1.0, 0.0))
+		if d > max_m or d >= best_d:
 			continue
 		if rad_to_deg(dir.angle_to(to)) > cone_deg:
 			continue
