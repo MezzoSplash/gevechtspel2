@@ -1,6 +1,7 @@
 extends Node
 ## #269. A Hard bot with an empty mag gets behind a crate before the reload finishes.
 ## Easy reloads in the open. Hard keeps the last round when the enemy is already within 6 m.
+## A shank (no mag) never counts as empty.
 ##   ./run.sh --headless res://tools/check_bot_cover.tscn   → "BOT COVER CHECK OK"
 var fails := 0
 var bot: Player
@@ -235,5 +236,20 @@ func _tick_flee(delta: float) -> void:
 
 func _done() -> void:
 	set_physics_process(false)
+	_shank()
 	print("BOT COVER CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+## The shank has no mag, so its ammo is always 0. A Hard bot holding it must not treat that as an
+## empty gun: it used to run to a hide spot and stab the air there for the whole match.
+func _shank() -> void:
+	Game.bot_difficulty = Game.BOT_HARD
+	var gun := bot.weapon.def
+	bot.weapon.def = load("res://data/weapons/shank.tres") as WeaponDef
+	bot.weapon.ammo = 0
+	bot.weapon._reload_left = 0.0
+	enemy.global_position = bot.global_position + Vector3(0, 0, -15)
+	_ok(not brain._should_cover_reload(enemy), "a Hard shank bot at 15 m does not go and reload behind cover")
+	_ok(not brain._hold_last_round(4.0), "and holds no last round")
+	bot.weapon.def = gun
