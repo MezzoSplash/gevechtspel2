@@ -112,6 +112,8 @@ func _ready() -> void:
 	_facelift_hud()
 	weapons.refresh()
 	streaks.build()
+	# #387: the slots show the player's pick from the first frame.
+	streaks.set_choice(Game.streak_choice if not Game.streak_choice.is_empty() else StreakDefs.default_ids())
 	_notice_layer = HudNotice.new()
 	_notice_layer.name = "NoticeLayer"
 	add_child(_notice_layer)
@@ -344,6 +346,11 @@ func _paint(rect: ColorRect, bg: Color, accent: Color = Color(0, 0, 0, 0), _top:
 ## Scorestreaks: StreakColumn (scripts/hud/streak_column.gd). Only the owner gets set_streak.
 func set_streak(n: int, charges: int, earned: int) -> void:
 	streaks.set_streak(n, charges, earned)
+
+
+## #387: the server's accepted pick, so the slots name the right streaks.
+func set_streak_choice(ids: Array) -> void:
+	streaks.set_choice(ids)
 
 
 ## Team radar switched on. Your team, including the player who turned it on, hears

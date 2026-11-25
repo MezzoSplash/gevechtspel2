@@ -5,9 +5,9 @@ extends RefCounted
 
 
 ## Humans and bots (bots have negative ids). Death clears this life's count, not a streak already earned.
-## 3 banks the UAV, 5 banks the RC-XD, 7 banks LOS. Each stays until Enter uses it,
-## or until start_round clears every charge for the next round.
-## Bots never bank LOS: they do not pilot the hands.
+## The player's pick (#387) decides which streaks bank: 3 banks the UAV, 5 the RC-XD, 7 LOS by default,
+## and a slot holds whatever was picked for it. Each stays until Enter uses it, or until start_round
+## clears every charge for the next round. Bots never bank LOS: they do not pilot the hands.
 static func bump_streak(g: GameState, killer_peer_id: int, victim_peer_id: int) -> void:
 	if victim_peer_id != 0:
 		g.streak_progress[victim_peer_id] = 0
@@ -16,23 +16,35 @@ static func bump_streak(g: GameState, killer_peer_id: int, victim_peer_id: int) 
 	if killer_peer_id == 0:
 		return
 	var n := int(g.streak_progress.get(killer_peer_id, 0))
-	if n < g.LOS_AT:
+	# The counter runs to the most expensive streak the player picked, and never past LOS's 7
+	# (the old cap) so an unchanged pick counts exactly as before.
+	if n < maxi(g.LOS_AT, top_cost(g, killer_peer_id)):
 		n += 1
 	g.streak_progress[killer_peer_id] = n
 	var charges := int(g.streak_charges.get(killer_peer_id, 0))
 	var earned := int(g.streak_earned.get(killer_peer_id, 0))
-	if n >= g.STREAK_AT and (earned & g.CHARGE_RADAR) == 0:
-		earned |= g.CHARGE_RADAR
-		charges |= g.CHARGE_RADAR
-	if n >= g.RCXD_AT and (earned & g.CHARGE_RCXD) == 0:
-		earned |= g.CHARGE_RCXD
-		charges |= g.CHARGE_RCXD
-	if n >= g.LOS_AT and killer_peer_id > 0 and (earned & g.CHARGE_LOS) == 0:
-		earned |= g.CHARGE_LOS
-		charges |= g.CHARGE_LOS
+	# #387: the chosen streaks, not the fixed three. A bit stays keyed by id, so an unchanged pick
+	# banks exactly what it did before. Bots never bank LOS: they do not pilot the hands.
+	for raw in StreakSelect.choice_for(g, killer_peer_id):
+		var id := StringName(raw)
+		var bit := StreakDefs.bit(id)
+		if bit == 0 or n < StreakDefs.kills(id) or (earned & bit) != 0:
+			continue
+		if bit == g.CHARGE_LOS and killer_peer_id < 0:
+			continue
+		earned |= bit
+		charges |= bit
 	g.streak_earned[killer_peer_id] = earned
 	g.streak_charges[killer_peer_id] = charges
 	push_streak(g, killer_peer_id)
+
+
+## The most expensive streak in a peer's pick; 0 when the pick is empty.
+static func top_cost(g: GameState, peer_id: int) -> int:
+	var top := 0
+	for raw in StreakSelect.choice_for(g, peer_id):
+		top = maxi(top, StreakDefs.kills(StringName(raw)))
+	return top
 
 
 ## Sends one peer its streak state: HUD locally, RPC to a remote human; bots have no HUD.
@@ -55,7 +67,8 @@ static func apply_streak_local(g: GameState, n: int, charges: int, earned: int) 
 		hud.set_streak(n, charges, earned)
 
 
-## Slot 0 is the UAV (3), slot 1 is the RC-XD (5), slot 2 is LOS (7). Using one spends only that charge.
+## A slot fires the streak the player picked for it (#387): UAV/RC-XD/LOS in the default order.
+## Using one spends only that charge.
 ## UAV still spends if one is already running (time is not stacked).
 ## Freeze, killcam, death, a car already out, or hands already out: the charge is kept.
 ## LOS and the RC-XD never run together. A failed launch (bot, dead, the other streak) does not spend.
@@ -69,14 +82,10 @@ static func try_activate_streak(g: GameState, peer_id: int, slot: int) -> void:
 		return
 	if RcXd.for_owner(peer_id) != null or LosHands.for_owner(peer_id) != null:
 		return
-	var bit := 0
-	if slot == 0:
-		bit = g.CHARGE_RADAR
-	elif slot == 1:
-		bit = g.CHARGE_RCXD
-	elif slot == 2:
-		bit = g.CHARGE_LOS
-	else:
+	# #387: the slot holds whatever streak the player picked for it, not a fixed UAV/RC-XD/LOS.
+	var id := StreakSelect.id_at(g, peer_id, slot)
+	var bit := StreakDefs.bit(id)
+	if bit == 0:
 		return
 	var charges := int(g.streak_charges.get(peer_id, 0))
 	if (charges & bit) == 0:

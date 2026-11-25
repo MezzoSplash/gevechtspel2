@@ -21,6 +21,7 @@ signal match_choice_changed(map_id: StringName, mode: int)
 var _team := 0
 var _applying_name := false
 var class_editor: ClassEditor
+var streak_editor: StreakEditor
 var _map_opts: Array[ChoiceRow] = [] # Solo + Mp (host) pickers, kept in sync
 var _mode_opts: Array[ChoiceRow] = []
 var _kill_boxes: Array[SpinBox] = []
@@ -34,7 +35,7 @@ var _lobby_info: Label
 var _filling_match := false
 var _screen := "home"
 var _fade: Tween
-const _BACK_TO := {"solo": "home", "mp": "home", "settings": "home", "classes": "home"}
+const _BACK_TO := {"solo": "home", "mp": "home", "settings": "home", "classes": "home", "streaks": "home"}
 
 
 func _ready() -> void:
@@ -51,6 +52,12 @@ func _ready() -> void:
 	class_editor.visible = false
 	$Center.add_child(class_editor)
 	class_editor.back_pressed.connect(func() -> void: show_screen("home"))
+	# #387: the killstreak pick sits right under Classes.
+	streak_editor = StreakEditor.new()
+	streak_editor.name = "Killstreaks"
+	streak_editor.visible = false
+	$Center.add_child(streak_editor)
+	streak_editor.back_pressed.connect(func() -> void: show_screen("home"))
 	$Center/Home/QuitButton.pressed.connect(func() -> void: get_tree().quit())
 	$Center/Solo/PlayButton.pressed.connect(func() -> void: play_local_pressed.emit())
 	$Center/Solo/BackButton.pressed.connect(func() -> void: show_screen("home"))
@@ -123,14 +130,23 @@ func _crystal_home() -> void:
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	home.add_child(gap)
 	home.move_child(gap, tag.get_index() + 1)
+	# #387: the killstreak pick, right under Classes.
+	var streak_btn := Button.new()
+	streak_btn.name = "StreaksButton"
+	streak_btn.text = "KILLSTREAKS"
+	streak_btn.theme_type_variation = &"MenuButtonBig"
+	streak_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	home.add_child(streak_btn)
+	home.move_child(streak_btn, $Center/Home/ClassesButton.get_index() + 1)
+	streak_btn.pressed.connect(func() -> void: show_screen("streaks"))
 	var buttons := [$Center/Home/SoloButton, $Center/Home/MpButton, $Center/Home/ClassesButton,
-		$Center/Home/SettingsButton, $Center/Home/QuitButton]
-	var hints := ["PLAY AGAINST BOTS", "HOST  ·  JOIN  ·  LAN", "LOADOUTS", "", ""]
+		streak_btn, $Center/Home/SettingsButton, $Center/Home/QuitButton]
+	var hints := ["PLAY AGAINST BOTS", "HOST  ·  JOIN  ·  LAN", "LOADOUTS", "3 KILLS  ·  5 KILLS  ·  7 KILLS", "", ""]
 	for i in buttons.size():
 		(buttons[i] as Button).custom_minimum_size.y = 60 if i == 0 else 54
 		if hints[i] != "":
 			CrystalUi.button_hint(buttons[i], hints[i])
-	CrystalUi.stagger(buttons, [560, 500, 440, 410, 340])
+	CrystalUi.stagger(buttons, [560, 500, 440, 430, 410, 340])
 	CrystalUi.seam_color($Center/Home/QuitButton, CrystalUi.DANGER)
 	# Status (connection errors, "Singleplayer, LAN, or settings.") under the buttons, not inside
 	# the hero block.
@@ -524,6 +540,7 @@ func _current_screen() -> Control:
 		"settings": return $Center/Settings
 		"lobby": return $Center/Lobby
 		"classes": return class_editor
+		"streaks": return streak_editor
 	return null
 
 
@@ -588,6 +605,10 @@ func show_screen(id: String) -> void:
 		class_editor.visible = id == "classes"
 		if id == "classes":
 			class_editor.refresh()
+	if streak_editor:
+		streak_editor.visible = id == "streaks"
+		if id == "streaks":
+			streak_editor.refresh()
 	if id == "solo":
 		solo_name.text = mp_name.text
 	elif id == "mp":

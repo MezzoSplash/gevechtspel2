@@ -914,14 +914,15 @@ func _tick_streaks(delta: float, enemy: Player) -> void:
 	_streak_wait = maxf(_streak_wait - delta, 0.0)
 	if _streak_wait > 0.0:
 		return
+	# #387: the slot comes from the bot's own pick (UAV, RCXplodie by default), not a fixed index.
 	if (charges & Game.CHARGE_RADAR) != 0:
-		Game.try_activate_streak(pawn.peer_id, 0)
+		Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"uav"))
 		_streak_wait = float(Game.bot_profile().streak)
 		return
 	if (charges & Game.CHARGE_RCXD) != 0 and enemy != null:
 		var far := pawn.global_position.distance_to(_goal_pos(enemy)) >= RC_LAUNCH_MIN
 		if far or not _can_see(enemy):
-			Game.try_activate_streak(pawn.peer_id, 1)
+			Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"rcxd"))
 			_rc_repath = 0.0
 			_streak_wait = float(Game.bot_profile().streak)
 

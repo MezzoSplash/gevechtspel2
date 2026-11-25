@@ -113,6 +113,9 @@ static func configure_control(p: Player) -> void:
 		p._notify_grenades()
 		if Game.is_networked() and not p.multiplayer.is_server():
 			Game.submit_display_name.rpc_id(1, Game.player_name)
+		# #387: whoever awards streaks needs our pick (a new match cleared it): the server over the
+		# RPC, or this machine itself offline and on a host.
+		StreakSelect.submit_own(Game, p.peer_id)
 	else:
 		p.body_mesh.visible = not p.is_dead
 		p.camera.current = false
