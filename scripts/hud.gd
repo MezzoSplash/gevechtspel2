@@ -12,6 +12,7 @@ var _local_peer_id := 0
 var _intermission_timer := 0.0
 var _freeze_left := 0.0
 ## Notice line and streak/flag popup: scripts/hud/notice_layer.gd.
+var _overdrive_label: Label # #388: the Overdrive countdown
 var _notice_layer: HudNotice
 var _player: Player # the local pawn from bind_player; crosshair bloom follows it
 var _standing: StandingLine # FFA place / CTF flags under the clock, made on the first refresh
@@ -392,6 +393,24 @@ func _on_flag_event(kind: String, team: int, by_name: String) -> void:
 	var good := CtfStatus.is_good(kind, team, Game.local_team())
 	show_popup(CtfStatus.popup_title(kind, team), _POPUP_FRIENDLY if good else _POPUP_HOSTILE, by_name, CtfStatus.actor_team(kind, team))
 	_standing_t = 0.0
+
+
+## #388: the Overdrive countdown, top centre. 0 hides it. The glow is on the body; this is the timer
+## so the driver knows how long the monster lasts.
+func show_overdrive(seconds: float) -> void:
+	if _overdrive_label == null:
+		_overdrive_label = Label.new()
+		_overdrive_label.name = "OverdriveLabel"
+		_overdrive_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_overdrive_label.add_theme_font_size_override("font_size", 20)
+		_overdrive_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+		_overdrive_label.position.y += 96.0
+		_overdrive_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_overdrive_label)
+	_overdrive_label.visible = seconds > 0.0
+	if seconds > 0.0:
+		_overdrive_label.text = "OVERDRIVE  %.1f" % seconds
+		_overdrive_label.add_theme_color_override("font_color", Overdrive.GLOW_COLOR)
 
 
 ## LOS came on. Gold, same family as a friendly radar. The box going gold is the unlock; no voice line.

@@ -113,6 +113,8 @@ static func wish(p: Player, input_vec: Vector2, on_floor: bool, locked: bool) ->
 		wish_speed = Player.CROUCH_SPEED
 	if not p._sliding:
 		wish_speed *= p.gun_speed_mult()
+	# #388: Overdrive is a real speed buff, on the owner's machine and on the server's copy alike.
+	wish_speed *= Overdrive.speed_mult(p)
 	# LOS: wish is the speed the body already has, so friction does not park it.
 	# Below COAST_MIN it stands. No new jump, slide or dive (input_locked covers those).
 	if p.los_coast:

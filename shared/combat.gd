@@ -347,6 +347,8 @@ static func register_kill(game: GameState, killer_peer_id: int, victim_peer_id: 
 		game._check_win_player(killer_peer_id)
 	else:
 		game._check_win_team(team_id)
+	# #388: a kill during Overdrive buys 2 more seconds (capped), before the streak bookkeeping below.
+	Overdrive.server_kill(killer_peer_id)
 	game._bump_streak(killer_peer_id, victim_peer_id)
 
 

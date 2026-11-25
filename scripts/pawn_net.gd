@@ -251,7 +251,7 @@ static func _pose_velocity(p: Player) -> Vector3:
 	var b: Array = p._pose_buf[-1]
 	var dt := maxf(float(int(b[0]) - int(a[0])) / 1000.0, 0.001)
 	var v: Vector3 = ((b[1] as Vector3) - (a[1] as Vector3)) / dt
-	return v.limit_length(p.NET_CLAIM_H_CAP)
+	return v.limit_length(p.claim_h_cap())
 
 
 ## The stream's own speed over ~100 ms of samples, from the sender's clock (steady, unlike an arrival
@@ -272,7 +272,7 @@ static func _pose_speed(p: Player) -> float:
 ## Could a pawn have moved `d` in `dt` seconds? Same speed caps as the server's claim check (#B1).
 static func claim_reachable_delta(p: Player, d: Vector3, dt: float) -> bool:
 	var h := Vector2(d.x, d.z).length()
-	return h <= p.NET_CLAIM_H_CAP * dt + p.NET_CLAIM_SLACK and absf(d.y) <= p.NET_CLAIM_V_CAP * dt + p.NET_CLAIM_SLACK
+	return h <= p.claim_h_cap() * dt + p.NET_CLAIM_SLACK and absf(d.y) <= p.NET_CLAIM_V_CAP * dt + p.NET_CLAIM_SLACK
 
 
 ## See net_pos. First pose, the server, or a jump past the travel budget snaps; the rest is buffered.

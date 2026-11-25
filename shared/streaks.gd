@@ -31,7 +31,7 @@ static func bump_streak(g: GameState, killer_peer_id: int, victim_peer_id: int) 
 		if bit == 0 or n < StreakDefs.kills(id) or (earned & bit) != 0:
 			continue
 		if bit == g.CHARGE_LOS and killer_peer_id < 0:
-			continue
+			continue # bots do not pilot the hands; Overdrive is fine for them (#388)
 		earned |= bit
 		charges |= bit
 	g.streak_earned[killer_peer_id] = earned
@@ -82,6 +82,8 @@ static func try_activate_streak(g: GameState, peer_id: int, slot: int) -> void:
 		return
 	if RcXd.for_owner(peer_id) != null or LosHands.for_owner(peer_id) != null:
 		return
+	# #388: one Overdrive at a time; activating again refreshes the clock instead of stacking.
+	var already_over := Overdrive.for_owner(peer_id) != null
 	# #387: the slot holds whatever streak the player picked for it, not a fixed UAV/RC-XD/LOS.
 	var id := StreakSelect.id_at(g, peer_id, slot)
 	var bit := StreakDefs.bit(id)
@@ -94,7 +96,10 @@ static func try_activate_streak(g: GameState, peer_id: int, slot: int) -> void:
 		return
 	if bit == g.CHARGE_LOS and not LosHands.launch(p):
 		return
-	charges &= ~bit
+	if bit == g.CHARGE_OVERDRIVE and not Overdrive.launch(p):
+		return
+	if not (bit == g.CHARGE_OVERDRIVE and already_over):
+		charges &= ~bit
 	g.streak_charges[peer_id] = charges
 	push_streak(g, peer_id)
 	g.streak_used.emit(peer_id, slot)
@@ -164,6 +169,7 @@ static func clear_radar(g: GameState) -> void:
 		hud.clear_radar()
 	RcXd.abort_all()
 	LosHands.abort_all()
+	Overdrive.abort_all() # #388
 	g.los_view = false
 	UavDrone.clear_all()
 

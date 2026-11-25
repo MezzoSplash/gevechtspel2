@@ -43,7 +43,8 @@ func _catalog() -> void:
 	_ok(StreakDefs.kills(&"rcxd") == Game.RCXD_AT, "rcxd costs RCXD_AT")
 	_ok(StreakDefs.kills(&"los") == Game.LOS_AT, "los costs LOS_AT")
 	_ok(StreakDefs.default_ids() == [&"uav", &"rcxd", &"los"], "the default pick is UAV, RCXplodie, LOS")
-	_ok(StreakDefs.bot_ids() == [&"uav", &"rcxd"], "bots get UAV and RCXplodie, not LOS")
+	# #388: the bot pick keeps UAV and RCXplodie and now ends on Overdrive; LOS stays human-only.
+	_ok(StreakDefs.bot_ids() == [&"uav", &"rcxd", &"overdrive"], "bots get UAV, RCXplodie and Overdrive, not LOS")
 	_ok(not StreakDefs.bots_allowed(&"los"), "LOS is not a bot streak")
 
 
@@ -80,8 +81,8 @@ func _award() -> void:
 	# One streak only: LOS at 7, nothing at 3 or 5.
 	g.streak_choices[9] = [&"los"]
 	_award_run(9, "los", [7])
-	# A bot's pick: UAV and RCXplodie, never LOS.
-	_award_run(-4, "bot", [3, 5])
+	# A bot's pick: UAV, RCXplodie and Overdrive at 7 (#388), never LOS.
+	_award_run(-4, "bot", [3, 5, 7])
 
 
 ## Kills 1..7 for one peer, checking the charge bits after each kill against the picked thresholds.

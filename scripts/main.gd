@@ -69,6 +69,7 @@ func _ready() -> void:
 	# Test only (#384): a dedicated server can hand every human the LOS charge at spawn, so a
 	# two-process check can exercise the chain without grinding seven kills first.
 	Game.test_los = bool(args.get("test_los", false))
+	Game.test_overdrive = bool(args.get("test_overdrive", false))
 	print("bots: %d, difficulty %s" % [Game.bot_count, Game.BOT_DIFFICULTY_IDS[Game.bot_difficulty]])
 	_load_map(Game.map_id, false)
 	if has_node("MenuCamera"):

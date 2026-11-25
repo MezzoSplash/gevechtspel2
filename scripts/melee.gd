@@ -196,7 +196,9 @@ func _swing(p: Player, shank: bool) -> bool:
 	var dir := -p.camera.global_transform.basis.z
 	var lunge := 0.0
 	var aim := dir
-	if shank:
+	# #388: Overdrive lends the shank's step to whatever is in your hands; the reach stays the weapon's.
+	var steps := shank or Overdrive.lunges(p)
+	if steps:
 		# #373: pick the body first, then step to it. The step used to run the full 2.5 m past anything
 		# closer than that, so the stab started behind the target and missed.
 		var plan := shank_step(p, dir, shank_target(p, dir))
@@ -209,12 +211,13 @@ func _swing(p: Player, shank: bool) -> bool:
 		return true
 	var reach := RANGE
 	var path_end := Vector3.INF
-	if shank:
+	if steps:
 		# #373 review: the step runs from the eye where the stab starts to where the lunge ends. Passing the
 		# end as both ends made the "whole path" a point, so a body that moved off the planned spot (a
 		# server copy that is newer than what the client aimed at) was judged from the end only.
 		path_end = origin + _flat(aim) * lunge
-		reach = SHANK_RANGE
+		if shank:
+			reach = SHANK_RANGE
 		dir = aim
 	var res := resolve(p, origin, dir, reach, DAMAGE, shank, path_end)
 	_report(p, res)
@@ -253,14 +256,16 @@ func request_melee(origin: Vector3, look_dir: Vector3) -> void:
 	var start := eye
 	var reach := RANGE + SERVER_SLACK
 	var aim := look_dir
-	if shank:
+	var stepped := shank or Overdrive.lunges(p)
+	if stepped:
 		# #373: the same target and the same step as the client, from our own copy of the pawns, so the
 		# server does not judge a stab at a body the step already went past.
 		var plan := shank_step(p, look_dir, shank_target(p, look_dir))
 		aim = plan[0]
 		eye = eye + _flat(aim) * float(plan[1])
-		reach = SHANK_RANGE + SHANK_SLACK
-	var res := resolve(p, start, aim, reach, DAMAGE, shank, eye if shank else Vector3.INF)
+		if shank:
+			reach = SHANK_RANGE + SHANK_SLACK
+	var res := resolve(p, start, aim, reach, DAMAGE, shank, eye if stepped else Vector3.INF)
 	if not Game.is_dedicated:
 		p.weapon.play_melee()
 		if res.hit:
