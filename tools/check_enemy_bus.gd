@@ -32,8 +32,18 @@ func _ready() -> void:
 		if bus != want or fire != want:
 			f += 1
 			print("  FAIL %s on %s/%s, want %s" % [p.name, bus, fire, want])
+		# #370: every gun that is not yours carries the fixed boost, teammates and bots too.
+		var db := (p.get_node("Head/Camera3D/WeaponRoot/FireSfx") as AudioStreamPlayer3D).volume_db
+		if absf(db - (Weapon.FIRE_DB + Weapon.OTHER_FIRE_BOOST_DB)) > 0.01:
+			f += 1
+			print("  FAIL %s shot at %.1f dB, want %.1f" % [p.name, db, Weapon.FIRE_DB + Weapon.OTHER_FIRE_BOOST_DB])
 		if want == "Enemies": en += 1
 		else: mates += 1
+	if me != null:
+		var mine := (me.get_node("Head/Camera3D/WeaponRoot/FireSfx") as AudioStreamPlayer3D).volume_db
+		if absf(mine - Weapon.FIRE_DB) > 0.01:
+			f += 1
+			print("  FAIL own shot at %.1f dB, want %.1f (no boost)" % [mine, Weapon.FIRE_DB])
 	print("enemies=%d mates=%d enemies bus %.1f dB" % [en, mates, AudioServer.get_bus_volume_db(idx)])
 	print("ENEMY BUS CHECK ", "OK" if f == 0 and en > 0 and mates > 0 else "FAILED")
 	get_tree().quit()

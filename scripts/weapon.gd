@@ -94,6 +94,10 @@ const CLICK_BUFFER := 0.12
 const MELEE_ANIM := 0.36 # seconds: thrust out, hold, pull back
 const MELEE_SWING := preload("res://assets/sounds/melee_swing.wav")
 const MELEE_HIT := preload("res://assets/sounds/melee_hit.wav")
+## Shot volume (#370): FireSfx in player.tscn starts at FIRE_DB; PawnSetup.tick_audio_bus adds the boost
+## for every gun that is not the local player's.
+const FIRE_DB := -6.0
+const OTHER_FIRE_BOOST_DB := 5.0
 const ADS_SIGHT_GAP := 0.004 # front sight tip this far under the eye line while aiming
 const ADS_SIGHT_Z := 0.34 # m in front of the eye where the sight sits while aiming
 ## Game.view_sway index: 0 off, 1 half, 2 full. Kept as a const so _tick_sway allocates nothing.

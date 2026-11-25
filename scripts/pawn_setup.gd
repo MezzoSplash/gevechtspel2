@@ -71,6 +71,11 @@ static func tick_audio_bus(p: Player, delta: float) -> void:
 		var me := Game.player_for_peer(p.multiplayer.get_unique_id())
 		if me and Game.is_enemy(me, p):
 			bus = "Enemies"
+	# #370: every gun that is not yours is louder by a fixed amount, teammates and bots included, so a
+	# fight around you sounds like one. A fixed gain and not the Enemies slider's default: that slider is
+	# saved in settings.cfg, so a new default never reaches anyone who has played before.
+	if p.weapon != null and p.weapon.fire_sfx != null:
+		p.weapon.fire_sfx.volume_db = Weapon.FIRE_DB + (0.0 if p.is_local() else Weapon.OTHER_FIRE_BOOST_DB)
 	for path in p.ENEMY_SFX_NODES:
 		var n := p.get_node_or_null(path)
 		if n and n.get("bus") != null and n.bus != bus:
