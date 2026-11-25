@@ -252,7 +252,7 @@ func physics_tick(delta: float) -> void:
 		pawn.velocity.y = 0.0
 	if _drive_rc(delta):
 		return
-	_track_stuck(delta)
+	BotNav.track_stuck(self, delta)
 	var enemy := _pick_target(delta)
 	_tick_streaks(delta, enemy)
 	# #150: low HP after a hit. Sprint out, then the flipped flank brings them back in.
@@ -280,7 +280,7 @@ func physics_tick(delta: float) -> void:
 	if enemy == null or (goal != Vector3.INF and not _can_see(enemy)):
 		_acquire_left = float(Game.bot_profile().acquire)
 		if _stuck_pulse:
-			_pick_unstick()
+			BotNav.pick_unstick(self)
 		if goal != Vector3.INF:
 			_set_state(State.OBJECTIVE)
 			_go_to_objective(goal, delta)
@@ -530,37 +530,6 @@ func _random_nav_point() -> Vector3:
 
 
 ## No progress for STUCK_CHECK while trying to move. The caller decides: a new flank, or a nudge.
-func _track_stuck(delta: float) -> void:
-	_stuck_pulse = false
-	_unstick_left = maxf(_unstick_left - delta, 0.0)
-	_stuck_t += delta
-	if _stuck_t < STUCK_CHECK:
-		return
-	_stuck_t = 0.0
-	var moved := pawn.global_position.distance_to(_stuck_pos)
-	_stuck_pos = pawn.global_position
-	if moved < STUCK_DIST and _wants_move and _unstick_left <= 0.0:
-		_stuck_pulse = true
-
-
-## Soft push away from pawns that are too close, so bots do not stack up in doorways.
-func _separation() -> Vector3:
-	var push := Vector3.ZERO
-	for p in Game.players(): # #272: one roster per tick, not a group array per bot
-		if p == pawn or p.is_dead:
-			continue
-		var away := pawn.global_position - p.global_position
-		away.y = 0.0
-		var d := away.length()
-		if d >= SEPARATION_R:
-			continue
-		if d < 0.01:
-			away = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0))
-			d = 0.01
-		push += away.normalized() * (1.0 - d / SEPARATION_R)
-	return push
-
-
 ## The one place in the bot that writes `state`; the two check fixtures set the field directly.
 ## It also does the setup the new state needs and clears what belonged to the old one: a fight starts
 ## on a fresh sidestep with no hunt path left over, and every other state has no strafe commit to keep.
@@ -671,7 +640,7 @@ func _fight(enemy: Player, delta: float) -> void:
 		_strafe_hold = 0.0
 		_strafe_pause = 0.0
 	if _strafe_hold <= 0.0 and _strafe_pause <= 0.0:
-		_pick_strafe_side(side)
+		BotNav.pick_strafe_side(self, side)
 	var dist := pawn.global_position.distance_to(enemy.global_position)
 	# One round left and they are already on top of us: close and bash. Spending it starts a reload.
 	if _hold_last_round(dist):
@@ -818,144 +787,13 @@ func _flank_point(center: Vector3) -> Vector3:
 
 
 ## Stuck on a hunt path: other side of the enemy, then straight at them, then a short nudge.
-func _pick_unstick() -> void:
-	for _i in 4:
-		var a := randf() * TAU
-		var dir := Vector3(cos(a), 0.0, sin(a))
-		if _side_open(dir):
-			_unstick_dir = dir
-			_unstick_left = UNSTICK_TIME
-			return
-	_unstick_left = 0.0
-
-
-## Prefer `side * sign` when that metre is walkable. Both closed: stand and shoot.
-func _pick_strafe_side(side: Vector3) -> void:
-	var prefer := side * _strafe_sign
-	var open_prefer := _side_open(prefer)
-	if not open_prefer and _side_open(-prefer):
-		_strafe_sign *= -1.0
-		open_prefer = true
-	if open_prefer:
-		_strafe_hold = randf_range(style.strafe_hold_min, style.strafe_hold_max)
-		_strafe_pause = 0.0
-	else:
-		_strafe_hold = 0.0
-		_strafe_pause = randf_range(STRAFE_PAUSE_MIN, STRAFE_PAUSE_MAX)
-
-
-## True when a step along dir is not a wall and still has floor under it.
-## `reach` is how far ahead to look. Picking a side looks further than the step that cuts a commit.
-func _side_open(dir: Vector3, reach: float = STRAFE_PROBE) -> bool:
-	dir.y = 0.0
-	if dir.length_squared() < 0.0001 or pawn == null:
-		return false
-	dir = dir.normalized()
-	var space := pawn.get_world_3d().direct_space_state
-	var chest := pawn.global_position + Vector3.UP * 0.9
-	var wall := PhysicsRayQueryParameters3D.create(chest, chest + dir * reach)
-	wall.collision_mask = WORLD_MASK
-	if not space.intersect_ray(wall).is_empty():
-		return false
-	var foot := pawn.global_position + dir * reach + Vector3.UP * 0.4
-	var floor_q := PhysicsRayQueryParameters3D.create(foot, foot + Vector3.DOWN * STRAFE_FLOOR)
-	floor_q.collision_mask = WORLD_MASK
-	var hit := space.intersect_ray(floor_q)
-	if not hit.has("normal"):
-		return false
-	var slope := rad_to_deg(acos(clampf((hit.normal as Vector3).dot(Vector3.UP), -1.0, 1.0)))
-	# A few degrees of slack: a 46° ramp the navmesh accepts should not read as a wall.
-	return slope <= MAX_STEP_SLOPE + 4.0
-
-
-## Height of the lip in front of `wish`, or -1 when there is nothing to jump.
-## Chest ray finds a face steeper than a walkable ramp. A second ray, from above
-## the head down onto the far side, has to land on a top we can actually clear.
-func _ledge_climb(wish: Vector3) -> float:
-	if pawn == null:
-		return -1.0
-	wish.y = 0.0
-	if wish.length_squared() < 0.0001:
-		return -1.0
-	var dir := wish.normalized()
-	var space := pawn.get_world_3d().direct_space_state
-	var origin := pawn.global_position
-	var chest := origin + Vector3.UP * 0.45
-	var wall_q := PhysicsRayQueryParameters3D.create(chest, chest + dir * 0.85)
-	wall_q.collision_mask = WORLD_MASK
-	wall_q.exclude = [pawn.get_rid()]
-	var wall := space.intersect_ray(wall_q)
-	if wall.is_empty() or not wall.has("normal"):
-		return -1.0
-	var slope := rad_to_deg(acos(clampf((wall.normal as Vector3).dot(Vector3.UP), -1.0, 1.0)))
-	if slope <= MAX_STEP_SLOPE + 4.0:
-		return -1.0
-	var head_q := PhysicsRayQueryParameters3D.create(origin + Vector3.UP * 1.0, origin + Vector3.UP * 2.1)
-	head_q.collision_mask = WORLD_MASK
-	head_q.exclude = [pawn.get_rid()]
-	if not space.intersect_ray(head_q).is_empty():
-		return -1.0
-	var from := origin + Vector3.UP * 1.55 + dir * 0.25
-	var to := origin + dir * 1.15 + Vector3.UP * 0.15
-	var top_q := PhysicsRayQueryParameters3D.create(from, to)
-	top_q.collision_mask = WORLD_MASK
-	top_q.exclude = [pawn.get_rid()]
-	var top := space.intersect_ray(top_q)
-	if not top.has("normal") or not top.has("position"):
-		return -1.0
-	if (top.normal as Vector3).dot(Vector3.UP) < 0.7:
-		return -1.0
-	var climb := (top.position as Vector3).y - origin.y
-	if climb < JUMP_CLEAR_MIN or climb > JUMP_CLEAR_MAX:
-		return -1.0
-	return climb
-
-
-func _try_jump_ledge(wish: Vector3) -> bool:
-	if pawn == null or not pawn.is_on_floor():
-		return false
-	if _ledge_climb(wish) < 0.0:
-		return false
-	pawn.velocity.y = Player.JUMP_SPEED
-	return true
-
-
+## #317 slice 3: stepping and probing live in BotNav; bot_cover and bot_wall still call these two.
 func _steer_to(dest: Vector3, speed: float, delta: float, use_nav: bool = true) -> void:
-	var dir := Vector3.ZERO
-	if use_nav and agent and not agent.is_navigation_finished():
-		var next := agent.get_next_path_position()
-		dir = next - pawn.global_position
-		dir.y = 0.0
-	# Also when the next path point is (nearly) straight above us (navmesh a bit higher than the feet, e.g.
-	# beside a low ledge): the agent never reaches it and the bot would stand still forever.
-	if dir.length() < 0.12:
-		dir = dest - pawn.global_position
-		dir.y = 0.0
-	var wish := Vector3.ZERO
-	if dir.length() >= 0.12:
-		wish = dir.normalized()
-	if _unstick_left > 0.0:
-		wish = _unstick_dir
-	_wants_move = wish.length_squared() > 0.0001
-	var push := _separation() * 1.2
-	if push.length_squared() > 0.0001:
-		wish += push
-		if wish.length_squared() > 1.0:
-			wish = wish.normalized()
-	var on_floor := pawn.is_on_floor()
-	var horiz := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
-	if on_floor:
-		horiz = pawn._friction(horiz, delta)
-		horiz = pawn._accelerate(horiz, wish, speed * pawn.gun_speed_mult(), Player.GROUND_ACCEL, delta)
-	else:
-		horiz = pawn._accelerate(horiz, wish, Player.WALK_SPEED, Player.BOT_AIR_ACCEL, delta)
-	pawn.velocity.x = horiz.x
-	pawn.velocity.z = horiz.z
-	# Requested sprint, not the speed we have yet: the pose and the spread follow the
-	# intent. Fight passes STRAFE_SPEED, so a strafe does not count as sprinting.
-	pawn.is_sprinting = on_floor and _wants_move and speed >= Player.SPRINT_SPEED - 0.05
-	if on_floor and _wants_move:
-		_try_jump_ledge(wish)
+	BotNav.steer_to(self, dest, speed, delta, use_nav)
+
+
+func _side_open(dir: Vector3, reach: float = STRAFE_PROBE) -> bool:
+	return BotNav.side_open(self, dir, reach)
 
 
 ## Turn toward _aim_track (see _tick_aim_wobble). Call _tick_aim_wobble first in the same tick.
