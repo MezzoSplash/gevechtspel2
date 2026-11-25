@@ -163,7 +163,7 @@ func _sees(p: Player, foe: Player) -> bool:
 
 
 func _idle_summary() -> Dictionary:
-	var out := {"bots": {}, "styles": {}}
+	var out := {"bots": {}, "styles": {}, "by_state": {}}
 	for id in _idle:
 		var rec: Dictionary = _idle[id]
 		var secs: float = round(10.0 * float(rec["max"]) / 60.0) / 10.0
@@ -172,6 +172,10 @@ func _idle_summary() -> Dictionary:
 			"ammo": int(rec.get("ammo", 0)), "rc": bool(rec.get("rc", false))}
 		var st: String = String(rec["style"])
 		out["styles"][st] = maxf(float(out["styles"].get(st, 0.0)), secs)
+		for key in rec.get("by_state", {}):
+			var pair: String = String(key)
+			var was: float = float((out["by_state"] as Dictionary).get(pair, 0.0))
+			out["by_state"][pair] = maxf(was, round(10.0 * float(rec["by_state"][key]) / 60.0) / 10.0)
 	return out
 
 
@@ -217,6 +221,10 @@ func _idle_tick(t: int) -> void:
 			rec["streak"] = int(rec["streak"]) + 1
 			rec["state"] = String(Player.Brain.State.keys()[b.state]) if b.state < Player.Brain.State.size() else "?"
 			rec["style"] = String(b.style.id) if b.style != null else "?"
+			var key: String = "%s/%s" % [String(rec["style"]), String(rec["state"])]
+			var by: Dictionary = rec.get("by_state", {})
+			by[key] = maxi(int(by.get(key, 0)), int(rec["streak"]))
+			rec["by_state"] = by
 			if int(rec["streak"]) > int(rec["max"]):
 				rec["max"] = rec["streak"]
 				rec["spd"] = sqrt(p.velocity.x * p.velocity.x + p.velocity.z * p.velocity.z)
@@ -294,6 +302,11 @@ func _print_idle(now: Dictionary) -> void:
 			int(row.get("ammo", 0)), ", RC" if bool(row.get("rc", false)) else ""])
 	for st in idle.get("styles", {}):
 		print("  idle style %s: %.1f s" % [str(st), float(idle["styles"][st])])
+	var by: Dictionary = idle.get("by_state", {})
+	var keys := by.keys()
+	keys.sort()
+	for k in keys:
+		print("  idle %s: %.1f s" % [str(k), float(by[k])])
 
 
 func _baseline_path(map_id: StringName) -> String:
