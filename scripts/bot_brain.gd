@@ -906,74 +906,13 @@ func _grenade_arc_clear(origin: Vector3, vel: Vector3, target: Vector3) -> bool:
 
 
 ## Banked UAV: use it after a short beat. Banked RC-XD: send it when the target is far or hidden.
+## #317 slice 5: the streaks live in BotStreaks; the brain only keeps the state they update.
 func _tick_streaks(delta: float, enemy: Player) -> void:
-	var charges := int(Game.streak_charges.get(pawn.peer_id, 0))
-	if charges == 0:
-		_streak_wait = float(Game.bot_profile().streak)
-		return
-	_streak_wait = maxf(_streak_wait - delta, 0.0)
-	if _streak_wait > 0.0:
-		return
-	# #387: the slot comes from the bot's own pick (UAV, RCXplodie by default), not a fixed index.
-	if (charges & Game.CHARGE_RADAR) != 0:
-		Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"uav"))
-		_streak_wait = float(Game.bot_profile().streak)
-		return
-	# #388: Overdrive is allowed for bots and fires from their own pick; it needs no target, so it goes
-	# before the RC-XD's line-of-sight check.
-	if (charges & Game.CHARGE_OVERDRIVE) != 0 and Overdrive.for_owner(pawn.peer_id) == null:
-		Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"overdrive"))
-		_streak_wait = float(Game.bot_profile().streak)
-		return
-	if (charges & Game.CHARGE_RCXD) != 0 and enemy != null:
-		var far := pawn.global_position.distance_to(_goal_pos(enemy)) >= RC_LAUNCH_MIN
-		if far or not _can_see(enemy):
-			Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"rcxd"))
-			_rc_repath = 0.0
-			_streak_wait = float(Game.bot_profile().streak)
+	BotStreaks.tick(self, delta, enemy)
 
 
-## While our car is out the pawn stands still (like a player in the RC view) and we steer the car
-## along the navmesh to the nearest enemy, then blow it up next to them.
 func _drive_rc(delta: float) -> bool:
-	var car := RcXd.for_owner(pawn.peer_id)
-	if car == null:
-		return false
-	_set_state(State.RC)
-	pawn.velocity.x = 0.0
-	pawn.velocity.z = 0.0
-	pawn.move_and_slide()
-	var here := car.global_position
-	var best: Player = null
-	var best_d := INF
-	for p in Game.players(): # #272
-		if p == pawn or p.is_dead or not Game.is_enemy(p, pawn):
-			continue
-		var dd := here.distance_to(p.global_position)
-		if dd < best_d:
-			best_d = dd
-			best = p
-	if best == null:
-		car.apply_remote_input(car.yaw, 0.0)
-		return true
-	if best_d <= RC_BLOW_R:
-		car.shutdown(true)
-		return true
-	_rc_repath -= delta
-	if _rc_repath <= 0.0 or here.distance_to(_rc_point) < 1.2:
-		_rc_repath = 0.4
-		_rc_point = best.global_position
-		if agent:
-			var path := NavigationServer3D.map_get_path(agent.get_navigation_map(), here, best.global_position, true)
-			for pt in path:
-				if Vector2(pt.x - here.x, pt.z - here.z).length() > 1.5:
-					_rc_point = pt
-					break
-	var to := _rc_point - here
-	var want_yaw := atan2(-to.x, -to.z) if Vector2(to.x, to.z).length() > 0.05 else car.yaw
-	var turn := absf(wrapf(want_yaw - car.yaw, -PI, PI))
-	car.apply_remote_input(want_yaw, 0.55 if turn > 1.2 else 1.0)
-	return true
+	return BotStreaks.drive_rc(self, delta)
 
 
 ## Does this character get to open fire on `enemy` from where it stands? Only the flanker asks
