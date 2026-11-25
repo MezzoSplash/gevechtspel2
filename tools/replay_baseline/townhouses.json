@@ -1,77 +1,149 @@
 {
   "bots": 6,
   "deaths": {
-    "melee": 1,
-    "pistol": 1,
-    "rifle": 1,
-    "shotgun": 5,
-    "slug": 1,
-    "sniper": 2
+    "grenade": 1,
+    "melee": 2,
+    "shotgun": 1,
+    "slug": 3,
+    "sniper": 1
   },
   "hashes": [
     {
-      "hash": 2352013270,
+      "hash": 3198415104,
       "t": 5
     },
     {
-      "hash": 582946241,
+      "hash": 1992125725,
       "t": 10
     },
     {
-      "hash": 3917366248,
+      "hash": 2097162386,
       "t": 15
     },
     {
-      "hash": 3069598349,
+      "hash": 113934637,
       "t": 20
     },
     {
-      "hash": 3812173515,
+      "hash": 331789420,
       "t": 25
     },
     {
-      "hash": 3234444927,
+      "hash": 4272588803,
       "t": 30
     },
     {
-      "hash": 748071667,
+      "hash": 387590921,
       "t": 35
     },
     {
-      "hash": 3874814867,
+      "hash": 3336891285,
       "t": 40
     },
     {
-      "hash": 2577992746,
+      "hash": 1200020466,
       "t": 45
     }
   ],
+  "idle": {
+    "bots": {
+      "-1": {
+        "ammo": 0,
+        "dist": 10.0,
+        "max_s": 1.6,
+        "rc": false,
+        "spd": 13.3,
+        "state": "COVER",
+        "style": "aggressive"
+      },
+      "-2": {
+        "ammo": 4,
+        "dist": 2.0,
+        "max_s": 1.0,
+        "rc": false,
+        "spd": 7.0,
+        "state": "COVER",
+        "style": "holder"
+      },
+      "-3": {
+        "ammo": 12,
+        "dist": 11.0,
+        "max_s": 1.0,
+        "rc": false,
+        "spd": 12.3,
+        "state": "HUNT_FLANK",
+        "style": "flanker"
+      },
+      "-4": {
+        "ammo": 4,
+        "dist": 15.0,
+        "max_s": 0.9,
+        "rc": false,
+        "spd": 0.0,
+        "state": "COVER",
+        "style": "chaos"
+      },
+      "-5": {
+        "ammo": 1,
+        "dist": 13.0,
+        "max_s": 0.7,
+        "rc": false,
+        "spd": 6.2,
+        "state": "FIGHT",
+        "style": "aggressive"
+      }
+    },
+    "by_state": {
+      "aggressive/COVER": 0.3,
+      "aggressive/FIGHT": 1.6,
+      "aggressive/HUNT_DIRECT": 0.1,
+      "aggressive/HUNT_FLANK": 0.9,
+      "chaos/COVER": 0.9,
+      "chaos/FIGHT": 0.4,
+      "chaos/HUNT_FLANK": 0.3,
+      "chaos/RETREAT": 0.5,
+      "flanker/FIGHT": 0.3,
+      "flanker/HUNT_DIRECT": 0.7,
+      "flanker/HUNT_FLANK": 0.7,
+      "flanker/RETREAT": 1.0,
+      "holder/COVER": 1.0,
+      "holder/FIGHT": 0.5,
+      "holder/HUNT_DIRECT": 0.1,
+      "holder/HUNT_FLANK": 0.3,
+      "holder/RETREAT": 0.5
+    },
+    "styles": {
+      "aggressive": 1.6,
+      "chaos": 0.9,
+      "flanker": 1.0,
+      "holder": 1.0
+    }
+  },
   "kills": {
-    "melee": 1,
-    "pistol": 1,
-    "rifle": 1,
-    "shotgun": 5,
-    "slug": 1,
-    "sniper": 2
+    "grenade": 1,
+    "melee": 2,
+    "shotgun": 1,
+    "slug": 3,
+    "sniper": 1
   },
   "map": "townhouses",
   "mode": "Team Deathmatch",
   "moves": {
     "dive": 0,
     "roll": 0,
-    "slide": 10,
+    "slide": 9,
     "wallrun": 0
   },
   "seed": 1234,
   "stance_pct": {
-    "dive": 1.7,
-    "plain": 0.3,
-    "roll": 1.5,
-    "slide": 2.0
+    "dive": 2.4,
+    "plain": 0.4,
+    "roll": 2.3,
+    "slide": 1.9
   },
   "teams": [
-    4,
-    7
+    5,
+    3
   ],
   "ticks": 2700
 }
