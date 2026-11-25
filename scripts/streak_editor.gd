@@ -27,15 +27,15 @@ func refresh() -> void:
 		var b := _slots[i]
 		var id := StringName(_pick[i]) if i < _pick.size() else &""
 		b.text = "%d. %s" % [i + 1, StreakDefs.name_of(id)] if id != &"" else "%d. —" % (i + 1)
-		b.tooltip_text = StreakDefs.blurb(id) if id != &"" else "Leeg: kies een killstreak uit de lijst"
+		b.tooltip_text = StreakDefs.blurb(id) if id != &"" else "Empty: pick a killstreak from the list"
 	for id in _rows:
 		var b := _rows[id] as Button
 		var on := _pick.has(id)
 		b.set_pressed_no_signal(on)
-		b.text = "HAAL WEG" if on else "KIES"
+		b.text = "REMOVE" if on else "PICK"
 		b.disabled = not on and _pick.size() >= StreakDefs.MAX_SLOTS
-		b.tooltip_text = "Maximaal %d gekozen" % StreakDefs.MAX_SLOTS if b.disabled else ""
-	_note.text = "Gekozen: %d van %d. Kills zonder dood tellen; dood gaan zet de teller terug." % [
+		b.tooltip_text = "%d picked already: remove one first" % StreakDefs.MAX_SLOTS if b.disabled else ""
+	_note.text = "Picked: %d of %d. Kills in one life count; dying resets the counter." % [
 		_pick.size(), StreakDefs.MAX_SLOTS]
 
 
@@ -46,17 +46,17 @@ func _toggle(id: StringName) -> void:
 	if next.has(id):
 		next.erase(id)
 	elif next.size() >= StreakDefs.MAX_SLOTS:
-		_note.text = "Maximaal %d: haal er eerst een weg." % StreakDefs.MAX_SLOTS
+		_note.text = "%d at most: remove one first." % StreakDefs.MAX_SLOTS
 		return
 	elif _cost_taken(next, StreakDefs.kills(id)):
-		_note.text = "%s kost ook %d kills. Twee met dezelfde drempel kan niet; kies er één." % [
+		_note.text = "%s also costs %d kills. Two streaks on the same kill cannot be picked; choose one." % [
 			StreakDefs.name_of(id), StreakDefs.kills(id)]
 		return
 	else:
 		next.append(id)
 	var saved := StreakSelect.set_local(Game, next)
 	if saved != next:
-		_note.text = "Die keuze kan niet; de standaard staat weer aan."
+		_note.text = "Pick at least one streak: the default is back."
 	_pick = saved
 	refresh()
 
@@ -76,7 +76,7 @@ func _build() -> void:
 	add_child(title)
 
 	var tag := Label.new()
-	tag.text = "Kies maximaal drie. Een reeks telt kills zonder dood; dood gaan zet de teller terug."
+	tag.text = "Pick up to three. Kills in one life count; dying resets the counter."
 	tag.add_theme_color_override("font_color", Color(0.72, 0.76, 0.82))
 	tag.add_theme_font_size_override("font_size", 15)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -133,7 +133,7 @@ func _build() -> void:
 	add_child(_note)
 
 	var back := Button.new()
-	back.text = "Back"
+	back.text = "‹  BACK"
 	back.custom_minimum_size = Vector2(0, 36)
 	back.pressed.connect(func() -> void: back_pressed.emit())
 	add_child(back)

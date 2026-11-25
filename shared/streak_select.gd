@@ -34,11 +34,19 @@ static func set_local(g: GameState, raw: Variant) -> Array:
 	var ids := StreakDefs.sanitize(raw)
 	g.streak_choice = ids
 	GameSettings.save_settings(g)
-	if g.is_networked() and not g.multiplayer.is_server():
-		g.request_streak_choice.rpc_id(1, ids)
-	else:
-		server_submit(g, g.multiplayer.get_unique_id() if g.is_networked() else 1, ids)
+	submit_own(g, g.multiplayer.get_unique_id() if g.is_networked() else 1)
 	return ids
+
+
+## The local player's pick goes to whoever awards streaks: the server over the RPC, or straight into
+## streak_choices when this machine is the authority (offline play or the host's own pawn). Called
+## when the local pawn is set up, because a new match (Play/Host/Join) clears streak_choices: without
+## it the host and an offline player would see their pick on the HUD but earn the default.
+static func submit_own(g: GameState, peer_id: int) -> void:
+	if g.is_networked() and not g.multiplayer.is_server():
+		g.request_streak_choice.rpc_id(1, g.streak_choice)
+	else:
+		server_submit(g, peer_id, g.streak_choice)
 
 
 ## Server (request_streak_choice): validate and store the sender's pick, then echo what was accepted.

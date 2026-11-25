@@ -17,6 +17,7 @@ func _ready() -> void:
 	_rules()
 	_award()
 	_rpc_shape()
+	_own_pick_after_reset()
 	_settings()
 	await _hud()
 	print("STREAK SELECT CHECK: %s (%d failures)" % ["OK" if fails == 0 else "FAIL", fails])
@@ -132,6 +133,23 @@ func _rpc_shape() -> void:
 	_ok(g.streak_choices.get(1) == [&"uav"], "the choice RPC entry sanitises a wrong shape")
 	g.streak_choices.erase(1)
 	g.streak_choices.erase(11)
+
+
+## A new match (Play/Host/Join) clears the server's picks; the local pawn's setup must put this
+## machine's pick back, or an offline player and a host earn the default while the HUD shows theirs.
+func _own_pick_after_reset() -> void:
+	print("-- a new match keeps the local pick (offline and host)")
+	var g := Game
+	var saved: Array = g.streak_choice.duplicate()
+	g.streak_choice = [&"rcxd", &"los"]
+	g.streak_choices[1] = [&"rcxd", &"los"]
+	MatchFlow.reset_session(g)
+	_ok(not g.streak_choices.has(1), "reset_session drops the accepted pick")
+	StreakSelect.submit_own(g, 1)
+	_ok(StreakSelect.choice_for(g, 1) == [&"rcxd", &"los"], "submit_own restores the local pick")
+	_ok(StreakSelect.id_at(g, 1, 0) == &"rcxd", "slot 0 fires RCXplodie after the reset")
+	g.streak_choices.erase(1)
+	g.streak_choice = saved
 
 
 ## settings.cfg round trip: save_settings writes the pick, load_settings reads it back. The check runs
