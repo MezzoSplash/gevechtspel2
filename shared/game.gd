@@ -261,7 +261,7 @@ var master_vol := 1.0
 var sfx_vol := 1.0
 ## Enemy shots, steps, slides, landings, reloads (#59). Routed through SFX, so Effects scales it too.
 ## Above 1.0 is a boost: the default makes enemies a bit louder than before.
-const ENEMIES_VOL_DEFAULT := 1.4
+const ENEMIES_VOL_DEFAULT := 2.0 # #370: other players were too quiet under your own gun (was 1.4)
 const ENEMIES_VOL_MAX := 2.0
 var enemies_vol := ENEMIES_VOL_DEFAULT
 var player_name := "Player" # this launch. --name replaces it and must not be written back.

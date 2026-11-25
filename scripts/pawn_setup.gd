@@ -68,9 +68,10 @@ static func tick_audio_bus(p: Player, delta: float) -> void:
 	p._bus_check_t = 0.5
 	var bus := "SFX"
 	if not p.is_local() and not Game.is_dedicated:
-		var me := Game.player_for_peer(p.multiplayer.get_unique_id())
-		if me and Game.is_enemy(me, p):
-			bus = "Enemies"
+		# #370: a teammate's shots have to be as present as an enemy's, so every other player's weapons and
+		# steps go on the same bus. That slider is "andere spelers" in practice; its label still says
+		# enemies and is worth a look.
+		bus = "Enemies"
 	for path in p.ENEMY_SFX_NODES:
 		var n := p.get_node_or_null(path)
 		if n and n.get("bus") != null and n.bus != bus:
