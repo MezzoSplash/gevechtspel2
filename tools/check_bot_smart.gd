@@ -150,7 +150,7 @@ func _ledges() -> void:
 	# frame is not there yet, and under load the probe then reads -1.0 ("no ledge") on a loaded runner.
 	var lip := -1.0
 	for i in 40:
-		lip = brain._ledge_climb(dir)
+		lip = BotNav.ledge_climb(brain, dir)
 		if lip >= 0.0:
 			break
 		await _frames(1)
@@ -166,7 +166,7 @@ func _ledges() -> void:
 			break
 	_ok(grounded, "the bot is back on the test floor before the jump")
 	bot.velocity = Vector3.ZERO
-	var jumped := brain._try_jump_ledge(dir)
+	var jumped := BotNav.try_jump_ledge(brain, dir)
 	_ok(jumped and bot.velocity.y >= Player.JUMP_SPEED - 0.01, "on the floor, that lip sets the jump")
 	bot.velocity = Vector3.ZERO
 	_clear_boxes()
@@ -175,14 +175,14 @@ func _ledges() -> void:
 	_box(feet + Vector3(0, 0.1, 1.0), Vector3(2.0, 0.2, 0.6))
 	brain._home = feet
 	await _frames(2)
-	_ok(brain._ledge_climb(dir) < 0.0, "a 0.2 m curb is a step, not a jump (climb %.2f)" % brain._ledge_climb(dir))
+	_ok(BotNav.ledge_climb(brain, dir) < 0.0, "a 0.2 m curb is a step, not a jump (climb %.2f)" % BotNav.ledge_climb(brain, dir))
 	_clear_boxes()
 	_box(BASE + Vector3(0, -0.5, 0), Vector3(120, 1, 120))
 	feet = bot.global_position
 	_box(feet + Vector3(0, 1.5, 1.0), Vector3(2.0, 3.0, 0.6))
 	brain._home = feet
 	await _frames(2)
-	_ok(brain._ledge_climb(dir) < 0.0, "a 3 m wall is too tall to jump (climb %.2f)" % brain._ledge_climb(dir))
+	_ok(BotNav.ledge_climb(brain, dir) < 0.0, "a 3 m wall is too tall to jump (climb %.2f)" % BotNav.ledge_climb(brain, dir))
 	_clear_boxes()
 	_box(BASE + Vector3(0, -0.5, 0), Vector3(120, 1, 120))
 	await _frames(2)

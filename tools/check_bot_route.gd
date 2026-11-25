@@ -199,7 +199,7 @@ func _timeout() -> void:
 	brain._hint_t = 0.0
 	var ticks := 0
 	while not brain._hint.is_empty() and ticks < 90:
-		brain._follow_hint(enemy, 1.0 / 60.0)
+		BotHunt.follow_hint(brain, enemy, 1.0 / 60.0)
 		ticks += 1
 	_ok(brain._hint.is_empty(), "a route without progress is dropped after %.2f s (%.0f ticks)" % [ticks / 60.0, ticks])
 	_ok(ticks <= 40, "and that is inside the issue's 0.6 s (%d ticks)" % ticks)
