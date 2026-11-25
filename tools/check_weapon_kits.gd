@@ -24,7 +24,18 @@ func _ready() -> void:
 	_ok(WeaponKit.scene_path(&"shank") == WeaponKit.scene_path(&"knife"), "the shank holds the knife kit")
 	_ok(WeaponKit.scene_path(&"smg") == "res://assets/weapons/smg/smg.tscn", "the SMG is a kit folder")
 	var smg: WeaponDef = Weapon.LOADOUT[4]
-	_ok(WeaponKit.fire_sound(smg) == smg.fire_sound, "no kit sound: the WeaponDef's own fire sound")
+	# #370: the SMG's kit now ships its own shots, so the fallback is tested without one: a folder with no
+	# sounds reads empty, and fire_sound() then uses the WeaponDef's own stream.
+	_ok(WeaponKit.fire_sound(smg) != smg.fire_sound, "the SMG's kit supplies its own fire sounds (#370)")
+	var none := WeaponKit.read_sounds("res://data/weapons/geen-enkele-kit")
+	_ok((none[&"fire"] as Array).is_empty(), "a kit folder without sounds reads empty, so fire_sound falls back")
+	# The original shot stays in the pool next to the two variants (#370 review): with only fire_2/fire_3
+	# every shot was a pitched copy and the gun's own sound was never heard again.
+	for gid in [&"rifle", &"smg", &"lmg", &"pistol", &"revolver", &"shotgun", &"slug", &"sniper"]:
+		var pool: Array = WeaponKit.sounds(gid)[&"fire"]
+		_ok(pool.size() >= 3, "%s has its own shot plus variants (%d)" % [gid, pool.size()])
+	var distant := WeaponKit.distant_sound(smg.id)
+	_ok(distant != null, "the SMG has a far layer (#370)")
 
 	# 2) Every kit folder in the repo passes the artist's rules.
 	var folders := WeaponKit.folders()

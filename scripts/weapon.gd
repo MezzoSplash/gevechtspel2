@@ -39,6 +39,7 @@ static func knife_scene() -> PackedScene:
 @onready var muzzle_flash: MeshInstance3D = $Muzzle/Flash
 @onready var muzzle_light: OmniLight3D = $Muzzle/FlashLight
 @onready var fire_sfx: AudioStreamPlayer3D = $FireSfx
+@onready var far_sfx: AudioStreamPlayer3D = $FarSfx
 @onready var hit_sfx: AudioStreamPlayer = $HitSfx
 @onready var head_sfx: AudioStreamPlayer = $HeadSfx
 @onready var kill_sfx: AudioStreamPlayer = $KillSfx
@@ -807,6 +808,8 @@ func _own_light() -> bool:
 ## per shot (play_fire_sfx), here only the first one for code that reads fire_sfx.stream.
 func _apply_kit_sounds() -> void:
 	fire_sfx.stream = WeaponKit.fire_sound(def)
+	if far_sfx != null:
+		far_sfx.stream = WeaponKit.distant_sound(def.id)
 	reload_sfx.stream = WeaponKit.sound(def.id, &"reload", _default_reload_sound)
 	empty_sfx.stream = WeaponKit.sound(def.id, &"dry", _default_dry_sound)
 
@@ -854,6 +857,11 @@ func play_fire_sfx() -> bool:
 	# Small random pitch so a held trigger does not sound like one looped sample.
 	fire_sfx.pitch_scale = randf_range(0.95, 1.05)
 	fire_sfx.play()
+	# #370: the far layer plays with every shot and carries further; the close shot masks it up close.
+	# Not on your own gun: the muffled layer sat on top of your own shot, right at the camera.
+	if far_sfx != null and far_sfx.stream != null and not _is_local():
+		far_sfx.pitch_scale = fire_sfx.pitch_scale
+		far_sfx.play()
 	return model_flash
 
 

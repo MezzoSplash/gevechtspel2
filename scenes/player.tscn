@@ -173,6 +173,15 @@ attenuation_model = 1
 max_polyphony = 16
 attenuation_filter_cutoff_hz = 9000.0
 
+[node name="FarSfx" type="AudioStreamPlayer3D" parent="Head/Camera3D/WeaponRoot"]
+volume_db = -4.0
+bus = "SFX"
+unit_size = 120.0
+max_distance = 250.0
+attenuation_model = 1
+max_polyphony = 12
+attenuation_filter_cutoff_hz = 1600.0
+
 [node name="HitSfx" type="AudioStreamPlayer" parent="Head/Camera3D/WeaponRoot"]
 stream = ExtResource("6_hit")
 volume_db = -6.0
