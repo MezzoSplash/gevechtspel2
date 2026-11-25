@@ -121,7 +121,7 @@ const NAME_MAX := 24
 ## sync_rc_kick. 0.3.5 and older cannot join.
 ## 0.3.7: the 3-kill streak is a 25 s UAV on the minimap, not the old 4 s radar.
 ## 0.3.6 and older cannot join.
-const NET_VERSION := "0.5.22" # 0.5.22: a player picks up to three killstreaks (#387). The client sends its pick to the server (request_streak_choice) and the server echoes what it accepted (sync_streak_choice); the charges stay one bit per streak id, so an unchanged pick earns and fires exactly as before. A 0.5.21 peer sends no pick and would keep the old three whatever the server was told, so it is refused. 0.5.21: every remote pose carries its sender's clock (#365) - bot poses as a seventh entry (server ms) and a human's as the ALWAYS-replicated net_sent_ms next to net_pos, because interpolating on arrival times made a burst look like poses a few ms apart and hung a pawn in the air. A 0.5.20 peer neither sends nor reads that stamp: refused. 0.5.21 also carries a bot's slide in its pose (crouch, move_fx, sliding) so another screen can tell a slide from a crouch walk (#371). 0.5.20: Townhouses v2 (new collision everywhere), the shank (#145: a new weapon id and LOADOUT index on the wire, and a shank loadout the server accepts), Foundry v2 (new collision everywhere) and the grapple (shared/grapple.gd) - Player syncs grappling / grapple_at and move_fx gains MOVE_GRAPPLE, so a 0.5.19 peer would draw no rope and could not be judged for GRAPPLE KILL: refused. 0.5.16: reloads are synced (#252) - sync_reload / request_reload carry a reload's start and duration on the cosmetic channel, so a 0.5.15 peer shows no reload on anyone else and is refused. 0.5.15: pads now exist on all five maps, so a 0.5.14 client knows none of them but Townhouses and cannot play four maps correctly - refused. 0.5.14: map pickups (#144) add sync_pickup_taken/sync_pickup_state and an armour field on broadcast_hurt, so a 0.5.13 peer is refused. 0.5.13: Skyline's spawn baffles and tower sign moved (#212), so a 0.5.12 client collides against different walls and is refused. 0.5.12: Rooftops, Foundry and Townhouses geometry changed (skybridges, roof wallrun walls, plaza alleys) - a 0.5.11 client collides against different walls, so 0.5.11 peers are refused. 0.5.11: new Skyline geometry (bigger roofs, spine, surf entry, wallrun alley) - a 0.5.10 client collides against different roofs, so 0.5.10 peers are refused. 0.5.10: the reliable RPCs are split over ENet channels (1 gameplay, 2 cosmetic, 0 state) so one lost packet for the HUD no longer holds back a shot; a 0.5.7 peer must be refused. 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
+const NET_VERSION := "0.5.22" # 0.5.22: a player picks up to three killstreaks (#387). The client sends its pick to the server (request_streak_choice) and the server echoes what it accepted (sync_streak_choice); the charges stay one bit per streak id, so an unchanged pick earns and fires exactly as before. A 0.5.21 peer sends no pick and would keep the old three whatever the server was told, so it is refused. 0.5.22 also carries LOS 2.0 (#384): los_input gains a flags byte (crouch held, one dash per LOS), and the bash, the chain, the timer and the coconut are decided by the server, so a 0.5.21 peer that only knows the old one-bash LOS is refused. 0.5.21: every remote pose carries its sender's clock (#365) - bot poses as a seventh entry (server ms) and a human's as the ALWAYS-replicated net_sent_ms next to net_pos, because interpolating on arrival times made a burst look like poses a few ms apart and hung a pawn in the air. A 0.5.20 peer neither sends nor reads that stamp: refused. 0.5.21 also carries a bot's slide in its pose (crouch, move_fx, sliding) so another screen can tell a slide from a crouch walk (#371). 0.5.20: Townhouses v2 (new collision everywhere), the shank (#145: a new weapon id and LOADOUT index on the wire, and a shank loadout the server accepts), Foundry v2 (new collision everywhere) and the grapple (shared/grapple.gd) - Player syncs grappling / grapple_at and move_fx gains MOVE_GRAPPLE, so a 0.5.19 peer would draw no rope and could not be judged for GRAPPLE KILL: refused. 0.5.16: reloads are synced (#252) - sync_reload / request_reload carry a reload's start and duration on the cosmetic channel, so a 0.5.15 peer shows no reload on anyone else and is refused. 0.5.15: pads now exist on all five maps, so a 0.5.14 client knows none of them but Townhouses and cannot play four maps correctly - refused. 0.5.14: map pickups (#144) add sync_pickup_taken/sync_pickup_state and an armour field on broadcast_hurt, so a 0.5.13 peer is refused. 0.5.13: Skyline's spawn baffles and tower sign moved (#212), so a 0.5.12 client collides against different walls and is refused. 0.5.12: Rooftops, Foundry and Townhouses geometry changed (skybridges, roof wallrun walls, plaza alleys) - a 0.5.11 client collides against different walls, so 0.5.11 peers are refused. 0.5.11: new Skyline geometry (bigger roofs, spine, surf entry, wallrun alley) - a 0.5.10 client collides against different roofs, so 0.5.10 peers are refused. 0.5.10: the reliable RPCs are split over ENet channels (1 gameplay, 2 cosmetic, 0 state) so one lost packet for the HUD no longer holds back a shot; a 0.5.7 peer must be refused. 0.5.8: LOS polish (los_recall; Style.LOS_LONG for a snap from 25 m+, checked in check_los); a 0.5.7 peer must be refused. 0.5.7: LOS pays off (a bash from the hands is lethal and a hit snaps the body to the hands: sync_los_end carries the snap position); a 0.5.6 peer must be refused. 0.5.6: LOS, the hands scorestreak (sync_los_spawn, sync_los_pose, sync_los_end, los_input, los_melee); a 0.5.5 peer must be refused. 0.5.5: the server checks the position a client claims and corrects it (#B1); a 0.5.4 peer must be refused. 0.5.3: physical UAV drone (sync_uav_spawn/end); 0.5.2: playtest balance: damage falloff (#147), MVP killcam without bots (#149), style killstreak factor (#151); pose sync unreliable at 30 Hz (high-ping desync); shot view time + server clock stamp (#105, lag compensation); combo "frozen" state (#89) + RCXD trick (#87): a 0.4.1 peer must be refused
 const REGEN_SYNC := 0.25 # seconds between sync_regen batches
 ## Server-side shot checks. Lenient on purpose: LAN jitter must never eat a legit shot.
 const FIRE_RATE_SLACK := 1.15 # shot credit refills 15% faster than the gun fires
@@ -180,6 +180,9 @@ var round_frozen := false # look OK, no walk/shoot; bots idle
 var killcam_active := false # final killcam: no walk/look/shoot/damage; bots idle (Killcam.sync_lock)
 var rc_view := false # this machine is looking out of an RC-XD; the pawn stays put and cannot shoot
 var los_view := false # this machine is looking through LOS hands; the body keeps its line and cannot shoot
+## Test only (--test-los, #384): the server hands every human the LOS charge at spawn. It exists so a
+## two-process check can reach the chain without grinding seven kills; the menu never sets it.
+var test_los := false
 var final_kill: Dictionary = {} # match authority: last real kill of this round, replayed by the killcam
 var flags: Array = [] # #160 CTF: [blue, orange] Objective dicts (authority decides, all mirror)
 var ctf_caps: Array = [0, 0] # #160 CTF: captures per team this round
@@ -1068,7 +1071,12 @@ func request_use_streak(slot: int) -> void:
 @rpc("any_peer", "call_remote", "reliable", 1)
 func request_streak(slot: int) -> void:
 	if multiplayer.is_server():
-		try_activate_streak(Lobby.sender(self), slot)
+		var peer := Lobby.sender(self)
+		# Test only (--test-los, #384): the charge is granted right here, because a round start
+		# clears whatever a spawn-time grant put down.
+		if test_los and peer > 0:
+			streak_charges[peer] = int(streak_charges.get(peer, 0)) | CHARGE_LOS
+		try_activate_streak(peer, slot)
 
 
 ## #387: a client sends its killstreak pick; the server validates it and echoes what it accepted.
@@ -1167,12 +1175,24 @@ func sync_los_end(peer: int, snap_to: Vector3 = Vector3.INF) -> void:
 	LosHands.abort_for(peer, snap_to)
 
 
+## Server → everyone. #384: a chain kill is a shared fact, not a server detail. Without it a joined
+## client counted its own 8 s down and closed the view while the server kept going, its body never
+## visibly moved, and "Ketting 2/3" only existed on the host. Reliable: losing one would desync the
+## two clocks for the rest of the streak.
+@rpc("authority", "call_remote", "reliable", 1)
+func sync_los_chain(peer: int, kills_in: int, time_in: float, snap_to: Vector3 = Vector3.INF) -> void:
+	if multiplayer.is_server():
+		return
+	LosHands.apply_chain(peer, kills_in, time_in, snap_to)
+
+
 ## Owner → server, every physics tick. Wish is world space and follows the look, including up.
+## #384 flags: bit 0 = crouch held, bit 1 = a dash request in this tick.
 @rpc("any_peer", "call_remote", "unreliable", 1)
-func los_input(wish: Vector3, yaw_in: float, pitch_in: float) -> void:
+func los_input(wish: Vector3, yaw_in: float, pitch_in: float, flags: int = 0) -> void:
 	if not multiplayer.is_server():
 		return
-	LosHands.server_input(multiplayer.get_remote_sender_id(), wish, yaw_in, pitch_in)
+	LosHands.server_input(multiplayer.get_remote_sender_id(), wish, yaw_in, pitch_in, flags)
 
 
 ## Owner → server. The origin has to be the hands, not the body's eye (that check would reject it).

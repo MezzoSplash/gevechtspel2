@@ -44,6 +44,7 @@ func _ready() -> void:
 	bot._bot_brain = null
 	await _gun_fires(p)
 	await _activate(p, bot)
+	await _los2(p, bot)
 	print("LOS CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
 
@@ -214,12 +215,17 @@ func _activate(p: Player, bot: Player) -> void:
 	p.weapon._melee_cd = 0.0
 	hands._request_swing()
 	_ok(bot.is_dead and is_zero_approx(bot.hp), "one bash from the hands is a kill (hp %.0f)" % bot.hp)
-	_ok(LosHands.for_owner(1) == null and not Game.los_view, "a landed bash ends the streak")
-	_ok(p.camera != null and p.camera.current, "camera is back on the body after the snap")
+	# #384: a kill ends the swing, not the streak: the hands stay out and the body clicks to them.
+	_ok(LosHands.for_owner(1) != null and Game.los_view, "a landed bash keeps the hands out")
+	_ok(hands.kills == 1, "the kill joined the chain (%d)" % hands.kills)
+	_ok(p.camera != null and not p.camera.current, "the camera stays with the hands after a chain kill")
 	var snap := Vector3(feet.x, feet.y + LosHands.EYE_H - eye, feet.z)
 	var drift := p.global_position.distance_to(snap)
 	_ok(drift < 0.45, "the body snapped to the hands (%.2f m off, at %.1f/%.1f/%.1f)" % [
 		drift, p.global_position.x, p.global_position.y, p.global_position.z])
+	# The chain keeps them out; the rest of the check needs a clean slate.
+	LosHands.abort_for(1)
+	await get_tree().physics_frame
 	# A landing that would put the capsule in a wall: look around the hands instead of refusing.
 	var wall := StaticBody3D.new()
 	var wcol := CollisionShape3D.new()
@@ -266,13 +272,13 @@ func _activate(p: Player, bot: Player) -> void:
 	p.is_dead = false
 	p._spawn_protect = 0.0
 	_ok(LosHands.launch(p) and Game.los_view, "LOS view on for the timer")
-	# The window is 5 s: still out at 4 s, gone by 6 s. Asserts the window, not the constant.
-	for _i in 240:
+	# The window is 8 s (#384): still out at 7 s, gone by 9 s. Asserts the window, not the constant.
+	for _i in 420:
 		await get_tree().physics_frame
-	_ok(Game.los_view and LosHands.for_owner(1) != null, "still out after 4 s")
+	_ok(Game.los_view and LosHands.for_owner(1) != null, "still out after 7 s")
 	for _i in 120:
 		await get_tree().physics_frame
-	_ok(not Game.los_view and LosHands.for_owner(1) == null, "gone after 6 s")
+	_ok(not Game.los_view and LosHands.for_owner(1) == null, "gone after 9 s")
 	_ok(p.camera != null and p.camera.current, "camera is back on the body")
 	p.velocity = Vector3.ZERO
 	_ok(LosHands.launch(p) and Game.los_view, "LOS again, to die in it")
@@ -281,3 +287,175 @@ func _activate(p: Player, bot: Player) -> void:
 	p.apply_hit(p.global_position + Vector3.UP, Vector3.UP, 500.0, false, -3, &"rifle")
 	_ok(p.is_dead and not Game.los_view and LosHands.for_owner(1) == null, "killing the body ends the streak")
 	_ok(p.camera != null and p.camera.current, "camera is back after the death")
+
+
+## #384 LOS 2.0: the chain (3 kills, +3 s, stops after 3), the timer pause, the bash magnetism
+## (4 m / 45 deg, no walls), the coconut (half damage), one dash, the outline range and the tag.
+## Everything goes through Game.try_activate_streak, like the real flow: the checks in #387 passed
+## on helpers alone and missed a bug in Play/Host.
+func _los2(p: Player, bot: Player) -> void:
+	print("-- LOS 2.0")
+	_ok(is_equal_approx(LosHands.DURATION, 8.0) and LosHands.MAX_KILLS == 3, "8 s and at most three kills")
+	_ok(int(Style.POINTS[Style.LOS_CHAIN]) == 250, "LOS CHAIN is 250 style")
+	_ok(Style.LABELS[Style.LOS_CHAIN] == "LOS CHAIN", "the feed reads LOS CHAIN")
+	var second := Style.detect({"weapon": &"melee", "los": true, "los_kills": 2, "body_speed": 0.0})
+	_ok(second.has(Style.LOS_CHAIN) and not second.has(Style.LOS), "the second kill is LOS CHAIN, even at 0 m/s")
+	var first := Style.detect({"weapon": &"melee", "los": true, "los_kills": 1, "body_speed": 13.0})
+	_ok(first.has(Style.LOS) and not first.has(Style.LOS_CHAIN), "the first kill is still LOS")
+
+	p.is_dead = false
+	p.hp = Player.MAX_HP
+	p._spawn_protect = 0.0
+	_revive(bot)
+	var hands := _fresh(p)
+	if hands == null:
+		_ok(false, "a fresh LOS could be launched")
+		return
+	p.velocity = Vector3.ZERO
+	p.global_position = Vector3(0, 0.05, 0)
+	hands.global_position = Vector3(0, 1.35, 0)
+	hands.velocity = Vector3.ZERO
+	hands._yaw = 0.0
+	hands._pitch = 0.0
+	hands._pose_cam()
+	# 3.5 m ahead and 30 deg off the crosshair: outside the bash cone, inside the picker's 45 deg.
+	_revive(bot)
+	bot.global_position = Vector3(1.75, 0.05, -3.03)
+	await get_tree().physics_frame
+	hands._swing_cd = 0.0
+	p.weapon._melee_cd = 0.0
+	hands._request_swing()
+	_ok(bot.is_dead, "the bash is pulled onto a target 3.5 m out, 30 deg off the crosshair")
+	_ok(hands.kills == 1 and LosHands.for_owner(1) != null, "the chain keeps the hands out after kill 1")
+	# The timer rests while the body clicks into place.
+	var t0 := hands.time_left
+	for _i in 8:
+		await get_tree().physics_frame
+	_ok(absf(hands.time_left - t0) < 0.02, "the timer pauses during the snap (%.2f -> %.2f)" % [t0, hands.time_left])
+	for _i in 40:
+		await get_tree().physics_frame
+	_ok(hands.time_left < t0 - 0.25, "the timer runs again after the snap (%.2f)" % hands.time_left)
+
+	# A wall between the hands and the target: the picker must not reach through it.
+	_revive(bot)
+	bot.global_position = Vector3(0, 0.05, -3.0)
+	var wall := StaticBody3D.new()
+	var wcol := CollisionShape3D.new()
+	var wbox := BoxShape3D.new()
+	wbox.size = Vector3(6.0, 4.0, 0.4)
+	wcol.shape = wbox
+	wall.add_child(wcol)
+	wall.position = Vector3(0, 2.0, -1.6)
+	add_child(wall)
+	await get_tree().physics_frame
+	hands.global_position = Vector3(0, 1.35, 0)
+	hands._swing_cd = 0.0
+	p.weapon._melee_cd = 0.0
+	var before_kills := hands.kills
+	hands._request_swing()
+	_ok(not bot.is_dead and hands.kills == before_kills, "a wall between the hands and the target blocks the bash")
+	wall.queue_free()
+	await get_tree().physics_frame
+
+	# The coconut: half damage on the body while the hands are out, full damage once they are back.
+	p.hp = Player.MAX_HP
+	var hit_coco := p.apply_hit(p.global_position + Vector3.UP, Vector3.UP, 40.0, false, -3, &"rifle")
+	_ok(int(hit_coco.get("damage", 0)) == 20, "the coconut halves 40 to %d" % int(hit_coco.get("damage", 0)))
+	LosHands.abort_for(1)
+	await get_tree().physics_frame
+	p.hp = Player.MAX_HP
+	var hit_plain := p.apply_hit(p.global_position + Vector3.UP, Vector3.UP, 40.0, false, -3, &"rifle")
+	_ok(int(hit_plain.get("damage", 0)) == 40, "without the hands a full 40 lands")
+	_ok(not p.is_dead, "the coconut still allows a kill, it only halves the hit")
+
+	# One dash per LOS.
+	hands = _fresh(p)
+	_ok(hands != null, "LOS again for the dash")
+	if hands != null:
+		hands.global_position = Vector3(0, 1.35, 0)
+		hands._yaw = 0.0
+		hands._pitch = 0.0
+		hands._pose_cam()
+		hands._dash()
+		_ok(absf(hands.velocity.length() - LosHands.DASH_SPEED) < 0.5, "the dash sets %.0f m/s" % hands.velocity.length())
+		hands.velocity = Vector3.ZERO
+		hands._dash()
+		_ok(is_zero_approx(hands.velocity.length()), "a second dash in the same LOS does nothing")
+
+		# The chain stops at three kills.
+		hands.kills = 2
+		_revive(bot)
+		hands.global_position = Vector3(0, 1.35, -1.0)
+		bot.global_position = Vector3(0, 0.05, -2.4)
+		await get_tree().physics_frame
+		hands._swing_cd = 0.0
+		p.weapon._melee_cd = 0.0
+		hands._request_swing()
+		_ok(bot.is_dead and LosHands.for_owner(1) == null and not Game.los_view,
+			"the third kill ends the chain (target alive: %s)" % str(bot.hp > 0.0))
+
+	# #384: the marks count from the hands, not from the body left behind on the ground.
+	hands = _fresh(p)
+	if hands != null:
+		hands.global_position = Vector3(0.0, 1.35, -20.0)
+		_revive(bot)
+		bot.global_position = Vector3(0.0, 0.05, -23.0)
+		await get_tree().physics_frame
+		_ok(LosOutline.origin_for(p).distance_to(hands.global_position) < 0.2,
+			"the marks are measured from the hands, not from the body")
+		var ahead: Array = LosOutline.targets(LosOutline.origin_for(p), p, LosOutline.RANGE)
+		_ok(ahead.size() == 1 and float(ahead[0]["d"]) <= LosOutline.BASH_PICK_M,
+			"3 m from the hands is bash range while the body is 20 m back (d %.1f)" % (
+				float(ahead[0]["d"]) if ahead.size() == 1 else -1.0))
+		LosHands.abort_for(1)
+		await get_tree().physics_frame
+
+		# #384: a target three metres below the hands used to be "0.5 m away" on the flat measure and
+		# the lunge went straight over it. Aimed at the chest in 3D, it lands.
+		hands = _fresh(p)
+		_ok(hands != null, "LOS again for the vertical bash")
+		if hands != null:
+			p.global_position = Vector3(0, 0.05, 0)
+			hands.global_position = Vector3(0.0, 4.2, -1.6)
+			hands.velocity = Vector3.ZERO
+			hands._yaw = 0.0
+			hands._pitch = deg_to_rad(-60.0)
+			hands._pose_cam()
+			_revive(bot)
+			bot.global_position = Vector3(0.0, 0.05, -2.2)
+			await get_tree().physics_frame
+			hands._swing_cd = 0.0
+			p.weapon._melee_cd = 0.0
+			var was := hands.kills
+			hands._request_swing()
+			_ok(bot.is_dead and hands.kills == was + 1, "the bash reaches a target 3 m below the hands")
+			LosHands.abort_for(1)
+			await get_tree().physics_frame
+
+	# The outline: enemies within 30 m are marked, further away are not.
+	_revive(bot)
+	bot.global_position = Vector3(0, 0.05, -10.0)
+	var near: Array = LosOutline.targets(p.global_position, p, LosOutline.RANGE)
+	_ok(near.size() == 1 and float(near[0]["d"]) < LosOutline.BASH_PICK_M + 10.0, "an enemy at 10 m is marked")
+	bot.global_position = Vector3(0, 0.05, -40.0)
+	var far: Array = LosOutline.targets(p.global_position, p, LosOutline.RANGE)
+	_ok(far.is_empty(), "an enemy at 40 m is not marked")
+	bot.global_position = Vector3(0, 0.05, -2.5)
+	var close: Array = LosOutline.targets(p.global_position, p, LosOutline.RANGE)
+	_ok(close.size() == 1 and float(close[0]["d"]) <= LosOutline.BASH_PICK_M, "a target in bash range is flagged")
+	_revive(bot)
+
+
+## A fresh LOS through the real entry point, with the charge granted like a 7-kill streak does.
+func _fresh(p: Player) -> LosHands:
+	LosHands.abort_for(1)
+	Game.streak_charges[1] = int(Game.streak_charges.get(1, 0)) | Game.CHARGE_LOS
+	Game.try_activate_streak(1, 2)
+	return LosHands.for_owner(1)
+
+
+func _revive(bot: Player) -> void:
+	bot.is_dead = false
+	bot.hp = Player.MAX_HP
+	bot._spawn_protect = 0.0
+	bot.velocity = Vector3.ZERO
