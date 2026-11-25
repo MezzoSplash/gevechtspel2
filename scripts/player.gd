@@ -304,6 +304,7 @@ var _air_steer_locked := false # #152: no air steering from a wall jump until th
 ## A claim is only accepted if the pawn could have got there since the last accepted one at the
 ## fastest speed the game allows: CARRY_MAX sideways, a hard fall plus a dive vertically.
 const NET_CLAIM_H_CAP := CARRY_MAX * 1.4 # m/s: surf exit boost and dive stay under this
+## #388: Overdrive's 25% speed buff must pass the same check, or the server pulls the sprinter back.
 const NET_CLAIM_V_CAP := 45.0 # m/s: free fall with a dive
 const NET_CLAIM_SLACK := 0.6 # m: a step up, a landing, one late snapshot
 const NET_CLAIM_MIN_DT := 0.05 # s: never judge against a window smaller than this
@@ -791,6 +792,11 @@ func _flush_remote_pose() -> void:
 		return
 	_pose_rx_dirty = false
 	PawnNet.push_remote_pose(self, _pose_rx_pos, _pose_rx_sent)
+
+
+## #B1: the horizontal cap a claim is judged against, raised while Overdrive runs.
+func claim_h_cap() -> float:
+	return NET_CLAIM_H_CAP * Overdrive.claim_cap_mult(self)
 
 
 ## #B1 server authority over position. Accept a claim only if the pawn could have reached it since the

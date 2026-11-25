@@ -61,6 +61,7 @@ static func clear_peer_hp(game: GameState, peer_id: int) -> void:
 	game.streak_choices.erase(peer_id) # #387: its pick goes with it
 	RcXd.abort_for(peer_id)
 	LosHands.abort_for(peer_id)
+	Overdrive.abort_for(peer_id) # #388
 	game.pings.erase(peer_id)
 	game._fire_credit.erase(peer_id)
 	if game.melee:
@@ -347,6 +348,8 @@ static func register_kill(game: GameState, killer_peer_id: int, victim_peer_id: 
 		game._check_win_player(killer_peer_id)
 	else:
 		game._check_win_team(team_id)
+	# #388: a kill during Overdrive buys 2 more seconds (capped), before the streak bookkeeping below.
+	Overdrive.server_kill(killer_peer_id)
 	game._bump_streak(killer_peer_id, victim_peer_id)
 
 

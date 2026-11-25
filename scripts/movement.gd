@@ -247,7 +247,9 @@ static func tick_wallrun(p: Player, delta: float, input_vec: Vector2, locked: bo
 		var w := find_wall(p)
 		var along := Vector3(p.velocity.x, 0.0, p.velocity.z).length()
 		var drop := (not p._in_sprint) or p._in_crouch
-		if w.is_empty() or p._wallrun_t >= Player.WALLRUN_TIME or along < Player.WALLRUN_KEEP_SPEED or drop or p.is_dead or locked:
+		# #388: an Overdrive wallrun does not time out; the other ends (no wall, too slow, a drop) stay.
+		var ran_out := p._wallrun_t >= Player.WALLRUN_TIME and not Overdrive.wallrun_free(p)
+		if w.is_empty() or ran_out or along < Player.WALLRUN_KEEP_SPEED or drop or p.is_dead or locked:
 			end_wallrun(p)
 		else:
 			p._wall_n = w.n
@@ -329,10 +331,11 @@ static func tick_boosts(p: Player, delta: float) -> void:
 
 
 static func try_air_dive(p: Player, on_floor: bool, locked: bool) -> void:
-	if p._dive_cd > 0.0:
+	if p._dive_cd > 0.0 and not Overdrive.dive_free(p): # #388: no cooldown while it runs
 		return
 	## Bots dive through the same door as a human: no `is_bot` shortcut.
-	if on_floor or locked or p.is_dead or p._diving or p._dive_used or p._wallrunning or p._surf_t > 0.0:
+	var spent := p._dive_used and not Overdrive.dive_free(p)
+	if on_floor or locked or p.is_dead or p._diving or spent or p._wallrunning or p._surf_t > 0.0:
 		return
 	if not p._in_crouch_down or not p._in_sprint:
 		return
@@ -373,7 +376,7 @@ static func tick_dive_roll(p: Player, delta: float) -> void:
 		if p._diving:
 			p._diving = false
 			p._roll_t = Player.ROLL_TIME
-			p._dive_cd = Player.DIVE_COOLDOWN
+			p._dive_cd = 0.0 if Overdrive.dive_free(p) else Player.DIVE_COOLDOWN
 			if p.land_sfx:
 				p.land_sfx.play()
 			if p.camera:

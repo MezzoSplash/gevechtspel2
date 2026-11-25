@@ -16,6 +16,8 @@ const CATALOG: Array[Dictionary] = [
 		"blurb": "Drive a remote car and blow it up next to the enemy.", "bots": true},
 	{"id": &"los", "kills": 7, "name": "LOS",
 		"blurb": "Your hands leave the body and fight on their own.", "bots": false},
+	{"id": &"overdrive", "kills": 7, "name": "Overdrive",
+		"blurb": "10 s: faster, endless wallruns, dives on tap, a lunge on every gun.", "bots": true},
 ]
 
 
@@ -56,6 +58,8 @@ static func bit(id: StringName) -> int:
 			return GameState.CHARGE_RCXD
 		&"los":
 			return GameState.CHARGE_LOS
+		&"overdrive":
+			return GameState.CHARGE_OVERDRIVE
 	return 0
 
 

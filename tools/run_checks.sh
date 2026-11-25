@@ -16,10 +16,10 @@ echo "Godot: $GODOT ($("$GODOT" --version 2>/dev/null))"
 
 # Skipped on purpose: shot_*/_shot (need a real screen for screenshots),
 # stress_host_join (long multi-client stress run), _check_guns (manual viewer).
-# check_net_grenade and check_net_los are two-process tests (each needs a dedicated server): run
-# tools/net_grenade.sh and tools/net_los.sh.
+# check_net_grenade, check_net_los and check_net_overdrive are two-process tests (each needs a dedicated
+# server): run tools/net_grenade.sh, tools/net_los.sh and tools/net_overdrive.sh.
 # check_server_list needs a public server with the status port forwarded (#101), not a code bug.
-SKIP=(net_jitter_probe stress_host_join _check_guns check_net_grenade check_net_los check_server_list)
+SKIP=(net_jitter_probe stress_host_join _check_guns check_net_grenade check_net_los check_net_overdrive check_server_list)
 # Known failing checks (reported, do not fail the run). Format: name
 # Empty on purpose: a check that cannot pass where the runner lives belongs in SKIP with a reason,
 # not in a list that teaches everyone to ignore the red.

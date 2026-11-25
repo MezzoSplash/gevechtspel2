@@ -75,6 +75,10 @@ static func parse(args: PackedStringArray) -> Dictionary:
 					out.bot_difficulty = Game.parse_bot_difficulty(args[i])
 					if out.bot_difficulty < 0:
 						push_warning("--bot-difficulty: use easy, medium or hard (got %s)" % args[i])
+			"--test-overdrive":
+				# Test only (#388): a server that charges every human with Overdrive, so the
+				# two-process check can start the buff without grinding seven kills.
+				out.test_overdrive = true
 			"--test-los":
 				# Test only (#384): a server that hands every human the LOS charge at spawn, so the
 				# two-process net check can chain kills without grinding seven first.

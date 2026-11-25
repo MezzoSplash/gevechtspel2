@@ -131,8 +131,10 @@ static func die(p: Player) -> void:
 	if Game._is_match_authority():
 		RcXd.abort_for(p.peer_id)
 		LosHands.abort_for(los_id)
+		Overdrive.abort_for(los_id) # #388: the buff dies with the body, it does not carry into the next life
 	elif p.is_local():
 		LosHands.abort_for(los_id)
+		Overdrive.abort_for(los_id, false)
 	Game.killcam.note_death(p.peer_id)
 	p.velocity = Vector3.ZERO
 	# #252: dying ends a reload. The weapon tells the other clients (a 0 on sync_reload) so a corpse and

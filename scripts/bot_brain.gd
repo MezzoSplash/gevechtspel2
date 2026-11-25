@@ -919,6 +919,12 @@ func _tick_streaks(delta: float, enemy: Player) -> void:
 		Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"uav"))
 		_streak_wait = float(Game.bot_profile().streak)
 		return
+	# #388: Overdrive is allowed for bots and fires from their own pick; it needs no target, so it goes
+	# before the RC-XD's line-of-sight check.
+	if (charges & Game.CHARGE_OVERDRIVE) != 0 and Overdrive.for_owner(pawn.peer_id) == null:
+		Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"overdrive"))
+		_streak_wait = float(Game.bot_profile().streak)
+		return
 	if (charges & Game.CHARGE_RCXD) != 0 and enemy != null:
 		var far := pawn.global_position.distance_to(_goal_pos(enemy)) >= RC_LAUNCH_MIN
 		if far or not _can_see(enemy):

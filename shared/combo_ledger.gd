@@ -19,6 +19,8 @@ static func award_style(game: Node, kill_info: Dictionary, tricks_in: Array[Stri
 	var now := Time.get_ticks_msec() / 1000.0
 	var chain := Tricks.next_chain(game._style_chain, k, now)
 	var pts := Style.award(tricks, chain) + bank # chain multiplier on the kill tricks only, never on the combo
+	# #388: Overdrive makes every kill count double for style (the combo bank included: it is the kill).
+	pts = Overdrive.style_points(game.player_for_peer(k), pts)
 	var mult := Style.chain_multiplier(chain)
 	var total := pts + (int(game.scores[k].get("style", 0)) if game.scores.has(k) else 0)
 	game._trick_seq += 1
