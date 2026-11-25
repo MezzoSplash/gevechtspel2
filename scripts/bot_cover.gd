@@ -14,10 +14,14 @@ static func seeks_cover(b: BotBrain) -> bool:
 static func should_reload(b: BotBrain, enemy: Player) -> bool:
 	if not b._seeks_cover() or b.pawn.weapon == null:
 		return false
+	var w := b.pawn.weapon
+	# The shank has no mag (mag_size 0), so its ammo is always 0: without this a Hard shank bot was
+	# "reloading" all the time - it ran to a hide spot and stabbed the air there instead of closing in.
+	if w.def != null and w.def.melee:
+		return false
 	var dist := b.pawn.global_position.distance_to(enemy.global_position)
 	if dist <= BotBrain.MELEE_R:
 		return false
-	var w := b.pawn.weapon
 	if w.ammo == 1 and dist < BotBrain.RELOAD_HOLD_R:
 		return false
 	return w.is_reloading() or w.ammo <= 0
@@ -27,6 +31,8 @@ static func should_reload(b: BotBrain, enemy: Player) -> bool:
 static func hold_last_round(b: BotBrain, dist: float) -> bool:
 	if not b._seeks_cover() or b.pawn.weapon == null:
 		return false
+	if b.pawn.weapon.def != null and b.pawn.weapon.def.melee:
+		return false # no rounds to hold: the shank stabs
 	return b.pawn.weapon.ammo == 1 and dist < BotBrain.RELOAD_HOLD_R
 
 
