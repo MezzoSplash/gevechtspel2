@@ -310,13 +310,13 @@ func physics_tick(delta: float) -> void:
 		# #270: an authored route beats the generic path while it lasts; without one (or when it is
 		# dropped) the hunt below is exactly what it always was.
 		if _hint.is_empty():
-			_try_pick_hint(enemy)
+			BotHunt.try_pick_hint(self, enemy)
 		if _hint.is_empty():
-			_hunt(enemy, delta)
+			BotHunt.hunt(self, enemy, delta)
 		else:
 			# A route is a hunt: left on FIGHT, the wall trick refused to start on it.
 			_set_state(State.HUNT_DIRECT if _route == Route.DIRECT else State.HUNT_FLANK)
-			_follow_hint(enemy, delta)
+			BotHunt.follow_hint(self, enemy, delta)
 	_move(delta)
 
 
@@ -589,160 +589,18 @@ func _drop_path() -> void:
 
 
 ## A whole new chase: the peer's own flank slot, no path, no stuck history.
+## #317 slice 2: the hunt lives in BotHunt; bot_wall still asks the brain whether a route is a wallrun.
+func _on_wall_route() -> bool:
+	return BotHunt.on_wall_route(self)
+
+
 func _reset_hunt() -> void:
 	_flank_wait = 0.0 # a new target has not yet earned a break-off shot
-	_clear_hint() # a route to the old target says nothing about the new one
+	BotHunt.clear_hint(self) # a route to the old target says nothing about the new one
 	_drop_route()
 	_flank_flipped = false
 	_flank_angle = _flank_base
 	_repath_t = 0.0
-
-
-## #270: look for an authored route worth taking right now. Cheap when the map ships none (one cached
-## look-up that returns an empty list) and skipped entirely while a route is already being followed.
-func _try_pick_hint(enemy: Player) -> void:
-	var space := pawn.get_world_3d().direct_space_state
-	var routes := BotRoutes.for_map(space, Game.map_id)
-	if routes.is_empty():
-		return
-	var h := BotRoutes.pick(space, routes, pawn.global_position, _goal_pos(enemy))
-	if h.is_empty():
-		return
-	_hint = h.duplicate(true)
-	_hint_i = 1
-	_hint_pos = pawn.global_position
-	_hint_t = 0.0
-	_hint_pressed = false
-
-
-## Walk one authored route. The kind only decides the keys: a slide route presses crouch once at the
-## start, a wallrun or surf route is run at sprint straight at the next point and the movement code
-## (#278's wall trick, the surf state) takes over when the geometry offers it.
-func _follow_hint(enemy: Player, delta: float) -> void:
-	var pts: Array = _hint.get("points", [])
-	if _hint_i >= pts.size():
-		_clear_hint()
-		return
-	var dest: Vector3 = pts[_hint_i]
-	if Vector2(dest.x - pawn.global_position.x, dest.z - pawn.global_position.z).length() < HINT_ARRIVE:
-		_hint_i += 1
-		_hint_pos = pawn.global_position
-		_hint_t = 0.0
-		if _hint_i >= pts.size():
-			_clear_hint() # the route delivered us: the hunt takes it from here
-			return
-		dest = pts[_hint_i]
-	# No progress: a route that does not move the bot is worse than no route at all.
-	_hint_t += delta
-	if pawn.global_position.distance_to(_hint_pos) > HINT_STALL_DIST:
-		_hint_pos = pawn.global_position
-		_hint_t = 0.0
-	elif _hint_t >= HINT_STALL:
-		_clear_hint()
-		return
-	# A slide needs speed to start: pressing crouch while walking just crouches the bot and it crawls
-	# the rest of the route at a walk - measured in check_bot_route (11 m/s -> 1 m/s -> stall).
-	var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.SPRINT_SPEED * 0.9
-	if (StringName(_hint.get("kind", &"")) == &"slide"
-			and fast and not _hint_pressed and pawn.is_on_floor()
-			and _crouch_hold <= 0.0 and _crouch_press == false and pawn._slide_cd <= 0.0):
-		_hint_pressed = true
-		_crouch_press = true
-		_crouch_hold = BOT_SLIDE_HOLD
-	_tick_aim_wobble(enemy, delta)
-	_face_travel(dest - pawn.global_position)
-	_steer_to(dest, Player.SPRINT_SPEED, delta, false)
-
-
-func _on_wall_route() -> bool:
-	return StringName(_hint.get("kind", &"")) == &"wallrun"
-
-
-func _clear_hint() -> void:
-	_hint = {}
-	_hint_i = 0
-	_hint_t = 0.0
-	_hint_pressed = false
-
-
-## No line of sight, or seen but outside gun range. Follow the navmesh.
-## First to a point beside the enemy (different bots, different doors), then to their feet.
-func _hunt(enemy: Player, delta: float) -> void:
-	if _route == Route.DIRECT:
-		_hunt_direct(enemy, delta)
-	else:
-		_hunt_flank(enemy, delta)
-
-
-## Flank: aim for a point on the ring around the enemy, so two bots do not file through one door.
-## A path that runs out means the ring point was useless, and the chase goes straight at them.
-func _hunt_flank(enemy: Player, delta: float) -> void:
-	_set_state(State.HUNT_FLANK)
-	_hunt_begin()
-	var at := _goal_pos(enemy)
-	# A ring point it has already reached is worth leaving (#267 slice 2): the flanker takes the next
-	# angle on the enemy instead of standing on the spot, which is what "slaat vaker een hoek om" is.
-	if (style.flank_switch_per_s > 0.0
-			and pawn.global_position.distance_to(_flank_point(at)) < FLANK_ARRIVE
-			and rng.randf() < 1.0 - exp(-style.flank_switch_per_s * delta)):
-		_flank_angle += FLANK_TURN * (1.0 if rng.randf() < 0.5 else -1.0)
-		_flank_flipped = false # a new angle is a new chase, not an escalation
-		_drop_path()
-	# is_navigation_finished is still true the frame a target is set; the path arrives after.
-	var followed := _path_live and _repath_t < HUNT_REPATH - 0.2
-	if followed and agent and agent.is_navigation_finished():
-		_route = Route.DIRECT
-		_set_state(State.HUNT_DIRECT)
-		_force_repath = true
-	_hunt_leg(enemy, delta, at if _route == Route.DIRECT else _flank_point(at), at)
-
-
-## Direct: the enemy's feet, from wherever the flank left us.
-func _hunt_direct(enemy: Player, delta: float) -> void:
-	_set_state(State.HUNT_DIRECT)
-	_hunt_begin()
-	var at := _goal_pos(enemy)
-	_hunt_leg(enemy, delta, at, at)
-
-
-## Both halves start here: a target with no path yet asks the navmesh, a stuck hunt escalates.
-func _hunt_begin() -> void:
-	if not _path_live:
-		_force_repath = true
-	if _stuck_pulse:
-		_on_hunt_stuck()
-
-
-## One leg of the chase. `at` is where we think the enemy is: the path is remembered against it,
-## so a target that moved further than HUNT_SHIFT makes us plan again instead of walking on.
-func _hunt_leg(enemy: Player, delta: float, dest: Vector3, at: Vector3) -> void:
-	var shifted := (
-		_path_live
-		and _path_enemy.distance_squared_to(at) > HUNT_SHIFT * HUNT_SHIFT
-	)
-	_repath_t -= delta
-	# Keep the enemy's height. Snapping to our own y picks the floor under a roof, so the
-	# path never takes the ramp when someone is standing up there. Steering still ignores y.
-	if agent and (_repath_t <= 0.0 or shifted or _force_repath):
-		agent.target_position = dest
-		_path_enemy = at
-		_path_live = true
-		_repath_t = HUNT_REPATH
-		_force_repath = false
-	var travel := dest - pawn.global_position
-	if agent and not agent.is_navigation_finished():
-		travel = agent.get_next_path_position() - pawn.global_position
-	# Keep the aim warm, but look along the path. Facing the enemy here is the moonwalk.
-	_tick_aim_wobble(enemy, delta)
-	_face_travel(travel)
-	# Closing the gap at a walk is what made a chase look like a stroll. Shots stay
-	# in the fight, where the wish speed is the strafe, so sprint does not tighten aim.
-	_steer_to(dest, Player.SPRINT_SPEED, delta, true)
-	# Reached the last known spot and nobody is in sight: they moved on. Forget them and look elsewhere.
-	if not _omniscient():
-		var flat := Vector2(pawn.global_position.x - at.x, pawn.global_position.z - at.z).length()
-		if flat < SEARCH_ARRIVE and not _can_see(enemy):
-			_forget(enemy)
 
 
 ## #160: walk the navmesh to a CTF goal (flag, base). Repaths when the goal moves or every HUNT_REPATH.
@@ -960,20 +818,6 @@ func _flank_point(center: Vector3) -> Vector3:
 
 
 ## Stuck on a hunt path: other side of the enemy, then straight at them, then a short nudge.
-func _on_hunt_stuck() -> void:
-	if _route == Route.DIRECT:
-		_pick_unstick()
-		_force_repath = true
-	elif not _flank_flipped:
-		_flank_angle += PI
-		_flank_flipped = true
-		_force_repath = true
-	else:
-		_route = Route.DIRECT
-		_set_state(State.HUNT_DIRECT)
-		_force_repath = true
-
-
 func _pick_unstick() -> void:
 	for _i in 4:
 		var a := randf() * TAU
