@@ -110,7 +110,7 @@ func _ring_walk(switch_on: float) -> int:
 	brain.style.flank_patience = 999.0 # the whole window is the hunt: patience must not cut it short
 	bot.weapon.equip_loadout(0)
 	var at := brain._goal_pos(enemy)
-	var ring := at + Vector3(cos(brain._flank_base), 0.0, sin(brain._flank_base)) * brain._fight_range()
+	var ring := at + Vector3(cos(brain._flank_base), 0.0, sin(brain._flank_base)) * BotAim.fight_range(brain)
 	bot.global_position = ring + Vector3(0, 0.2, 0)
 	bot.velocity = Vector3.ZERO
 	brain._home = bot.global_position
@@ -122,7 +122,7 @@ func _ring_walk(switch_on: float) -> int:
 		_keep_alive()
 		# Held on the ring point every tick. Walking there is what the navmesh and the slide band do,
 		# and either one would put the bot metres off the point: this window is only about the switch.
-		var here := brain._goal_pos(enemy) + Vector3(cos(brain._flank_angle), 0.0, sin(brain._flank_angle)) * brain._fight_range()
+		var here := brain._goal_pos(enemy) + Vector3(cos(brain._flank_angle), 0.0, sin(brain._flank_angle)) * BotAim.fight_range(brain)
 		bot.global_position = here + Vector3(0, 0.2, 0)
 		bot.velocity = Vector3.ZERO
 		enemy.look_at(bot.global_position, Vector3.UP) # never a side or a back view

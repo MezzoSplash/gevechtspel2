@@ -252,7 +252,7 @@ func physics_tick(delta: float) -> void:
 		pawn.velocity.y = 0.0
 	if _drive_rc(delta):
 		return
-	_track_stuck(delta)
+	BotNav.track_stuck(self, delta)
 	var enemy := _pick_target(delta)
 	_tick_streaks(delta, enemy)
 	# #150: low HP after a hit. Sprint out, then the flipped flank brings them back in.
@@ -280,7 +280,7 @@ func physics_tick(delta: float) -> void:
 	if enemy == null or (goal != Vector3.INF and not _can_see(enemy)):
 		_acquire_left = float(Game.bot_profile().acquire)
 		if _stuck_pulse:
-			_pick_unstick()
+			BotNav.pick_unstick(self)
 		if goal != Vector3.INF:
 			_set_state(State.OBJECTIVE)
 			_go_to_objective(goal, delta)
@@ -294,7 +294,7 @@ func physics_tick(delta: float) -> void:
 		return
 	# Seen but out of weapon range (a shotgun bot at a window, the enemy across the street): sprint the
 	# navmesh toward him instead of pushing straight at him into the wall.
-	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > _fight_range() + 4.0
+	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > BotAim.fight_range(self) + 4.0
 	var seen := _can_see(enemy)
 	var fighting := seen and not out_of_range
 	if style.flank_only:
@@ -304,19 +304,19 @@ func physics_tick(delta: float) -> void:
 	if fighting:
 		_set_state(State.FIGHT)
 		_acquire_left = maxf(_acquire_left - delta, 0.0)
-		_fight(enemy, delta)
+		BotAim.fight(self, enemy, delta)
 	else:
 		_acquire_left = float(Game.bot_profile().acquire)
 		# #270: an authored route beats the generic path while it lasts; without one (or when it is
 		# dropped) the hunt below is exactly what it always was.
 		if _hint.is_empty():
-			_try_pick_hint(enemy)
+			BotHunt.try_pick_hint(self, enemy)
 		if _hint.is_empty():
-			_hunt(enemy, delta)
+			BotHunt.hunt(self, enemy, delta)
 		else:
 			# A route is a hunt: left on FIGHT, the wall trick refused to start on it.
 			_set_state(State.HUNT_DIRECT if _route == Route.DIRECT else State.HUNT_FLANK)
-			_follow_hint(enemy, delta)
+			BotHunt.follow_hint(self, enemy, delta)
 	_move(delta)
 
 
@@ -373,72 +373,27 @@ func _end_wall_trick() -> void:
 
 ## Nearest enemy we can actually see; else the nearest one to hunt. Re-picked every RETARGET.
 ## Closest-only used to lock bots onto someone hidden behind a teammate (issue #1: the pile in the middle).
+## #317 slice 7: target picking and the threat live in BotTarget; pawn_vitals and the brain call these.
 func _pick_target(delta: float) -> Player:
-	_retarget_t -= delta
-	if _retarget_t > 0.0 and _valid_target(_target) and _knows(_target):
-		# Still look now when the pawn who shot us is in sight and not the current target.
-		if not (_valid_target(_threat) and _target != _threat and _can_see(_threat)):
-			return _target
-	_retarget_t = RETARGET
-	var enemies := _enemies_by_distance()
-	_listen(enemies)
-	var prev := _target
-	_target = null
-	# #150: the shooter, if we can see them, even when someone else is closer.
-	if _valid_target(_threat) and _can_see(_threat):
-		_target = _threat
-	else:
-		for e in enemies:
-			if _can_see(e):
-				_target = e
-				break
-	if _target == null and _valid_target(_threat) and _knows(_threat):
-		_target = _threat # hunt the one who shot, not whoever is nearest through a wall
-	elif _target == null:
-		_target = _nearest_known(enemies) # null when nobody is known: the bot patrols
-	if _target != prev:
-		_reset_hunt()
-	return _target
+	return BotTarget.pick(self, delta)
 
 
-## #150: a hit from another pawn. Prefer them as the target, and break off the trade when low.
 func note_threat(attacker: Player) -> void:
-	if not _valid_target(attacker):
-		return
-	_threat = attacker
-	_threat_left = THREAT_TIME
-	_retarget_t = 0.0
-	_remember(attacker, attacker.global_position) # being hit tells you where it came from
-	if style.retreat_hp > 0.0 and Game.hp_of(pawn) <= style.retreat_hp and _retreat_cd <= 0.0:
-		_hurt_retreat_left = RETREAT_TIME
-		_retreat_cd = RETREAT_CD
-		_set_state(State.RETREAT)
-		# The flipped flank is what brings them back in from the other side.
-		_route = Route.FLANK
-		_flank_angle += PI
-		_flank_flipped = true
-		_drop_path()
+	BotTarget.note_threat(self, attacker)
 
 
-## Untyped on purpose: a freed pawn in a typed Player argument is a runtime error.
 func _valid_target(p) -> bool:
-	return (
-		is_instance_valid(p)
-		and not p.is_queued_for_deletion()
-		and not p.is_dead
-		and (p.team_id != pawn.team_id or Game.is_ffa())
-		and p != pawn
-	)
+	return BotTarget.valid(self, p)
 
 
 ## Hard bots know where everyone is, through walls: how every bot played before awareness existed.
 func _omniscient() -> bool:
-	return bool(Game.bot_profile().omni)
+	return BotSight.omniscient(self)
 
 
 ## Does this bot know where `e` is? Untyped like _valid_target: check validity first, the pawn may be freed.
 func _knows(e) -> bool:
-	return _omniscient() or _known.has(e.get_instance_id())
+	return BotSight.knows(self, e)
 
 
 ## Where the bot thinks `e` is: the real spot when omniscient, else the last place it knew them.
@@ -530,37 +485,6 @@ func _random_nav_point() -> Vector3:
 
 
 ## No progress for STUCK_CHECK while trying to move. The caller decides: a new flank, or a nudge.
-func _track_stuck(delta: float) -> void:
-	_stuck_pulse = false
-	_unstick_left = maxf(_unstick_left - delta, 0.0)
-	_stuck_t += delta
-	if _stuck_t < STUCK_CHECK:
-		return
-	_stuck_t = 0.0
-	var moved := pawn.global_position.distance_to(_stuck_pos)
-	_stuck_pos = pawn.global_position
-	if moved < STUCK_DIST and _wants_move and _unstick_left <= 0.0:
-		_stuck_pulse = true
-
-
-## Soft push away from pawns that are too close, so bots do not stack up in doorways.
-func _separation() -> Vector3:
-	var push := Vector3.ZERO
-	for p in Game.players(): # #272: one roster per tick, not a group array per bot
-		if p == pawn or p.is_dead:
-			continue
-		var away := pawn.global_position - p.global_position
-		away.y = 0.0
-		var d := away.length()
-		if d >= SEPARATION_R:
-			continue
-		if d < 0.01:
-			away = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0))
-			d = 0.01
-		push += away.normalized() * (1.0 - d / SEPARATION_R)
-	return push
-
-
 ## The one place in the bot that writes `state`; the two check fixtures set the field directly.
 ## It also does the setup the new state needs and clears what belonged to the old one: a fight starts
 ## on a fresh sidestep with no hunt path left over, and every other state has no strafe commit to keep.
@@ -589,160 +513,18 @@ func _drop_path() -> void:
 
 
 ## A whole new chase: the peer's own flank slot, no path, no stuck history.
+## #317 slice 2: the hunt lives in BotHunt; bot_wall still asks the brain whether a route is a wallrun.
+func _on_wall_route() -> bool:
+	return BotHunt.on_wall_route(self)
+
+
 func _reset_hunt() -> void:
 	_flank_wait = 0.0 # a new target has not yet earned a break-off shot
-	_clear_hint() # a route to the old target says nothing about the new one
+	BotHunt.clear_hint(self) # a route to the old target says nothing about the new one
 	_drop_route()
 	_flank_flipped = false
 	_flank_angle = _flank_base
 	_repath_t = 0.0
-
-
-## #270: look for an authored route worth taking right now. Cheap when the map ships none (one cached
-## look-up that returns an empty list) and skipped entirely while a route is already being followed.
-func _try_pick_hint(enemy: Player) -> void:
-	var space := pawn.get_world_3d().direct_space_state
-	var routes := BotRoutes.for_map(space, Game.map_id)
-	if routes.is_empty():
-		return
-	var h := BotRoutes.pick(space, routes, pawn.global_position, _goal_pos(enemy))
-	if h.is_empty():
-		return
-	_hint = h.duplicate(true)
-	_hint_i = 1
-	_hint_pos = pawn.global_position
-	_hint_t = 0.0
-	_hint_pressed = false
-
-
-## Walk one authored route. The kind only decides the keys: a slide route presses crouch once at the
-## start, a wallrun or surf route is run at sprint straight at the next point and the movement code
-## (#278's wall trick, the surf state) takes over when the geometry offers it.
-func _follow_hint(enemy: Player, delta: float) -> void:
-	var pts: Array = _hint.get("points", [])
-	if _hint_i >= pts.size():
-		_clear_hint()
-		return
-	var dest: Vector3 = pts[_hint_i]
-	if Vector2(dest.x - pawn.global_position.x, dest.z - pawn.global_position.z).length() < HINT_ARRIVE:
-		_hint_i += 1
-		_hint_pos = pawn.global_position
-		_hint_t = 0.0
-		if _hint_i >= pts.size():
-			_clear_hint() # the route delivered us: the hunt takes it from here
-			return
-		dest = pts[_hint_i]
-	# No progress: a route that does not move the bot is worse than no route at all.
-	_hint_t += delta
-	if pawn.global_position.distance_to(_hint_pos) > HINT_STALL_DIST:
-		_hint_pos = pawn.global_position
-		_hint_t = 0.0
-	elif _hint_t >= HINT_STALL:
-		_clear_hint()
-		return
-	# A slide needs speed to start: pressing crouch while walking just crouches the bot and it crawls
-	# the rest of the route at a walk - measured in check_bot_route (11 m/s -> 1 m/s -> stall).
-	var fast := Vector2(pawn.velocity.x, pawn.velocity.z).length() >= Player.SPRINT_SPEED * 0.9
-	if (StringName(_hint.get("kind", &"")) == &"slide"
-			and fast and not _hint_pressed and pawn.is_on_floor()
-			and _crouch_hold <= 0.0 and _crouch_press == false and pawn._slide_cd <= 0.0):
-		_hint_pressed = true
-		_crouch_press = true
-		_crouch_hold = BOT_SLIDE_HOLD
-	_tick_aim_wobble(enemy, delta)
-	_face_travel(dest - pawn.global_position)
-	_steer_to(dest, Player.SPRINT_SPEED, delta, false)
-
-
-func _on_wall_route() -> bool:
-	return StringName(_hint.get("kind", &"")) == &"wallrun"
-
-
-func _clear_hint() -> void:
-	_hint = {}
-	_hint_i = 0
-	_hint_t = 0.0
-	_hint_pressed = false
-
-
-## No line of sight, or seen but outside gun range. Follow the navmesh.
-## First to a point beside the enemy (different bots, different doors), then to their feet.
-func _hunt(enemy: Player, delta: float) -> void:
-	if _route == Route.DIRECT:
-		_hunt_direct(enemy, delta)
-	else:
-		_hunt_flank(enemy, delta)
-
-
-## Flank: aim for a point on the ring around the enemy, so two bots do not file through one door.
-## A path that runs out means the ring point was useless, and the chase goes straight at them.
-func _hunt_flank(enemy: Player, delta: float) -> void:
-	_set_state(State.HUNT_FLANK)
-	_hunt_begin()
-	var at := _goal_pos(enemy)
-	# A ring point it has already reached is worth leaving (#267 slice 2): the flanker takes the next
-	# angle on the enemy instead of standing on the spot, which is what "slaat vaker een hoek om" is.
-	if (style.flank_switch_per_s > 0.0
-			and pawn.global_position.distance_to(_flank_point(at)) < FLANK_ARRIVE
-			and rng.randf() < 1.0 - exp(-style.flank_switch_per_s * delta)):
-		_flank_angle += FLANK_TURN * (1.0 if rng.randf() < 0.5 else -1.0)
-		_flank_flipped = false # a new angle is a new chase, not an escalation
-		_drop_path()
-	# is_navigation_finished is still true the frame a target is set; the path arrives after.
-	var followed := _path_live and _repath_t < HUNT_REPATH - 0.2
-	if followed and agent and agent.is_navigation_finished():
-		_route = Route.DIRECT
-		_set_state(State.HUNT_DIRECT)
-		_force_repath = true
-	_hunt_leg(enemy, delta, at if _route == Route.DIRECT else _flank_point(at), at)
-
-
-## Direct: the enemy's feet, from wherever the flank left us.
-func _hunt_direct(enemy: Player, delta: float) -> void:
-	_set_state(State.HUNT_DIRECT)
-	_hunt_begin()
-	var at := _goal_pos(enemy)
-	_hunt_leg(enemy, delta, at, at)
-
-
-## Both halves start here: a target with no path yet asks the navmesh, a stuck hunt escalates.
-func _hunt_begin() -> void:
-	if not _path_live:
-		_force_repath = true
-	if _stuck_pulse:
-		_on_hunt_stuck()
-
-
-## One leg of the chase. `at` is where we think the enemy is: the path is remembered against it,
-## so a target that moved further than HUNT_SHIFT makes us plan again instead of walking on.
-func _hunt_leg(enemy: Player, delta: float, dest: Vector3, at: Vector3) -> void:
-	var shifted := (
-		_path_live
-		and _path_enemy.distance_squared_to(at) > HUNT_SHIFT * HUNT_SHIFT
-	)
-	_repath_t -= delta
-	# Keep the enemy's height. Snapping to our own y picks the floor under a roof, so the
-	# path never takes the ramp when someone is standing up there. Steering still ignores y.
-	if agent and (_repath_t <= 0.0 or shifted or _force_repath):
-		agent.target_position = dest
-		_path_enemy = at
-		_path_live = true
-		_repath_t = HUNT_REPATH
-		_force_repath = false
-	var travel := dest - pawn.global_position
-	if agent and not agent.is_navigation_finished():
-		travel = agent.get_next_path_position() - pawn.global_position
-	# Keep the aim warm, but look along the path. Facing the enemy here is the moonwalk.
-	_tick_aim_wobble(enemy, delta)
-	_face_travel(travel)
-	# Closing the gap at a walk is what made a chase look like a stroll. Shots stay
-	# in the fight, where the wish speed is the strafe, so sprint does not tighten aim.
-	_steer_to(dest, Player.SPRINT_SPEED, delta, true)
-	# Reached the last known spot and nobody is in sight: they moved on. Forget them and look elsewhere.
-	if not _omniscient():
-		var flat := Vector2(pawn.global_position.x - at.x, pawn.global_position.z - at.z).length()
-		if flat < SEARCH_ARRIVE and not _can_see(enemy):
-			_forget(enemy)
 
 
 ## #160: walk the navmesh to a CTF goal (flag, base). Repaths when the goal moves or every HUNT_REPATH.
@@ -790,98 +572,6 @@ func _cover_floor(space: PhysicsDirectSpaceState3D, spot: Vector3) -> bool:
 
 
 ## Visible and in range. Sidestep in the open; do not ask the navmesh for a 2 m shuffle.
-func _fight(enemy: Player, delta: float) -> void:
-	if _def() != null and _def().melee:
-		_fight_shank(enemy, delta)
-		return
-	_tick_aim_wobble(enemy, delta)
-	_face(enemy)
-	var away := pawn.global_position - enemy.global_position
-	away.y = 0.0
-	if away.length_squared() < 0.01:
-		away = pawn.transform.basis.z
-		away.y = 0.0
-	away = away.normalized()
-	var side := Vector3.UP.cross(away)
-	side.y = 0.0
-	if side.length_squared() < 0.0001:
-		side = Vector3.RIGHT
-	else:
-		side = side.normalized()
-	# Grinding a wall ends the commit so the probe can pick the open side.
-	if _stuck_pulse:
-		_strafe_hold = 0.0
-		_strafe_pause = 0.0
-	if _strafe_hold <= 0.0 and _strafe_pause <= 0.0:
-		_pick_strafe_side(side)
-	var dist := pawn.global_position.distance_to(enemy.global_position)
-	# One round left and they are already on top of us: close and bash. Spending it starts a reload.
-	if _hold_last_round(dist):
-		if dist > MELEE_R:
-			_steer_to(pawn.global_position - away * 4.0, Player.SPRINT_SPEED, delta, false)
-		if _acquire_left <= 0.0 and dist <= MELEE_R:
-			Game.melee.swing(pawn)
-		return
-	# This character's preferred distance, but never outside the range it is willing to shoot from.
-	var fight_r := minf(_fight_range() * style.range_scale, _fight_range() + BotStyle.CLOSE_ENOUGH_M)
-	var wish := Vector3.ZERO
-	if _strafe_pause > 0.0:
-		_strafe_pause = maxf(_strafe_pause - delta, 0.0)
-		# Almost still: only a step when the range is wrong, so the player gets a shot.
-		if dist < style.back_off_m:
-			wish = away
-		elif dist > fight_r + style.hold_band:
-			wish = -away
-		if wish.length_squared() > 0.0001 and not _side_open(wish, STRAFE_KEEP):
-			wish = Vector3.ZERO
-	else:
-		# The commit is long enough to walk off a roof. Cut it when the next step closes.
-		var strafe_dir := side * _strafe_sign
-		if not _side_open(strafe_dir, STRAFE_KEEP):
-			_strafe_hold = 0.0
-		else:
-			_strafe_hold = maxf(_strafe_hold - delta, 0.0)
-			wish = strafe_dir
-			if dist < style.back_off_m:
-				wish += away * 0.7
-			elif dist > fight_r + style.hold_band:
-				wish += -away * 0.7
-			if wish.length_squared() > 1.0:
-				wish = wish.normalized()
-		if _strafe_hold <= 0.0:
-			# Next commit tries the other side. The probe still rejects a wall.
-			_strafe_sign *= -1.0
-			_strafe_pause = randf_range(STRAFE_PAUSE_MIN, STRAFE_PAUSE_MAX)
-	# Fight steering is the wish itself. A nav path for this point is what made them hobble.
-	_steer_to(pawn.global_position + wish, STRAFE_SPEED, delta, false)
-	if _acquire_left <= 0.0 and dist <= MELEE_R and Game.melee.swing(pawn):
-		return
-	if _acquire_left <= 0.0 and _try_grenade(enemy, dist, delta):
-		return
-	if _acquire_left <= 0.0 and dist <= fight_r + 4.0:
-		_try_shoot(enemy)
-
-
-## Shank: close the last metres and stab. No strafe-shoot. The lunge is inside swing_shank.
-func _fight_shank(enemy: Player, delta: float) -> void:
-	_tick_aim_wobble(enemy, delta)
-	_face(enemy)
-	var dist := pawn.global_position.distance_to(enemy.global_position)
-	var away := pawn.global_position - enemy.global_position
-	away.y = 0.0
-	if away.length_squared() < 0.01:
-		away = pawn.transform.basis.z
-		away.y = 0.0
-	else:
-		away = away.normalized()
-	if dist > Melee.SHANK_CHASE:
-		_steer_to(enemy.global_position, Player.SPRINT_SPEED, delta, true)
-	else:
-		_steer_to(pawn.global_position - away * 4.0, Player.SPRINT_SPEED, delta, false)
-	if _acquire_left <= 0.0 and dist <= Melee.SHANK_RANGE + 0.8:
-		Game.melee.swing_shank(pawn)
-
-
 ## Frag at a visible enemy in mid range. The pitch is solved so the arc lands near them before the fuse.
 ## A pitch whose arc hits the world (a ceiling, a lip, a door head) is refused, and the cooldown
 ## stays: the bot can try again on the next check instead of bouncing the frag into its own feet.
@@ -906,409 +596,53 @@ func _grenade_arc_clear(origin: Vector3, vel: Vector3, target: Vector3) -> bool:
 
 
 ## Banked UAV: use it after a short beat. Banked RC-XD: send it when the target is far or hidden.
+## #317 slice 5: the streaks live in BotStreaks; the brain only keeps the state they update.
 func _tick_streaks(delta: float, enemy: Player) -> void:
-	var charges := int(Game.streak_charges.get(pawn.peer_id, 0))
-	if charges == 0:
-		_streak_wait = float(Game.bot_profile().streak)
-		return
-	_streak_wait = maxf(_streak_wait - delta, 0.0)
-	if _streak_wait > 0.0:
-		return
-	# #387: the slot comes from the bot's own pick (UAV, RCXplodie by default), not a fixed index.
-	if (charges & Game.CHARGE_RADAR) != 0:
-		Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"uav"))
-		_streak_wait = float(Game.bot_profile().streak)
-		return
-	# #388: Overdrive is allowed for bots and fires from their own pick; it needs no target, so it goes
-	# before the RC-XD's line-of-sight check.
-	if (charges & Game.CHARGE_OVERDRIVE) != 0 and Overdrive.for_owner(pawn.peer_id) == null:
-		Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"overdrive"))
-		_streak_wait = float(Game.bot_profile().streak)
-		return
-	if (charges & Game.CHARGE_RCXD) != 0 and enemy != null:
-		var far := pawn.global_position.distance_to(_goal_pos(enemy)) >= RC_LAUNCH_MIN
-		if far or not _can_see(enemy):
-			Game.try_activate_streak(pawn.peer_id, StreakSelect.slot_for(Game, pawn.peer_id, &"rcxd"))
-			_rc_repath = 0.0
-			_streak_wait = float(Game.bot_profile().streak)
+	BotStreaks.tick(self, delta, enemy)
 
 
-## While our car is out the pawn stands still (like a player in the RC view) and we steer the car
-## along the navmesh to the nearest enemy, then blow it up next to them.
 func _drive_rc(delta: float) -> bool:
-	var car := RcXd.for_owner(pawn.peer_id)
-	if car == null:
-		return false
-	_set_state(State.RC)
-	pawn.velocity.x = 0.0
-	pawn.velocity.z = 0.0
-	pawn.move_and_slide()
-	var here := car.global_position
-	var best: Player = null
-	var best_d := INF
-	for p in Game.players(): # #272
-		if p == pawn or p.is_dead or not Game.is_enemy(p, pawn):
-			continue
-		var dd := here.distance_to(p.global_position)
-		if dd < best_d:
-			best_d = dd
-			best = p
-	if best == null:
-		car.apply_remote_input(car.yaw, 0.0)
-		return true
-	if best_d <= RC_BLOW_R:
-		car.shutdown(true)
-		return true
-	_rc_repath -= delta
-	if _rc_repath <= 0.0 or here.distance_to(_rc_point) < 1.2:
-		_rc_repath = 0.4
-		_rc_point = best.global_position
-		if agent:
-			var path := NavigationServer3D.map_get_path(agent.get_navigation_map(), here, best.global_position, true)
-			for pt in path:
-				if Vector2(pt.x - here.x, pt.z - here.z).length() > 1.5:
-					_rc_point = pt
-					break
-	var to := _rc_point - here
-	var want_yaw := atan2(-to.x, -to.z) if Vector2(to.x, to.z).length() > 0.05 else car.yaw
-	var turn := absf(wrapf(want_yaw - car.yaw, -PI, PI))
-	car.apply_remote_input(want_yaw, 0.55 if turn > 1.2 else 1.0)
-	return true
+	return BotStreaks.drive_rc(self, delta)
 
 
-## Does this character get to open fire on `enemy` from where it stands? Only the flanker asks
-## (#267 slice 2): no attack from straight ahead, a free shot from the side or the back, and a
-## patience timer so it never circles forever in front of someone who keeps facing it.
-## #382: the flanker's patience only restarts after a real loss of sight. It used to restart on every
-## single tick without sight, so a bot that kept dipping in and out of view (a corner, a crate, or a
-## player who keeps turning to face it) never reached flank_patience and circled instead of firing.
+## #317 slice 5: the flanker's patience and ring point live in BotFlank. The checks and the hunt call
+## these three names, so they stay as thin wrappers.
 func _tick_flank_sight(seen: bool, delta: float) -> void:
-	if seen:
-		_flank_lost = 0.0
-		_flank_wait += delta
-		return
-	_flank_lost += delta
-	if _flank_lost > FLANK_SIGHT_GRACE:
-		_flank_wait = 0.0
-		return
-	# A short dip (a crate, a corner, the target turning) does not stop the clock: it used to throw the
-	# whole patience away, which is why a flanker against a player who keeps facing it never fired.
-	_flank_wait += delta
+	BotFlank.tick_sight(self, seen, delta)
 
 
 func _flank_aim_ok(enemy: Player, delta: float) -> bool:
-	var to := pawn.global_position - enemy.global_position
-	to.y = 0.0
-	var facing := -enemy.transform.basis.z # the enemy's forward, flat
-	facing.y = 0.0
-	var from_side := true
-	if facing.length_squared() > 0.0001 and to.length_squared() > 0.0001:
-		# 1.0 is straight into the enemy's face, 0.0 is exactly the side.
-		from_side = facing.normalized().dot(to.normalized()) < 0.35
-	if from_side or pawn.global_position.distance_to(enemy.global_position) < FLANK_POINT_BLANK:
-		_flank_wait = 0.0
-		return true
-	# The clock runs in _tick_flank_sight, so a flickering target cannot stretch the wait forever.
-	return _flank_wait >= style.flank_patience
+	return BotFlank.aim_ok(self, enemy, delta)
 
 
-## Point on a ring around the enemy at fight range. Y stays theirs so roofs still route up a ramp.
 func _flank_point(center: Vector3) -> Vector3:
-	var dest := center
-	dest.x += cos(_flank_angle) * _fight_range()
-	dest.z += sin(_flank_angle) * _fight_range()
-	return dest
+	return BotFlank.point(self, center)
 
 
 ## Stuck on a hunt path: other side of the enemy, then straight at them, then a short nudge.
-func _on_hunt_stuck() -> void:
-	if _route == Route.DIRECT:
-		_pick_unstick()
-		_force_repath = true
-	elif not _flank_flipped:
-		_flank_angle += PI
-		_flank_flipped = true
-		_force_repath = true
-	else:
-		_route = Route.DIRECT
-		_set_state(State.HUNT_DIRECT)
-		_force_repath = true
-
-
-func _pick_unstick() -> void:
-	for _i in 4:
-		var a := randf() * TAU
-		var dir := Vector3(cos(a), 0.0, sin(a))
-		if _side_open(dir):
-			_unstick_dir = dir
-			_unstick_left = UNSTICK_TIME
-			return
-	_unstick_left = 0.0
-
-
-## Prefer `side * sign` when that metre is walkable. Both closed: stand and shoot.
-func _pick_strafe_side(side: Vector3) -> void:
-	var prefer := side * _strafe_sign
-	var open_prefer := _side_open(prefer)
-	if not open_prefer and _side_open(-prefer):
-		_strafe_sign *= -1.0
-		open_prefer = true
-	if open_prefer:
-		_strafe_hold = randf_range(style.strafe_hold_min, style.strafe_hold_max)
-		_strafe_pause = 0.0
-	else:
-		_strafe_hold = 0.0
-		_strafe_pause = randf_range(STRAFE_PAUSE_MIN, STRAFE_PAUSE_MAX)
-
-
-## True when a step along dir is not a wall and still has floor under it.
-## `reach` is how far ahead to look. Picking a side looks further than the step that cuts a commit.
-func _side_open(dir: Vector3, reach: float = STRAFE_PROBE) -> bool:
-	dir.y = 0.0
-	if dir.length_squared() < 0.0001 or pawn == null:
-		return false
-	dir = dir.normalized()
-	var space := pawn.get_world_3d().direct_space_state
-	var chest := pawn.global_position + Vector3.UP * 0.9
-	var wall := PhysicsRayQueryParameters3D.create(chest, chest + dir * reach)
-	wall.collision_mask = WORLD_MASK
-	if not space.intersect_ray(wall).is_empty():
-		return false
-	var foot := pawn.global_position + dir * reach + Vector3.UP * 0.4
-	var floor_q := PhysicsRayQueryParameters3D.create(foot, foot + Vector3.DOWN * STRAFE_FLOOR)
-	floor_q.collision_mask = WORLD_MASK
-	var hit := space.intersect_ray(floor_q)
-	if not hit.has("normal"):
-		return false
-	var slope := rad_to_deg(acos(clampf((hit.normal as Vector3).dot(Vector3.UP), -1.0, 1.0)))
-	# A few degrees of slack: a 46° ramp the navmesh accepts should not read as a wall.
-	return slope <= MAX_STEP_SLOPE + 4.0
-
-
-## Height of the lip in front of `wish`, or -1 when there is nothing to jump.
-## Chest ray finds a face steeper than a walkable ramp. A second ray, from above
-## the head down onto the far side, has to land on a top we can actually clear.
-func _ledge_climb(wish: Vector3) -> float:
-	if pawn == null:
-		return -1.0
-	wish.y = 0.0
-	if wish.length_squared() < 0.0001:
-		return -1.0
-	var dir := wish.normalized()
-	var space := pawn.get_world_3d().direct_space_state
-	var origin := pawn.global_position
-	var chest := origin + Vector3.UP * 0.45
-	var wall_q := PhysicsRayQueryParameters3D.create(chest, chest + dir * 0.85)
-	wall_q.collision_mask = WORLD_MASK
-	wall_q.exclude = [pawn.get_rid()]
-	var wall := space.intersect_ray(wall_q)
-	if wall.is_empty() or not wall.has("normal"):
-		return -1.0
-	var slope := rad_to_deg(acos(clampf((wall.normal as Vector3).dot(Vector3.UP), -1.0, 1.0)))
-	if slope <= MAX_STEP_SLOPE + 4.0:
-		return -1.0
-	var head_q := PhysicsRayQueryParameters3D.create(origin + Vector3.UP * 1.0, origin + Vector3.UP * 2.1)
-	head_q.collision_mask = WORLD_MASK
-	head_q.exclude = [pawn.get_rid()]
-	if not space.intersect_ray(head_q).is_empty():
-		return -1.0
-	var from := origin + Vector3.UP * 1.55 + dir * 0.25
-	var to := origin + dir * 1.15 + Vector3.UP * 0.15
-	var top_q := PhysicsRayQueryParameters3D.create(from, to)
-	top_q.collision_mask = WORLD_MASK
-	top_q.exclude = [pawn.get_rid()]
-	var top := space.intersect_ray(top_q)
-	if not top.has("normal") or not top.has("position"):
-		return -1.0
-	if (top.normal as Vector3).dot(Vector3.UP) < 0.7:
-		return -1.0
-	var climb := (top.position as Vector3).y - origin.y
-	if climb < JUMP_CLEAR_MIN or climb > JUMP_CLEAR_MAX:
-		return -1.0
-	return climb
-
-
-func _try_jump_ledge(wish: Vector3) -> bool:
-	if pawn == null or not pawn.is_on_floor():
-		return false
-	if _ledge_climb(wish) < 0.0:
-		return false
-	pawn.velocity.y = Player.JUMP_SPEED
-	return true
-
-
+## #317 slice 3: stepping and probing live in BotNav; bot_cover and bot_wall still call these two.
 func _steer_to(dest: Vector3, speed: float, delta: float, use_nav: bool = true) -> void:
-	var dir := Vector3.ZERO
-	if use_nav and agent and not agent.is_navigation_finished():
-		var next := agent.get_next_path_position()
-		dir = next - pawn.global_position
-		dir.y = 0.0
-	# Also when the next path point is (nearly) straight above us (navmesh a bit higher than the feet, e.g.
-	# beside a low ledge): the agent never reaches it and the bot would stand still forever.
-	if dir.length() < 0.12:
-		dir = dest - pawn.global_position
-		dir.y = 0.0
-	var wish := Vector3.ZERO
-	if dir.length() >= 0.12:
-		wish = dir.normalized()
-	if _unstick_left > 0.0:
-		wish = _unstick_dir
-	_wants_move = wish.length_squared() > 0.0001
-	var push := _separation() * 1.2
-	if push.length_squared() > 0.0001:
-		wish += push
-		if wish.length_squared() > 1.0:
-			wish = wish.normalized()
-	var on_floor := pawn.is_on_floor()
-	var horiz := Vector3(pawn.velocity.x, 0.0, pawn.velocity.z)
-	if on_floor:
-		horiz = pawn._friction(horiz, delta)
-		horiz = pawn._accelerate(horiz, wish, speed * pawn.gun_speed_mult(), Player.GROUND_ACCEL, delta)
-	else:
-		horiz = pawn._accelerate(horiz, wish, Player.WALK_SPEED, Player.BOT_AIR_ACCEL, delta)
-	pawn.velocity.x = horiz.x
-	pawn.velocity.z = horiz.z
-	# Requested sprint, not the speed we have yet: the pose and the spread follow the
-	# intent. Fight passes STRAFE_SPEED, so a strafe does not count as sprinting.
-	pawn.is_sprinting = on_floor and _wants_move and speed >= Player.SPRINT_SPEED - 0.05
-	if on_floor and _wants_move:
-		_try_jump_ledge(wish)
+	BotNav.steer_to(self, dest, speed, delta, use_nav)
 
 
-## Turn toward _aim_track (see _tick_aim_wobble). Call _tick_aim_wobble first in the same tick.
-func _face(_enemy: Player) -> void:
-	var look := _aim_track
-	look.y = pawn.global_position.y
-	if look.distance_squared_to(pawn.global_position) > 0.04:
-		pawn.look_at(look, Vector3.UP)
-		pawn._yaw = pawn.rotation.y
-	var aim := _aim_track - pawn.head.global_position
-	if aim.length_squared() < 0.0001:
-		return
-	aim = aim.normalized()
-	# Positive pitch looks up (same as the mouse). This was negated, so bots aimed mirrored:
-	# above anyone lower than their eyes, which is everyone, and crouchers most of all.
-	pawn._pitch = clampf(asin(clampf(aim.y, -1.0, 1.0)), -Player.MAX_PITCH, Player.MAX_PITCH)
-	pawn.head.rotation.x = pawn._pitch
+func _side_open(dir: Vector3, reach: float = STRAFE_PROBE) -> bool:
+	return BotNav.side_open(self, dir, reach)
 
 
-## Body follows the path. Pitch stays level; the gun comes up only once they are in the fight.
+## #317 slice 4: the gun lives in BotAim. bot_cover turns the body along its flee direction and
+## bot_hunt keeps the aim warm, so both keep a thin wrapper.
 func _face_travel(dir: Vector3) -> void:
-	dir.y = 0.0
-	if dir.length_squared() < 0.04:
-		return
-	pawn.look_at(pawn.global_position + dir, Vector3.UP)
-	pawn._yaw = pawn.rotation.y
-	pawn._pitch = 0.0
-	pawn.head.rotation.x = 0.0
+	BotAim.face_travel(self, dir)
 
 
-## New random offset every AIM_WOBBLE_REPICK s, eased in so the crosshair drifts like a hand.
-## The offset lies in the plane facing the bot (sideways and up/down), in metres at the target.
 func _tick_aim_wobble(enemy: Player, delta: float) -> void:
-	var fresh: bool = _aim_for != enemy
-	if fresh:
-		_aim_for = enemy
-		_aim_err_t = 0.0
-	_aim_err_t -= delta
-	if _aim_err_t <= 0.0:
-		_aim_err_t = AIM_WOBBLE_REPICK
-		var dist := pawn.global_position.distance_to(enemy.global_position)
-		var r := (AIM_WOBBLE_BASE + AIM_WOBBLE_PER_M * dist + AIM_WOBBLE_PER_SPEED * enemy._obs_speed) * float(Game.bot_profile().wobble)
-		var bd := _def()
-		if bd != null:
-			r *= bd.bot_aim_wobble_scale
-		if fresh:
-			r *= AIM_WOBBLE_FRESH
-		var ang := randf() * TAU
-		var mag := r * sqrt(randf())
-		_aim_err_goal = Vector2(cos(ang) * mag, sin(ang) * mag * 0.7)
-		if fresh:
-			_aim_err = _aim_err_goal
-	_aim_err = _aim_err.lerp(_aim_err_goal, 1.0 - exp(-8.0 * delta))
-	var base := _seen_point if _seen_target == enemy else enemy.aim_point()
-	var right := (base - pawn.head.global_position).cross(Vector3.UP)
-	right = right.normalized() if right.length_squared() > 0.0001 else Vector3.RIGHT
-	# Aim where the target really is (crouch lowers it), not at a fixed standing height.
-	# The crosshair follows the target a beat late: a fast strafe is harder to hit than standing still.
-	var goal := base + right * _aim_err.x + Vector3.UP * _aim_err.y
-	var bd := _def()
-	var track := float(Game.bot_profile().track) * (bd.bot_aim_track_scale if bd != null else 1.0)
-	_aim_track = goal if fresh else _aim_track.lerp(goal, 1.0 - exp(-track * delta))
+	BotAim.tick_aim_wobble(self, enemy, delta)
 
 
-## The held gun, or null before a bot has one. Every per-gun number comes from here.
-func _def() -> WeaponDef:
-	return pawn.weapon.def if pawn and pawn.weapon else null
-
-
-## The held gun decides the fight distance (WeaponDef.bot_fight_range). Sniper holds range, the
-## shotgun closes in, the LMG holds a lane — all of that now lives in the .tres.
-func _fight_range() -> float:
-	var d := _def()
-	return d.bot_fight_range if d != null else NO_GUN_FIGHT
-
-
-func _try_shoot(enemy: Player) -> void:
-	if pawn.weapon == null:
-		return
-	if _burst_left <= 0:
-		if _burst_pause > 0.0:
-			return
-		pawn.weapon.burst_seq += 1 # a new trigger pull (SPRAY TRANSFER)
-		var bd: WeaponDef = pawn.weapon.def
-		if bd == null:
-			return
-		_burst_left = randi_range(bd.bot_burst_min, bd.bot_burst_max)
-		_burst_pause = randf_range(bd.bot_burst_pause_min, bd.bot_burst_pause_max)
-		_burst_pause *= float(Game.bot_profile().pause)
-	if pawn.weapon.bot_try_fire():
-		_burst_left -= 1
-
-
-## World (1) + players (2). Teammates are see-through (shots pass them too); other enemies still block.
-## Body centre first, then the head (peeking over cover). The point that is clear becomes the aim point.
-##
-## #272: the answer is cached for `los_ttl` physics ticks. `_pick_target()` probes every enemy it meets
-## and then `_fight()`/`_hunt()` ask again for the one they got, and the `fighting` test below asks
-## every tick for the same pawn. `los_cache = false` is the old per-call behaviour, so the same build
-## can be measured both ways.
+## #317 slice 6: the sight probe and its cache live in BotSight; every slice and the checks call
+## _can_see, so the name stays as a thin wrapper.
 func _can_see(enemy: Player, fresh: bool = false) -> bool:
-	if los_cache and not fresh:
-		var frame := Engine.get_physics_frames()
-		var known: Dictionary = _los.get(enemy.get_instance_id(), {})
-		if not known.is_empty() and frame - int(known["frame"]) < los_ttl:
-			var vis: bool = known["vis"]
-			if vis:
-				_seen_target = enemy
-				_seen_point = known["point"] as Vector3
-			return vis
-	var from := pawn.head.global_position
-	var space := pawn.get_world_3d().direct_space_state
-	var seen := false
-	var at := Vector3.ZERO
-	for to in [enemy.aim_point(), enemy.head_point()]:
-		var query := PhysicsRayQueryParameters3D.create(from, to)
-		query.collision_mask = SHOT_MASK
-		query.exclude = Game.shot_exclude(pawn)
-		if count_rays:
-			los_rays += 1
-		var hit := space.intersect_ray(query)
-		if hit.has("collider") and hit.collider == enemy:
-			seen = true
-			at = to
-			break
-	if seen:
-		_seen_target = enemy
-		_seen_point = at
-		_remember(enemy, enemy.global_position)
-	if los_cache:
-		if _los.size() > LOS_CACHE_MAX:
-			_los.clear() # freed pawns leave entries behind; nothing here is worth an unbounded map
-		_los[enemy.get_instance_id()] = {
-			"vis": seen, "point": at, "frame": Engine.get_physics_frames(),
-		}
-	return seen
+	return BotSight.can_see(self, enemy, fresh)
 
 
 func _enemies_by_distance() -> Array[Player]:
