@@ -21,6 +21,7 @@ const WARN := Color(1.0, 0.52, 0.42)
 var _idle := StyleBoxFlat.new()
 var _focus_box := StyleBoxFlat.new()
 var _on_box := StyleBoxFlat.new()
+var _focus_on_box := StyleBoxFlat.new() # focused and picked: both states readable at once
 var _tiles: Array = [] # [{id, panel, name}] in catalog order
 var _title: Label
 var _intro: Label
@@ -63,6 +64,32 @@ func index_of(id: StringName) -> int:
 		if StringName(_tiles[i].id) == id:
 			return i
 	return -1
+
+
+## What a tile looks like right now: the state, and the frame's border colour and width. A check reads
+## this to prove focus and "picked" are two different signals.
+func tile_style(i: int) -> Dictionary:
+	if i < 0 or i >= _tiles.size():
+		return {}
+	var t: Dictionary = _tiles[i]
+	var id := StringName(t.id)
+	var panel: PanelContainer = t.panel
+	var box := panel.get_theme_stylebox("panel") as StyleBoxFlat
+	var state := "idle"
+	if i == _cursor and slot_of(id) > 0:
+		state = "focus_selected"
+	elif i == _cursor:
+		state = "focus"
+	elif slot_of(id) > 0:
+		state = "selected"
+	return {
+		"state": state,
+		"border": box.border_color if box else Color.BLACK,
+		"border_width": box.border_width_top if box else 0,
+		"bg": box.bg_color if box else Color.BLACK,
+		"slot": slot_of(id),
+		"name_color": (t.name as Label).get_theme_color("font_color"),
+	}
 
 
 ## The rects the screen lays out, so a check can prove nothing overlaps at any window size.
@@ -246,19 +273,26 @@ func _cost_taken(pick: Array, kills: int) -> bool:
 # --- drawing -----------------------------------------------------------------------------------
 
 func _make_styles() -> void:
+	# Focus is a bright white frame over a light background; "picked" is the accent frame with the slot
+	# number. Two different signals, so a focused-and-picked tile shows both (#387 review).
 	_idle.bg_color = Color(1, 1, 1, 0.045)
 	_idle.border_color = Color(1, 1, 1, 0.12)
 	_idle.set_border_width_all(1)
 	_idle.set_corner_radius_all(4)
 	_idle.set_content_margin_all(6)
-	_focus_box.bg_color = Color(1, 1, 1, 0.1)
-	_focus_box.border_color = ACCENT
-	_focus_box.set_border_width_all(2)
+	_focus_box.bg_color = Color(1, 1, 1, 0.16)
+	_focus_box.border_color = Color(1, 1, 1, 0.92)
+	_focus_box.set_border_width_all(3)
 	_focus_box.set_corner_radius_all(4)
 	_focus_box.set_content_margin_all(5)
 	_on_box.bg_color = Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.12)
 	_on_box.border_color = Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.85)
 	_on_box.set_border_width_all(2)
+	_focus_on_box.bg_color = Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.18)
+	_focus_on_box.border_color = Color(1, 1, 1, 0.95)
+	_focus_on_box.set_border_width_all(3)
+	_focus_on_box.set_corner_radius_all(4)
+	_focus_on_box.set_content_margin_all(4)
 	_on_box.set_corner_radius_all(4)
 	_on_box.set_content_margin_all(5)
 
@@ -271,7 +305,10 @@ func _paint_tile(i: int) -> void:
 	var panel: PanelContainer = t.panel
 	var slot := slot_of(id)
 	var blocked := blocked_reason(id) != ""
-	if i == _cursor:
+	var focused := i == _cursor
+	if focused and slot > 0:
+		panel.add_theme_stylebox_override("panel", _focus_on_box)
+	elif focused:
 		panel.add_theme_stylebox_override("panel", _focus_box)
 	elif slot > 0:
 		panel.add_theme_stylebox_override("panel", _on_box)
@@ -342,7 +379,7 @@ func _build() -> void:
 		var id := StringName(d["id"])
 		var panel := PanelContainer.new()
 		panel.name = "Tile_%s" % String(id)
-		panel.custom_minimum_size = Vector2(126, 116)
+		panel.custom_minimum_size = Vector2(134, 128)
 		panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		panel.add_theme_stylebox_override("panel", _idle)
@@ -351,7 +388,7 @@ func _build() -> void:
 		v.add_theme_constant_override("separation", 0)
 		panel.add_child(v)
 		var icon := StreakIcon.new(id)
-		icon.custom_minimum_size = Vector2(64, 62)
+		icon.custom_minimum_size = Vector2(76, 74)
 		v.add_child(icon)
 		var nm := Label.new()
 		nm.text = StreakDefs.name_of(id)

@@ -21,25 +21,25 @@ func _ready() -> void:
 		var tag := "%dx%d" % [size.x, size.y]
 		await get_tree().create_timer(0.25).timeout
 
-		# Empty: no slots filled. Only the screenshot forces that state; the game always keeps at least
-		# one pick (sanitize falls back to the default), so this shows the empty frames of the layout.
-		ed._pick = []
-		ed.focus_index(0)
-		ed._refresh_slots()
-		await _grab("%s/grid_empty_%s.png" % [OUT, tag])
-
-		# Three chosen, focus on a picked tile.
+		# Three chosen, the focus on a chosen tile: white frame plus the accent slot number.
 		StreakSelect.set_local(Game, ["uav", "rcxd", "los"])
 		ed.refresh()
 		ed.focus_index(2)
-		await _grab("%s/grid_three_%s.png" % [OUT, tag])
+		await get_tree().process_frame
+		await _grab("%s/grid_focus_chosen_%s.png" % [OUT, tag])
 
-		# The collision: LOS is picked, the focus sits on Overdrive, which is dimmed with the reason.
-		# Two picks, not three: with a full row the "3 at most" rule would report first and hide the
-		# 7-kill clash this screenshot is about.
+		# The focus on a free tile: only the white frame, no slot number.
+		StreakSelect.set_local(Game, ["uav", "rcxd"])
+		ed.refresh()
+		ed.focus_index(2)
+		await get_tree().process_frame
+		await _grab("%s/grid_focus_free_%s.png" % [OUT, tag])
+
+		# The collision: LOS is picked, Overdrive is dimmed with the reason in the info panel.
 		StreakSelect.set_local(Game, ["uav", "los"])
 		ed.refresh()
 		ed.focus_index(3)
+		await get_tree().process_frame
 		await _grab("%s/grid_conflict_%s.png" % [OUT, tag])
 
 	get_tree().quit()

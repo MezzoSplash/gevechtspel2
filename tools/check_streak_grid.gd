@@ -100,6 +100,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_ok(_ed.picked().size() != before or _ed.picked().has(&"uav"), "a click on a tile toggles it")
 
+	await _styles()
+	await _footer()
 	await _layout()
 
 	# Back leaves the screen.
@@ -109,6 +111,49 @@ func _ready() -> void:
 
 	print("STREAK GRID CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+## #387 review: focus and "picked" must be two different signals, and a tile that is both shows both.
+func _styles() -> void:
+	StreakSelect.set_local(Game, ["uav", "los"])
+	_ed.refresh()
+	_ed.focus_index(0) # focused and picked
+	var both: Dictionary = _ed.tile_style(0)
+	_ed.focus_index(1) # focused, not picked
+	var focus_only: Dictionary = _ed.tile_style(1)
+	var picked_only: Dictionary = _ed.tile_style(0)
+	_ok(both.state == "focus_selected", "a picked tile with the focus says so (%s)" % both.state)
+	_ok(focus_only.state == "focus" and picked_only.state == "selected", "focus and picked are told apart")
+	_ok(focus_only.border.s < 0.2 and picked_only.border.s > 0.5,
+		"the focus frame is white and the picked frame is the accent (%s vs %s)" % [
+			focus_only.border, picked_only.border])
+	_ok(int(focus_only.border_width) != int(picked_only.border_width), "and so does their weight (%d vs %d)" % [
+		int(focus_only.border_width), int(picked_only.border_width)])
+	# The focused frames are white (one a shade brighter than the other), the picked one is the accent,
+	# so "focused and picked" carries the white frame of the focus plus the slot number of the pick.
+	_ok(both.border.s < 0.12 and focus_only.border.s < 0.12 and picked_only.border.s > 0.5 and int(both.slot) > 0,
+		"focused and picked keeps the focus frame and its slot")
+	_ok(both.name_color == picked_only.name_color and both.name_color != Color.WHITE,
+		"the picked name keeps the accent colour while focused")
+
+
+## #387 review: the grid's footer names the left and right arrows; other screens keep the up/down hint.
+func _footer() -> void:
+	var menu := (load("res://scenes/menu.tscn") as PackedScene).instantiate()
+	add_child(menu)
+	await get_tree().process_frame
+	menu.show_screen("streaks")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var f := menu.get_node("Footer") as Label
+	_ok(f.text.contains("←") and f.text.contains("→"), "the killstreak footer shows left and right (%s)" % f.text)
+	menu.show_screen("home")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok(not f.text.contains("←") and not f.text.contains("→"), "another screen keeps the up/down hint (%s)" % f.text)
+	_ok(f.text.contains("↑") and f.text.contains("↓"), "and still shows up and down")
+	menu.queue_free()
+	await get_tree().process_frame
 
 
 ## #387 review: the title and the explanation must not run into the menu's card bar, and no two blocks
