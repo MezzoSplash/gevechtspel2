@@ -175,6 +175,14 @@ static func footer(l: Label) -> void:
 		l.offset_top = l.offset_bottom - l.get_combined_minimum_size().y
 
 
+## The footer's text changes with the screen (#387: the tile grid navigates in two dimensions too), so
+## the shard has to hug the new text again. Called deferred, after the label re-measured itself.
+static func footer_text(l: Label, text: String) -> void:
+	l.text = text.to_upper()
+	if not (l.get_parent() is Container):
+		l.offset_right = l.offset_left + l.get_combined_minimum_size().x
+
+
 ## A shard with one big centred number and an optional caption under it: the pause menu's
 ## score pieces. `pale` is the clock in the middle.
 static func score_shard(cuts: Vector4, variant: int, pale := false) -> PanelContainer:

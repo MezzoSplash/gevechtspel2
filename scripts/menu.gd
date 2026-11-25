@@ -36,6 +36,9 @@ var _filling_match := false
 var _screen := "home"
 var _fade: Tween
 const _BACK_TO := {"solo": "home", "mp": "home", "settings": "home", "classes": "home", "streaks": "home"}
+## Bottom hint line. The tile grid is the only screen you can move through in two dimensions.
+const HINT_DEFAULT := "↑↓  Navigate      Enter / A  Select      Esc / B  Back"
+const HINT_GRID := "←↑↓→  Navigate      Enter / A  Select      Esc / B  Back"
 
 
 func _ready() -> void:
@@ -596,6 +599,10 @@ func _enter_screen() -> void:
 func show_screen(id: String) -> void:
 	var changed := id != _screen
 	_screen = id
+	# #387: the grid navigates left and right too; every other screen keeps the hint it had.
+	var footer := get_node_or_null("Footer") as Label
+	if footer:
+		CrystalUi.footer_text.call_deferred(footer, HINT_GRID if id == "streaks" else HINT_DEFAULT)
 	$Center/Home.visible = id == "home"
 	$Center/Solo.visible = id == "solo"
 	$Center/Mp.visible = id == "mp"
