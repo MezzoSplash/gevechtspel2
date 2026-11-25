@@ -22,6 +22,10 @@ var _idle := StyleBoxFlat.new()
 var _focus_box := StyleBoxFlat.new()
 var _on_box := StyleBoxFlat.new()
 var _tiles: Array = [] # [{id, panel, name}] in catalog order
+var _title: Label
+var _intro: Label
+var _info_panel: Control
+var _sel_panel: Control
 var _grid: GridContainer
 var _cursor := 0
 var _pick: Array = []
@@ -59,6 +63,22 @@ func index_of(id: StringName) -> int:
 		if StringName(_tiles[i].id) == id:
 			return i
 	return -1
+
+
+## The rects the screen lays out, so a check can prove nothing overlaps at any window size.
+func content_rects() -> Dictionary:
+	return {
+		"title": _title.get_global_rect(),
+		"intro": _intro.get_global_rect(),
+		"grid": _grid.get_global_rect(),
+		"info": _info_panel.get_global_rect(),
+		"selected": _sel_panel.get_global_rect(),
+	}
+
+
+## Free space between the top of this box and the title, i.e. what keeps the title off the card border.
+func top_gap() -> float:
+	return _title.get_global_rect().position.y - global_position.y
 
 
 func tile_count() -> int:
@@ -290,11 +310,27 @@ func _show_info(i: int) -> void:
 
 
 func _build() -> void:
-	var title := Label.new()
-	title.name = "Title"
-	title.text = "KILLSTREAKS"
-	title.add_theme_font_size_override("font_size", 28)
-	add_child(title)
+	# The menu draws a card behind every screen and its top border sits above this box; this band keeps
+	# the title off that border instead of letting them touch (#387 review).
+	var top := Control.new()
+	top.name = "TopBand"
+	top.custom_minimum_size = Vector2(0, 16)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(top)
+
+	_title = Label.new()
+	_title.name = "Title"
+	_title.text = "KILLSTREAKS"
+	_title.add_theme_font_size_override("font_size", 28)
+	add_child(_title)
+
+	_intro = Label.new()
+	_intro.name = "Intro"
+	_intro.text = "Pick up to three. Kills in one life count; dying resets the counter."
+	_intro.add_theme_font_size_override("font_size", 14)
+	_intro.add_theme_color_override("font_color", TEXT_DIM)
+	_intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(_intro)
 
 	_grid = GridContainer.new()
 	_grid.name = "Grid"
@@ -337,6 +373,7 @@ func _build() -> void:
 
 	var info := VBoxContainer.new()
 	info.name = "Info"
+	_info_panel = info
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info.custom_minimum_size = Vector2(420, 132)
 	info.add_theme_constant_override("separation", 2)
@@ -365,6 +402,7 @@ func _build() -> void:
 
 	var sel := VBoxContainer.new()
 	sel.name = "Selected"
+	_sel_panel = sel
 	sel.add_theme_constant_override("separation", 4)
 	mid.add_child(sel)
 	var cap := Label.new()

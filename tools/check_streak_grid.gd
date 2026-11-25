@@ -100,6 +100,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_ok(_ed.picked().size() != before or _ed.picked().has(&"uav"), "a click on a tile toggles it")
 
+	await _layout()
+
 	# Back leaves the screen.
 	_key("ui_cancel")
 	await get_tree().process_frame
@@ -107,6 +109,36 @@ func _ready() -> void:
 
 	print("STREAK GRID CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
+
+
+## #387 review: the title and the explanation must not run into the menu's card bar, and no two blocks
+## of the screen may overlap — at 1080p, at 720p and in a smaller window.
+func _layout() -> void:
+	for size in [Vector2(1920, 1080), Vector2(1280, 720), Vector2(1024, 600)]:
+		(_ed.get_parent() as Control).size = size
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var tag := "%dx%d" % [int(size.x), int(size.y)]
+		_ok(_ed.top_gap() >= 12.0, "%s: the title keeps clear of the card bar (%.0f px)" % [tag, _ed.top_gap()])
+		var r: Dictionary = _ed.content_rects()
+		var keys := ["title", "intro", "grid", "info", "selected"]
+		var clashes: Array = []
+		for i in keys.size():
+			for j in range(i + 1, keys.size()):
+				if (r[keys[i]] as Rect2).intersects(r[keys[j]]):
+					clashes.append("%s over %s" % [keys[i], keys[j]])
+		var clash := ", ".join(clashes)
+		_ok(clash == "", "%s: title, intro, grid, info and slots each have their own space%s" % [
+			tag, "" if clash == "" else " (clash: %s)" % clash])
+		var box := _ed.get_global_rect()
+		var outside := ""
+		for k in keys:
+			if not box.encloses(r[k]):
+				outside = k
+		_ok(outside == "", "%s: every block stays inside the screen%s" % [tag, "" if outside == "" else " (%s)" % outside])
+		var order_ok := (r.intro as Rect2).position.y >= (r.title as Rect2).end.y - 0.5
+		order_ok = order_ok and (r.grid as Rect2).position.y >= (r.intro as Rect2).end.y - 0.5
+		_ok(order_ok, "%s: title, then the explanation, then the grid" % tag)
 
 
 func _key(action: String) -> void:
