@@ -129,16 +129,16 @@ func _tick_hunt(delta: float) -> void:
 	var before := brain._flank_point(at) - at
 	var angle_before := rad_to_deg(brain._flank_angle)
 	# One stuck: the other side of the enemy, still a flank.
-	brain._on_hunt_stuck()
+	BotHunt.on_stuck(brain)
 	var after := brain._flank_point(at) - at
 	_ok(before.dot(after) < 0.0, "stuck once walks to the other side (%.0f deg -> %.0f deg)" % [
 		angle_before, rad_to_deg(brain._flank_angle)])
 	_ok(brain.state == BotBrain.State.HUNT_FLANK, "and stays a flank (%s)" % _state_name(brain.state))
 	# Twice: the ring point was useless, so it goes at the enemy's feet.
-	brain._on_hunt_stuck()
+	BotHunt.on_stuck(brain)
 	_ok(brain.state == BotBrain.State.HUNT_DIRECT, "stuck twice goes direct (%s)" % _state_name(brain.state))
 	# And a third stuck must not re-flank and forget the direct chase.
-	brain._on_hunt_stuck()
+	BotHunt.on_stuck(brain)
 	_ok(brain.state == BotBrain.State.HUNT_DIRECT, "a third stuck keeps the direct chase (%s)" % _state_name(brain.state))
 	_arm_cover()
 
