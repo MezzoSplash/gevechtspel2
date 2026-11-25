@@ -29,7 +29,8 @@ var _stance := {"ticks": 0, "slide": 0, "dive": 0, "roll": 0, "plain": 0} # #371
 ## state, with the style and the behaviour state it was in; the summary keeps it so a run can be compared.
 const IDLE_RANGE := 30.0
 const IDLE_ACT_TICKS := 60 # 1 s: a shot, grenade, stab or slide this recent still counts as acting
-var _idle: Dictionary = {} # peer -> {max, state, style, streak, last_act, ammo, nades, melee}
+var _idle: Dictionary = {}
+var _dummy: Player = null # peer -> {max, state, style, streak, last_act, ammo, nades, melee}
 
 
 func _box(pos: Vector3, size: Vector3) -> void:
@@ -96,6 +97,8 @@ func _ready() -> void:
 		main.class_select.close_silently()
 	Game.pause_open = false
 	Game.kill_feed.connect(_on_kill)
+	if OS.get_cmdline_user_args().has("--dummy"):
+		await _spawn_dummy()
 	_box(PARK + Vector3(0, -0.5, 0), Vector3(6, 1, 6))
 	me._spawn_protect = 1.0e9
 	await get_tree().physics_frame
@@ -122,6 +125,8 @@ func _ready() -> void:
 			_hashes.append({"t": (t + 1) / 60, "hash": _position_hash()})
 		_stance_tick()
 		_idle_tick(t)
+		if _dummy != null:
+			_face_nearest(_dummy)
 	var summary := _summary(map_id, seed_v, ticks)
 	Game.kill_feed.disconnect(_on_kill)
 	var code := _compare(map_id, summary, update)
@@ -129,6 +134,44 @@ func _ready() -> void:
 
 
 ## #371: how the bots stand, counted on the same deterministic run as the rest of the summary.
+## #382: the replay's bots fight bots, and a bot does not keep turning to face a flanker the way a player
+## does. This dummy stands where the bots are and turns to the nearest enemy every tick, so a flanker never
+## gets a free side: exactly the situation Gianni was in.
+func _spawn_dummy() -> void:
+	_dummy = (load("res://scenes/player.tscn") as PackedScene).instantiate() as Player
+	_dummy.peer_id = -100
+	_dummy.is_bot = false
+	_dummy.team_id = 1
+	_dummy.set_physics_process(false)
+	get_tree().root.add_child(_dummy)
+	_dummy.add_to_group("player")
+	var first: Player = null
+	for p in Game.players():
+		if p.is_bot and first == null:
+			first = p
+	if first != null:
+		_dummy.global_position = first.global_position + Vector3(1.5, 0, 0)
+	_dummy.hp = 100000.0
+	_dummy._spawn_protect = 1.0e9
+	await get_tree().physics_frame
+
+
+func _face_nearest(d: Player) -> void:
+	var best: Player = null
+	var best_d := INF
+	for p in Game.players():
+		if not p.is_bot or p.is_dead:
+			continue
+		var dd := d.global_position.distance_to(p.global_position)
+		if dd < best_d:
+			best_d = dd
+			best = p
+	if best != null and best_d > 0.3:
+		d.look_at(Vector3(best.global_position.x, d.global_position.y, best.global_position.z), Vector3.UP)
+		d.rotation.x = 0.0
+		d.rotation.z = 0.0
+
+
 func _stance_tick() -> void:
 	for p in Game.players():
 		if not p.is_bot or p.is_dead:
@@ -206,7 +249,7 @@ func _idle_tick(t: int) -> void:
 		# The brain's own sight test on its current target, freshly: _seen_target is only ever set, never
 		# cleared, so reading that field counts phantom enemies behind walls (#382).
 		var seen := false
-		var foe = b._target
+		var foe = _dummy if _dummy != null else b._target
 		if foe != null and is_instance_valid(foe) and not (foe as Player).is_dead:
 			seen = p.global_position.distance_to((foe as Player).global_position) <= IDLE_RANGE and _sees(p, foe)
 		# Travelling counts as acting too (#382): a bot that really changes position is not idling, a bot
