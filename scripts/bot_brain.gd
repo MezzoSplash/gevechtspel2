@@ -373,72 +373,27 @@ func _end_wall_trick() -> void:
 
 ## Nearest enemy we can actually see; else the nearest one to hunt. Re-picked every RETARGET.
 ## Closest-only used to lock bots onto someone hidden behind a teammate (issue #1: the pile in the middle).
+## #317 slice 7: target picking and the threat live in BotTarget; pawn_vitals and the brain call these.
 func _pick_target(delta: float) -> Player:
-	_retarget_t -= delta
-	if _retarget_t > 0.0 and _valid_target(_target) and _knows(_target):
-		# Still look now when the pawn who shot us is in sight and not the current target.
-		if not (_valid_target(_threat) and _target != _threat and _can_see(_threat)):
-			return _target
-	_retarget_t = RETARGET
-	var enemies := _enemies_by_distance()
-	_listen(enemies)
-	var prev := _target
-	_target = null
-	# #150: the shooter, if we can see them, even when someone else is closer.
-	if _valid_target(_threat) and _can_see(_threat):
-		_target = _threat
-	else:
-		for e in enemies:
-			if _can_see(e):
-				_target = e
-				break
-	if _target == null and _valid_target(_threat) and _knows(_threat):
-		_target = _threat # hunt the one who shot, not whoever is nearest through a wall
-	elif _target == null:
-		_target = _nearest_known(enemies) # null when nobody is known: the bot patrols
-	if _target != prev:
-		_reset_hunt()
-	return _target
+	return BotTarget.pick(self, delta)
 
 
-## #150: a hit from another pawn. Prefer them as the target, and break off the trade when low.
 func note_threat(attacker: Player) -> void:
-	if not _valid_target(attacker):
-		return
-	_threat = attacker
-	_threat_left = THREAT_TIME
-	_retarget_t = 0.0
-	_remember(attacker, attacker.global_position) # being hit tells you where it came from
-	if style.retreat_hp > 0.0 and Game.hp_of(pawn) <= style.retreat_hp and _retreat_cd <= 0.0:
-		_hurt_retreat_left = RETREAT_TIME
-		_retreat_cd = RETREAT_CD
-		_set_state(State.RETREAT)
-		# The flipped flank is what brings them back in from the other side.
-		_route = Route.FLANK
-		_flank_angle += PI
-		_flank_flipped = true
-		_drop_path()
+	BotTarget.note_threat(self, attacker)
 
 
-## Untyped on purpose: a freed pawn in a typed Player argument is a runtime error.
 func _valid_target(p) -> bool:
-	return (
-		is_instance_valid(p)
-		and not p.is_queued_for_deletion()
-		and not p.is_dead
-		and (p.team_id != pawn.team_id or Game.is_ffa())
-		and p != pawn
-	)
+	return BotTarget.valid(self, p)
 
 
 ## Hard bots know where everyone is, through walls: how every bot played before awareness existed.
 func _omniscient() -> bool:
-	return bool(Game.bot_profile().omni)
+	return BotSight.omniscient(self)
 
 
 ## Does this bot know where `e` is? Untyped like _valid_target: check validity first, the pawn may be freed.
 func _knows(e) -> bool:
-	return _omniscient() or _known.has(e.get_instance_id())
+	return BotSight.knows(self, e)
 
 
 ## Where the bot thinks `e` is: the real spot when omniscient, else the last place it knew them.
@@ -650,48 +605,18 @@ func _drive_rc(delta: float) -> bool:
 	return BotStreaks.drive_rc(self, delta)
 
 
-## Does this character get to open fire on `enemy` from where it stands? Only the flanker asks
-## (#267 slice 2): no attack from straight ahead, a free shot from the side or the back, and a
-## patience timer so it never circles forever in front of someone who keeps facing it.
-## #382: the flanker's patience only restarts after a real loss of sight. It used to restart on every
-## single tick without sight, so a bot that kept dipping in and out of view (a corner, a crate, or a
-## player who keeps turning to face it) never reached flank_patience and circled instead of firing.
+## #317 slice 5: the flanker's patience and ring point live in BotFlank. The checks and the hunt call
+## these three names, so they stay as thin wrappers.
 func _tick_flank_sight(seen: bool, delta: float) -> void:
-	if seen:
-		_flank_lost = 0.0
-		_flank_wait += delta
-		return
-	_flank_lost += delta
-	if _flank_lost > FLANK_SIGHT_GRACE:
-		_flank_wait = 0.0
-		return
-	# A short dip (a crate, a corner, the target turning) does not stop the clock: it used to throw the
-	# whole patience away, which is why a flanker against a player who keeps facing it never fired.
-	_flank_wait += delta
+	BotFlank.tick_sight(self, seen, delta)
 
 
 func _flank_aim_ok(enemy: Player, delta: float) -> bool:
-	var to := pawn.global_position - enemy.global_position
-	to.y = 0.0
-	var facing := -enemy.transform.basis.z # the enemy's forward, flat
-	facing.y = 0.0
-	var from_side := true
-	if facing.length_squared() > 0.0001 and to.length_squared() > 0.0001:
-		# 1.0 is straight into the enemy's face, 0.0 is exactly the side.
-		from_side = facing.normalized().dot(to.normalized()) < 0.35
-	if from_side or pawn.global_position.distance_to(enemy.global_position) < FLANK_POINT_BLANK:
-		_flank_wait = 0.0
-		return true
-	# The clock runs in _tick_flank_sight, so a flickering target cannot stretch the wait forever.
-	return _flank_wait >= style.flank_patience
+	return BotFlank.aim_ok(self, enemy, delta)
 
 
-## Point on a ring around the enemy at fight range. Y stays theirs so roofs still route up a ramp.
 func _flank_point(center: Vector3) -> Vector3:
-	var dest := center
-	dest.x += cos(_flank_angle) * BotAim.fight_range(self)
-	dest.z += sin(_flank_angle) * BotAim.fight_range(self)
-	return dest
+	return BotFlank.point(self, center)
 
 
 ## Stuck on a hunt path: other side of the enemy, then straight at them, then a short nudge.
@@ -714,49 +639,10 @@ func _tick_aim_wobble(enemy: Player, delta: float) -> void:
 	BotAim.tick_aim_wobble(self, enemy, delta)
 
 
-## World (1) + players (2). Teammates are see-through (shots pass them too); other enemies still block.
-## Body centre first, then the head (peeking over cover). The point that is clear becomes the aim point.
-##
-## #272: the answer is cached for `los_ttl` physics ticks. `_pick_target()` probes every enemy it meets
-## and then `_fight()`/`_hunt()` ask again for the one they got, and the `fighting` test below asks
-## every tick for the same pawn. `los_cache = false` is the old per-call behaviour, so the same build
-## can be measured both ways.
+## #317 slice 6: the sight probe and its cache live in BotSight; every slice and the checks call
+## _can_see, so the name stays as a thin wrapper.
 func _can_see(enemy: Player, fresh: bool = false) -> bool:
-	if los_cache and not fresh:
-		var frame := Engine.get_physics_frames()
-		var known: Dictionary = _los.get(enemy.get_instance_id(), {})
-		if not known.is_empty() and frame - int(known["frame"]) < los_ttl:
-			var vis: bool = known["vis"]
-			if vis:
-				_seen_target = enemy
-				_seen_point = known["point"] as Vector3
-			return vis
-	var from := pawn.head.global_position
-	var space := pawn.get_world_3d().direct_space_state
-	var seen := false
-	var at := Vector3.ZERO
-	for to in [enemy.aim_point(), enemy.head_point()]:
-		var query := PhysicsRayQueryParameters3D.create(from, to)
-		query.collision_mask = SHOT_MASK
-		query.exclude = Game.shot_exclude(pawn)
-		if count_rays:
-			los_rays += 1
-		var hit := space.intersect_ray(query)
-		if hit.has("collider") and hit.collider == enemy:
-			seen = true
-			at = to
-			break
-	if seen:
-		_seen_target = enemy
-		_seen_point = at
-		_remember(enemy, enemy.global_position)
-	if los_cache:
-		if _los.size() > LOS_CACHE_MAX:
-			_los.clear() # freed pawns leave entries behind; nothing here is worth an unbounded map
-		_los[enemy.get_instance_id()] = {
-			"vis": seen, "point": at, "frame": Engine.get_physics_frames(),
-		}
-	return seen
+	return BotSight.can_see(self, enemy, fresh)
 
 
 func _enemies_by_distance() -> Array[Player]:
