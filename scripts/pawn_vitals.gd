@@ -53,6 +53,9 @@ static func apply_hit(
 		return {"killed": false, "headshot": false, "damage": 0}
 	var headshot := allow_headshot and p._point_hits_head(point)
 	var dmg := roundi(base_damage * (headshot_mult if headshot else 1.0))
+	# #384: while the LOS hands are out the body sits in the coconut and takes half the damage.
+	# It can still be killed, it is only no longer a free kill.
+	dmg = roundi(float(dmg) * LosHands.damage_scale(p))
 	# Armour first, then HP (#144). One shield plate absorbs 40 damage.
 	var absorbed := mini(roundi(p.armour), dmg)
 	if absorbed > 0:

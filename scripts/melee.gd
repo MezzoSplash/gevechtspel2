@@ -109,37 +109,46 @@ static func lunge_distance(p: Player, look_dir: Vector3) -> float:
 	return maxf(from.distance_to(hit.position) - 0.35, 0.0)
 
 
-## #373: the enemy a stab is aimed at. Chosen before the lunge, in a wider cone than the hit itself, with
-## no wall in between, so the step can stop right in front of that body instead of running past it.
-static func shank_target(p: Player, look_dir: Vector3) -> Player:
+## #373/#384: the enemy a lunge is aimed at. Chosen before the lunge, in a wider cone than the hit
+## itself, with no wall in between, so the step can stop right in front of that body instead of
+## running past it. The shank stabs from the eye, the LOS hands lunge from wherever they fly; both
+## share this picker so a fix to one is a fix to the other.
+static func pick_target(origin: Vector3, look_dir: Vector3, me: Player, max_m: float, cone_deg: float,
+		skip: Array = []) -> Player:
 	var dir := _flat(look_dir)
-	if p == null or dir == Vector3.ZERO:
+	if me == null or dir == Vector3.ZERO or not me.is_inside_tree():
 		return null
-	var eye := p.global_position + Vector3(0.0, 1.4, 0.0)
-	var space := p.get_world_3d().direct_space_state
+	var space := me.get_world_3d().direct_space_state
 	var best: Player = null
 	var best_d := INF
-	for n in p.get_tree().get_nodes_in_group("player"):
+	for n in me.get_tree().get_nodes_in_group("player"):
 		var v := n as Player
-		if v == null or v == p or v.is_dead or v.is_queued_for_deletion():
+		if v == null or v == me or v.is_dead or v.is_queued_for_deletion():
 			continue
-		if not Game.is_enemy(v, p):
+		if not Game.is_enemy(v, me):
 			continue
-		var to := _flat(v.global_position - p.global_position)
+		var to := _flat(v.global_position - origin)
 		var d := to.length()
-		if d < 0.05 or d > LUNGE_M + SHANK_RANGE or d >= best_d:
+		if d < 0.05 or d > max_m or d >= best_d:
 			continue
-		if rad_to_deg(dir.angle_to(to)) > SHANK_PICK_CONE_DEG:
+		if rad_to_deg(dir.angle_to(to)) > cone_deg:
 			continue
 		if space != null:
-			var q := PhysicsRayQueryParameters3D.create(eye, v.global_position + Vector3(0, 1.0, 0))
+			var q := PhysicsRayQueryParameters3D.create(origin, v.global_position + Vector3(0, 1.0, 0))
 			q.collision_mask = WORLD_MASK
-			q.exclude = [p.get_rid()]
+			q.exclude = [me.get_rid()] + skip
 			if not space.intersect_ray(q).is_empty():
 				continue
 		best = v
 		best_d = d
 	return best
+
+
+static func shank_target(p: Player, look_dir: Vector3) -> Player:
+	if p == null:
+		return null
+	return pick_target(p.global_position + Vector3(0.0, 1.4, 0.0), look_dir, p,
+		LUNGE_M + SHANK_RANGE, SHANK_PICK_CONE_DEG)
 
 
 ## Where the step goes: straight at the target, stopping just in front of its body, and never through a
