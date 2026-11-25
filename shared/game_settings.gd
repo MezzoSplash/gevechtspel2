@@ -74,6 +74,10 @@ static func load_settings(g: GameState) -> void:
 		if cfg.has_section("keys"):
 			for a in cfg.get_section_keys("keys"):
 				g._saved_keys[a] = str(cfg.get_value("keys", a, ""))
+		# #387: the killstreak pick. An old file or a bad list falls back to the default three.
+		g.streak_choice = StreakDefs.sanitize(cfg.get_value("streaks", "choice", StreakDefs.default_ids()))
+	if g.streak_choice.is_empty():
+		g.streak_choice = StreakDefs.default_ids()
 	g.apply_audio()
 	# The saved size is the player's pick. It is only replaced when no connected monitor can show
 	# it, not when the window happens to start on a smaller one: with two monitors the window
@@ -134,6 +138,11 @@ static func save_settings(g: GameState) -> void:
 	cfg.set_value("access", "speed_fx", g.speed_fx)
 	for a in g._saved_keys:
 		cfg.set_value("keys", a, g._saved_keys[a])
+	# #387: the killstreak pick, as ids. Stored as strings so a ConfigFile read stays readable.
+	var pick := PackedStringArray()
+	for id in g.streak_choice:
+		pick.append(String(id))
+	cfg.set_value("streaks", "choice", pick)
 	cfg.save("user://settings.cfg")
 
 

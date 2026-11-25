@@ -105,6 +105,7 @@ static func reset_session(game: GameState) -> void:
 	game.streak_progress.clear()
 	game.streak_charges.clear()
 	game.streak_earned.clear()
+	game.streak_choices.clear() # #387: the server's accepted picks; the local pick stays saved
 	game.rc_view = false
 	game.los_view = false
 	game._rc_done.clear()

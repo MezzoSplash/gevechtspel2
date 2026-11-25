@@ -113,6 +113,8 @@ static func configure_control(p: Player) -> void:
 		p._notify_grenades()
 		if Game.is_networked() and not p.multiplayer.is_server():
 			Game.submit_display_name.rpc_id(1, Game.player_name)
+			# #387: the server needs our killstreak pick; it validates and echoes it back.
+			Game.request_streak_choice.rpc_id(1, Game.streak_choice)
 	else:
 		p.body_mesh.visible = not p.is_dead
 		p.camera.current = false
