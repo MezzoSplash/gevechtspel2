@@ -61,6 +61,7 @@ static func clear_peer_hp(game: GameState, peer_id: int) -> void:
 	game.streak_choices.erase(peer_id) # #387: its pick goes with it
 	RcXd.abort_for(peer_id)
 	LosHands.abort_for(peer_id)
+	Overdrive.abort_for(peer_id) # #388
 	game.pings.erase(peer_id)
 	game._fire_credit.erase(peer_id)
 	if game.melee:

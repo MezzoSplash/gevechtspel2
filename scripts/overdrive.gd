@@ -188,7 +188,27 @@ func _end(tell_net: bool) -> void:
 		var hud := Game.get_tree().get_first_node_in_group("hud") as Hud
 		if hud:
 			hud.show_overdrive(0.0)
+	_free_fx()
 	queue_free()
+
+
+## The glow, the trail and the cue hang on the pawn (a plain Node has no transform to carry them), so
+## they are not freed with this node: drop them here, or the body glows for the rest of the match.
+func _free_fx() -> void:
+	for n in [_glow, _trail, _sfx]:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	_glow = null
+	_trail = null
+	_sfx = null
+
+
+## A pawn freed under a running buff (a map change, a peer that left) must not leave a dead entry in
+## _live for abort_all to trip over.
+func _exit_tree() -> void:
+	if _live.get(owner_peer) == self:
+		_live.erase(owner_peer)
+	_free_fx()
 
 
 ## The glow around the body and a trail behind it. Built on every machine, so the other team sees it.

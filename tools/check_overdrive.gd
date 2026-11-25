@@ -37,6 +37,7 @@ func _ready() -> void:
 	await _stats(p, bot)
 	await _timer(p)
 	await _claims(p)
+	await _lifecycle(p)
 	print("OVERDRIVE CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])
 	get_tree().quit(1 if fails > 0 else 0)
 
@@ -193,6 +194,39 @@ func _timer(p: Player) -> void:
 	for _i in 180: # past the 10 s window
 		await get_tree().physics_frame
 	_ok(Overdrive.for_owner(1) == null, "gone after 10 s")
+
+
+## Review #393: the buff ends cleanly. The glow, the trail and the cue hang on the pawn, so they must go
+## with the buff; a death ends it (no 25% speed into the next life); a peer that leaves takes it along.
+func _lifecycle(p: Player) -> void:
+	_launch()
+	await get_tree().physics_frame
+	_ok(p.get_node_or_null("OverdriveGlow") != null, "the glow is on the pawn while it runs")
+	Overdrive.abort_for(1)
+	for _i in 2:
+		await get_tree().physics_frame
+	_ok(p.get_node_or_null("OverdriveGlow") == null and p.get_node_or_null("OverdriveTrail") == null
+		and p.get_node_or_null("OverdriveSfx") == null, "glow, trail and cue are gone after the end")
+
+	_launch()
+	PawnVitals.die(p)
+	_ok(Overdrive.for_owner(1) == null and not Overdrive.active(p), "a death ends Overdrive")
+	p.is_dead = false
+	for _i in 2:
+		await get_tree().physics_frame
+	_ok(p.get_node_or_null("OverdriveGlow") == null, "and the respawned body has no glow")
+
+	_launch()
+	Combat.clear_peer_hp(Game, 1)
+	_ok(Overdrive.for_owner(1) == null, "a peer that leaves takes its Overdrive along")
+	for _i in 2:
+		await get_tree().physics_frame
+
+
+func _launch() -> void:
+	Game.streak_choices[1] = ["uav", "rcxd", "overdrive"]
+	Game.streak_charges[1] = int(Game.streak_charges.get(1, 0)) | Game.CHARGE_OVERDRIVE
+	Game.try_activate_streak(1, StreakSelect.slot_for(Game, 1, &"overdrive"))
 
 
 func _pawn(id: int, bot: bool) -> Player:
