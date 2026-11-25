@@ -29,6 +29,11 @@ func _ready() -> void:
 	_ok(WeaponKit.fire_sound(smg) != smg.fire_sound, "the SMG's kit supplies its own fire sounds (#370)")
 	var none := WeaponKit.read_sounds("res://data/weapons/geen-enkele-kit")
 	_ok((none[&"fire"] as Array).is_empty(), "a kit folder without sounds reads empty, so fire_sound falls back")
+	# The original shot stays in the pool next to the two variants (#370 review): with only fire_2/fire_3
+	# every shot was a pitched copy and the gun's own sound was never heard again.
+	for gid in [&"rifle", &"smg", &"lmg", &"pistol", &"revolver", &"shotgun", &"slug", &"sniper"]:
+		var pool: Array = WeaponKit.sounds(gid)[&"fire"]
+		_ok(pool.size() >= 3, "%s has its own shot plus variants (%d)" % [gid, pool.size()])
 	var distant := WeaponKit.distant_sound(smg.id)
 	_ok(distant != null, "the SMG has a far layer (#370)")
 

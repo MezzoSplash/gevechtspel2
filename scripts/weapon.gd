@@ -858,7 +858,8 @@ func play_fire_sfx() -> bool:
 	fire_sfx.pitch_scale = randf_range(0.95, 1.05)
 	fire_sfx.play()
 	# #370: the far layer plays with every shot and carries further; the close shot masks it up close.
-	if far_sfx != null and far_sfx.stream != null:
+	# Not on your own gun: the muffled layer sat on top of your own shot, right at the camera.
+	if far_sfx != null and far_sfx.stream != null and not _is_local():
 		far_sfx.pitch_scale = fire_sfx.pitch_scale
 		far_sfx.play()
 	return model_flash
