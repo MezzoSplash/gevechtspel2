@@ -404,7 +404,8 @@ func _ready() -> void:
 
 
 const ENEMY_SFX_NODES := [
-	"Head/Camera3D/WeaponRoot/FireSfx", "Head/Camera3D/WeaponRoot/ReloadSfx", "StepSfx", "SlideSfx", "LandSfx",
+	"Head/Camera3D/WeaponRoot/FireSfx", "Head/Camera3D/WeaponRoot/FarSfx", "Head/Camera3D/WeaponRoot/ReloadSfx",
+	"StepSfx", "SlideSfx", "LandSfx",
 ]
 var _bus_check_t := 0.0
 

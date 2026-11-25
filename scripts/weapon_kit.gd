@@ -21,7 +21,7 @@ const SHARED := {&"shank": &"knife"}
 const SOUND_EXTS: Array[String] = ["ogg", "wav", "mp3"]
 ## File-name start -> sound slot. The first match wins, so "fire_2.ogg" is a fire sound.
 const SOUND_SLOTS := [["fire", &"fire"], ["shot", &"fire"], ["reload", &"reload"], ["draw", &"draw"],
-	["equip", &"draw"], ["dry", &"dry"], ["empty", &"dry"]]
+	["equip", &"draw"], ["dry", &"dry"], ["empty", &"dry"], ["distant", &"distant"]]
 
 static var _scenes: Dictionary = {} # kit id -> PackedScene (null when there is none)
 static var _sounds: Dictionary = {} # kit id -> {fire: Array[AudioStream], reload, draw, dry}
@@ -71,7 +71,7 @@ static func sounds(id: StringName) -> Dictionary:
 
 ## Reads a folder's sound files into slots. Static and uncached, so the check can point it anywhere.
 static func read_sounds(dir: String) -> Dictionary:
-	var out := {&"fire": [] as Array[AudioStream], &"reload": null, &"draw": null, &"dry": null}
+	var out := {&"fire": [] as Array[AudioStream], &"reload": null, &"draw": null, &"dry": null, &"distant": null}
 	if not DirAccess.dir_exists_absolute(dir):
 		return out
 	var files := Array(ResourceLoader.list_directory(dir))
@@ -110,6 +110,12 @@ static func fire_sound(def: WeaponDef) -> AudioStream:
 	if not list.is_empty():
 		return list[randi() % list.size()]
 	return def.fire_sound
+
+
+## The kit's far layer (#370): the same shot lowpassed with a tail, so a fight at 40 m still has body.
+## Named `distant.wav` on purpose: any name starting with "fire" would be picked as a close variant.
+static func distant_sound(id: StringName) -> AudioStream:
+	return sounds(id).get(&"distant")
 
 
 ## The kit's reload / draw / dry sound, or `fallback` when the kit has none.
