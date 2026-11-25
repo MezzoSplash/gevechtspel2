@@ -96,6 +96,9 @@ func _ready() -> void:
 			break
 	_ok(gone, "the buff ended by itself (the server's clock, not a local one)")
 	_ok(is_equal_approx(Overdrive.speed_mult(me), 1.0), "and the speed is plain again")
+	await get_tree().process_frame
+	_ok(me.get_node_or_null("OverdriveGlow") == null and me.get_node_or_null("OverdriveTrail") == null,
+		"the glow and the trail went with it (review #393)")
 	_finish()
 
 
