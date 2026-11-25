@@ -124,6 +124,8 @@ var _hint_pressed := false
 var rng := RandomNumberGenerator.new()
 ## How long this character has wanted to shoot but did not have the angle yet (#267 slice 2).
 var _flank_wait := 0.0
+const FLANK_SIGHT_GRACE := 0.8 # s (#382): a shorter loss of sight keeps the flanker's patience
+var _flank_lost := 0.0 # s without sight, so a corner does not wipe the flanker's patience (#382)
 var _flank_base := 0.0 # peer slot on the ring; restored when the target changes
 var _flank_angle := 0.0 # radians around the enemy; hunt aims here before closing
 var _flank_flipped := false # first stuck tries the other side before a direct chase
@@ -295,10 +297,10 @@ func physics_tick(delta: float) -> void:
 	var out_of_range := pawn.global_position.distance_to(enemy.global_position) > _fight_range() + 4.0
 	var seen := _can_see(enemy)
 	var fighting := seen and not out_of_range
+	if style.flank_only:
+		_tick_flank_sight(seen, delta)
 	if fighting and style.flank_only:
 		fighting = _flank_aim_ok(enemy, delta) # #267: the flanker does not open fire from the front
-	elif not seen and style.flank_only:
-		_flank_wait = 0.0 # sight lost: the flank starts over instead of cashing in later
 	if fighting:
 		_set_state(State.FIGHT)
 		_acquire_left = maxf(_acquire_left - delta, 0.0)
@@ -970,6 +972,23 @@ func _drive_rc(delta: float) -> bool:
 ## Does this character get to open fire on `enemy` from where it stands? Only the flanker asks
 ## (#267 slice 2): no attack from straight ahead, a free shot from the side or the back, and a
 ## patience timer so it never circles forever in front of someone who keeps facing it.
+## #382: the flanker's patience only restarts after a real loss of sight. It used to restart on every
+## single tick without sight, so a bot that kept dipping in and out of view (a corner, a crate, or a
+## player who keeps turning to face it) never reached flank_patience and circled instead of firing.
+func _tick_flank_sight(seen: bool, delta: float) -> void:
+	if seen:
+		_flank_lost = 0.0
+		_flank_wait += delta
+		return
+	_flank_lost += delta
+	if _flank_lost > FLANK_SIGHT_GRACE:
+		_flank_wait = 0.0
+		return
+	# A short dip (a crate, a corner, the target turning) does not stop the clock: it used to throw the
+	# whole patience away, which is why a flanker against a player who keeps facing it never fired.
+	_flank_wait += delta
+
+
 func _flank_aim_ok(enemy: Player, delta: float) -> bool:
 	var to := pawn.global_position - enemy.global_position
 	to.y = 0.0
@@ -982,7 +1001,7 @@ func _flank_aim_ok(enemy: Player, delta: float) -> bool:
 	if from_side or pawn.global_position.distance_to(enemy.global_position) < FLANK_POINT_BLANK:
 		_flank_wait = 0.0
 		return true
-	_flank_wait += delta
+	# The clock runs in _tick_flank_sight, so a flickering target cannot stretch the wait forever.
 	return _flank_wait >= style.flank_patience
 
 
