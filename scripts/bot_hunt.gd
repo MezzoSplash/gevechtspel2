@@ -157,7 +157,7 @@ static func leg(b: BotBrain, enemy: Player, delta: float, dest: Vector3, at: Vec
 ## opposite angle once, and a flank that is already flipped commits to a direct chase.
 static func on_stuck(b: BotBrain) -> void:
 	if b._route == BotBrain.Route.DIRECT:
-		b._pick_unstick()
+		BotNav.pick_unstick(b)
 		b._force_repath = true
 	elif not b._flank_flipped:
 		b._flank_angle += PI
