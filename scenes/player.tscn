@@ -88,6 +88,9 @@ properties/7/replication_mode = 2
 properties/8/path = NodePath(".:net_sent_ms")
 properties/8/spawn = true
 properties/8/replication_mode = 1
+properties/9/path = NodePath(".:ads_amt")
+properties/9/spawn = true
+properties/9/replication_mode = 2
 
 [node name="Player" type="CharacterBody3D"]
 collision_layer = 2

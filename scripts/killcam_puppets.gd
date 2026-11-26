@@ -140,6 +140,7 @@ static func ghost_weapon(k: Killcam, g: Dictionary, index: int) -> void:
 	var fit := Weapon.fit_model(model, def.id, k._rest)
 	gun_root.position = fit.root
 	(g.muzzle as Node3D).position = fit.muzzle
+	g.fit = fit # #381: pose_ghost needs it for the ADS pose
 	g.model = model
 
 
@@ -201,6 +202,28 @@ static func apply_frames(k: Killcam, t: float) -> void:
 		k._knives[i].visible = i < knives.size()
 		if i < knives.size():
 			k._knives[i].global_transform = knives[i]
+	draw_ropes(k, pa)
+
+
+## #381: the grapple's rope in the replay: the same GrappleRope the live game draws, from the ghost's
+## reaching hand to the anchor. Frames from before the field existed have no rope, and a ghost that is
+## not grappling hides it again.
+static func draw_ropes(k: Killcam, pawns: Dictionary) -> void:
+	for id in k._ghosts:
+		var g: Dictionary = k._ghosts[id]
+		var s: Variant = pawns.get(id)
+		var root: Node3D = g.root
+		var arr: Array = s if s is Array else []
+		var on: bool = arr.size() > 11 and bool(arr[11]) and bool(arr[5])
+		if not on:
+			if root.get_node_or_null("GrappleRope") != null:
+				GrappleRope.ensure(root).show_line(false, Vector3.ZERO, Vector3.ZERO)
+			continue
+		var from := root.global_position + Vector3.UP * Grapple.CHEST
+		var crystal: Variant = (g.body as Node3D).get("hands") if g.body is Node3D else null
+		if crystal is Node and (crystal as Node).get_child_count() > 0:
+			from = ((crystal as Node).get_child(0) as Node3D).global_position
+		GrappleRope.ensure(root).show_line(true, from, arr[12])
 
 
 
@@ -223,6 +246,8 @@ static func pose_ghost(k: Killcam, g: Dictionary, sa: Variant, sb: Variant, w: f
 	var flip := float(s[7]) if s.size() > 7 else 0.0
 	var thr := float(s[8]) if s.size() > 8 else 0.0
 	var rel := float(s[9]) if s.size() > 9 else 0.0
+	# #381: the recorded ADS blend. Frames from before this field existed are hip (0).
+	var ads := float(s[10]) if s.size() > 10 else 0.0
 	if sa != null and sb != null and bool(sa[5]) == bool(sb[5]):
 		var a: Array = sa
 		var b: Array = sb
@@ -239,6 +264,8 @@ static func pose_ghost(k: Killcam, g: Dictionary, sa: Variant, sb: Variant, w: f
 				thr = lerpf(float(a[8]), float(b[8]), w)
 			if a.size() > 9 and b.size() > 9:
 				rel = lerpf(float(a[9]), float(b[9]), w)
+			if a.size() > 10 and b.size() > 10:
+				ads = lerpf(float(a[10]), float(b[10]), w)
 	root.global_position = pos
 	root.rotation = Vector3(0.0, yaw, 0.0)
 	var head: Node3D = g.head
@@ -253,6 +280,30 @@ static func pose_ghost(k: Killcam, g: Dictionary, sa: Variant, sb: Variant, w: f
 			kind = Weapon.LOADOUT[wi].reload_style
 		Player.pose_body(g.body, crouch, int(s[6]) if s.size() > 6 else Player.MOVE_NONE, flip, thr, rel, kind)
 	ghost_weapon(k, g, int(s[4]))
+	if is_killer:
+		killer_aim(k, g, ads)
+
+
+## #381: the killer's camera and viewmodel follow the recorded ADS, the same numbers as the live weapon
+## (Weapon.ads_pose_for). A scoped gun hides its model while aiming, like live; the overlay draws the
+## scope then. Everyone else keeps the hip pose: only the killer's own viewpoint shows the sight.
+static func killer_aim(k: Killcam, g: Dictionary, ads: float) -> void:
+	var cam := g.pivot as Camera3D
+	if cam == null:
+		return
+	var wi := int(g.wpn)
+	var def: WeaponDef = Weapon.LOADOUT[wi] if wi >= 0 and wi < Weapon.LOADOUT.size() else null
+	# Game.fov is the hip FOV from settings; a gun without ads_fov never zooms.
+	cam.fov = lerpf(Game.fov, def.ads_fov, ads) if def != null and def.has_ads() else Game.fov
+	var scoped := def != null and def.is_scope() and ads > 0.5
+	k._scope = scoped
+	if g.model != null and is_instance_valid(g.model):
+		(g.model as Node3D).visible = not scoped
+	var fit: Variant = g.get("fit")
+	var gun_root: Node3D = g.gun_root
+	if fit is Dictionary:
+		var rest := Vector3((fit as Dictionary).root)
+		gun_root.position = rest.lerp(Weapon.ads_pose_for(fit, rest), smoothstep(0.0, 1.0, ads))
 
 
 

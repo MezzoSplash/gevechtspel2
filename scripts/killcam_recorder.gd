@@ -70,7 +70,9 @@ static func snapshot(k: Killcam) -> void:
 		var wpn := p.weapon.armory_index() if p.weapon else 0
 		# Index 7 is the body's roll flip (#205): the pose used to be yaw + head pitch only, so a
 		# player who rolled to their death stood upright in the replay.
-		pawns[p.peer_id] = [p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, wpn, not p.is_dead, p.move_fx, p.roll_flip(), p.throw_amt(), p.reload_amt()]
+		pawns[p.peer_id] = [p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, wpn, not p.is_dead, p.move_fx, p.roll_flip(), p.throw_amt(), p.reload_amt(), p.ads_amt, p.grappling, p.grapple_at]
+		# 10 = ADS 0..1 (#381), 11/12 = the grapple's rope (#381). Frames recorded before those fields
+		# existed simply have a shorter array: the replay plays them as hip and draws no rope.
 		k._meta[p.peer_id] = [p.display_name, p.team_id]
 	if pawns.is_empty():
 		return
