@@ -76,7 +76,9 @@ func _ready() -> void:
 	g.queue_free()
 
 	# 6) The killcam's replay grenades are the same look, not a second copy of the old ball.
-	var kc := FileAccess.get_file_as_string("res://scripts/killcam.gd")
+	# #317 stap 2: de replay-scene staat in killcam_puppets.gd, niet meer in killcam.gd.
+	var kc := FileAccess.get_file_as_string("res://scripts/killcam.gd") \
+		+ FileAccess.get_file_as_string("res://scripts/killcam_puppets.gd")
 	_ok(kc.contains("GrenadeLook.new()") and not kc.contains("SphereMesh"), "the killcam builds GrenadeLook, no sphere")
 
 	# 7) The boom: shards end inside the splash radius, near its edge, and a ring runs out to it.
