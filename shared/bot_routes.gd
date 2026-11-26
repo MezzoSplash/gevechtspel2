@@ -28,19 +28,52 @@ const FLOOR_DROP := 3.0 # m: a route point without floor this far below it is no
 const WALKABLE_NY := 0.7 # cos 45°, same as the navmesh's agent_max_slope
 
 static var _cache := {} # map id -> Array of routes (validated)
+## #311/#360: een match kan zijn eerste bot-tik doen voordat de collision van de map er is (CSG wordt
+## gebakken). Dan raakt elke straal niets en zouden alle routes voor de hele match weg zijn. Zo'n lege
+## uitslag wordt daarom niet gecached: de volgende tik probeert het opnieuw.
+static var _retry := {} # map id -> aantal pogingen dat op een niet-klare wereld wachtte
+static var _retry_warned := {}
+const RETRY_MAX := 120 # ~2 s at 60 Hz: ruim voor elke CSG-bake, en daarna geloven we het
 
 
 ## Every valid route on `map_id`. Empty when the map has no file; a broken file gives an empty list
 ## and one warning, not a crash per tick.
+##
+## #311/#360: the first bot tick of a match can come before the map's collision exists (CSG is baked
+## after the scene is added), and then every route fails the floor test. That answer must not be cached,
+## or the bots lose all their routes for the whole match. So an empty result from a file with routes is
+## retried for a while (the world is there within a frame or two) and only then taken for the truth.
 static func for_map(space: PhysicsDirectSpaceState3D, map_id: StringName) -> Array:
 	if _cache.has(map_id):
 		return _cache[map_id]
-	var out: Array = []
 	var path := DIR + str(map_id) + ".json"
-	if FileAccess.file_exists(path):
-		out = _validate(space, _read(path), path)
+	if not FileAccess.file_exists(path):
+		_cache[map_id] = []
+		return []
+	var raw := _read(path)
+	var res := _validate_full(space, raw, path, false)
+	var out: Array = res["routes"]
+	if not raw.is_empty() and out.is_empty() and int(_retry.get(map_id, 0)) < RETRY_MAX:
+		var tries := int(_retry.get(map_id, 0)) + 1
+		_retry[map_id] = tries
+		if not _retry_warned.has(map_id):
+			_retry_warned[map_id] = true
+			push_warning("BotRoutes: %s: no route passed yet (%d rays hit the world); the map is probably not loaded yet. The answer is not cached and the next tick tries again (#311/#360)" % [path, int(res["hits"])])
+		return []
+	if not raw.is_empty() and out.is_empty():
+		# Out of retries: validate once more, with the per-route reasons, so the log shows what is wrong.
+		res = _validate_full(space, raw, path, true)
+		out = res["routes"]
 	_cache[map_id] = out
 	return out
+
+
+## Drop every cached answer. For checks that load more than one map in one process (a real match loads
+## one map and keeps its routes).
+static func reset_cache() -> void:
+	_cache.clear()
+	_retry.clear()
+	_retry_warned.clear()
 
 
 ## Routes from an explicit path (the check writes its own fixture). Not cached: a check may write a
@@ -94,28 +127,39 @@ static func _read(path: String) -> Array:
 ## Points as Vector3 and the one-time geometry test. Anything that fails is dropped, with the reason
 ## in the warning, so a hand-edited file is fixable from the log.
 static func _validate(space: PhysicsDirectSpaceState3D, raw: Array, path: String) -> Array:
+	var res := _validate_full(space, raw, path, true)
+	var out: Array = res["routes"]
+	return out
+
+
+## The validator, plus how many rays hit any world geometry at all: zero hits means the world was not
+## there yet, which for_map uses to decide that the answer must not be cached (#311/#360).
+static func _validate_full(space: PhysicsDirectSpaceState3D, raw: Array, path: String, warn: bool) -> Dictionary:
 	var out: Array = []
+	var hits := 0
 	for entry in raw:
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
 		var d := entry as Dictionary
 		var kind := StringName(str(d.get("kind", "")))
 		if not KINDS.has(kind):
-			push_warning("BotRoutes: %s: unknown kind \"%s\"" % [path, kind])
+			_warn(warn, "BotRoutes: %s: unknown kind \"%s\"" % [path, kind])
 			continue
 		var pts: Array[Vector3] = []
 		for p in (d.get("points", []) as Array):
 			if typeof(p) == TYPE_ARRAY and (p as Array).size() >= 3:
 				pts.append(Vector3(float(p[0]), float(p[1]), float(p[2])))
 		if pts.size() < 2:
-			push_warning("BotRoutes: %s: a %s route needs two points" % [path, kind])
+			_warn(warn, "BotRoutes: %s: a %s route needs two points" % [path, kind])
 			continue
 		var ok := true
 		for i in range(1, pts.size()):
 			var q := PhysicsRayQueryParameters3D.create(pts[i - 1] + Vector3.UP * 0.9, pts[i] + Vector3.UP * 0.9)
 			q.collision_mask = WORLD_MASK
-			if not space.intersect_ray(q).is_empty():
-				push_warning("BotRoutes: %s: %s route crosses world between point %d and %d" % [path, kind, i - 1, i])
+			var seg := space.intersect_ray(q)
+			if not seg.is_empty():
+				hits += 1
+				_warn(warn, "BotRoutes: %s: %s route crosses world between point %d and %d" % [path, kind, i - 1, i])
 				ok = false
 				break
 		if not ok:
@@ -124,10 +168,19 @@ static func _validate(space: PhysicsDirectSpaceState3D, raw: Array, path: String
 			var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 0.4, p + Vector3.DOWN * FLOOR_DROP)
 			q.collision_mask = WORLD_MASK
 			var hit := space.intersect_ray(q)
+			if not hit.is_empty():
+				hits += 1
 			if hit.is_empty() or (hit.normal as Vector3).y < WALKABLE_NY:
-				push_warning("BotRoutes: %s: %s route has no walkable floor at %s" % [path, kind, p])
+				_warn(warn, "BotRoutes: %s: %s route has no walkable floor at %s" % [path, kind, p])
 				ok = false
 				break
 		if ok:
 			out.append({"kind": kind, "points": pts})
-	return out
+	return {"routes": out, "hits": hits}
+
+
+## A warning that the first, too-early validation can stay quiet about: otherwise a map that is not
+## loaded yet costs 60 lines before the one line that says why.
+static func _warn(on: bool, msg: String) -> void:
+	if on:
+		push_warning(msg)
