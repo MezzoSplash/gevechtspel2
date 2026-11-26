@@ -72,22 +72,23 @@ func _ready() -> void:
 	var bound: Array = (conns[0].callable as Callable).get_bound_arguments() if conns.size() > 0 else []
 	_ok(bound.size() == 2 and bound[0] == kc, "the overlay's draw callback is bound to the node and the canvas")
 	# Play a second of it on explicit deltas: this is where the pose blend, the weapon model and the
-	# tracers run, and where a broken member access would show up.
+	# tracers run, and where a broken member access would show up. Whether the killer's own ghost walks
+	# depends on the match (the local player may stand still), so any moving ghost counts.
 	var seen_move := false
-	var start_pos := Vector3.ZERO
+	var start: Dictionary = {}
 	for i in 90:
 		kc._process(1.0 / 60.0)
-		var g: Variant = kc._ghosts.get(me.peer_id)
-		if g != null:
+		for id in kc._ghosts:
+			var g: Dictionary = kc._ghosts[id]
 			var at: Vector3 = (g.root as Node3D).global_position
-			if start_pos == Vector3.ZERO:
-				start_pos = at
-			elif at.distance_to(start_pos) > 0.01:
+			if not start.has(id):
+				start[id] = at
+			elif at.distance_to(start[id] as Vector3) > 0.01:
 				seen_move = true
 		if not kc.is_playing():
 			break
 	_ok(kc._real_t > 0.4, "the replay clock ran (%.2f s)" % kc._real_t)
-	_ok(seen_move, "the killer's ghost moved between snapshots")
+	_ok(seen_move, "a ghost moved between snapshots")
 	_ok(kc._cam.current, "the replay camera is the one being rendered")
 	var ghost_root: Node3D = (kc._ghosts.values()[0] as Dictionary).root
 	kc._end_playback()
