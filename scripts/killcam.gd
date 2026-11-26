@@ -217,72 +217,51 @@ func reset() -> void:
 
 
 # --- Recording ---
-
-func _should_record() -> bool:
-	return not Game.is_dedicated and not Game.in_lobby and not _playing
-
+# #317 step 2: het opnemen (notities, snapshots, slice) zit in KillcamRecorder. Wat buiten dit bestand
+# wordt aangeroepen blijft hier als dunne wrapper staan.
 
 func note_fire(peer_id: int, weapon_id: StringName) -> void:
-	_note("fire", peer_id, weapon_id)
+	KillcamRecorder.note_fire(self, peer_id, weapon_id)
 
 
 func note_tracer(peer_id: int, from: Vector3, to: Vector3, weapon_id: StringName) -> void:
-	_note("tracer", peer_id, from, to, weapon_id)
+	KillcamRecorder.note_tracer(self, peer_id, from, to, weapon_id)
 
 
 func note_hurt(peer_id: int) -> void:
-	_note("hurt", peer_id)
+	KillcamRecorder.note_hurt(self, peer_id)
 
 
 func note_death(peer_id: int) -> void:
-	if _should_record():
-		_pending_clips.append([peer_id, _clock])
-		if _trick_wait.has(peer_id):
-			var w: Array = _trick_wait[peer_id]
-			_trick_wait.erase(peer_id)
-			if _clock - float(w[1]) <= TRICK_WAIT_MAX:
-				_trick_deaths.append([int(w[0]), _clock])
-	_note("death", peer_id)
+	KillcamRecorder.note_death(self, peer_id)
 
 
 ## Game._apply_trick: this kill is the round's new best trickshot. Its victim's death comes right after
 ## (same tick on the server, the next reliable message on clients).
 func note_trick(trick_id: int, victim_peer_id: int) -> void:
-	if not _should_record():
-		return
-	# A new best replaces any older one still waiting: only the latest best is ever replayed.
-	_trick_wait.clear()
-	for i in range(_events.size() - 1, -1, -1):
-		var e: Array = _events[i]
-		if _clock - float(e[0]) > TRICK_DEATH_BEFORE:
-			break
-		if e[1] == "death" and int(e[2]) == victim_peer_id:
-			_trick_deaths.append([trick_id, float(e[0])]) # the death was recorded first
-			return
-	_trick_wait[victim_peer_id] = [trick_id, _clock]
+	KillcamRecorder.note_trick(self, trick_id, victim_peer_id)
 
 
 func note_boom(pos: Vector3, heavy := false) -> void:
-	_note("boom", pos, heavy)
+	KillcamRecorder.note_boom(self, pos, heavy)
 
 
-func _note(kind: String, a: Variant = null, b: Variant = null, c: Variant = null, d: Variant = null) -> void:
-	if not _should_record():
-		return
-	_events.append([_clock, kind, a, b, c, d])
+## tools/check_killcam_roll: the snapshot the checks read.
+func _snapshot() -> void:
+	KillcamRecorder.snapshot(self)
 
 
 func _process(delta: float) -> void:
 	if _playing:
 		_tick_playback(delta)
 		return
-	if not _should_record():
+	if not KillcamRecorder.should_record(self):
 		return
 	_clock += delta
 	_snap_t -= delta
 	if _snap_t <= 0.0:
 		_snap_t = maxf(_snap_t + 1.0 / RATE, 0.0)
-		_snapshot()
+		KillcamRecorder.snapshot(self)
 	var cut := _clock - KEEP
 	while not _frames.is_empty() and float(_frames[0][0]) < cut:
 		_frames.pop_front()
@@ -290,83 +269,11 @@ func _process(delta: float) -> void:
 		_events.pop_front()
 	while not _pending_clips.is_empty() and _clock >= float(_pending_clips[0][1]) + POST + 0.05:
 		var entry: Array = _pending_clips.pop_front()
-		_clips[int(entry[0])] = _slice(float(entry[1]))
+		_clips[int(entry[0])] = KillcamRecorder.slice(self, float(entry[1]))
 	while not _trick_deaths.is_empty() and _clock >= float(_trick_deaths[0][1]) + POST + 0.05:
 		var td: Array = _trick_deaths.pop_front()
-		_trick_clip = _slice(float(td[1]))
+		_trick_clip = KillcamRecorder.slice(self, float(td[1]))
 		_trick_clip["trick_id"] = int(td[0])
-
-
-func _snapshot() -> void:
-	var pawns := {}
-	for n in get_tree().get_nodes_in_group("player"):
-		var p := n as Player
-		if p == null or p.is_queued_for_deletion() or p.head == null:
-			continue
-		var wpn := p.weapon.armory_index() if p.weapon else 0
-		# Index 7 is the body's roll flip (#205): the pose used to be yaw + head pitch only, so a
-		# player who rolled to their death stood upright in the replay.
-		pawns[p.peer_id] = [p.global_position, p.rotation.y, p.head.rotation.x, p.crouch, wpn, not p.is_dead, p.move_fx, p.roll_flip(), p.throw_amt(), p.reload_amt()]
-		_meta[p.peer_id] = [p.display_name, p.team_id]
-	if pawns.is_empty():
-		return
-	var nades := PackedVector3Array()
-	for g in get_tree().get_nodes_in_group("grenade"):
-		var n3 := g as Node3D
-		if n3 and n3.is_inside_tree() and not n3.is_queued_for_deletion():
-			nades.append(n3.global_position)
-	var knives: Array[Transform3D] = []
-	for k in get_tree().get_nodes_in_group("knife"):
-		var k3 := k as Node3D
-		if k3 and k3.is_inside_tree() and not k3.is_queued_for_deletion():
-			knives.append(k3.global_transform)
-	_frames.append([_clock, pawns, nades, knives])
-
-
-## LOOKBACK before to POST after the kill, plus a little margin for blending. The replay itself starts
-## where the director says (#258), not at the front of this window.
-func _slice(t_kill: float) -> Dictionary:
-	var t0 := t_kill - LOOKBACK - 0.2
-	var t1 := t_kill + POST + 0.2
-	var frames: Array = []
-	for f in _frames:
-		if float(f[0]) >= t0 and float(f[0]) <= t1:
-			frames.append(f)
-	var events: Array = []
-	for e in _events:
-		if float(e[0]) >= t_kill - LOOKBACK and float(e[0]) <= t1:
-			events.append(e)
-	return {"t_kill": t_kill, "frames": frames, "events": events, "meta": _meta.duplicate(true)}
-
-
-## The victim's latest death still in the buffer, else the clip kept from their last death.
-func _find_clip(victim: int) -> Dictionary:
-	for i in range(_events.size() - 1, -1, -1):
-		var e: Array = _events[i]
-		if e[1] == "death" and int(e[2]) == victim:
-			return _slice(float(e[0]))
-	return _clips.get(victim, {})
-
-
-## The kept replay of trick `trick_id`, or a fresh slice when it happened less than POST ago.
-func _trick_clip_for(trick_id: int) -> Dictionary:
-	if int(_trick_clip.get("trick_id", -1)) == trick_id:
-		return _trick_clip
-	for td in _trick_deaths:
-		if int(td[0]) == trick_id:
-			return _slice(float(td[1]))
-	return {}
-
-
-func _clip_usable(clip: Dictionary, killer: int) -> bool:
-	return not clip.is_empty() and (clip.frames as Array).size() >= 2 and _clip_has(clip, killer)
-
-
-func _clip_has(clip: Dictionary, peer_id: int) -> bool:
-	for f in clip.frames:
-		if (f[1] as Dictionary).has(peer_id):
-			return true
-	return false
 
 
 # --- Playback ---
@@ -377,17 +284,17 @@ func _start_playback(info: Dictionary) -> void:
 	var clip := {}
 	if info.has("trick_id"):
 		# The round's best trickshot. Not recorded here (joined later): the last kill instead.
-		clip = _trick_clip_for(int(info.trick_id))
-		if not _clip_usable(clip, int(info.get("k", 0))):
+		clip = KillcamRecorder.trick_clip_for(self, int(info.trick_id))
+		if not KillcamRecorder.clip_usable(self, clip, int(info.get("k", 0))):
 			clip = {}
 			info = info.get("fallback", {})
 			if typeof(info) != TYPE_DICTIONARY or info.is_empty():
 				return
 	var killer := int(info.get("k", 0))
 	if clip.is_empty():
-		clip = _find_clip(int(info.get("v", 0)))
+		clip = KillcamRecorder.find_clip(self, int(info.get("v", 0)))
 	# Joined too late, or the kill fell out of the buffer: no replay. The lock still holds.
-	if not _clip_usable(clip, killer):
+	if not KillcamRecorder.clip_usable(self, clip, killer):
 		return
 	_clip = clip
 	_clip["info"] = info

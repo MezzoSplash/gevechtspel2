@@ -1,7 +1,7 @@
 extends Node
 ## #258 director: the killcam is cut around what the killer did, not around a fixed window.
 ##   godot --headless res://tools/check_killcam_director.tscn   → "KILLCAM DIRECTOR CHECK OK"
-## Synthetic buffers in the recorder's own format (see Killcam._snapshot), so this runs without a match.
+## Synthetic buffers in the recorder's own format (see KillcamRecorder.snapshot), so this runs without a match.
 ## A scene, not a `-s` SceneTree script: Killcam needs the Game autoload to compile.
 var fails := 0
 
@@ -115,7 +115,7 @@ func _ready() -> void:
 		kc._frames = c2.frames.duplicate()
 		kc._events = c2.events.duplicate()
 		kc._clock = float(c2.t_kill) + 2.0
-		var sliced: Dictionary = kc._slice(float(c2.t_kill))
+		var sliced: Dictionary = KillcamRecorder.slice(kc, float(c2.t_kill))
 		var first := float((sliced.frames as Array)[0][0])
 		_ok(first <= float(c2.t_kill) - Killcam.PRE, "the sliced clip reaches further back than PRE (%.2f s)" % (float(c2.t_kill) - first))
 		_ok(is_equal_approx(Killcam.action_start(sliced.frames, sliced.events, float(sliced.t_kill), 1, 2), start2),
