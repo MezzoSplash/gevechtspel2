@@ -2,6 +2,24 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.6.3** — Kies je eigen killstreaks, met twee nieuwe op 7 kills: LOS 2.0 en Overdrive.
+
+Je kiest zelf tot drie killstreaks in een tegelraster in het menu (onder Classes): UAV (3), RCXplodie (5), en op 7 kills LOS óf Overdrive. Kills tellen per leven, doodgaan zet de teller terug.
+
+LOS 2.0: je handen gaan los van je lichaam en vechten zelf, 8 seconden lang. Een treffer is dodelijk en geeft +3 s, tot drie kills achter elkaar, met een korte magnetische uitval naar je doel en één dash per LOS (rechtermuisknop). Je lichaam staat zolang in een cocon en krijgt maar de helft van de schade. Elke kill in de ketting levert style op.
+
+Overdrive: 10 seconden 25% sneller, wallruns zonder tijdslimiet, duiken zonder cooldown en de shank-uitval op elk wapen. Kills tellen dubbel voor style en geven +2 s, tot 16 s. Iedereen ziet de roze gloed en het spoor en hoort hem aankomen. Bots gebruiken hem ook.
+
+De killcam laat nu zien wanneer de schutter richt (inzoomen, en bij de sniper de scope) en het grapple-touw van schutter en slachtoffer.
+
+Geluid: alle geluiden zijn per groep genormaliseerd, schoten van anderen zijn beter te horen, en elk wapen heeft een verre laag en twee extra schotvarianten.
+
+Bots: shank-bots op Hard staan niet meer stil om te "herladen", en een flanker loopt niet meer doelloos om je heen.
+
+Intern: bot_brain.gd en killcam.gd zijn opgesplitst in kleinere bestanden (#317), zonder gedragswijziging (replay-test ongewijzigd).
+
+**Niet compatibel met v0.6.2** (NET_VERSION 0.5.22): de killstreakkeuze, LOS 2.0, Overdrive en het meesturen van ADS zijn nieuw op het netwerk, dus een 0.6.2-speler wordt geweigerd. Werk server en clients samen bij.
+
 **v0.6.2** — Richten werkt nu bij elk wapen dat ervoor gemaakt is.
 
 Rifle, pistool, revolver en slug hebben ADS: rechtermuisknop zoomt in op het ijzeren vizier en maakt het schot nauwkeuriger (rifle 0,35° → 0,21°, pistool 0,55° → 0,36°, revolver 0,25° → 0,18°, slug 0,30° → 0,18°). Het vizier staat bij elk wapen recht onder het richtkruis in plaats van ernaast of eronder, en de sniper-scope staat weer in het midden. De SMG kijkt door zijn vizier in plaats van tegen de achterkant van zijn eigen kolf. Shotgun en shank hebben bewust geen ADS.
