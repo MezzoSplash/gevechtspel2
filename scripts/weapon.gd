@@ -399,6 +399,24 @@ func is_ads() -> bool:
 	return _ads
 
 
+## #381: how far this gun is aiming down the sights, 0..1, for other screens and the killcam. A scoped
+## gun hides its model while aiming, so its _ads_k never rises: the scope counts as fully aimed.
+func ads_amt() -> float:
+	if _ads and def != null and def.is_scope():
+		return 1.0
+	return _ads_k
+
+
+## #381: the ADS pose for a viewmodel built by fit_model (the replay gun), so the killcam puts the gun
+## where the live weapon does. The same numbers as _ads_pose().
+static func ads_pose_for(fit: Dictionary, rest_pos: Vector3) -> Vector3:
+	if fit.has("sight"):
+		var o := Vector3(fit.sight)
+		return Vector3(-o.x, -o.y - ADS_SIGHT_GAP, -ADS_SIGHT_Z - o.z)
+	var drop := -float(fit.sight_y) - ADS_SIGHT_GAP if fit.has("sight_y") else -0.092
+	return Vector3(0.0, drop, rest_pos.z - 0.02)
+
+
 ## Chat, pause, a freeze, the killcam, the RC-XD and LOS all keep the gun from firing.
 ## Mouse capture is checked separately: a click that only releases the cursor is not a shot.
 func trigger_locked() -> bool:

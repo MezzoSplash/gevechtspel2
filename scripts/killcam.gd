@@ -82,6 +82,7 @@ var _title: Label # the top-bar title, which climbs with the combo (#258)
 var _hit_t := 0.0
 var _hit_kill := false
 var _hit_head := false
+var _scope := false # #381: the killer is looking through a sniper scope in this frame
 var _sfx_hit: AudioStreamPlayer
 var _sfx_head: AudioStreamPlayer
 var _sfx_kill: AudioStreamPlayer
@@ -534,6 +535,7 @@ func _mark(killed: bool, headshot: bool) -> void:
 
 func _end_playback() -> void:
 	_playing = false
+	_scope = false
 	KillcamPuppets.free_ghosts(self)
 	if _overlay:
 		_overlay.queue_free()

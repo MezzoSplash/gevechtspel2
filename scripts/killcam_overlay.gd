@@ -114,9 +114,14 @@ static func update_title(k: Killcam) -> void:
 
 
 ## The killer's crosshair and hit markers, like the HUD draws them, plus the VHS fast-forward overlay.
+## #381: a scoped sniper gets the scope instead: a dark ring with the fine crosshair, and no hip
+## crosshair — the same read as the live sniper scope.
 static func on_draw(k: Killcam, canvas: Control) -> void:
 	draw_vhs(k, canvas)
 	var c := canvas.size * 0.5
+	if k._scope:
+		draw_scope(canvas, c)
+		return
 	var col := Color(0.95, 0.95, 0.95, 0.85)
 	for d in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
 		canvas.draw_line(c + d * 5.0, c + d * 13.0, col, 2.0, true)
@@ -131,3 +136,30 @@ static func on_draw(k: Killcam, canvas: Control) -> void:
 	var s := 13.0 if k._hit_kill or k._hit_head else 9.0
 	for d in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		canvas.draw_line(c + d * s, c + d * s * 0.35, hit_col, 2.4, true)
+
+
+## #381: the sniper scope in the replay: a dark ring around a clear centre, a fine crosshair and the
+## hit markers inside it. Same read as the live scope, drawn with the overlay's own primitives.
+static func draw_scope(canvas: Control, c: Vector2) -> void:
+	var r := minf(canvas.size.x, canvas.size.y) * 0.42
+	var dark := Color(0, 0, 0, 0.96)
+	# The world outside the tube goes black. A CanvasItem cannot punch a hole in a rect, so the outside
+	# is covered in thin vertical spans that follow the circle: 4 px wide, which reads as a smooth edge.
+	var step := 4.0
+	var x := 0.0
+	while x < canvas.size.x:
+		var dx := absf(x + step * 0.5 - c.x)
+		if dx < r:
+			var hh := sqrt(r * r - dx * dx)
+			canvas.draw_rect(Rect2(x, 0.0, step, c.y - hh), dark)
+			canvas.draw_rect(Rect2(x, c.y + hh, step, canvas.size.y - (c.y + hh)), dark)
+		else:
+			canvas.draw_rect(Rect2(x, 0.0, step, canvas.size.y), dark)
+		x += step
+	canvas.draw_arc(c, r, 0.0, TAU, 96, Color(0, 0, 0, 0.85), 6.0, true)
+	canvas.draw_arc(c, r * 0.985, 0.0, TAU, 96, Color(0.75, 0.9, 1.0, 0.25), 1.5, true)
+	var line := Color(0.95, 0.95, 0.95, 0.8)
+	canvas.draw_line(c - Vector2(r * 0.55, 0), c - Vector2(6, 0), line, 1.5, true)
+	canvas.draw_line(c + Vector2(6, 0), c + Vector2(r * 0.55, 0), line, 1.5, true)
+	canvas.draw_line(c - Vector2(0, r * 0.55), c - Vector2(0, 6), line, 1.5, true)
+	canvas.draw_line(c + Vector2(0, 6), c + Vector2(0, r * 0.55), line, 1.5, true)

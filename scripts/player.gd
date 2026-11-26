@@ -253,6 +253,9 @@ const MOVE_GRAPPLE := 4 # the grapple pull (shared/grapple.gd); a wallrun or a d
 ## hand. `grapple_at` only means something while `grappling` is true.
 @export var grappling := false
 @export var grapple_at := Vector3.ZERO
+## Synced from the owner: how far this pawn aims down the sights, 0..1 (#381). Cosmetic, so another
+## screen can show a human's ADS and the killcam can replay it; bots never aim.
+@export var ads_amt := 0.0
 var _grapple := Grapple.new()
 var _wallrunning := false
 var _wall_n := Vector3.ZERO
@@ -1192,6 +1195,10 @@ func _apply_grapple_pull(delta: float) -> void:
 	grappling = _grapple.active
 	if grappling:
 		grapple_at = _grapple.anchor
+	# #381: the owner publishes its aim so other screens (and the killcam) can see it; a remote copy
+	# keeps what the wire delivered.
+	if is_local() and weapon != null:
+		ads_amt = weapon.ads_amt()
 
 
 ## Every machine, every frame: the rope from the reaching hand to the anchor, and the hand itself.
