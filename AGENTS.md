@@ -399,6 +399,11 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
+- v0.6.3 (released): killstreak choice, up to three from a list in a tile grid (#387, #389, #395), LOS 2.0
+  with chain, magnetism, coconut and one dash (#384, #392), Overdrive on the 7-kill step (#388, #393),
+  ADS and grapple in the killcam (#381, #398), per-group loudness and per-weapon far layers (#370, #385,
+  #386), Hard shank bots no longer idle (#390, #391), bot_brain and killcam split (#317). `NET_VERSION`
+  0.5.22 - a 0.6.2 peer is refused.
 - v0.6.2 (released): ADS per gun in the data (`WeaponDef.ads_mode`: rifle, pistol, revolver and slug get
   iron sights, shotgun and shank state NONE) with the sight point on the eye line (#362, #376), aiming tightens
   the spread of rifle, pistol, revolver and slug (#378), and the SMG looks through its sight instead of into
