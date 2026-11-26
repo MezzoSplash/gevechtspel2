@@ -66,6 +66,11 @@ func _ready() -> void:
 	_ok(kc._cam != null, "the killer's camera exists")
 	_ok(kc._overlay != null, "the overlay is built")
 	_ok(kc._title != null, "the title label is there")
+	# The draw callback takes the node and the canvas: a connect that binds only one of them errors on
+	# every redraw ("Method expected 2 argument(s), but called with 1") without failing the replay.
+	var conns: Array = kc._draw.draw.get_connections()
+	var bound: Array = (conns[0].callable as Callable).get_bound_arguments() if conns.size() > 0 else []
+	_ok(bound.size() == 2 and bound[0] == kc, "the overlay's draw callback is bound to the node and the canvas")
 	# Play a second of it on explicit deltas: this is where the pose blend, the weapon model and the
 	# tracers run, and where a broken member access would show up.
 	var seen_move := false

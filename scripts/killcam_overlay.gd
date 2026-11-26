@@ -17,7 +17,7 @@ static func build(k: Killcam, info: Dictionary) -> void:
 	k._draw = Control.new()
 	k._draw.set_anchors_preset(Control.PRESET_FULL_RECT)
 	k._draw.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	k._draw.draw.connect(on_draw.bind(k._draw))
+	k._draw.draw.connect(on_draw.bind(k, k._draw))
 	full.add_child(k._draw)
 	var top := bar(full, true)
 	var title_text := "FINAL KILLCAM"
