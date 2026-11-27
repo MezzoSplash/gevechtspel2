@@ -1,0 +1,169 @@
+extends Node
+## Stijlvarianten voor Townhouses renderen zonder de map aan te passen (#322, stijlvoorstel).
+##
+## Laadt de map, zet per node-soort een materiaal uit het gekozen palet, en schiet de drie views van het
+## kade/ophaalbrug-stuk. De map op schijf blijft ongemoeid: dit is een voorstel, geen wijziging.
+##
+##   xvfb-run -a godot --path . res://tools/shot_style.tscn -- --out DIR
+var out := "/tmp"
+var map: Node3D
+var env: Environment
+
+const VIEWS := {
+	"quay": [Vector3(9, 2.0, 30), Vector3(6, 1.5, -10)],
+	"drawbridge": [Vector3(14, 6, 10), Vector3(0, 6, 0)],
+	"canal": [Vector3(0, 2.0, 34), Vector3(0, -1.0, 0)],
+}
+
+## Twee richtingen. Alle kleuren zijn tinten: de gegenereerde steen-/pantexturen blijven eronder zitten.
+const PALETTES := {
+	"a": {
+		"brick": Color(0.62, 0.4, 0.24),
+		"roof": Color(0.26, 0.44, 0.4),
+		"stone": Color(0.5, 0.44, 0.4),
+		"pave": Color(0.46, 0.42, 0.36),
+		"wood": Color(0.3, 0.22, 0.15),
+		"steel": Color(0.2, 0.22, 0.24),
+		"sun": Color(1.0, 0.84, 0.62),
+		"sky_top": Color(0.22, 0.32, 0.5),
+		"sky_hor": Color(0.86, 0.72, 0.55),
+		"fog": Color(0.82, 0.72, 0.6),
+		"sun_energy": 1.35,
+		"fog_density": 0.0014,
+	},
+	"b": {
+		"brick": Color(0.44, 0.42, 0.42),
+		"roof": Color(0.24, 0.27, 0.34),
+		"stone": Color(0.4, 0.42, 0.46),
+		"pave": Color(0.4, 0.42, 0.45),
+		"wood": Color(0.26, 0.24, 0.24),
+		"steel": Color(0.22, 0.25, 0.29),
+		"sun": Color(0.86, 0.92, 1.0),
+		"sky_top": Color(0.2, 0.3, 0.44),
+		"sky_hor": Color(0.66, 0.74, 0.8),
+		"fog": Color(0.68, 0.76, 0.84),
+		"sun_energy": 1.1,
+		"fog_density": 0.002,
+	},
+}
+
+var _tex := {}
+
+
+func _ready() -> void:
+	var args := OS.get_cmdline_user_args()
+	for i in args.size():
+		if args[i] == "--out" and i + 1 < args.size():
+			out = args[i + 1]
+	_tex = {
+		"brick": load("res://assets/maps/townhouses/brick.png"),
+		"roof": load("res://assets/maps/townhouses/rooftile.png"),
+		"cobble": load("res://assets/maps/townhouses/cobble.png"),
+		"quay": load("res://assets/maps/townhouses/quay.png"),
+	}
+	for key in PALETTES:
+		await _render(key, PALETTES[key])
+	print("SHOT STYLE: done")
+	get_tree().quit()
+
+
+func _render(key: String, p: Dictionary) -> void:
+	_teardown()
+	map = (load("res://scenes/maps/townhouses.tscn") as PackedScene).instantiate() as Node3D
+	add_child(map)
+	env = (map.get_node("WorldEnvironment") as WorldEnvironment).environment.duplicate() as Environment
+	(map.get_node("WorldEnvironment") as WorldEnvironment).environment = env
+	_style_sky(p)
+	for n in _csg_nodes(map):
+		var mat := _material_for(n.name, p)
+		# Een CSGCombiner3D heeft geen eigen materiaal (alleen de primitives); die slaan we over.
+		if n is CSGPrimitive3D or n is MeshInstance3D:
+			n.set("material", mat)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.current = true
+	for view in VIEWS:
+		var at: Array = VIEWS[view]
+		cam.global_position = at[0]
+		cam.look_at(at[1], Vector3.UP)
+		for i in 6:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		var path := "%s/style_%s_%s.png" % [out, key, view]
+		img.save_png(path)
+		print("saved ", path)
+	cam.queue_free()
+
+
+func _teardown() -> void:
+	if map != null and is_instance_valid(map):
+		map.queue_free()
+	map = null
+
+
+func _csg_nodes(root: Node) -> Array:
+	var out: Array = []
+	for n in root.find_children("*", "CSGShape3D", true, false):
+		out.append(n)
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		out.append(n)
+	return out
+
+
+## Welk materiaal bij welke node hoort, op de naam. De map is met de hand opgebouwd en de namen zeggen
+## wat het is (Gable, RoofSurf, QuayPave, Bridge, Portal, Wall), dus dat is betrouwbaarder dan de kleur
+## van het huidige materiaal raden.
+func _material_for(node_name: String, p: Dictionary) -> StandardMaterial3D:
+	var n := node_name.to_lower()
+	if n.begins_with("roof") or n.begins_with("rowfall"):
+		return _mat(p["roof"], "roof", 0.55)
+	if n.begins_with("gable") or n.begins_with("house") or n.begins_with("row"):
+		return _mat(p["brick"], "brick", 0.45)
+	if n.begins_with("quaypave") or n.begins_with("canalpave"):
+		return _mat(p["pave"], "quay", 0.22)
+	if n.begins_with("canalstep") or n.begins_with("ground") or n.begins_with("pave"):
+		return _mat(p["pave"], "cobble", 0.32)
+	if n.begins_with("bridge") or n.begins_with("drawdeck"):
+		return _mat(p["wood"], "cobble", 0.3)
+	if n.begins_with("portal"):
+		return _mat(p["steel"], "", 0.0, true)
+	if n.begins_with("wall"):
+		return _mat(p["stone"], "cobble", 0.12)
+	return _mat(p["stone"], "cobble", 0.2)
+
+
+func _mat(col: Color, tex_key: String, scale: float, metal := false) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = 0.5 if metal else 0.9
+	m.metallic = 0.6 if metal else 0.0
+	if tex_key != "" and _tex.has(tex_key):
+		m.albedo_texture = _tex[tex_key]
+		m.uv1_triplanar = true
+		m.uv1_scale = Vector3(scale, scale, scale)
+	return m
+
+
+func _style_sky(p: Dictionary) -> void:
+	var sky := env.sky
+	if sky == null:
+		sky = Sky.new()
+	var mat := (sky.sky_material as ProceduralSkyMaterial)
+	if mat == null:
+		mat = ProceduralSkyMaterial.new()
+		sky.sky_material = mat
+	mat = mat.duplicate() as ProceduralSkyMaterial
+	mat.sky_top_color = p["sky_top"]
+	mat.sky_horizon_color = p["sky_hor"]
+	sky.sky_material = mat
+	env.sky = sky
+	env.background_mode = Environment.BG_SKY
+	env.fog_enabled = true
+	env.fog_light_color = p["fog"]
+	env.fog_density = p["fog_density"]
+	env.ambient_light_energy = 0.45
+	var sun := map.get_node_or_null("Sun") as DirectionalLight3D
+	if sun:
+		sun.light_color = p["sun"]
+		sun.light_energy = p["sun_energy"]
