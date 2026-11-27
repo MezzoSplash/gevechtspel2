@@ -12,6 +12,11 @@ const DMG_HALF := HudLayout.DMG_HALF
 const HURT_TIME := 0.35 # s of red vignette after a hit
 const HIT_TIME := 0.085 # s of a body hit marker; kills and headshots hold KILL_HIT_TIME
 const KILL_HIT_TIME := 0.16
+## #320: de lichtrand aan de muurkant tijdens een wallrun. Breedte in px bij 1080p, geschaald mee met de
+## schermhoogte; de gloed volgt de resterende wallrun-tijd en trekt in de laatste 30% weg.
+const WALL_EDGE_W := 190.0
+const WALL_EDGE_MAX := 0.55
+const WALL_EDGE_FADE := 0.30 # deel van de run waarin de rand wegtrekt
 
 var player: Player # the local pawn: crosshair bloom and the wedges' frame of reference
 var sniper_ads := false
@@ -22,6 +27,8 @@ var head_hit := false
 var fire_punch := 0.0
 var hurt_flash := 0.0
 var dmg_dirs: Array[Dictionary] = [] # {pos: Vector3, t: float}: where recent damage came from
+var wall_edge_side := 0 # #320: -1 muur links, +1 muur rechts, 0 geen rand (de check leest dit)
+var wall_edge_amt := 0.0
 
 
 func _init() -> void:
@@ -31,6 +38,7 @@ func _init() -> void:
 
 
 func tick(delta: float) -> void:
+	_tick_wall_edge()
 	hit_timer = maxf(hit_timer - delta, 0.0)
 	fire_punch = move_toward(fire_punch, 0.0, delta * 9.0)
 	hurt_flash = maxf(hurt_flash - delta, 0.0)
@@ -82,6 +90,7 @@ static func dir_angle(view: Transform3D, world_pos: Vector3) -> float:
 
 func _draw() -> void:
 	var c := size * 0.5
+	_draw_wall_edge()
 	_draw_crosshair(c)
 	_draw_los_bar(c)
 	_draw_hurt()
@@ -183,3 +192,42 @@ func _draw_hit_marker(c: Vector2) -> void:
 
 func _bar(from: Vector2, delta: Vector2, col: Color, thick: float) -> void:
 	draw_line(from, from + delta, col, thick, true)
+
+
+## #320: welke kant is de muur op, en hoe sterk gloeit de rand nog? Alleen de lokale speler, alleen tijdens
+## een wallrun, en uit met de speed-effects-schakelaar (Access-tab). Bij dive en surf staat `_wallrunning`
+## uit, dus daar komt de rand niet.
+func _tick_wall_edge() -> void:
+	wall_edge_side = 0
+	wall_edge_amt = 0.0
+	var p := player if is_instance_valid(player) else null
+	if p == null or not Game.speed_fx or p.is_dead or not p.is_wallrunning():
+		return
+	var cam := p.camera
+	if cam == null:
+		return
+	# De wandnormaal wijst van de muur af: zit die naar rechts, dan zit de muur links.
+	var dot := p._wall_n.dot(cam.global_transform.basis.x)
+	if absf(dot) < 0.05:
+		return # muur recht voor of achter: geen kant om te belichten
+	var remaining := 1.0 - clampf(p._wallrun_t / p.WALLRUN_TIME, 0.0, 1.0)
+	if Overdrive.wallrun_free(p):
+		remaining = 1.0 # een Overdrive-wallrun loopt niet af
+	# Vlak voor het eind trekt de gloed weg, zodat je ziet wanneer je moet springen.
+	wall_edge_amt = minf(remaining / WALL_EDGE_FADE, 1.0) * minf(p._wallrun_t / 0.08, 1.0)
+	wall_edge_side = -1 if dot > 0.0 else 1
+
+
+func _draw_wall_edge() -> void:
+	if wall_edge_side == 0 or wall_edge_amt <= 0.01:
+		return
+	var w := WALL_EDGE_W * (size.y / 1080.0)
+	var steps := 28
+	var col := CrystalStyle.ICE
+	for i in steps:
+		var f := 1.0 - float(i) / float(steps) # 1 aan de rand, 0 aan de binnenkant
+		var a := wall_edge_amt * WALL_EDGE_MAX * pow(f, 1.7)
+		if a <= 0.002:
+			continue
+		var x := float(i) * w / steps if wall_edge_side < 0 else size.x - float(i + 1) * w / steps
+		draw_rect(Rect2(x, 0.0, w / steps + 0.5, size.y), Color(col.r, col.g, col.b, a))
