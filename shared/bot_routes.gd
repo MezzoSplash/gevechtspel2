@@ -31,9 +31,12 @@ static var _cache := {} # map id -> Array of routes (validated)
 ## #311/#360: een match kan zijn eerste bot-tik doen voordat de collision van de map er is (CSG wordt
 ## gebakken). Dan raakt elke straal niets en zouden alle routes voor de hele match weg zijn. Zo'n lege
 ## uitslag wordt daarom niet gecached: de volgende tik probeert het opnieuw.
-static var _retry := {} # map id -> aantal pogingen dat op een niet-klare wereld wachtte
+## map id -> physics frame van de eerste poging die niets vond. Het venster telt in frames, niet in
+## aanroepen: elke bot vraagt de routes per tik op, dus met 12 bots zou "120 aanroepen" maar ~10 ticks zijn
+## en dan hing de wachttijd aan het aantal bots (review Chief, #400).
+static var _retry := {}
 static var _retry_warned := {}
-const RETRY_MAX := 120 # ~2 s at 60 Hz: ruim voor elke CSG-bake, en daarna geloven we het
+const RETRY_SECONDS := 2.0 # ruim voor elke CSG-/navmesh-bake, en daarna geloven we de uitslag
 
 
 ## Every valid route on `map_id`. Empty when the map has no file; a broken file gives an empty list
@@ -53,15 +56,18 @@ static func for_map(space: PhysicsDirectSpaceState3D, map_id: StringName) -> Arr
 	var raw := _read(path)
 	var res := _validate_full(space, raw, path, false)
 	var out: Array = res["routes"]
-	if not raw.is_empty() and out.is_empty() and int(_retry.get(map_id, 0)) < RETRY_MAX:
-		var tries := int(_retry.get(map_id, 0)) + 1
-		_retry[map_id] = tries
-		if not _retry_warned.has(map_id):
-			_retry_warned[map_id] = true
-			push_warning("BotRoutes: %s: no route passed yet (%d rays hit the world); the map is probably not loaded yet. The answer is not cached and the next tick tries again (#311/#360)" % [path, int(res["hits"])])
-		return []
 	if not raw.is_empty() and out.is_empty():
-		# Out of retries: validate once more, with the per-route reasons, so the log shows what is wrong.
+		var frame := Engine.get_physics_frames()
+		var since := int(_retry.get(map_id, frame))
+		if not _retry.has(map_id):
+			_retry[map_id] = frame
+		if frame - since < int(RETRY_SECONDS * Engine.physics_ticks_per_second):
+			if not _retry_warned.has(map_id):
+				_retry_warned[map_id] = true
+				push_warning("BotRoutes: %s: no route passed yet (%d rays hit the world); the map is probably not loaded yet. The answer is not cached and the next tick tries again (#311/#360)" % [path, int(res["hits"])])
+			return []
+		# Uit de tijd: valideer nog een keer met de per-route-redenen, zodat een echt kapot bestand zich
+		# alsnog meldt, en neem die uitslag dan over.
 		res = _validate_full(space, raw, path, true)
 		out = res["routes"]
 	_cache[map_id] = out
