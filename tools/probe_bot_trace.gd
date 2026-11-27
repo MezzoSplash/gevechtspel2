@@ -10,8 +10,9 @@ extends Node
 ## seed(1), every BotBrain.rng seeded by slot, TDM respawns on fixed team spots, and navigation switched to
 ## synchronous updates for the run (Godot's default threads them, so the first path landed on a varying
 ## frame). Not deterministic, so left out of bot_parity.sh: FFA (main.gd spaces FFA spawns by wall-clock
-## time), Easy and Medium (BotBrain's hearing reads Time.get_ticks_msec) and Skyline (one of two traces,
-## a race while it loads).
+## time) and Skyline (one of two traces, a race while it loads). Easy and Medium used to be excluded too
+## because BotBrain's hearing read Time.get_ticks_msec; since #354 it reads simulation time (physics
+## frames), so both skills can be traced.
 const PARK := Vector3(0, 400, 0)
 const BOTS := 8
 

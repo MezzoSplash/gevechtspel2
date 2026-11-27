@@ -170,7 +170,10 @@ var _cover_point := Vector3.ZERO
 var _cover_flee := false
 ## Awareness (see Game.BOT_PROFILES: omni / memory / hear). A bot that is not omniscient only knows an
 ## enemy it saw, was shot by, or heard fire close by, and hunts the last place it knew them.
-const HEAR_MS := 1200 # a shot this recent still counts as heard at the next retarget
+## #354: a shot this many physics ticks old still counts as heard at the next retarget. Simulation time,
+## not the wall clock: at 60 Hz this is the old 1200 ms, but a long frame no longer makes a bot deaf and a
+## seeded match plays out the same on a slow machine.
+const HEAR_TICKS := 72
 const HEAR_ERROR := 3.0 # m: where a shot seems to come from is off by up to this much
 const SEARCH_ARRIVE := 3.0 # m: at the last known spot and nobody there: forget them
 const PATROL_TIME := 10.0 # s: a patrol point is dropped after this long, reached or not
@@ -440,9 +443,9 @@ func _listen(enemies: Array[Player]) -> void:
 	if _omniscient():
 		return
 	var r := float(Game.bot_profile().hear)
-	var now := Time.get_ticks_msec()
+	var now := Engine.get_physics_frames()
 	for e in enemies:
-		if now - e.last_shot_ms > HEAR_MS:
+		if now - e.last_shot_tick > HEAR_TICKS:
 			continue
 		if pawn.global_position.distance_to(e.global_position) > r:
 			continue

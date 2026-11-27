@@ -90,15 +90,50 @@ func _ready() -> void:
 	# Hearing depends on a shot marking the pawn. On a dedicated server there is no sound, so the server
 	# marks it in request_weapon_fire; the weapon path (a bot's own shot) has to do it too.
 	var gunner := _pawn(21)
-	gunner.last_shot_ms = -100000
+	gunner.last_shot_tick = -100000
 	gunner.mark_shot()
-	_ok(Time.get_ticks_msec() - gunner.last_shot_ms < 500,
-		"Player.mark_shot() stamps the shot (what the server calls for a remote human)")
-	gunner.last_shot_ms = -100000
+	_ok(Engine.get_physics_frames() - gunner.last_shot_tick < 5,
+		"Player.mark_shot() stamps the shot in simulation time (what the server calls for a remote human)")
+	gunner.last_shot_tick = -100000
 	gunner.weapon.play_fire_sfx()
-	_ok(Time.get_ticks_msec() - gunner.last_shot_ms < 500,
+	_ok(Engine.get_physics_frames() - gunner.last_shot_tick < 5,
 		"a fired weapon stamps its pawn (the bot path, and every machine that plays the shot)")
-	gunner.queue_free()
+	_ok(Time.get_ticks_msec() - gunner.last_shot_ms < 500, "and the wall-clock stamp for the minimap is still there")
+
+	# #354: hearing runs on the simulation clock, not on the wall clock. A shot a few ticks old is heard,
+	# one older than HEAR_TICKS is not, and a shot whose wall-clock stamp is ancient but whose tick is
+	# fresh is heard too - that last one is the regression: it used to depend on how long a frame took.
+	Game.bot_difficulty = Game.BOT_EASY
+	var listener := _pawn(22)
+	listener.global_position = Vector3.ZERO
+	var shooter := _pawn(23)
+	shooter.global_position = Vector3(2, 0, 0)
+	var listen_brain := BotBrain.new()
+	listen_brain.setup(listener, null)
+	var hear_r := float(Game.bot_profile().hear)
+	_ok(shooter.global_position.distance_to(listener.global_position) < hear_r,
+		"the shooter is inside the hearing radius (%.0f m)" % hear_r)
+	shooter.last_shot_tick = Engine.get_physics_frames() - 2
+	shooter.last_shot_ms = -999999
+	listen_brain._known.clear()
+	listen_brain._listen([shooter] as Array[Player])
+	_ok(listen_brain._knows(shooter), "a shot a few ticks old is heard, whatever the wall clock says (#354)")
+	shooter.last_shot_tick = Engine.get_physics_frames() - BotBrain.HEAR_TICKS - 2
+	shooter.last_shot_ms = Time.get_ticks_msec()
+	listen_brain._known.clear()
+	listen_brain._listen([shooter] as Array[Player])
+	_ok(not listen_brain._knows(shooter), "a shot older than HEAR_TICKS is not heard, even a moment ago on the wall clock")
+
+	# #354, het echte geval: een hapering van 1,4 s echte tijd (geen physics-ticks) mag een schot dat net
+	# gelost is niet onhoorbaar maken. Op de oude code las _listen de wandklok en was dit schot "te oud".
+	shooter.last_shot_tick = Engine.get_physics_frames()
+	shooter.last_shot_ms = Time.get_ticks_msec()
+	OS.delay_msec(1400)
+	listen_brain._known.clear()
+	listen_brain._listen([shooter] as Array[Player])
+	_ok(listen_brain._knows(shooter), "a 1.4 s stall in real time does not make a fresh shot inaudible (#354)")
+	for p in [gunner, listener, shooter]:
+		p.queue_free()
 
 	Game.bot_difficulty = old_skill
 	print("BOT AWARE CHECK %s (%d failures)" % ["OK" if fails == 0 else "FAILED", fails])

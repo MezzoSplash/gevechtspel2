@@ -171,7 +171,10 @@ var _capsule: CapsuleShape3D
 var _spawn_protect := 0.0
 var _bot_brain
 var _body_mat: StandardMaterial3D
-var last_shot_ms := -100000 # ticks of this pawn's last shot seen here (minimap red dot, bot hearing)
+var last_shot_ms := -100000 # wall clock of this pawn's last shot seen here (minimap red dot; UI only)
+## #354: the same shot in simulation time (physics frames), which is what a bot's hearing reads: a bot
+## must not hear less because a frame took long, and a seeded match has to play out the same every run.
+var last_shot_tick := -100000
 var _sliding := false
 var _slide_t := 0.0
 var _slide_dir := Vector3.FORWARD
@@ -658,6 +661,7 @@ func consume_lunge(delta: float) -> void:
 ## the weapon plays) and from the server's request_weapon_fire, so hearing does not depend on the fx path.
 func mark_shot() -> void:
 	last_shot_ms = Time.get_ticks_msec()
+	last_shot_tick = Engine.get_physics_frames()
 
 
 ## Match authority: seconds this pawn has stayed above Style.RUN_GUN_SPEED (0 after any dip).
