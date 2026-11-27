@@ -8,8 +8,8 @@
 [ext_resource type="Texture2D" path="res://assets/maps/townhouses/quay.png" id="tex_quay"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_townhouses"]
-sky_top_color = Color(0.17, 0.3, 0.5, 1)
-sky_horizon_color = Color(0.5, 0.59, 0.68, 1)
+sky_top_color = Color(0.22, 0.32, 0.5, 1)
+sky_horizon_color = Color(0.86, 0.72, 0.55, 1)
 ground_bottom_color = Color(0.16, 0.17, 0.2, 1)
 ground_horizon_color = Color(0.5, 0.55, 0.6, 1)
 sun_angle_max = 18.0
@@ -22,17 +22,17 @@ background_mode = 2
 sky = SubResource("Sky_townhouses")
 ambient_light_source = 3
 ambient_light_color = Color(0.52, 0.56, 0.62, 1)
-ambient_light_sky_contribution = 0.72
-ambient_light_energy = 0.8
+ambient_light_sky_contribution = 0.85
+ambient_light_energy = 1.15
 tonemap_mode = 2
 ssao_enabled = false
 glow_enabled = true
 glow_intensity = 0.35
 glow_bloom = 0.05
 fog_enabled = true
-fog_light_color = Color(0.6, 0.68, 0.76, 1)
+fog_light_color = Color(0.82, 0.72, 0.6, 1)
 fog_light_energy = 0.55
-fog_density = 0.0011
+fog_density = 0.0014
 fog_sky_affect = 0.1
 fog_height = 0.0
 fog_height_density = 0.0
@@ -56,11 +56,13 @@ albedo_color = Color(0.36, 0.36, 0.35, 1)
 roughness = 0.88
 
 [sub_resource type="StandardMaterial3D" id="Mat_water"]
-albedo_color = Color(0.16, 0.24, 0.28, 1)
-roughness = 0.35
+albedo_color = Color(0.09, 0.17, 0.18, 1)
+roughness = 0.18
+metallic = 0.35
+metallic_specular = 0.7
 
 [sub_resource type="StandardMaterial3D" id="Mat_outer"]
-albedo_color = Color(0.34, 0.37, 0.42, 1)
+albedo_color = Color(0.5, 0.44, 0.4, 1)
 roughness = 0.85
 
 [sub_resource type="StandardMaterial3D" id="Mat_team_blue"]
@@ -72,14 +74,14 @@ albedo_color = Color(0.7, 0.44, 0.18, 1)
 roughness = 0.82
 
 [sub_resource type="StandardMaterial3D" id="Mat_cobble"]
-albedo_color = Color(0.34, 0.33, 0.32, 1)
+albedo_color = Color(0.4, 0.36, 0.32, 1)
 roughness = 0.92
 albedo_texture = ExtResource("tex_cobble")
 uv1_triplanar = true
 uv1_scale = Vector3(0.7, 0.7, 0.7)
 
 [sub_resource type="StandardMaterial3D" id="Mat_quay"]
-albedo_color = Color(0.4, 0.39, 0.36, 1)
+albedo_color = Color(0.46, 0.42, 0.36, 1)
 roughness = 0.88
 albedo_texture = ExtResource("tex_quay")
 uv1_triplanar = true
@@ -90,7 +92,7 @@ albedo_color = Color(0.3, 0.33, 0.37, 1)
 roughness = 0.62
 
 [sub_resource type="StandardMaterial3D" id="Mat_wood"]
-albedo_color = Color(0.48, 0.4, 0.32, 1)
+albedo_color = Color(0.3, 0.22, 0.15, 1)
 roughness = 0.8
 
 [sub_resource type="StandardMaterial3D" id="Mat_hazard"]
@@ -98,14 +100,14 @@ albedo_color = Color(0.78, 0.62, 0.14, 1)
 roughness = 0.75
 
 [sub_resource type="StandardMaterial3D" id="Mat_brick_w"]
-albedo_color = Color(0.55, 0.36, 0.22, 1)
+albedo_color = Color(0.62, 0.4, 0.24, 1)
 roughness = 0.92
 albedo_texture = ExtResource("tex_brick")
 uv1_triplanar = true
 uv1_scale = Vector3(1.4, 1.4, 1.4)
 
 [sub_resource type="StandardMaterial3D" id="Mat_roof"]
-albedo_color = Color(0.36, 0.22, 0.18, 1)
+albedo_color = Color(0.26, 0.44, 0.4, 1)
 roughness = 0.86
 albedo_texture = ExtResource("tex_roof")
 uv1_triplanar = true
@@ -116,7 +118,7 @@ albedo_color = Color(0.2, 0.21, 0.23, 1)
 roughness = 0.88
 
 [sub_resource type="StandardMaterial3D" id="Mat_brick_c"]
-albedo_color = Color(0.22, 0.42, 0.48, 1)
+albedo_color = Color(0.3, 0.48, 0.46, 1)
 roughness = 0.92
 albedo_texture = ExtResource("tex_brick")
 uv1_triplanar = true
@@ -145,8 +147,8 @@ environment = SubResource("Env_townhouses")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.766, -0.4545, 0.4545, 0, 0.7071, 0.7071, -0.6428, -0.5417, 0.5417, 6, 18, 8)
-light_energy = 1.25
-light_color = Color(1, 0.95, 0.88, 1)
+light_energy = 1.35
+light_color = Color(1, 0.84, 0.62, 1)
 shadow_enabled = true
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
