@@ -116,7 +116,8 @@ static func load_ghost(map_id: StringName, line: int) -> PackedFloat32Array:
 	if version != 1 or count <= 0:
 		f.close()
 		return PackedFloat32Array()
-	var bytes := f.get_buffer(count * 4 * 4)
+	# count is het aantal floats, niet het aantal samples: elk sample is vier floats, dus count * 4 bytes.
+	var bytes := f.get_buffer(count * 4)
 	f.close()
 	return bytes.to_float32_array()
 
