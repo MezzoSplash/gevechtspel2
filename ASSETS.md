@@ -14,6 +14,7 @@ Status: **OK** = own work or CC0/MIT, fine for commercial use · **ATTR** = fine
 | Kenney-based sounds (steps, hurt, knife/melee hit, grenade boom, trickshot, shotgun tail) | 11 | Kenney Impact / Sci-fi / Interface Sounds | CC0 | OK |
 | Synthesized sounds (knife throw, melee swing, RC-XD boom/drive, empty, hit, headshot, kill, whoosh) | 9 | `tools/build_sfx.py`, `tools/gen_sounds.py` | own (CC0) | OK |
 | Townhouses map textures (`assets/maps/townhouses/{brick,cobble,rooftile,quay}.png`) | 4 | Generated from scratch by `tools/gen_townhouses_textures.py` (deterministic, no samples or downloads) | own (CC0) | OK |
+| Townhouses facade detail: windows, doors, gables, roof trims, lamps, mooring posts, boats, bikes (`scripts/map_detail.gd`, stijl A) | 0 files | Built in code at map load (MultiMeshes, primitives only; no external mesh, texture or sound) | own (CC0) | OK |
 | Speed FX wind loop (`wind_loop.wav`, generated placeholder) | 1 | `tools/gen_sounds.py` (`wind_loop()`, deterministic, cross-faded so it loops) | own (CC0) | GENERATE |
 | Combo SFX (`combo_*.wav`, "THUG2-style") | 4 | Synthesized from scratch in `tools/gen_combo_sfx.py` (no samples) | own (CC0) | OK* |
 | Music (`music_round_start/round_final.wav`) | 2 | Synthesized in `tools/gen_music.py` | own (CC0) | OK |
