@@ -13,6 +13,7 @@ Status: **OK** = own work or CC0/MIT, fine for commercial use · **ATTR** = fine
 | Gun sounds (`rifle/pistol/shotgun/sniper/smg/revolver_fire.wav`) | 6 | The Free Firearm Sound Library (OpenGameArt), via `tools/build_sfx.py` | CC0 | OK |
 | Kenney-based sounds (steps, hurt, knife/melee hit, grenade boom, trickshot, shotgun tail) | 11 | Kenney Impact / Sci-fi / Interface Sounds | CC0 | OK |
 | Synthesized sounds (knife throw, melee swing, RC-XD boom/drive, empty, hit, headshot, kill, whoosh) | 9 | `tools/build_sfx.py`, `tools/gen_sounds.py` | own (CC0) | OK |
+| Townhouses map textures (`assets/maps/townhouses/{brick,cobble,rooftile,quay}.png`) | 4 | Generated from scratch by `tools/gen_townhouses_textures.py` (deterministic, no samples or downloads) | own (CC0) | OK |
 | Speed FX wind loop (`wind_loop.wav`, generated placeholder) | 1 | `tools/gen_sounds.py` (`wind_loop()`, deterministic, cross-faded so it loops) | own (CC0) | GENERATE |
 | Combo SFX (`combo_*.wav`, "THUG2-style") | 4 | Synthesized from scratch in `tools/gen_combo_sfx.py` (no samples) | own (CC0) | OK* |
 | Music (`music_round_start/round_final.wav`) | 2 | Synthesized in `tools/gen_music.py` | own (CC0) | OK |
