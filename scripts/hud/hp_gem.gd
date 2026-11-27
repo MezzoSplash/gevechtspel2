@@ -41,8 +41,10 @@ func set_state(hp: float, max_hp: float, armour := 0.0, max_armour := 100.0) -> 
 	armour_frac = clampf(armour / maxf(max_armour, 1.0), 0.0, 1.0)
 	if hp_frac < before - 0.001:
 		_spawn_chips(maxi(2, int((before - hp_frac) * 10.0)))
-		if hp_frac > shown:
-			shown = hp_frac # harder dan wat er nog stond: meteen korter
+		# Een hit maakt de seam nooit langer: staat hij nog onder de nieuwe HP (aan het teruggroeien na
+		# herstel), dan blijft hij staan en groeit tick() hem verder. `hp_frac > shown` hier zette hem
+		# juist omhoog op het moment van de hit (review Chief op #403).
+		shown = minf(shown, hp_frac)
 	queue_redraw()
 
 

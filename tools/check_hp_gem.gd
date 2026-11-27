@@ -42,6 +42,21 @@ func _ready() -> void:
 	var low_col := gem._hp_color()
 	_ok(low_col.r > low_col.b, "the seam turns red when low (r %.2f > b %.2f)" % [low_col.r, low_col.b])
 
+	# 5a) Een hit tijdens het herstel maakt de seam niet langer (review Chief op #403): de seam staat nog
+	#     onder de nieuwe HP en moet blijven staan, niet omhoog springen op het moment van de klap.
+	gem.set_state(40.0, 100.0)
+	gem.tick(0.1)
+	for i in 6:
+		gem.tick(0.1)
+	gem.set_state(70.0, 100.0) # herstel: de seam begint terug te groeien
+	for i in 2:
+		gem.tick(0.1)
+	var mid_regen := gem.seam_lit()
+	_ok(mid_regen < 0.6, "the seam lags behind while it regenerates (%.2f)" % mid_regen)
+	gem.set_state(62.0, 100.0) # en dan een hit, die de HP nog boven de seam laat
+	var after_hit := gem.seam_lit()
+	_ok(after_hit <= mid_regen + 0.001, "a hit never makes the seam longer (%.2f -> %.2f)" % [mid_regen, after_hit])
+
 	# 5) Herstel: de seam groeit terug in plaats van te springen.
 	gem.set_state(80.0, 100.0)
 	gem.tick(0.1)
