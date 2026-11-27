@@ -28,6 +28,8 @@ const HP_LOW := HudVitals.HP_LOW
 ## HP / armour / pickups (HudVitals): scripts/hud/.
 var overlay: HudOverlay
 var vitals: HudVitals
+## #319: de HP-gem (scripts/hud/hp_gem.gd), links in de HP-rij.
+var hp_gem: HpGem
 ## The pickup toast lives in HudVitals; this name stays for its callers.
 var pickup_toast: Label:
 	get:
@@ -483,6 +485,10 @@ func _facelift_hud() -> void:
 		var at := wrap.get_index()
 		bottom.add_child(row)
 		bottom.move_child(row, at)
+		# #319: de HP-gem links van de balk: een kristalschil met de HP- en armour-seam.
+		hp_gem = HpGem.new()
+		row.add_child(hp_gem)
+		row.move_child(hp_gem, 0)
 		wrap.reparent(row, false)
 		wrap.custom_minimum_size = Vector2(0, 28)
 		wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -504,6 +510,8 @@ func set_reloading(on: bool) -> void:
 ## HP, armour and pickups: HudVitals (scripts/hud/hud_vitals.gd).
 func _on_armour(a: float) -> void:
 	vitals.set_armour(a)
+	if hp_gem and is_instance_valid(_player):
+		hp_gem.set_state(_player.hp, Player.MAX_HP, a, Pickups.ARMOUR)
 
 
 func flash_pickup(label: String, col: Color) -> void:
@@ -519,6 +527,8 @@ func _sound_pickup_hint(text: String, col: Color) -> void:
 
 
 func _on_health(hp: float, max_hp: float) -> void:
+	if hp_gem and is_instance_valid(_player):
+		hp_gem.set_state(hp, max_hp, _player.armour, Pickups.ARMOUR)
 	if vitals.set_health(hp, max_hp):
 		overlay.hurt()
 
@@ -659,6 +669,8 @@ func _process(delta: float) -> void:
 	_tick_speed_meter(delta)
 	overlay.tick(delta)
 	vitals.tick(delta)
+	if hp_gem:
+		hp_gem.tick(delta)
 	_standing_t -= delta
 	if _standing_t <= 0.0:
 		_standing_t = 0.25
