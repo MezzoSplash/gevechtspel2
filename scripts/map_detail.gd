@@ -186,14 +186,16 @@ func _build() -> void:
 func _add_quads(xforms: Array[Transform3D], colors: Array[Color], unshaded: bool, node_name: String) -> void:
 	if xforms.is_empty():
 		return
+	var with_colors := colors.size() == xforms.size()
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = QuadMesh.new()
+	# use_colors moet aan staan vóór instance_count: daarna mag het niet meer (Godot-weigert anders).
+	mm.use_colors = with_colors
 	mm.instance_count = xforms.size()
 	for i in xforms.size():
 		mm.set_instance_transform(i, xforms[i])
-	if colors.size() == xforms.size():
-		mm.use_colors = true
+	if with_colors:
 		for i in xforms.size():
 			mm.set_instance_color(i, colors[i])
 	var mmi := MultiMeshInstance3D.new()

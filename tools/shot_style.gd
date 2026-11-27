@@ -222,7 +222,7 @@ const TEAM_COLORS := [Color(0.27, 0.46, 0.62), Color(0.7, 0.44, 0.18)]
 
 
 func _is_team(n: Node) -> bool:
-	var m := (n as CSGPrimitive3D).material
+	var m: Material = (n as CSGPrimitive3D).material
 	if m is StandardMaterial3D:
 		var c := (m as StandardMaterial3D).albedo_color
 		for t in TEAM_COLORS:
