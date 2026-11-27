@@ -54,9 +54,18 @@ func _ready() -> void:
 	var just_started := _edge(overlay, p, true, Vector3(1, 0, 0), 0.01)
 	_ok(just_started.y < 0.5, "and comes in over the first frames (%.2f)" % just_started.y)
 
-	# 4) Overdrive-wallruns lopen niet af: daar blijft de rand staan.
-	var saved := Overdrive.active(p)
-	_ok(not saved, "no Overdrive buff in this check, so the run times out")
+	# 4) Overdrive-wallruns lopen niet af: de rand blijft vol, ook vlak voor WALLRUN_TIME.
+	_ok(not Overdrive.active(p), "no Overdrive buff yet, so a normal run times out")
+	var od := Overdrive.new()
+	od.owner_peer = p.peer_id
+	add_child(od)
+	Overdrive._live[p.peer_id] = od
+	_ok(Overdrive.active(p), "Overdrive is running on this pawn")
+	_ok(Overdrive.wallrun_free(p), "and an Overdrive wallrun does not time out")
+	var od_edge := _edge(overlay, p, true, Vector3(1, 0, 0), Player.WALLRUN_TIME - 0.05)
+	_ok(od_edge.y > 0.9, "so the edge stays at full strength right before the run would end (%.2f)" % od_edge.y)
+	Overdrive._live.erase(p.peer_id)
+	od.queue_free()
 
 	# 5) Uit buiten een wallrun, bij een dode speler, en met de speed-effects-schakelaar uit.
 	_ok(_edge(overlay, p, false, Vector3(1, 0, 0), 0.3).x == 0.0, "no edge outside a wallrun")

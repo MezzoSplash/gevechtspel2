@@ -29,6 +29,34 @@ var hurt_flash := 0.0
 var dmg_dirs: Array[Dictionary] = [] # {pos: Vector3, t: float}: where recent damage came from
 var wall_edge_side := 0 # #320: -1 muur links, +1 muur rechts, 0 geen rand (de check leest dit)
 var wall_edge_amt := 0.0
+## Eén gradient-textuur per kant, één keer gebouwd. Losse draw_rects gaven zichtbare strepen: de
+## overlappende randen telden dubbel en 28 stappen over 190 px is te grof (review Chief op #402).
+var _edge_tex := {}
+
+
+func _edge_texture(bright_at_outer_left: bool) -> GradientTexture2D:
+	var key := "l" if bright_at_outer_left else "r"
+	if _edge_tex.has(key):
+		return _edge_tex[key] as GradientTexture2D
+	var g := Gradient.new()
+	var offs := PackedFloat32Array()
+	var cols := PackedColorArray()
+	var n := 16
+	for i in n + 1:
+		var f := float(i) / float(n)
+		offs.append(f)
+		var k := (1.0 - f) if bright_at_outer_left else f
+		cols.append(Color(1, 1, 1, pow(k, 1.7)))
+	g.offsets = offs
+	g.colors = cols
+	var tex := GradientTexture2D.new()
+	tex.width = 256
+	tex.height = 1
+	tex.fill_from = Vector2(0, 0)
+	tex.fill_to = Vector2(1, 0)
+	tex.gradient = g
+	_edge_tex[key] = tex
+	return tex
 
 
 func _init() -> void:
@@ -222,12 +250,7 @@ func _draw_wall_edge() -> void:
 	if wall_edge_side == 0 or wall_edge_amt <= 0.01:
 		return
 	var w := WALL_EDGE_W * (size.y / 1080.0)
-	var steps := 28
 	var col := CrystalStyle.ICE
-	for i in steps:
-		var f := 1.0 - float(i) / float(steps) # 1 aan de rand, 0 aan de binnenkant
-		var a := wall_edge_amt * WALL_EDGE_MAX * pow(f, 1.7)
-		if a <= 0.002:
-			continue
-		var x := float(i) * w / steps if wall_edge_side < 0 else size.x - float(i + 1) * w / steps
-		draw_rect(Rect2(x, 0.0, w / steps + 0.5, size.y), Color(col.r, col.g, col.b, a))
+	var tint := Color(col.r, col.g, col.b, wall_edge_amt * WALL_EDGE_MAX)
+	var rect := Rect2(0.0, 0.0, w, size.y) if wall_edge_side < 0 else Rect2(size.x - w, 0.0, w, size.y)
+	draw_texture_rect(_edge_texture(wall_edge_side < 0), rect, false, tint)
