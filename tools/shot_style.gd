@@ -75,6 +75,10 @@ func _render(key: String, p: Dictionary) -> void:
 	(map.get_node("WorldEnvironment") as WorldEnvironment).environment = env
 	_style_sky(p)
 	for n in _csg_nodes(map):
+		# Teamkleuren blijven staan. In een teamshooter moet je aan de wand zien welke kant je op kijkt,
+		# dus het palet raakt alleen de neutrale materialen (review Chief of staff op #405).
+		if n is CSGPrimitive3D and _is_team(n):
+			continue
 		var mat := _material_for(n.name, p)
 		# Een CSGCombiner3D heeft geen eigen materiaal (alleen de primitives); die slaan we over.
 		if n is CSGPrimitive3D or n is MeshInstance3D:
@@ -210,6 +214,23 @@ func _material_for(node_name: String, p: Dictionary) -> StandardMaterial3D:
 	if n.begins_with("wall"):
 		return _mat(p["stone"], "cobble", 0.6)
 	return _mat(p["stone"], "cobble", 0.6)
+
+
+## Team-materiaal herkennen aan de kleur: Mat_team_blue (0.27, 0.46, 0.62) en Mat_team_orange
+## (0.7, 0.44, 0.18). Een palet mag die niet overschrijven.
+const TEAM_COLORS := [Color(0.27, 0.46, 0.62), Color(0.7, 0.44, 0.18)]
+
+
+func _is_team(n: Node) -> bool:
+	var m := (n as CSGPrimitive3D).material
+	if m is StandardMaterial3D:
+		var c := (m as StandardMaterial3D).albedo_color
+		for t in TEAM_COLORS:
+			if absf(c.r - t.r) < 0.06 and absf(c.g - t.g) < 0.06 and absf(c.b - t.b) < 0.06:
+				return true
+	# De spawnwanden heten zo; die houden hun teamkleur ook als het materiaal ooit verschuift.
+	var nm := String(n.name).to_lower()
+	return nm.begins_with("wallnorth") or nm.begins_with("wallsouth") or nm.begins_with("spawnwall")
 
 
 func _mat(col: Color, tex_key: String, scale: float, metal := false) -> StandardMaterial3D:

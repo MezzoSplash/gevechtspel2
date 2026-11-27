@@ -1,4 +1,6 @@
-[gd_scene load_steps=26 format=3]
+[gd_scene load_steps=27 format=3]
+
+[ext_resource type="Script" path="res://scripts/map_detail.gd" id="det"]
 
 [ext_resource type="Texture2D" path="res://assets/maps/townhouses/brick.png" id="tex_brick"]
 [ext_resource type="Texture2D" path="res://assets/maps/townhouses/rooftile.png" id="tex_roof"]
@@ -21,7 +23,7 @@ sky = SubResource("Sky_townhouses")
 ambient_light_source = 3
 ambient_light_color = Color(0.52, 0.56, 0.62, 1)
 ambient_light_sky_contribution = 0.72
-ambient_light_energy = 0.45
+ambient_light_energy = 0.8
 tonemap_mode = 2
 ssao_enabled = false
 glow_enabled = true
@@ -74,14 +76,14 @@ albedo_color = Color(0.34, 0.33, 0.32, 1)
 roughness = 0.92
 albedo_texture = ExtResource("tex_cobble")
 uv1_triplanar = true
-uv1_scale = Vector3(0.32, 0.32, 0.32)
+uv1_scale = Vector3(0.7, 0.7, 0.7)
 
 [sub_resource type="StandardMaterial3D" id="Mat_quay"]
 albedo_color = Color(0.4, 0.39, 0.36, 1)
 roughness = 0.88
 albedo_texture = ExtResource("tex_quay")
 uv1_triplanar = true
-uv1_scale = Vector3(0.22, 0.22, 0.22)
+uv1_scale = Vector3(0.5, 0.5, 0.5)
 
 [sub_resource type="StandardMaterial3D" id="Mat_steel"]
 albedo_color = Color(0.3, 0.33, 0.37, 1)
@@ -100,14 +102,14 @@ albedo_color = Color(0.55, 0.36, 0.22, 1)
 roughness = 0.92
 albedo_texture = ExtResource("tex_brick")
 uv1_triplanar = true
-uv1_scale = Vector3(0.45, 0.45, 0.45)
+uv1_scale = Vector3(1.4, 1.4, 1.4)
 
 [sub_resource type="StandardMaterial3D" id="Mat_roof"]
 albedo_color = Color(0.36, 0.22, 0.18, 1)
 roughness = 0.86
 albedo_texture = ExtResource("tex_roof")
 uv1_triplanar = true
-uv1_scale = Vector3(0.55, 0.55, 0.55)
+uv1_scale = Vector3(1.0, 1.0, 1.0)
 
 [sub_resource type="StandardMaterial3D" id="Mat_trim"]
 albedo_color = Color(0.2, 0.21, 0.23, 1)
@@ -118,7 +120,7 @@ albedo_color = Color(0.22, 0.42, 0.48, 1)
 roughness = 0.92
 albedo_texture = ExtResource("tex_brick")
 uv1_triplanar = true
-uv1_scale = Vector3(0.45, 0.45, 0.45)
+uv1_scale = Vector3(1.4, 1.4, 1.4)
 
 [sub_resource type="StandardMaterial3D" id="Mat_awning"]
 albedo_color = Color(0.55, 0.2, 0.17, 1)
@@ -143,7 +145,7 @@ environment = SubResource("Env_townhouses")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.766, -0.4545, 0.4545, 0, 0.7071, 0.7071, -0.6428, -0.5417, 0.5417, 6, 18, 8)
-light_energy = 1.12
+light_energy = 1.25
 light_color = Color(1, 0.95, 0.88, 1)
 shadow_enabled = true
 
@@ -739,3 +741,6 @@ light_color = Color(1, 0.85, 0.66, 1)
 light_energy = 0.6
 omni_range = 10
 shadow_enabled = false
+
+[node name="MapDetail" type="Node3D" parent="Arena"]
+script = ExtResource("det")
