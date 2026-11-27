@@ -2,6 +2,20 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.6.4** — Trials: oefen je movement op tijd, met een ghost van je beste run.
+
+In het menu onder Singleplayer staat nu TRIALS. Op Townhouses liggen drie lijnen klaar: Kade (langs de oostkade, over de ophaalbrug, terug langs de westkade), Brug (kort en fel heen en weer) en Ommeland (een ronde om het midden). De klok start als je de start verlaat, alleen de volgende checkpoint telt dus overslaan kan niet, en `R` start opnieuw, `T` pakt de volgende lijn, `Esc` gaat terug naar het menu. Je snelste tijd per lijn blijft bewaard en je rijdt tegen een doorschijnende ghost van die run. Val je in het water, dan zet de baan je terug op je laatste checkpoint en loopt de klok door: het is een oefenbaan, geen straf.
+
+Wallruns voelen duidelijker: aan de muurkant komt een ijzige gloed op, die zwakker wordt in de laatste seconden en met Overdrive blijft staan.
+
+De HP-gem in de HUD laat zien wat je net kwijt was: de rand krimpt met een korrelige tik mee en groeit daarna rustig terug. Een klap maakt hem nooit langer dan je levens op dat moment.
+
+Bots: de wallrun-routes worden nu betrouwbaar geladen (geen bots meer die bij de start blijven staan) en ze horen schoten op speltijd in plaats van op de klok van de machine.
+
+Townhouses ziet er een stuk minder als een blockout uit: baksteen, dakpannen en keien op grotere schaal, ramen met kozijn alleen op gevelvlakken die vrij uitkijken, dakranden en lantaarnpalen langs de kade. De teamkleuren aan de wanden blijven zoals ze waren.
+
+**Wél compatibel met v0.6.3** (NET_VERSION blijft 0.5.22): er is niets nieuws op het netwerk, dus een 0.6.3-client kan gewoon meespelen op een 0.6.4-server. Trials is solo en gaat niet over de lijn.
+
 **v0.6.3** — Kies je eigen killstreaks, met twee nieuwe op 7 kills: LOS 2.0 en Overdrive.
 
 Je kiest zelf tot drie killstreaks in een tegelraster in het menu (onder Classes): UAV (3), RCXplodie (5), en op 7 kills LOS óf Overdrive. Kills tellen per leven, doodgaan zet de teller terug.

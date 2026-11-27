@@ -399,6 +399,12 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
+- v0.6.4 (released): Trials on Townhouses with three lines, checkpoints, a clock, best time and a
+  ghost of the body only (#325) - solo, no protocol change; the wallrun light edge on the wall
+  side (#320, #402), the HP gem with its seam (#319, #403), reliable wallrun-route loading (#311, #360,
+  #400) and bot hearing in simulation time (#354, #401), and the Townhouses art pass: textures at a
+  coarser scale, windows on free-facing facades, roof trims and quay lamps (#322, #405). `NET_VERSION`
+  stays 0.5.22 - a 0.6.3 peer still joins.
 - v0.6.3 (released): killstreak choice, up to three from a list in a tile grid (#387, #389, #395), LOS 2.0
   with chain, magnetism, coconut and one dash (#384, #392), Overdrive on the 7-kill step (#388, #393),
   ADS and grapple in the killcam (#381, #398), per-group loudness and per-weapon far layers (#370, #385,
