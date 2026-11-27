@@ -3,6 +3,7 @@ extends Control
 ## Home / Singleplayer / Multiplayer / Settings. Main starts the session.
 
 signal play_local_pressed
+signal trials_pressed
 signal host_pressed
 signal connect_pressed
 signal start_match_pressed
@@ -50,6 +51,8 @@ func _ready() -> void:
 	$Center/Home/MpButton.pressed.connect(func() -> void: show_screen("mp"))
 	$Center/Home/SettingsButton.pressed.connect(func() -> void: show_screen("settings"))
 	$Center/Home/ClassesButton.pressed.connect(func() -> void: show_screen("classes"))
+	if has_node("Center/Home/TrialsButton"):
+		$Center/Home/TrialsButton.pressed.connect(func() -> void: trials_pressed.emit())
 	class_editor = ClassEditor.new()
 	class_editor.name = "Classes"
 	class_editor.visible = false

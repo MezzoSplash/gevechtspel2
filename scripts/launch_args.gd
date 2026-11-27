@@ -8,7 +8,7 @@ extends RefCounted
 
 ## Parses the user args after `--` into a Dictionary with defaults for anything missing.
 static func parse(args: PackedStringArray) -> Dictionary:
-	var out := {"server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "style": -1, "time_min": -1, "bots": -1, "bot_difficulty": -1, "bots_allies": -1, "bots_enemies": -1}
+	var out := {"trials": -1, "server": false, "port": Game.DEFAULT_PORT, "connect": "", "name": "", "map": &"", "mode": -1, "kills": -1, "style": -1, "time_min": -1, "bots": -1, "bot_difficulty": -1, "bots_allies": -1, "bots_enemies": -1}
 	var i := 0
 	while i < args.size():
 		var a := args[i]
@@ -75,6 +75,12 @@ static func parse(args: PackedStringArray) -> Dictionary:
 					out.bot_difficulty = Game.parse_bot_difficulty(args[i])
 					if out.bot_difficulty < 0:
 						push_warning("--bot-difficulty: use easy, medium or hard (got %s)" % args[i])
+			"--trials":
+				# #325: start direct in Trials op de gegeven lijn (zonder waarde: lijn 0).
+				out.trials = 0
+				if i + 1 < args.size() and args[i + 1].is_valid_int():
+					i += 1
+					out.trials = int(args[i])
 			"--test-overdrive":
 				# Test only (#388): a server that charges every human with Overdrive, so the
 				# two-process check can start the buff without grinding seven kills.

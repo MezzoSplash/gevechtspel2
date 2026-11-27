@@ -33,6 +33,8 @@ var _killcam_sent := false
 ## True while the home menu is up: the offline match clock then runs a bot-only background match.
 ## It loops on its own (no final killcam) and every Play / Host / Join tears it down first.
 var _menu_match := true
+var trials: Node3D # #325: de lopende Trials-run, als die er is
+var trials_hud: CanvasLayer
 
 
 func _ready() -> void:
@@ -92,6 +94,8 @@ func _ready() -> void:
 	menu.host_pressed.connect(_host_game)
 	menu.connect_pressed.connect(_connect_to_server)
 	menu.match_choice_changed.connect(_on_menu_match_choice)
+	if menu.has_signal("trials_pressed"):
+		menu.trials_pressed.connect(_play_trials)
 	if menu.has_signal("start_match_pressed"):
 		menu.start_match_pressed.connect(_start_match_from_lobby)
 	if menu.has_signal("lobby_team_picked"):
@@ -112,6 +116,10 @@ func _ready() -> void:
 	if args.get("name", "") != "":
 		Game.player_name = Game.clean_name(str(args["name"]))
 		menu.set_player_name(Game.player_name)
+	if int(args.get("trials", -1)) >= 0:
+		# #325: --trials [line] start meteen in Trials; handig voor de check en een snelle blik.
+		_play_trials(int(args["trials"]))
+		return
 	if args.get("server", false):
 		_start_server(int(args.get("port", Game.DEFAULT_PORT)), true, Game.map_id, Game.mode)
 		return
@@ -263,6 +271,11 @@ func _process(delta: float) -> void:
 	if Game.in_lobby:
 		return
 	if not multiplayer.is_server() and not Game.is_offline:
+		return
+	if Game.trials:
+		# Trials heeft geen matchklok, geen scores en geen killcam: de run telt zijn eigen tijd.
+		if trials_hud and trials_hud.has_method("refresh"):
+			trials_hud.refresh(trials)
 		return
 	if _match_state == MatchState.WARMUP:
 		_tick_warmup(delta)
@@ -437,6 +450,60 @@ func _play_locally() -> void:
 	_state_timer = 0.0
 	_spawn_player(multiplayer.get_unique_id(), Game.preferred_team)
 	_fill_bots()
+
+
+## #325: Trials. Solo, dezelfde pawn en physics als een match, geen bots en geen matchklok.
+func _play_trials(line := -1) -> void:
+	_reset_match_state()
+	_menu_match = false
+	Game.is_offline = true
+	Game.is_dedicated = false
+	Game.trials = true
+	Game.player_name = Game.clean_name(menu.player_name(), "Player")
+	Game.preferred_team = Game.TEAM_A
+	Game.bot_team_base = Game.TEAM_A
+	Game.map_id = &"townhouses"
+	Game.mode = Game.MODE_TDM
+	Game.set_match_config(Game.map_id, Game.MODE_TDM, 9999, 3600.0, 0, 0, 0)
+	_enter_play()
+	_spawn_player(multiplayer.get_unique_id(), Game.TEAM_A)
+	_start_trials_run(line)
+
+
+func _start_trials_run(line: int) -> void:
+	# De pawn komt via de spawner binnen; één physics-stap wachten is genoeg.
+	await get_tree().physics_frame
+	var pawn: Player = players_root.get_node_or_null(str(multiplayer.get_unique_id())) as Player
+	if pawn == null:
+		push_warning("Trials: geen pawn om aan te hangen")
+		Game.trials = false
+		return
+	var run := Node3D.new()
+	run.set_script(load("res://scripts/trials_run.gd"))
+	run.name = "TrialsRun"
+	world.add_child(run)
+	if not run.setup(map_node, pawn, Game.map_id, line if line >= 0 else 0):
+		push_warning("Trials: kon de run niet opzetten")
+		run.queue_free()
+		Game.trials = false
+		return
+	trials = run
+	var layer := CanvasLayer.new()
+	layer.set_script(load("res://scripts/hud/trials_hud.gd"))
+	layer.name = "TrialsHud"
+	$CanvasLayer.add_child(layer)
+	trials_hud = layer
+	trials_hud.bind(run)
+
+
+func _stop_trials() -> void:
+	if trials != null and is_instance_valid(trials):
+		trials.queue_free()
+	trials = null
+	if trials_hud != null and is_instance_valid(trials_hud):
+		trials_hud.queue_free()
+	trials_hud = null
+	Game.trials = false
 
 
 func _host_game() -> void:
@@ -640,6 +707,7 @@ func _reset_match_state() -> void:
 		players_root.remove_child(c) # gone at once: no team counts or names shared with the new pawns
 		c.queue_free()
 	Game.hosted_port = 0
+	_stop_trials()
 	Game.reset_session() # also ends a running killcam replay and clears killcam_active / round_frozen
 	Game.stop_round_sting()
 	_bot_id_counter = -1
