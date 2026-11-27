@@ -182,6 +182,7 @@ var rc_view := false # this machine is looking out of an RC-XD; the pawn stays p
 var los_view := false # this machine is looking through LOS hands; the body keeps its line and cannot shoot
 ## Test only (--test-los, #384): the server hands every human the LOS charge at spawn. It exists so a
 ## two-process check can reach the chain without grinding seven kills; the menu never sets it.
+var trials := false # #325: Trials loopt solo, zonder matchklok of bots
 var test_los := false
 ## Test only (--test-overdrive, #388): the same, for Overdrive.
 var test_overdrive := false
