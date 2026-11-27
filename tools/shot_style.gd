@@ -83,7 +83,6 @@ func _render(key: String, p: Dictionary) -> void:
 		# Een CSGCombiner3D heeft geen eigen materiaal (alleen de primitives); die slaan we over.
 		if n is CSGPrimitive3D or n is MeshInstance3D:
 			n.set("material", mat)
-	_add_windows()
 	_add_lights()
 	var cam := Camera3D.new()
 	add_child(cam)
@@ -100,72 +99,6 @@ func _render(key: String, p: Dictionary) -> void:
 		img.save_png(path)
 		print("saved ", path)
 	cam.queue_free()
-
-
-## Ramen op de gevelblokken. Alleen de huis-knopen (Gable/House/Row), niet de buitenmuren: daar zitten ze
-## op vlakken die je nooit ziet, en dat maakte de eerste poging onbruikbaar.
-func _add_windows() -> void:
-	var quads: Array[Transform3D] = []
-	var tones: Array[Color] = []
-	var win := Vector2(0.95, 1.35)
-	for n in map.find_children("*", "CSGBox3D", true, false):
-		var nm := String(n.name).to_lower()
-		if not (nm.begins_with("gable") or nm.begins_with("house") or nm.begins_with("row")):
-			continue
-		var box := n as CSGBox3D
-		var sz := box.size
-		if sz.x < 4.0 or sz.z < 4.0 or sz.y < 4.0:
-			continue
-		var half := sz * 0.5
-		var faces := [
-			[Vector3.RIGHT, Vector3.BACK, half.x, sz.z],
-			[Vector3.LEFT, Vector3.BACK, half.x, sz.z],
-			[Vector3.BACK, Vector3.RIGHT, half.z, sz.x],
-			[Vector3.FORWARD, Vector3.RIGHT, half.z, sz.x],
-		]
-		for f in faces:
-			var normal: Vector3 = f[0]
-			var along: Vector3 = f[1]
-			var depth: float = f[2]
-			var width: float = f[3]
-			var cols := int(floor(width / 2.8))
-			if cols < 1:
-				continue
-			for row in 2:
-				var y := -half.y + 3.2 + row * 3.2
-				if y > half.y - win.y:
-					continue
-				for c in cols:
-					var off := -(cols - 1) * 1.4 + c * 2.8
-					var base := box.global_position + normal * (depth + 0.04) + along * off + Vector3.UP * y
-					var right := normal.cross(Vector3.UP).normalized()
-					# Kozijn: een iets groter donker vlak, dan het glas er een paar mm voor.
-					quads.append(Transform3D(Basis(right * win.x * 1.16, Vector3.UP * win.y * 1.12, normal), base))
-					tones.append(Color(0.2, 0.17, 0.15))
-					var lit := (int(absf(base.x) * 71.0) + int(absf(base.z) * 37.0) + row * 13) % 10 < 4
-					var glass := base + normal * 0.012
-					quads.append(Transform3D(Basis(right * win.x, Vector3.UP * win.y, normal), glass))
-					tones.append(Color(1.0, 0.86, 0.6) if lit else Color(0.13, 0.17, 0.24))
-	if quads.is_empty():
-		return
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.mesh = QuadMesh.new()
-	mm.instance_count = quads.size()
-	for i in quads.size():
-		mm.set_instance_transform(i, quads[i])
-		mm.set_instance_color(i, tones[i])
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	var m := StandardMaterial3D.new()
-	m.vertex_color_use_as_albedo = true
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mmi.material_override = m
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	map.add_child(mmi)
-	print("  windows: ", quads.size())
 
 
 ## Twee warme lampen bij de ophaalbrug, zodat dat stuk een eigen licht heeft.
