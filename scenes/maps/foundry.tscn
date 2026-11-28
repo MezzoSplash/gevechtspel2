@@ -68,8 +68,9 @@ roughness = 0.82
 albedo_color = Color(0.82, 0.6, 0.44, 1)
 roughness = 0.88
 albedo_texture = ExtResource("t_fire")
-uv1_triplanar = true
-uv1_scale = Vector3(2.2, 2.2, 2.2)
+uv1_triplanar = false
+uv1_scale = Vector3(1.0, 1.0, 1.0)
+texture_filter = 5
 
 [sub_resource type="StandardMaterial3D" id="Mat_concrete"]
 albedo_color = Color(0.62, 0.58, 0.54, 1)
@@ -84,14 +85,16 @@ roughness = 0.85
 albedo_texture = ExtResource("t_fire")
 uv1_triplanar = false
 uv1_scale = Vector3(1.0, 1.0, 1.0)
+texture_filter = 5
 
 [sub_resource type="StandardMaterial3D" id="Mat_steel"]
 albedo_color = Color(0.46, 0.45, 0.45, 1)
 roughness = 0.55
 albedo_texture = ExtResource("t_iron")
-uv1_triplanar = true
-uv1_scale = Vector3(0.9, 0.9, 0.9)
+uv1_triplanar = false
+uv1_scale = Vector3(1.0, 1.0, 1.0)
 metallic = 0.35
+texture_filter = 5
 
 [sub_resource type="StandardMaterial3D" id="Mat_hazard"]
 albedo_color = Color(0.78, 0.62, 0.14, 1)
