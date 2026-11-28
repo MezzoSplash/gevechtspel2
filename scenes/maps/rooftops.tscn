@@ -1,11 +1,17 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=22 format=3]
+
+[ext_resource type="Script" path="res://scripts/map_detail_rooftops.gd" id="det"]
+[ext_resource type="Texture2D" path="res://assets/maps/rooftops/tar.png" id="t_tar"]
+[ext_resource type="Texture2D" path="res://assets/maps/rooftops/brick.png" id="t_brick"]
+[ext_resource type="Texture2D" path="res://assets/maps/rooftops/cladding.png" id="t_clad"]
+[ext_resource type="Texture2D" path="res://assets/maps/rooftops/concrete.png" id="t_conc"]
 
 [sub_resource type="Environment" id="Env_rooftops"]
 background_mode = 1
 background_color = Color(0.16, 0.18, 0.2, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.55, 0.58, 0.62, 1)
-ambient_light_energy = 0.62
+ambient_light_color = Color(0.62, 0.6, 0.58, 1)
+ambient_light_energy = 0.85
 tonemap_mode = 2
 ssao_enabled = false
 glow_enabled = false
@@ -21,12 +27,18 @@ emission = Color(0.9, 0.72, 0.2, 1)
 emission_energy_multiplier = 0.45
 
 [sub_resource type="StandardMaterial3D" id="Mat_floor"]
-albedo_color = Color(0.24, 0.25, 0.26, 1)
-roughness = 0.92
+albedo_color = Color(0.56, 0.54, 0.5, 1)
+roughness = 0.9
+albedo_texture = ExtResource("t_conc")
+uv1_triplanar = true
+uv1_scale = Vector3(0.7, 0.7, 0.7)
 
 [sub_resource type="StandardMaterial3D" id="Mat_outer"]
-albedo_color = Color(0.32, 0.34, 0.36, 1)
-roughness = 0.86
+albedo_color = Color(0.56, 0.56, 0.54, 1)
+roughness = 0.88
+albedo_texture = ExtResource("t_conc")
+uv1_triplanar = true
+uv1_scale = Vector3(0.5, 0.5, 0.5)
 
 [sub_resource type="StandardMaterial3D" id="Mat_team_blue"]
 albedo_color = Color(0.27, 0.46, 0.62, 1)
@@ -37,16 +49,25 @@ albedo_color = Color(0.7, 0.44, 0.18, 1)
 roughness = 0.82
 
 [sub_resource type="StandardMaterial3D" id="Mat_brick"]
-albedo_color = Color(0.52, 0.36, 0.24, 1)
-roughness = 0.85
+albedo_color = Color(0.56, 0.44, 0.36, 1)
+roughness = 0.88
+albedo_texture = ExtResource("t_brick")
+uv1_triplanar = true
+uv1_scale = Vector3(1.0, 1.0, 1.0)
 
 [sub_resource type="StandardMaterial3D" id="Mat_concrete"]
-albedo_color = Color(0.4, 0.4, 0.38, 1)
-roughness = 0.88
+albedo_color = Color(0.6, 0.58, 0.54, 1)
+roughness = 0.9
+albedo_texture = ExtResource("t_conc")
+uv1_triplanar = true
+uv1_scale = Vector3(0.8, 0.8, 0.8)
 
 [sub_resource type="StandardMaterial3D" id="Mat_cover"]
-albedo_color = Color(0.48, 0.4, 0.32, 1)
-roughness = 0.82
+albedo_color = Color(0.5, 0.45, 0.38, 1)
+roughness = 0.85
+albedo_texture = ExtResource("t_tar")
+uv1_triplanar = true
+uv1_scale = Vector3(0.8, 0.8, 0.8)
 
 [sub_resource type="StandardMaterial3D" id="Mat_hazard"]
 albedo_color = Color(0.78, 0.62, 0.14, 1)
@@ -57,24 +78,39 @@ albedo_color = Color(0.2, 0.21, 0.23, 1)
 roughness = 0.88
 
 [sub_resource type="StandardMaterial3D" id="Mat_ac"]
-albedo_color = Color(0.45, 0.47, 0.48, 1)
-roughness = 0.72
+albedo_color = Color(0.66, 0.68, 0.66, 1)
+roughness = 0.6
+albedo_texture = ExtResource("t_clad")
+uv1_triplanar = true
+uv1_scale = Vector3(0.5, 0.5, 0.5)
+metallic = 0.25
 
 [sub_resource type="StandardMaterial3D" id="Mat_roof"]
-albedo_color = Color(0.3, 0.34, 0.31, 1)
-roughness = 0.9
+albedo_color = Color(0.44, 0.42, 0.4, 1)
+roughness = 0.92
+albedo_texture = ExtResource("t_tar")
+uv1_triplanar = true
+uv1_scale = Vector3(0.6, 0.6, 0.6)
 
 [sub_resource type="StandardMaterial3D" id="Mat_surf"]
 albedo_color = Color(0.36, 0.42, 0.48, 1)
 roughness = 0.62
 
 [sub_resource type="StandardMaterial3D" id="Mat_van"]
-albedo_color = Color(0.25, 0.32, 0.36, 1)
-roughness = 0.7
+albedo_color = Color(0.5, 0.58, 0.6, 1)
+roughness = 0.65
+albedo_texture = ExtResource("t_clad")
+uv1_triplanar = true
+uv1_scale = Vector3(0.6, 0.6, 0.6)
+metallic = 0.2
 
 [sub_resource type="StandardMaterial3D" id="Mat_steel"]
-albedo_color = Color(0.32, 0.34, 0.37, 1)
-roughness = 0.62
+albedo_color = Color(0.6, 0.6, 0.58, 1)
+roughness = 0.55
+albedo_texture = ExtResource("t_clad")
+uv1_triplanar = true
+uv1_scale = Vector3(0.5, 0.5, 0.5)
+metallic = 0.3
 
 [node name="Rooftops" type="Node3D"]
 
@@ -83,8 +119,8 @@ environment = SubResource("Env_rooftops")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.766, -0.4545, 0.4545, 0, 0.7071, 0.7071, -0.6428, -0.5417, 0.5417, 6, 18, 8)
-light_energy = 1.12
-light_color = Color(1, 0.95, 0.88, 1)
+light_energy = 1.28
+light_color = Color(1, 0.86, 0.68, 1)
 shadow_enabled = true
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
@@ -806,3 +842,6 @@ light_color = Color(0.78, 0.86, 1, 1)
 light_energy = 0.35
 omni_range = 12
 shadow_enabled = false
+
+[node name="MapDetail" type="Node3D" parent="Arena"]
+script = ExtResource("det")
