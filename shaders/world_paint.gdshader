@@ -93,7 +93,8 @@ void fragment() {
 		vec3 t = texture(tex, wpos.zy / tex_scale).rgb * tw.x
 			+ texture(tex, wpos.xz / tex_scale).rgb * tw.y
 			+ texture(tex, wpos.xy / tex_scale).rgb * tw.z;
-		col = mix(col, col * (t * 1.9), clamp(tex_mix, 0.0, 1.0));
+		vec3 tint = clamp(t * 1.9, vec3(0.82), vec3(1.28));
+		col = mix(col, col * tint, clamp(tex_mix, 0.0, 1.0));
 	}
 	float rough = roughness;
 	float k = clamp(world_detail, 0.0, 1.0);
