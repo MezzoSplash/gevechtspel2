@@ -25,6 +25,16 @@ const VIEWS := {
 		"yard": [Vector3(20, 3, 28), Vector3(-10, 2, 0)],
 		"spawn": [Vector3(0, 2.0, 42), Vector3(0, 2, 10)],
 	},
+	"quay": {
+		"overview": [Vector3(56, 34, 70), Vector3(0, 3, 0)],
+		"overview_n": [Vector3(-56, 34, -70), Vector3(0, 3, 0)],
+		"quay_e": [Vector3(25, 3.2, 40), Vector3(25, 2, -20)],
+		"quay_w": [Vector3(-25, 3.2, -40), Vector3(-25, 2, 20)],
+		"water": [Vector3(44, 14.0, 56), Vector3(0, 2.0, -6)],
+		"crane": [Vector3(34, 10.0, 40), Vector3(0, 3, -10)],
+		"spawn_s": [Vector3(0, 2.6, 56), Vector3(0, 2, 18)],
+		"spawn_n": [Vector3(0, 2.6, -56), Vector3(0, 2, -18)],
+	},
 	"townhouses": {
 		"overview": [Vector3(42, 40, 62), Vector3(0, 2, 0)],
 		"overview_o": [Vector3(-42, 40, -62), Vector3(0, 2, 0)],

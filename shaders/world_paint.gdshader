@@ -15,6 +15,11 @@ uniform int pattern = 0;
 uniform float wear = 0.10;        // +- tone of the large blotches
 uniform float line_dark = 0.30;   // how dark mortar / seams get
 uniform float grain = 0.04;       // fine grain amplitude
+// Optionele textuurlaag (#322): eigen gegenereerde steen/hout/staal. tex_scale is het aantal meters per
+// tegel; 0 laat de laag uit, zodat een materiaal dat niets instelt precies doet wat het altijd deed.
+uniform sampler2D tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform float tex_scale = 0.0;
+uniform float tex_mix = 0.0;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -80,6 +85,16 @@ vec2 plane_pattern(vec2 uv, bool wall) {
 
 void fragment() {
 	vec3 col = albedo.rgb;
+	// Eigen textuur over het vlak, in wereldruimte, met dezelfde as-weging als de patronen.
+	if (tex_scale > 0.001) {
+		vec3 tn = normalize(wnrm);
+		vec3 tw = pow(abs(tn), vec3(6.0));
+		tw /= max(tw.x + tw.y + tw.z, 0.0001);
+		vec3 t = texture(tex, wpos.zy / tex_scale).rgb * tw.x
+			+ texture(tex, wpos.xz / tex_scale).rgb * tw.y
+			+ texture(tex, wpos.xy / tex_scale).rgb * tw.z;
+		col = mix(col, col * (t * 1.9), clamp(tex_mix, 0.0, 1.0));
+	}
 	float rough = roughness;
 	float k = clamp(world_detail, 0.0, 1.0);
 	if (k > 0.001) {

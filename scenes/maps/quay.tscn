@@ -1,15 +1,21 @@
-[gd_scene load_steps=28 format=3]
+[gd_scene load_steps=33 format=3]
+
+[ext_resource type="Script" path="res://scripts/map_detail_quay.gd" id="det"]
+[ext_resource type="Texture2D" path="res://assets/maps/quay/stone.png" id="t_stone"]
+[ext_resource type="Texture2D" path="res://assets/maps/quay/wood.png" id="t_wood"]
+[ext_resource type="Texture2D" path="res://assets/maps/quay/metal.png" id="t_metal"]
+[ext_resource type="Texture2D" path="res://assets/maps/quay/asphalt.png" id="t_asph"]
 
 [ext_resource type="Shader" path="res://shaders/world_paint.gdshader" id="1_paint"]
 
 [sub_resource type="ProceduralSkyMaterial" id="Sky_quay_mat"]
-sky_top_color = Color(0.36, 0.45, 0.58, 1)
-sky_horizon_color = Color(0.68, 0.71, 0.74, 1)
+sky_top_color = Color(0.24, 0.32, 0.46, 1)
+sky_horizon_color = Color(0.86, 0.7, 0.54, 1)
 sky_curve = 0.12
 sky_energy_multiplier = 1.0
 sky_cover_modulate = Color(1, 1, 1, 1)
 ground_bottom_color = Color(0.4, 0.42, 0.44, 1)
-ground_horizon_color = Color(0.6, 0.62, 0.64, 1)
+ground_horizon_color = Color(0.62, 0.56, 0.48, 1)
 sun_angle_max = 20.0
 sun_curve = 0.2
 
@@ -23,7 +29,7 @@ sky = SubResource("Sky_quay")
 ambient_light_source = 3
 ambient_light_color = Color(0.55, 0.58, 0.62, 1)
 ambient_light_sky_contribution = 0.85
-ambient_light_energy = 0.75
+ambient_light_energy = 1.1
 reflected_light_source = 2
 tonemap_mode = 4
 tonemap_exposure = 1.05
@@ -42,7 +48,7 @@ glow_blend_mode = 1
 glow_hdr_threshold = 1.4
 fog_enabled = true
 fog_mode = 1
-fog_light_color = Color(0.64, 0.68, 0.73, 1)
+fog_light_color = Color(0.8, 0.68, 0.56, 1)
 fog_density = 0.35
 fog_sky_affect = 0.0
 fog_depth_begin = 35.0
@@ -60,6 +66,9 @@ shader_parameter/pattern = 5
 shader_parameter/wear = 0.1
 shader_parameter/line_dark = 0
 shader_parameter/grain = 0.05
+shader_parameter/tex = ExtResource("t_asph")
+shader_parameter/tex_scale = 3.0
+shader_parameter/tex_mix = 0.85
 
 [sub_resource type="ShaderMaterial" id="Mat_concrete"]
 shader = ExtResource("1_paint")
@@ -69,6 +78,9 @@ shader_parameter/pattern = 2
 shader_parameter/wear = 0.09
 shader_parameter/line_dark = 0.3
 shader_parameter/grain = 0.035
+shader_parameter/tex = ExtResource("t_stone")
+shader_parameter/tex_scale = 2.4
+shader_parameter/tex_mix = 0.8
 
 [sub_resource type="ShaderMaterial" id="Mat_team_blue"]
 shader = ExtResource("1_paint")
@@ -90,12 +102,15 @@ shader_parameter/grain = 0.02
 
 [sub_resource type="ShaderMaterial" id="Mat_brick"]
 shader = ExtResource("1_paint")
-shader_parameter/albedo = Color(0.52, 0.36, 0.24, 1)
+shader_parameter/albedo = Color(0.4, 0.38, 0.36, 1)
 shader_parameter/roughness = 0.85
 shader_parameter/pattern = 1
 shader_parameter/wear = 0.08
 shader_parameter/line_dark = 0.38
 shader_parameter/grain = 0.03
+shader_parameter/tex = ExtResource("t_stone")
+shader_parameter/tex_scale = 2.0
+shader_parameter/tex_mix = 0.7
 
 [sub_resource type="ShaderMaterial" id="Mat_hazard"]
 shader = ExtResource("1_paint")
@@ -114,6 +129,9 @@ shader_parameter/pattern = 0
 shader_parameter/wear = 0.07
 shader_parameter/line_dark = 0
 shader_parameter/grain = 0.025
+shader_parameter/tex = ExtResource("t_metal")
+shader_parameter/tex_scale = 0.9
+shader_parameter/tex_mix = 0.8
 
 [sub_resource type="ShaderMaterial" id="Mat_roof"]
 shader = ExtResource("1_paint")
@@ -123,6 +141,9 @@ shader_parameter/pattern = 4
 shader_parameter/wear = 0.08
 shader_parameter/line_dark = 0.25
 shader_parameter/grain = 0.04
+shader_parameter/tex = ExtResource("t_metal")
+shader_parameter/tex_scale = 1.4
+shader_parameter/tex_mix = 0.75
 
 [sub_resource type="ShaderMaterial" id="Mat_surf"]
 shader = ExtResource("1_paint")
@@ -135,12 +156,15 @@ shader_parameter/grain = 0.015
 
 [sub_resource type="ShaderMaterial" id="Mat_container"]
 shader = ExtResource("1_paint")
-shader_parameter/albedo = Color(0.56, 0.22, 0.16, 1)
+shader_parameter/albedo = Color(0.36, 0.24, 0.22, 1)
 shader_parameter/roughness = 0.78
 shader_parameter/pattern = 3
 shader_parameter/wear = 0.09
 shader_parameter/line_dark = 0.35
 shader_parameter/grain = 0.03
+shader_parameter/tex = ExtResource("t_metal")
+shader_parameter/tex_scale = 1.0
+shader_parameter/tex_mix = 0.45
 
 [sub_resource type="Curve3D" id="Curve_CornerB"]
 _data = {
@@ -244,7 +268,7 @@ environment = SubResource("Env_quay")
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.766, -0.4545, 0.4545, 0, 0.7071, 0.7071, -0.6428, -0.5417, 0.5417, 8, 22, 10)
 light_energy = 1.12
-light_color = Color(1, 0.95, 0.88, 1)
+light_color = Color(1, 0.86, 0.66, 1)
 shadow_enabled = true
 shadow_bias = 0.04
 shadow_normal_bias = 1.2
@@ -2236,3 +2260,6 @@ light_color = Color(1, 0.86, 0.7, 1)
 light_energy = 0.35
 omni_range = 10
 shadow_enabled = false
+
+[node name="MapDetail" type="Node3D" parent="Arena"]
+script = ExtResource("det")
