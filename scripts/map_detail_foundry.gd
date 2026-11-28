@@ -16,7 +16,7 @@ const CHAIN_EVERY := 6.0
 const CHAIN_LEN := 2.4
 const CHAIN_R := 0.05
 const HAZARD_Z := [-7.6, -6.8, 6.8, 7.6]
-const HAZARD_X := 30.0
+const HAZARD_X := 14.0 # binnen de hal: 60 m strepen staken buiten het gebouw
 
 const IRON := Color(0.44, 0.42, 0.4)
 const RUST := Color(0.6, 0.36, 0.26)
