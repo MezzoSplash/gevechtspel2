@@ -1,4 +1,4 @@
-[gd_scene load_steps=29 format=3]
+[gd_scene load_steps=31 format=3]
 
 [ext_resource type="Script" path="res://scripts/map_detail_foundry.gd" id="det"]
 [ext_resource type="Texture2D" path="res://assets/maps/foundry/rust.png" id="t_rust"]
@@ -6,9 +6,25 @@
 [ext_resource type="Texture2D" path="res://assets/maps/foundry/firebrick.png" id="t_fire"]
 [ext_resource type="Texture2D" path="res://assets/maps/foundry/concrete.png" id="t_conc"]
 
+[sub_resource type="ProceduralSkyMaterial" id="Sky_foundry"]
+sky_top_color = Color(0.24, 0.3, 0.42, 1)
+sky_horizon_color = Color(0.84, 0.66, 0.5, 1)
+ground_bottom_color = Color(0.16, 0.14, 0.14, 1)
+ground_horizon_color = Color(0.56, 0.5, 0.44, 1)
+sun_angle_max = 24.0
+sun_curve = 0.12
+
+[sub_resource type="Sky" id="SkyRes_foundry"]
+sky_material = SubResource("Sky_foundry")
+
 [sub_resource type="Environment" id="Env_foundry"]
-background_mode = 1
-background_color = Color(0.19, 0.17, 0.17, 1)
+background_mode = 2
+sky = SubResource("SkyRes_foundry")
+fog_enabled = true
+fog_light_color = Color(0.78, 0.64, 0.52, 1)
+fog_light_energy = 0.7
+fog_density = 0.0016
+fog_sky_affect = 0.2
 ambient_light_source = 2
 ambient_light_color = Color(0.68, 0.6, 0.54, 1)
 ambient_light_energy = 1.35
@@ -31,14 +47,14 @@ albedo_color = Color(0.56, 0.53, 0.5, 1)
 roughness = 0.9
 albedo_texture = ExtResource("t_conc")
 uv1_triplanar = true
-uv1_scale = Vector3(0.6, 0.6, 0.6)
+uv1_scale = Vector3(1.0, 1.0, 1.0)
 
 [sub_resource type="StandardMaterial3D" id="Mat_outer"]
-albedo_color = Color(0.78, 0.56, 0.44, 1)
+albedo_color = Color(0.6, 0.52, 0.46, 1)
 roughness = 0.86
 albedo_texture = ExtResource("t_rust")
 uv1_triplanar = true
-uv1_scale = Vector3(0.3, 0.3, 0.3)
+uv1_scale = Vector3(0.5, 0.5, 0.5)
 
 [sub_resource type="StandardMaterial3D" id="Mat_team_blue"]
 albedo_color = Color(0.27, 0.46, 0.62, 1)
@@ -53,28 +69,28 @@ albedo_color = Color(0.82, 0.6, 0.44, 1)
 roughness = 0.88
 albedo_texture = ExtResource("t_fire")
 uv1_triplanar = true
-uv1_scale = Vector3(1.1, 1.1, 1.1)
+uv1_scale = Vector3(2.2, 2.2, 2.2)
 
 [sub_resource type="StandardMaterial3D" id="Mat_concrete"]
 albedo_color = Color(0.62, 0.58, 0.54, 1)
 roughness = 0.9
 albedo_texture = ExtResource("t_conc")
 uv1_triplanar = true
-uv1_scale = Vector3(0.8, 0.8, 0.8)
+uv1_scale = Vector3(1.3, 1.3, 1.3)
 
 [sub_resource type="StandardMaterial3D" id="Mat_furnace"]
-albedo_color = Color(0.9, 0.58, 0.4, 1)
+albedo_color = Color(0.5, 0.38, 0.33, 1)
 roughness = 0.85
 albedo_texture = ExtResource("t_fire")
-uv1_triplanar = true
-uv1_scale = Vector3(0.7, 0.7, 0.7)
+uv1_triplanar = false
+uv1_scale = Vector3(1.0, 1.0, 1.0)
 
 [sub_resource type="StandardMaterial3D" id="Mat_steel"]
 albedo_color = Color(0.46, 0.45, 0.45, 1)
 roughness = 0.55
 albedo_texture = ExtResource("t_iron")
 uv1_triplanar = true
-uv1_scale = Vector3(0.5, 0.5, 0.5)
+uv1_scale = Vector3(0.9, 0.9, 0.9)
 metallic = 0.35
 
 [sub_resource type="StandardMaterial3D" id="Mat_hazard"]
@@ -90,7 +106,7 @@ albedo_color = Color(0.5, 0.44, 0.38, 1)
 roughness = 0.85
 albedo_texture = ExtResource("t_iron")
 uv1_triplanar = true
-uv1_scale = Vector3(0.6, 0.6, 0.6)
+uv1_scale = Vector3(1.0, 1.0, 1.0)
 
 [sub_resource type="StandardMaterial3D" id="Mat_roof"]
 albedo_color = Color(0.42, 0.32, 0.28, 1)
@@ -108,7 +124,7 @@ albedo_color = Color(0.4, 0.38, 0.36, 1)
 roughness = 0.5
 albedo_texture = ExtResource("t_iron")
 uv1_triplanar = true
-uv1_scale = Vector3(0.6, 0.6, 0.6)
+uv1_scale = Vector3(1.0, 1.0, 1.0)
 metallic = 0.4
 
 [sub_resource type="StandardMaterial3D" id="Mat_c_green"]
@@ -140,7 +156,7 @@ albedo_color = Color(0.44, 0.4, 0.36, 1)
 roughness = 0.6
 albedo_texture = ExtResource("t_iron")
 uv1_triplanar = true
-uv1_scale = Vector3(0.5, 0.5, 0.5)
+uv1_scale = Vector3(0.9, 0.9, 0.9)
 metallic = 0.5
 
 [sub_resource type="StandardMaterial3D" id="Mat_truck"]

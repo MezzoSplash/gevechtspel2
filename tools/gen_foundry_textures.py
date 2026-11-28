@@ -86,12 +86,13 @@ def rust(rng):
             v = base[y][x]
             p = pits[y][x]
             # diep roodbruin met oranje plekken en donkere putjes
-            r = 92 + 120 * v - 30 * (p > 0.82)
-            g = 46 + 62 * v - 20 * (p > 0.82)
-            b = 30 + 34 * v - 12 * (p > 0.82)
-            if v > 0.62:
-                r += 26
-                g += 16
+            # Donkerbruin, laag verzadigd: roest mag niet als team-Oranje lezen (#322 review Chief).
+            r = 66 + 54 * v - 14 * (p > 0.93)
+            g = 50 + 40 * v - 10 * (p > 0.93)
+            b = 40 + 30 * v - 8 * (p > 0.93)
+            if v > 0.78:
+                r += 10
+                g += 7
             row.append((clamp(r), clamp(g), clamp(b)))
         rows.append(row)
     return rows
