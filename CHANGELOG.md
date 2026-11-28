@@ -2,6 +2,18 @@
 
 Release notes, newest first. Downloads are on the [Releases page](https://github.com/MezzoSplash/gevechtspel2/releases).
 
+**v0.6.5** — Alle vijf de maps in een nieuwe, warme stijl.
+
+Townhouses, Foundry, Rooftops, Quay en Skyline zijn opnieuw aangekleed: een lage warme zon met een warme horizon, nevel die bij de kaart past, en per map eigen textuurwerk dat we zelf genereren (baksteen, dakpannen, roest, vuurvaste steen, havensteen, havenplanken, beton, staal, glas). Alles in dezelfde familie, maar elke kaart houdt zijn eigen karakter: een gracht met trapgevels, een gieterij met ovens en leidingen, daken met schoorstenen en watertanks, een haven met bolders en fenders, een stad met brandtrappen en verlichte ramen in de diepte.
+
+Townhouses heeft nu echte gevels: ramen met kozijnen, deuren, dakranden en trap- en halsgevels, alleen op vlakken die vrij uitkijken. Foundry kreeg leidingen met ventielen, kettingen uit de kranen, gloeiend heet metaal bij de oven en gevaarstrepen langs de gietlijn. Rooftops heeft dakkapellen, schoorstenen met potten, watertanks en ventilatoren op de units. Quay kreeg bolders, fenders, trossen, pallets en kisten langs de kade. Skyline heeft brandtrappen, watertanks, antennes en neon in de diepte.
+
+De teamkleuren blijven overal in één oogopslag herkenbaar: de teamwanden en de accenten eromheen zijn de enige plekken met die kleuren, en geen enkel terugkerend object (schoorsteen, tank, container, bolder) is oranje, zalm of crème.
+
+Ook meegenomen: de ghost van Trials wordt nu met de juiste lengte gelezen, en de map-texturen gebruiken mipmaps en anisotropisch filteren, zodat er geen moiré of wervels meer in de steen zitten.
+
+**Wél compatibel met v0.6.4** (NET_VERSION blijft 0.5.22): er is niets nieuws op het netwerk. Een 0.6.4-client kan gewoon meespelen op een 0.6.5-server.
+
 **v0.6.4** — Trials: oefen je movement op tijd, met een ghost van je beste run.
 
 In het menu onder Singleplayer staat nu TRIALS. Op Townhouses liggen drie lijnen klaar: Kade (langs de oostkade, over de ophaalbrug, terug langs de westkade), Brug (kort en fel heen en weer) en Ommeland (een ronde om het midden). De klok start als je de start verlaat, alleen de volgende checkpoint telt dus overslaan kan niet, en `R` start opnieuw, `T` pakt de volgende lijn, `Esc` gaat terug naar het menu. Je snelste tijd per lijn blijft bewaard en je rijdt tegen een doorschijnende ghost van die run. Val je in het water, dan zet de baan je terug op je laatste checkpoint en loopt de klok door: het is een oefenbaan, geen straf.

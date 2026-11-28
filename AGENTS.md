@@ -399,6 +399,12 @@ Polish what is there before adding more. New modes, maps or guns only when they 
   protection used to swallow the hit (`apply_hit` returns while `_spawn_protect > 0`), so a fall in
   that window never started the respawn. The plane clears that protection for the one hit. Check:
   `tools/check_void`, and the crouch/air cases in `tools/check_los`. No protocol change.
+- v0.6.5 (released): the style-A art pass on all five maps - Townhouses (#408), Foundry (#410),
+  Rooftops (#411, #412), Quay (#413) and Skyline (#414): warm low sun with a procedural sky, warm fog,
+  self-generated CC0 textures per map, and a visual detail layer without colliders (windows, gables,
+  pipes, fire escapes, bollards, parapet team bands) in MultiMeshes. Also the Trials ghost-size fix
+  (#409) and mipmaps + anisotropic filtering on the map textures. `NET_VERSION` stays 0.5.22 - a 0.6.4
+  peer still joins.
 - v0.6.4 (released): Trials on Townhouses with three lines, checkpoints, a clock, best time and a
   ghost of the body only (#325) - solo, no protocol change; the wallrun light edge on the wall
   side (#320, #402), the HP gem with its seam (#319, #403), reliable wallrun-route loading (#311, #360,
