@@ -25,6 +25,16 @@ const VIEWS := {
 		"yard": [Vector3(20, 3, 28), Vector3(-10, 2, 0)],
 		"spawn": [Vector3(0, 2.0, 42), Vector3(0, 2, 10)],
 	},
+	"skyline": {
+		"overview": [Vector3(60, 46, 70), Vector3(0, 6, 0)],
+		"overview_n": [Vector3(-60, 46, -70), Vector3(0, 6, 0)],
+		"roof_mid": [Vector3(0, 17.0, 40), Vector3(0, 6.0, -20)],
+		"tower": [Vector3(18, 16, 22), Vector3(0, 10, 0)],
+		"street": [Vector3(0, 18.0, 42), Vector3(0, 8.0, -10)],
+		"west": [Vector3(-34, 12, 30), Vector3(-20, 6, -10)],
+		"east": [Vector3(34, 12, -30), Vector3(20, 6, 10)],
+		"spawn_b": [Vector3(0, 14.0, 46), Vector3(0, 11, 20)],
+	},
 	"quay": {
 		"overview": [Vector3(56, 34, 70), Vector3(0, 3, 0)],
 		"overview_n": [Vector3(-56, 34, -70), Vector3(0, 3, 0)],

@@ -1,10 +1,15 @@
-[gd_scene format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Shader" path="res://shaders/world_paint.gdshader" id="1_paint"]
+[ext_resource type="Texture2D" path="res://assets/maps/skyline/concrete.png" id="t_conc"]
+[ext_resource type="Texture2D" path="res://assets/maps/skyline/steel.png" id="t_steel"]
+[ext_resource type="Texture2D" path="res://assets/maps/skyline/brick.png" id="t_brick"]
+[ext_resource type="Texture2D" path="res://assets/maps/skyline/glass.png" id="t_glass"]
+[ext_resource type="Script" path="res://scripts/map_detail_skyline.gd" id="det"]
 
 [sub_resource type="ProceduralSkyMaterial" id="Sky_mat"]
-sky_top_color = Color(0.30, 0.42, 0.62, 1)
-sky_horizon_color = Color(0.82, 0.72, 0.62, 1)
+sky_top_color = Color(0.24, 0.32, 0.48, 1)
+sky_horizon_color = Color(0.88, 0.72, 0.54, 1)
 sky_curve = 0.1
 ground_bottom_color = Color(0.22, 0.24, 0.27, 1)
 ground_horizon_color = Color(0.7, 0.64, 0.58, 1)
@@ -52,12 +57,15 @@ adjustment_saturation = 1.08
 
 [sub_resource type="ShaderMaterial" id="Mat_brick"]
 shader = ExtResource("1_paint")
-shader_parameter/albedo = Color(0.55, 0.33, 0.24, 1)
+shader_parameter/albedo = Color(0.42, 0.33, 0.29, 1)
 shader_parameter/roughness = 0.85
 shader_parameter/pattern = 1
 shader_parameter/wear = 0.08
 shader_parameter/line_dark = 0.38
 shader_parameter/grain = 0.03
+shader_parameter/tex = ExtResource("t_brick")
+shader_parameter/tex_scale = 1.6
+shader_parameter/tex_mix = 0.8
 
 [sub_resource type="ShaderMaterial" id="Mat_roof"]
 shader = ExtResource("1_paint")
@@ -76,6 +84,9 @@ shader_parameter/pattern = 2
 shader_parameter/wear = 0.07
 shader_parameter/line_dark = 0.18
 shader_parameter/grain = 0.03
+shader_parameter/tex = ExtResource("t_conc")
+shader_parameter/tex_scale = 2.4
+shader_parameter/tex_mix = 0.8
 
 [sub_resource type="ShaderMaterial" id="Mat_tar"]
 shader = ExtResource("1_paint")
@@ -85,6 +96,9 @@ shader_parameter/pattern = 5
 shader_parameter/wear = 0.1
 shader_parameter/line_dark = 0
 shader_parameter/grain = 0.05
+shader_parameter/tex = ExtResource("t_conc")
+shader_parameter/tex_scale = 2.6
+shader_parameter/tex_mix = 0.7
 
 [sub_resource type="ShaderMaterial" id="Mat_brick_dark"]
 shader = ExtResource("1_paint")
@@ -94,6 +108,9 @@ shader_parameter/pattern = 1
 shader_parameter/wear = 0.08
 shader_parameter/line_dark = 0.38
 shader_parameter/grain = 0.03
+shader_parameter/tex = ExtResource("t_brick")
+shader_parameter/tex_scale = 1.8
+shader_parameter/tex_mix = 0.75
 
 [sub_resource type="ShaderMaterial" id="Mat_concrete"]
 shader = ExtResource("1_paint")
@@ -103,6 +120,9 @@ shader_parameter/pattern = 2
 shader_parameter/wear = 0.09
 shader_parameter/line_dark = 0.3
 shader_parameter/grain = 0.035
+shader_parameter/tex = ExtResource("t_conc")
+shader_parameter/tex_scale = 3.0
+shader_parameter/tex_mix = 0.85
 
 [sub_resource type="ShaderMaterial" id="Mat_plank"]
 shader = ExtResource("1_paint")
@@ -112,6 +132,9 @@ shader_parameter/pattern = 3
 shader_parameter/wear = 0.1
 shader_parameter/line_dark = 0.3
 shader_parameter/grain = 0.04
+shader_parameter/tex = ExtResource("t_brick")
+shader_parameter/tex_scale = 1.2
+shader_parameter/tex_mix = 0.5
 
 [sub_resource type="ShaderMaterial" id="Mat_steel"]
 shader = ExtResource("1_paint")
@@ -121,6 +144,9 @@ shader_parameter/pattern = 0
 shader_parameter/wear = 0.07
 shader_parameter/line_dark = 0
 shader_parameter/grain = 0.025
+shader_parameter/tex = ExtResource("t_steel")
+shader_parameter/tex_scale = 1.0
+shader_parameter/tex_mix = 0.8
 
 [sub_resource type="ShaderMaterial" id="Mat_hazard"]
 shader = ExtResource("1_paint")
@@ -175,6 +201,9 @@ shader_parameter/pattern = 1
 shader_parameter/wear = 0.06
 shader_parameter/line_dark = 0.3
 shader_parameter/grain = 0.02
+shader_parameter/tex = ExtResource("t_glass")
+shader_parameter/tex_scale = 3.6
+shader_parameter/tex_mix = 1.0
 
 [sub_resource type="ShaderMaterial" id="Mat_sky_c"]
 shader = ExtResource("1_paint")
@@ -184,6 +213,9 @@ shader_parameter/pattern = 2
 shader_parameter/wear = 0.05
 shader_parameter/line_dark = 0.2
 shader_parameter/grain = 0.02
+shader_parameter/tex = ExtResource("t_glass")
+shader_parameter/tex_scale = 3.6
+shader_parameter/tex_mix = 1.0
 
 [sub_resource type="ShaderMaterial" id="Mat_sky_a"]
 shader = ExtResource("1_paint")
@@ -193,6 +225,9 @@ shader_parameter/pattern = 2
 shader_parameter/wear = 0.06
 shader_parameter/line_dark = 0.25
 shader_parameter/grain = 0.02
+shader_parameter/tex = ExtResource("t_glass")
+shader_parameter/tex_scale = 3.6
+shader_parameter/tex_mix = 1.0
 
 [sub_resource type="ShaderMaterial" id="Mat_street"]
 shader = ExtResource("1_paint")
@@ -202,6 +237,9 @@ shader_parameter/pattern = 5
 shader_parameter/wear = 0.1
 shader_parameter/line_dark = 0
 shader_parameter/grain = 0.05
+shader_parameter/tex = ExtResource("t_conc")
+shader_parameter/tex_scale = 4.0
+shader_parameter/tex_mix = 0.9
 
 [sub_resource type="StandardMaterial3D" id="Mat_glow"]
 albedo_color = Color(1, 0.82, 0.55, 1)
@@ -2376,3 +2414,6 @@ light_color = Color(1, 0.84, 0.66, 1)
 light_energy = 0.45
 omni_range = 13
 shadow_enabled = false
+
+[node name="MapDetail" type="Node3D" parent="Arena"]
+script = ExtResource("det")
