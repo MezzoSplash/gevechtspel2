@@ -11,8 +11,8 @@ extends Node3D
 ## - antennemasten op de schilden.
 const SKY_GLASS := Color(0.16, 0.2, 0.26)
 const FRAME := Color(0.2, 0.19, 0.18)
-const BRICK := Color(0.72, 0.5, 0.36)
-const POT := Color(0.55, 0.4, 0.3)
+const BRICK := Color(0.46, 0.38, 0.33) # donkere klei, geen zalm dat als team-Oranje leest
+const POT := Color(0.26, 0.24, 0.22) # donkere klei: geen zalm dat als team-Oranje leest
 const TANK := Color(0.5, 0.52, 0.5)
 const STEEL := Color(0.42, 0.43, 0.44)
 const TEAM_BLUE := Color(0.27, 0.46, 0.62)
